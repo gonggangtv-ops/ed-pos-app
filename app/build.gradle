@@ -1,0 +1,43 @@
+plugins {
+    id 'com.android.application'
+}
+
+// เลขรุ่นเพิ่มเองทุกครั้งที่ GitHub สร้างแอปใหม่ → ติดตั้งทับรุ่นเก่าได้เลย (การตั้งค่าในแอปไม่หาย)
+def run = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+
+android {
+    namespace 'com.edpos.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.edpos.app"
+        minSdk 26          // Android 8 ขึ้นไป
+        targetSdk 34
+        versionCode run
+        versionName "1." + run
+    }
+
+    // ใช้กุญแจเดียวกันทุกรุ่น ไม่งั้นติดตั้งทับไม่ได้
+    signingConfigs {
+        release {
+            storeFile file("edpos-release.jks")
+            storePassword "edpos-app"
+            keyAlias "edpos"
+            keyPassword "edpos-app"
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}

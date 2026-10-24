@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ED POS</title>
+<style>
+  :root { --bg:#F3F1EC; --card:#fff; --ink:#18221E; --muted:#5E6B66; --faint:#8C9792; --line:#DCD8CF; --jade:#1E6B58; --brick:#B03A27; --amber:#E8A33D; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink);
+    font: 17px/1.5 "Noto Sans Thai", "Sarabun", system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+  main { max-width: 620px; margin: 0 auto; padding: 28px 18px 40px; }
+  .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .logo { width: 46px; height: 46px; border-radius: 12px; background: var(--jade); display: grid; place-items: center; }
+  .brand b { font-size: 22px; letter-spacing: .3px; } .brand span { display: block; font-size: 14px; color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-bottom: 14px; }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  label.f { display: block; margin-bottom: 14px; } label.f > span { display: block; font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  label.f small { color: var(--faint); font-weight: 400; }
+  input[type=text], input[type=password] { width: 100%; font: inherit; font-size: 19px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); }
+  input:focus { outline: none; border-color: var(--jade); }
+  .row { display: flex; gap: 8px; } .row input { flex: 1; min-width: 0; }
+  button { font: inherit; font-weight: 600; border: 1.5px solid var(--line); background: #fff; color: var(--ink); border-radius: 12px; padding: 12px 16px; cursor: pointer; }
+  button:active { transform: scale(.98); }
+  button.primary { background: var(--jade); border-color: var(--jade); color: #fff; }
+  button.big { width: 100%; padding: 15px; font-size: 18px; }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .seg button { padding: 14px 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .seg button small { font-weight: 400; font-size: 12.5px; color: var(--muted); }
+  .seg button.on { background: var(--ink); border-color: var(--ink); color: #fff; } .seg button.on small { color: #cfd6d2; }
+  .res { font-size: 14.5px; margin: -6px 0 12px; min-height: 1.5em; }
+  .ok { color: var(--jade); } .bad { color: var(--brick); }
+  .sw { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
+  .sw .t { flex: 1; } .sw .t b { display: block; font-size: 15.5px; } .sw .t span { font-size: 13.5px; color: var(--muted); }
+  .sw input { width: 26px; height: 26px; accent-color: var(--jade); flex: none; }
+  .note { font-size: 13.5px; color: var(--muted); text-align: center; margin-top: 18px; line-height: 1.6; }
+  .center { text-align: center; padding-top: 8vh; }
+  .center h1 { font-size: 24px; margin: 18px 0 6px; } .center p { color: var(--muted); margin: 0 0 6px; }
+  .pulse { width: 74px; height: 74px; border-radius: 50%; margin: 0 auto; background: var(--brick); opacity: .9; display: grid; place-items: center; animation: p 1.6s infinite; }
+  @keyframes p { 50% { transform: scale(.9); opacity: .6; } }
+  .btns { display: flex; gap: 10px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
+  .pin { letter-spacing: 10px; text-align: center; font-size: 26px !important; }
+  .tts { font-size: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .tts span { flex: 1; min-width: 180px; }
+  .tts button { padding: 8px 12px; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">
+    <div class="logo"><svg width="24" height="28" viewBox="0 0 36 46"><path fill="#fff" d="M2 0h32a2 2 0 0 1 2 2v44l-4-4-4 4-4-4-4 4-4-4-4 4-4-4-4 4V2a2 2 0 0 1 2-2z"/><path fill="#1E6B58" d="M6 8h24v4H6zM6 17h18v3H6zM6 24h22v3H6z"/></svg></div>
+    <div><b>ED POS</b><span id="ver">หน้าจอร้าน</span></div>
+  </div>
+
+  <!-- ===== ใส่รหัสก่อนแก้ตั้งค่า (เปิดจากการแตะมุมจอ 5 ครั้ง) ===== -->
+  <section id="v-locked" hidden>
+    <div class="card">
+      <h2>ใส่รหัสเจ้าของร้าน เพื่อแก้การตั้งค่าแอป</h2>
+      <input type="password" id="pin" class="pin" inputmode="numeric" maxlength="4" autocomplete="off">
+      <div class="res bad" id="pinMsg" style="margin-top:10px"></div>
+      <div class="row"><button id="pinBack">กลับ</button><button class="primary" id="pinOk" style="flex:1">ตกลง</button></div>
+    </div>
+  </section>
+
+  <!-- ===== ตั้งค่า ===== -->
+  <section id="v-setup" hidden>
+    <div class="card">
+      <h2>เชื่อมต่อเซิร์ฟเวอร์ของร้าน</h2>
+      <label class="f"><span>เครื่องหลัก</span>
+        <div class="row"><input type="text" id="main" inputmode="url" placeholder="192.168.1.34" autocomplete="off"><button id="tMain">ทดสอบ</button></div></label>
+      <div class="res" id="rMain"></div>
+      <label class="f"><span>เครื่องสำรอง <small>(ไม่บังคับ)</small></span>
+        <div class="row"><input type="text" id="standby" inputmode="url" placeholder="เช่น 192.168.1.35" autocomplete="off"><button id="tStandby">ทดสอบ</button></div></label>
+      <div class="res" id="rStandby"></div>
+      <p style="margin:0;font-size:13.5px;color:var(--muted)">ใส่แค่ IP ก็พอ ระบบเติม :3000 ให้เอง · ดู IP ได้ที่หน้าจอ Termux ตอนรัน node server.js</p>
+    </div>
+
+    <div class="card">
+      <h2>แท็บเล็ตเครื่องนี้ใช้เป็น</h2>
+      <div class="seg" id="page">
+        <button data-v="order">หน้าสั่งอาหาร<small>พนักงาน</small></button>
+        <button data-v="kds">จอครัว<small>ครัว / บาร์</small></button>
+        <button data-v="admin">หลังร้าน<small>เจ้าของร้าน</small></button>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="sw"><span class="t"><b>ล็อกแอป</b><span>ปักหมุดแอปไว้ พนักงานกดออกไปแอปอื่นไม่ได้ · ต้องเปิด "ปักหมุดแอป" ในตั้งค่า Android ก่อน (ความปลอดภัย → ปักหมุดแอป)</span></span>
+        <input type="checkbox" id="lock"></label>
+      <div class="tts" id="ttsRow" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+        <span id="ttsMsg">กำลังตรวจเสียงอ่านภาษาไทย…</span>
+        <button id="ttsTest">▶ ลองเสียง</button><button id="ttsSet" hidden>ตั้งค่าเสียงอ่าน</button>
+      </div>
+    </div>
+
+    <button class="primary big" id="save">บันทึกและเปิดร้าน</button>
+    <p class="note">เปิดหน้านี้อีกครั้ง: แตะ<b>มุมซ้ายบน</b>ของจอ 5 ครั้งติดกัน</p>
+  </section>
+
+  <!-- ===== ติดต่อเซิร์ฟเวอร์ไม่ได้ ===== -->
+  <section id="v-offline" hidden>
+    <div class="center">
+      <div class="pulse"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M2 8.8a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16.2a5 5 0 0 1 6 0"/><path d="M3 3l18 18"/></svg></div>
+      <h1>ติดต่อเซิร์ฟเวอร์ไม่ได้</h1>
+      <p id="offWhere"></p>
+      <p>ตรวจว่าแท็บเล็ตเครื่องหลักเปิดอยู่ Termux ยังรัน node server.js และต่อ Wi-Fi ร้านเดียวกัน</p>
+      <p style="font-weight:600;color:var(--ink);margin-top:14px" id="offCount"></p>
+      <div class="btns"><button id="offSetup">ตั้งค่า</button><button class="primary" id="offRetry">ลองใหม่ตอนนี้</button></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const A = window.EdPosApp;
+const $ = s => document.querySelector(s);
+const cfg = A ? JSON.parse(A.getConfig()) : { main: '', standby: '', page: 'order', lock: false, version: 'dev' };
+$('#ver').textContent = 'หน้าจอร้าน · รุ่น ' + cfg.version;
+const short = u => String(u || '').replace(/^https?:\/\//, '');
+let page = cfg.page || 'order';
+
+function show(mode) {
+  ['locked', 'setup', 'offline'].forEach(m => ($('#v-' + m).hidden = m !== mode));
+  if (mode === 'setup') fillSetup();
+  if (mode === 'offline') startCountdown();
+  if (mode === 'locked') { $('#pin').value = ''; $('#pinMsg').textContent = ''; setTimeout(() => $('#pin').focus(), 200); }
+}
+
+// ----- ตั้งค่า -----
+function fillSetup() {
+  $('#main').value = short(cfg.main); $('#standby').value = short(cfg.standby); $('#lock').checked = !!cfg.lock;
+  paintPage(); checkTts();
+}
+function paintPage() { document.querySelectorAll('#page button').forEach(b => b.classList.toggle('on', b.dataset.v === page)); }
+document.querySelectorAll('#page button').forEach(b => b.onclick = () => { page = b.dataset.v; paintPage(); });
+
+function test(inputId, outId) {
+  const out = $(outId), v = $(inputId).value.trim();
+  if (!v) { out.textContent = ''; return Promise.resolve(null); }
+  out.className = 'res'; out.textContent = 'กำลังทดสอบ…';
+  return new Promise(ok => setTimeout(() => {   // ให้ข้อความขึ้นก่อน (ทดสอบรอได้ถึง 3 วินาที)
+    const r = A ? JSON.parse(A.testServer(v)) : { ok: false };
+    if (r.ok) { out.className = 'res ok'; out.textContent = `✓ ติดต่อได้ · ${r.role === 'main' ? 'เครื่องหลัก' : 'เครื่องสำรอง'}${r.shop ? ' · ' + r.shop : ''} (${short(r.url)})`; }
+    else { out.className = 'res bad'; out.textContent = '✗ ติดต่อไม่ได้ · ตรวจ IP / Wi-Fi / Termux'; }
+    ok(r);
+  }, 30));
+}
+$('#tMain').onclick = () => test('#main', '#rMain');
+$('#tStandby').onclick = () => test('#standby', '#rStandby');
+
+$('#save').onclick = async () => {
+  if (!$('#main').value.trim()) { $('#rMain').className = 'res bad'; $('#rMain').textContent = 'ใส่ IP เครื่องหลักก่อน'; $('#main').focus(); return; }
+  $('#save').disabled = true; $('#save').textContent = 'กำลังเชื่อมต่อ…';
+  const r = await test('#main', '#rMain');
+  if (!r?.ok && !confirm('ยังติดต่อเครื่องหลักไม่ได้ บันทึกไว้ก่อนไหม? (แอปจะลองเชื่อมต่อเองเรื่อยๆ)')) {
+    $('#save').disabled = false; $('#save').textContent = 'บันทึกและเปิดร้าน'; return;
+  }
+  A && A.saveConfig(JSON.stringify({ main: $('#main').value, standby: $('#standby').value, page, lock: $('#lock').checked }));
+};
+
+// ----- เสียงอ่านภาษาไทย (จอครัว) -----
+function checkTts() {
+  if (!A) return;
+  const st = A.ttsStatus();
+  $('#ttsSet').hidden = st === 'ok';
+  $('#ttsMsg').innerHTML = st === 'ok' ? '<span class="ok">✓ เสียงอ่านภาษาไทยพร้อมใช้</span> (จอครัวอ่านออเดอร์ได้)'
+    : st === 'nothai' ? '<span class="bad">ยังไม่มีเสียงภาษาไทย</span> · กด "ตั้งค่าเสียงอ่าน" → Google → ติดตั้งข้อมูลเสียงภาษาไทย'
+    : 'กำลังเปิดเครื่องอ่านออกเสียง… (ถ้าค้างนาน ให้ติดตั้ง "Speech Services by Google" จาก Play Store)';
+  if (st === 'none') setTimeout(checkTts, 1500);
+}
+$('#ttsTest').onclick = () => A && A.speak('test', 'โต๊ะ 5 กะเพรา 2 ที่ หมูกรอบ', 1);
+$('#ttsSet').onclick = () => A && A.openTtsSettings();
+window.__edposTts = () => {};
+
+// ----- รหัสก่อนแก้ตั้งค่า -----
+function tryPin() {
+  const p = $('#pin').value.trim();
+  if (!/^\d{4}$/.test(p)) { $('#pinMsg').textContent = 'ใส่รหัส 4 หลัก'; return; }
+  const r = A ? A.checkAdminPin(p) : 'ok';
+  if (r === 'ok' || r === 'offline') show('setup');   // เซิร์ฟเวอร์ไม่ตอบ = ให้แก้ IP ได้
+  else $('#pinMsg').textContent = r.slice(4) || 'รหัสไม่ถูกต้อง';
+}
+$('#pinOk').onclick = tryPin;
+$('#pin').addEventListener('keydown', e => { if (e.key === 'Enter') tryPin(); });
+$('#pin').addEventListener('input', e => { if (e.target.value.length === 4) tryPin(); });
+$('#pinBack').onclick = () => A && A.retry();
+
+// ----- ออฟไลน์: ลองใหม่เองทุก 5 วินาที -----
+let cd = null;
+function startCountdown() {
+  $('#offWhere').textContent = 'ลองแล้ว: ' + [cfg.main, cfg.standby].filter(Boolean).map(short).join(' และ ');
+  let n = 5; clearInterval(cd);
+  const tick = () => { $('#offCount').textContent = `ลองเชื่อมต่อใหม่ใน ${n} วินาที…`; if (n-- <= 0) { clearInterval(cd); $('#offCount').textContent = 'กำลังเชื่อมต่อ…'; A && A.retry(); } };
+  tick(); cd = setInterval(tick, 1000);
+}
+$('#offRetry').onclick = () => { clearInterval(cd); $('#offCount').textContent = 'กำลังเชื่อมต่อ…'; A && A.retry(); };
+$('#offSetup').onclick = () => { clearInterval(cd); show('setup'); };
+
+show((location.hash || '#setup').slice(1));
+addEventListener('hashchange', () => show((location.hash || '#setup').slice(1)));
+</script>
+</body>
+</html>
