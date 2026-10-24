@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ED POS</title>
+<title>MAMA POS</title>
 <style>
-  :root { --bg:#F3F1EC; --card:#fff; --ink:#18221E; --muted:#5E6B66; --faint:#8C9792; --line:#DCD8CF; --jade:#1E6B58; --brick:#B03A27; --amber:#E8A33D; }
+  :root { --bg:#FCF9E8; --card:#fff; --ink:#18221E; --muted:#5E6B66; --faint:#8C9792; --line:#DCD8CF; --jade:#1E6B58; --brick:#B03A27; --amber:#E8A33D; }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink);
     font: 17px/1.5 "Noto Sans Thai", "Sarabun", system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
   main { max-width: 620px; margin: 0 auto; padding: 28px 18px 40px; }
   .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
-  .logo { width: 46px; height: 46px; border-radius: 12px; background: var(--jade); display: grid; place-items: center; }
+  .logo { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; box-shadow: 0 2px 10px #0000001a; }
   .brand b { font-size: 22px; letter-spacing: .3px; } .brand span { display: block; font-size: 14px; color: var(--muted); }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-bottom: 14px; }
   h2 { font-size: 17px; margin: 0 0 12px; }
@@ -49,8 +49,8 @@
 <body>
 <main>
   <div class="brand">
-    <div class="logo"><svg width="24" height="28" viewBox="0 0 36 46"><path fill="#fff" d="M2 0h32a2 2 0 0 1 2 2v44l-4-4-4 4-4-4-4 4-4-4-4 4-4-4-4 4V2a2 2 0 0 1 2-2z"/><path fill="#1E6B58" d="M6 8h24v4H6zM6 17h18v3H6zM6 24h22v3H6z"/></svg></div>
-    <div><b>ED POS</b><span id="ver">หน้าจอร้าน</span></div>
+    <img class="logo" src="logo.png" alt="">
+    <div><b>MAMA POS</b><span id="ver">หน้าจอร้าน</span></div>
   </div>
 
   <!-- ===== ใส่รหัสก่อนแก้ตั้งค่า (เปิดจากการแตะมุมจอ 5 ครั้ง) ===== -->
