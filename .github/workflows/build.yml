@@ -9,8 +9,8 @@ on:
 permissions:
   contents: write
 env:
-  # Node.js สำหรับมือถือ (เซิร์ฟเวอร์ในแอป) · ว่าง = รุ่นล่าสุดของ nodejs-mobile
-  NODE_MOBILE_TAG: ''
+  # Node.js สำหรับมือถือ (เซิร์ฟเวอร์ในแอป) · ล็อกรุ่นไว้ ทดสอบเซิร์ฟเวอร์กับ Node 18.20.4 แล้ว · ว่าง = รุ่นล่าสุด
+  NODE_MOBILE_TAG: 'v18.20.4'
 jobs:
   build:
     runs-on: ubuntu-latest
