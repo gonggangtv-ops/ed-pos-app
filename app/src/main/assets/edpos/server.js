@@ -1218,6 +1218,23 @@ const routes = {
     const d = new Date(), pad = n => String(n).padStart(2, '0');
     const saved = `before-restore-${today()}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.json`;
     fs.writeFileSync(path.join(BACKUP_DIR, saved), JSON.stringify(data));
+    // only = 'config': เอาเฉพาะตั้งค่า เมนู หมวด ชุดตัวเลือก (ชื่ออังกฤษอยู่ในตั้งค่า) · บิล ยอดขาย รหัส พนักงาน ของเครื่องนี้อยู่ครบ
+    // ใช้ย้ายเมนูจากเครื่องหนึ่งไปอีกเครื่อง เช่น จาก Termux มาแอป หรือแก้เมนูที่เครื่องอื่นแล้วเอามาใช้
+    if (b.only === 'config') {
+      const lineNow = data.settings.line;
+      data.settings = JSON.parse(JSON.stringify(f.settings));
+      // แจ้ง LINE: ไฟล์ไม่มีโทเค็น → ใช้ของเครื่องนี้ · วันที่ส่งสรุปล่าสุดใช้ของเครื่องนี้ (กันส่งซ้ำ/ไม่ส่ง)
+      if (lineNow || data.settings.line) data.settings.line = { ...(lineNow || {}), ...(data.settings.line || {}),
+        token: data.settings.line?.token || lineNow?.token || '', lastSent: lineNow?.lastSent || '', lastErr: '', alertErr: '' };
+      data.menu = JSON.parse(JSON.stringify(f.menu));
+      if (Array.isArray(f.categories)) data.categories = [...f.categories];
+      if (Array.isArray(f.optionSets)) data.optionSets = JSON.parse(JSON.stringify(f.optionSets));
+      data.settings = { ...defaultData.settings, ...data.settings };
+      migrateData();
+      addEvent('restore', 'นำเข้าตั้งค่าและเมนูจากไฟล์สำรอง');
+      console.log(`นำเข้าตั้งค่าและเมนูแล้ว · ข้อมูลเดิมเก็บไว้ที่ backup/${saved}`);
+      return { ok: true, saved, menu: data.menu.length, only: 'config' };
+    }
     const keep = { auth: data.auth, epoch: data.epoch, rev: data.rev, seq: data.seq };
     loadData(JSON.parse(JSON.stringify(f)));
     data.auth = keep.auth;

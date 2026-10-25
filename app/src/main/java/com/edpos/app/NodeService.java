@@ -102,6 +102,7 @@ public class NodeService extends Service {
         int code;
         try {
             copyAssetsIfNew(d);
+            seedIfEmpty(d);
             File logf = new File(d, "server.log");
             if (logf.length() > 1_000_000) logf.renameTo(new File(d, "server.log.old"));
             Os.setenv("PORT", String.valueOf(PORT), true);
@@ -130,6 +131,20 @@ public class NodeService extends Service {
         copyAsset(getAssets(), "edpos", d);
         try (FileWriter w = new FileWriter(mark)) { w.write(stamp); }
         log("คัดลอกไฟล์เซิร์ฟเวอร์รุ่น " + pi.versionName);
+    }
+
+    /** เครื่องที่ยังไม่มีข้อมูลร้านเลย → เริ่มด้วยตั้งค่าและเมนูของร้านที่ติดมากับแอป (assets/edpos-seed.json)
+     *  ไม่มีบิล รหัส หรือโทเค็น LINE · เครื่องที่มี data.json แล้วไม่แตะเด็ดขาด */
+    private void seedIfEmpty(File d) {
+        File data = new File(d, "data.json");
+        if (data.exists()) return;
+        try {
+            copyAsset(getAssets(), "edpos-seed.json", data);
+            log("เริ่มข้อมูลร้านจากตั้งค่าและเมนูที่ติดมากับแอป");
+        } catch (Exception e) {
+            data.delete();
+            log("ไม่มีข้อมูลเริ่มต้น เริ่มเป็นร้านใหม่: " + e.getMessage());
+        }
     }
 
     private static void copyAsset(AssetManager am, String path, File out) throws Exception {

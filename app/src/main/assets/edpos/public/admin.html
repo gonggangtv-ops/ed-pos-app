@@ -928,6 +928,9 @@
           <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><select id="rsList" style="width:auto;max-width:100%"></select><button class="btn" id="rsUseAuto">ใช้ไฟล์นี้</button></div></div>
         <div id="rsBox" hidden style="margin-top:14px;padding:14px;border:1px solid var(--brick);border-radius:12px;background:color-mix(in srgb,var(--brick) 6%,var(--surface))">
           <div id="rsInfo" style="line-height:1.6"></div>
+          <div class="seg" id="rsOnly" style="margin-top:12px;flex-wrap:wrap" role="group" aria-label="กู้คืนอะไร">
+            <button data-v="config" aria-pressed="true">เฉพาะตั้งค่าและเมนู</button><button data-v="all" aria-pressed="false">ทั้งหมด (รวมบิลและรหัส)</button></div>
+          <p id="rsOnlyNote" style="margin:8px 0 0;font-size:14px"></p>
           <div class="actions" style="justify-content:flex-start;align-items:flex-end;margin-top:12px">
             <label class="field" style="width:200px;flex:none"><span>รหัสเจ้าของร้าน (ยืนยัน)</span><input type="password" id="rsPin" inputmode="numeric" maxlength="4" autocomplete="off" style="width:100%;box-sizing:border-box"></label>
             <button class="btn" id="rsCancel">ยกเลิก</button>
@@ -1051,8 +1054,19 @@ async function loadBackups() {
     $('#rsUseAuto').disabled = !r.files.length;
   } catch (err) { $('#rsList').innerHTML = '<option value="">อ่านรายการไม่ได้</option>'; }
 }
+// กู้คืนอะไร: config = ตั้งค่า เมนู หมวด ชุดตัวเลือก (บิล ยอดขาย รหัส พนักงาน ของเครื่องนี้อยู่ครบ) · all = แทนทั้งหมด
+let rsOnly = 'config';
+function paintRsOnly() {
+  $$('#rsOnly button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === rsOnly));
+  $('#rsOnlyNote').innerHTML = rsOnly === 'config'
+    ? 'เอาตั้งค่า เมนู หมวด ชุดตัวเลือก ชื่อภาษาอังกฤษ ผังโต๊ะ ใบเสร็จ เครื่องพิมพ์ จากไฟล์ · <b>บิล ยอดขาย รหัส และพนักงานของเครื่องนี้อยู่ครบ</b>'
+    : '<b style="color:var(--brick)">แทนข้อมูลทั้งหมด</b> รวมบิล ยอดขาย และพนักงาน · รหัสเจ้าของร้านใช้ของเครื่องนี้';
+  $('#rsGo').textContent = rsOnly === 'config' ? 'นำเข้าตั้งค่าและเมนู' : 'กู้คืนข้อมูลนี้';
+}
+$$('#rsOnly button').forEach(b => b.onclick = () => { rsOnly = b.dataset.v; paintRsOnly(); });
 function showRestore(src, info) {
   rsSrc = src; $('#rsInfo').innerHTML = info; $('#rsPin').value = ''; $('#rsBox').hidden = false;
+  rsOnly = src.file ? 'all' : 'config'; paintRsOnly();   // ไฟล์สำรองในเครื่อง = ย้อนเวลาทั้งร้าน · ไฟล์ที่เลือกเอง = มักใช้ย้ายเมนู
   $('#rsBox').scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => $('#rsPin').focus(), 300);
 }
 $('#rsPick').onclick = () => { $('#rsFile').value = ''; $('#rsFile').click(); };
@@ -1067,8 +1081,7 @@ $('#rsFile').onchange = async e => {
   const days = Object.keys(d.daily || {}).length, paid = d.orders.filter(o => o.status === 'paid').length, open = d.orders.filter(o => o.status === 'open').length;
   showRestore({ data: d }, `<b>${esc(f.name)}</b> · ${fmtSize(f.size)}<br>
     ร้าน <b>${esc(d.settings.shopName || '-')}</b> · เมนู ${d.menu.length} รายการ · บิลที่จ่ายแล้ว ${paid} บิล${open ? ` · โต๊ะที่ยังเปิด ${open} โต๊ะ` : ''}${days ? ` · สรุปยอดรายวัน ${days} วัน` : ''}<br>
-    ข้อมูลล่าสุดในไฟล์: <b>${last ? esc(fmtWhen(last)) : 'ไม่มีบิล'}</b><br>
-    <b style="color:var(--brick)">ยอดขาย บิล และการแก้เมนูที่เกิดหลังเวลานี้จะหายไป</b> (ข้อมูลปัจจุบันถูกเก็บไว้ก่อน ย้อนกลับได้)`);
+    ข้อมูลล่าสุดในไฟล์: <b>${last ? esc(fmtWhen(last)) : 'ไม่มีบิล'}</b> · ข้อมูลปัจจุบันถูกเก็บไว้ก่อนเสมอ ย้อนกลับได้`);
 };
 $('#rsUseAuto').onclick = () => {
   const n = $('#rsList').value; if (!n) return;
@@ -1081,12 +1094,12 @@ $('#rsGo').onclick = async function () {
   if (!/^\d{4}$/.test(pin)) return toast('ใส่รหัสเจ้าของร้าน 4 หลัก', true);
   if (!rsSrc) return;
   try {
-    this.disabled = true; this.textContent = 'กำลังกู้คืน…';
-    const r = await api('/api/restore', { ...rsSrc, pin });
+    this.disabled = true; this.textContent = 'กำลังทำ…';
+    const r = await api('/api/restore', { ...rsSrc, pin, only: rsOnly });
     dirty.clear(); draft = null;
-    toast(`กู้คืนแล้ว · ข้อมูลเดิมเก็บไว้เป็น "${r.saved}"`);
+    toast(r.only === 'config' ? `นำเข้าตั้งค่าและเมนูแล้ว (${r.menu} เมนู) · ข้อมูลเดิมเก็บไว้เป็น "${r.saved}"` : `กู้คืนแล้ว · ข้อมูลเดิมเก็บไว้เป็น "${r.saved}"`);
     setTimeout(() => location.reload(), 1800);
-  } catch (err) { toast(err.message, true); this.disabled = false; this.textContent = 'กู้คืนข้อมูลนี้'; }
+  } catch (err) { toast(err.message, true); this.disabled = false; paintRsOnly(); }
 };
 
 // ดาวน์โหลดข้อมูลสำรองต้องแนบโทเค็นไปด้วย (ลิงก์ธรรมดาส่ง header ไม่ได้)
