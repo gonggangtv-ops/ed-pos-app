@@ -1,11 +1,16 @@
 # สร้างไฟล์ติดตั้ง (.apk) อัตโนมัติทุกครั้งที่มีการอัปเดตโค้ด แล้ววางไว้ที่หน้า Releases
+#  · main → รุ่นจริง (Latest) ที่แท็บเล็ตในร้านดาวน์โหลด
+#  · กิ่ง claude/* → รุ่นทดสอบ (Pre-release) ไม่แทนที่รุ่นจริง
 name: Build APK
 on:
   push:
-    branches: [main]
+    branches: [main, 'claude/**']
   workflow_dispatch:
 permissions:
   contents: write
+env:
+  # Node.js สำหรับมือถือ (เซิร์ฟเวอร์ในแอป) · ว่าง = รุ่นล่าสุดของ nodejs-mobile
+  NODE_MOBILE_TAG: ''
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,17 +23,53 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Download Node.js for Mobile (libnode)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          REPO=nodejs-mobile/nodejs-mobile
+          TAG="$NODE_MOBILE_TAG"
+          [ -n "$TAG" ] || TAG=$(gh release view -R $REPO --json tagName -q .tagName)
+          echo "nodejs-mobile $TAG"
+          gh release view "$TAG" -R $REPO --json assets -q '.assets[].name'
+          gh release download "$TAG" -R $REPO -p '*android*.zip' -D /tmp/nm
+          cd /tmp/nm && unzip -q *.zip && cd -
+          NODE_H=$(find /tmp/nm -name node.h | head -1)
+          [ -n "$NODE_H" ] || { echo "ไม่พบ node.h"; find /tmp/nm -maxdepth 4; exit 1; }
+          mkdir -p app/libnode/include app/libnode/bin
+          cp -r "$(dirname "$NODE_H")" app/libnode/include/node
+          ABIS=""
+          for abi in arm64-v8a armeabi-v7a; do
+            so=$(find /tmp/nm -path "*/$abi/*" -name libnode.so | head -1)
+            if [ -n "$so" ]; then mkdir -p app/libnode/bin/$abi && cp "$so" app/libnode/bin/$abi/ && ABIS="$ABIS $abi"; fi
+          done
+          [ -n "$ABIS" ] || { echo "ไม่พบ libnode.so"; find /tmp/nm -name '*.so'; exit 1; }
+          echo $ABIS > app/libnode/abis.txt
+          echo "ABIs:$ABIS"; ls -la app/libnode/bin/*
       - name: Build
         run: gradle :app:assembleRelease --no-daemon --stacktrace
-      - run: cp app/build/outputs/apk/release/app-release.apk ed-pos-app.apk
+      - run: cp app/build/outputs/apk/release/app-release.apk ed-pos-app.apk && ls -la ed-pos-app.apk
       - uses: actions/upload-artifact@v4
         with:
           name: ed-pos-app
           path: ed-pos-app.apk
-      - uses: softprops/action-gh-release@v2
+      - name: Release (main = รุ่นจริง)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.${{ github.run_number }}
           name: MAMA POS 1.${{ github.run_number }}
           body: ดาวน์โหลด ed-pos-app.apk แล้วติดตั้งบนแท็บเล็ต (ติดตั้งทับรุ่นเก่าได้เลย)
           files: ed-pos-app.apk
           make_latest: true
+      - name: Pre-release (กิ่งทดสอบ)
+        if: github.ref != 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: test-1.${{ github.run_number }}
+          name: MAMA POS ทดสอบ 1.${{ github.run_number }}
+          body: รุ่นทดสอบจากกิ่ง ${{ github.ref_name }} (ยังไม่ใช่รุ่นจริง) · ติดตั้งทับรุ่นเดิมได้ การตั้งค่าไม่หาย
+          files: ed-pos-app.apk
+          prerelease: true
+          make_latest: false

@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="th"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e1116">
+<title>ครัวรวมจาน KDS</title>
+<link rel="manifest" href="manifest-kds.json">
+<style>
+  :root{--bg:#0e1116;--panel:#171c24;--panel-2:#1f2630;--line:#2b333f;--fg:#eef2f7;--muted:#9aa7b6;--faint:#6b7684;
+    --accent:#ffb020;--fresh:#34d27b;--warn:#ffcf4a;--late:#ff5d55;--info:#49b6ff;--batch:#b98bff;color-scheme:dark;
+    --colw:215px;}
+  *{box-sizing:border-box} html,body{height:100%;margin:0}
+  [hidden]{display:none!important}
+  body{font-family:"IBM Plex Sans Thai",system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--fg);overflow:hidden;font-variant-numeric:tabular-nums}
+  .wrap{display:flex;flex-direction:column;height:100%}
+  .bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .brand{display:flex;align-items:baseline;gap:9px;margin-right:auto}.brand b{font-size:17px}
+  #scrSel{font:inherit;font-size:15px;font-weight:600;padding:4px 8px;border-radius:8px;border:1px solid var(--line,#444);background:transparent;color:inherit;align-self:center}
+  #scrSel option{color:#000}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--fresh)}.dot.off{background:var(--late)}
+  .clock{font-size:15px;color:var(--muted)}
+  .stat{display:flex;gap:7px;align-items:center;font-size:13px;color:var(--muted)}.stat b{font-size:19px;color:var(--fg)}
+  #tools{display:contents}#tools.hid{display:none}
+  .tabs{display:flex;gap:6px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:4px}
+  .tabs button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:14px;font-weight:600;padding:7px 14px;border-radius:9px;cursor:pointer;display:flex;gap:7px;align-items:center}
+  .tabs button[aria-selected="true"]{background:var(--accent);color:#1a1205}
+  .count{min-width:20px;text-align:center;font-size:12px;padding:1px 6px;border-radius:20px;background:color-mix(in srgb,var(--batch) 22%,transparent)}
+  .btn{font:inherit;font-weight:600;font-size:13px;cursor:pointer;border:1px solid var(--line);background:var(--panel-2);color:var(--fg);padding:7px 12px;border-radius:9px}
+  .btn.on{background:var(--accent);color:#1a1205;border-color:transparent}
+  main{flex:1;min-height:0;overflow:auto;padding:16px}
+  #board{display:flex;flex-direction:row;gap:12px;overflow-x:auto;overflow-y:hidden;align-items:stretch;scroll-snap-type:x proximity;scrollbar-width:thin}
+  #board .card{flex:0 0 auto;width:var(--colw,215px);scroll-snap-align:start;max-height:100%}
+  #board ul.dishes{overflow-y:auto;flex:1 1 auto;min-height:0}
+  #board>.empty{margin:auto}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+  .card header{flex-wrap:wrap}
+  .card.urge{border-color:var(--late);box-shadow:0 0 0 1px var(--late),0 0 22px -6px var(--late)}
+  .card header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+  .tbl{font-size:20px;font-weight:800}
+  .otype{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;padding:3px 7px;border-radius:7px;background:color-mix(in srgb,var(--info) 20%,transparent);color:var(--info)}
+  .age{margin-left:auto;font-size:16px;font-weight:800;padding:3px 9px;border-radius:8px}
+  .age[data-s=fresh]{color:var(--fresh);background:color-mix(in srgb,var(--fresh) 15%,transparent)}
+  .age[data-s=warn]{color:var(--warn);background:color-mix(in srgb,var(--warn) 15%,transparent)}
+  .age[data-s=late]{color:var(--late);background:color-mix(in srgb,var(--late) 16%,transparent)}
+  .flags{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px;margin-top:8px}
+  .flag{font-size:11px;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+  .flag.unpaid{background:var(--late);border-color:var(--late);color:#fff;font-size:13px;padding:4px 9px}
+  .card.unpaid{border-color:var(--late)}
+  .flag.add{color:var(--accent)}.flag.cut{color:var(--info)}.flag.plat{color:var(--batch)}
+  ul.dishes{list-style:none;margin:8px 0 0;padding:6px 6px 0;display:flex;flex-direction:column;gap:3px}
+  li.dish{display:flex;gap:10px;align-items:flex-start;padding:9px 8px;border-radius:10px;cursor:pointer}
+  li.dish:hover{background:var(--panel-2)}li.dish.done{opacity:.55}li.dish.done .dname{text-decoration:line-through}
+  .qty{font-size:17px;font-weight:800;color:var(--accent);min-width:30px}
+  .dmeta{flex:1;min-width:0}.dname{font-size:15px;font-weight:600;line-height:1.25}
+  .dsub{font-size:12px;color:var(--muted);margin-top:2px}.dsub .opt{color:var(--info)}.dsub .rmk{color:var(--late);font-weight:600}
+  .check{width:22px;height:22px;border-radius:7px;border:2px solid var(--faint);flex:none;margin-top:1px;display:grid;place-items:center;color:transparent;font-size:13px;font-weight:900}
+  li.dish.done .check{background:var(--fresh);border-color:var(--fresh);color:#06240f}
+  .card footer{display:flex;gap:8px;padding:10px 12px;margin-top:auto}.card footer .btn{flex:1;text-align:center;padding:9px}
+  .btn.done-all{background:var(--fresh);color:#06240f;border-color:transparent}
+  .batchwrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+  .lead{color:var(--muted);font-size:14px;margin:0 2px}.lead b{color:var(--fg)}
+  .brow{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;gap:14px;align-items:center}
+  .brow.hot{border-color:var(--batch);box-shadow:0 0 18px -8px var(--batch)}
+  .bqty{font-size:30px;font-weight:800;color:var(--accent);min-width:62px;text-align:center;line-height:1}
+  .bqty small{display:block;font-size:11px;color:var(--muted);font-weight:600;margin-top:3px}
+  .binfo{flex:1;min-width:0}.bname{font-size:18px;font-weight:700}.bspec{font-size:13px;color:var(--muted)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .chip{font-size:12px;font-weight:600;padding:3px 9px;border-radius:20px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted)}
+  .chip .x{color:var(--accent);font-weight:800}
+  .empty{text-align:center;color:var(--faint);padding:50px 20px;font-size:15px}
+  .toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:50;width:min(92vw,420px)}
+  .toast{background:var(--panel);border:1px solid var(--batch);border-left-width:4px;border-radius:11px;padding:11px 14px;box-shadow:0 10px 30px -10px #000a}
+  .toast .tt{font-weight:700;font-size:14px}.toast .td{font-size:13px;color:var(--muted);margin-top:3px}
+  .err{background:color-mix(in srgb,var(--late) 14%,var(--panel));border:1px solid var(--late);border-radius:12px;padding:10px 14px;font-size:13px;margin-bottom:14px}
+  .modal{position:fixed;inset:0;background:#000a;display:grid;place-items:center;z-index:60;padding:16px}
+  .sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;width:min(94vw,520px);max-height:80vh;display:flex;flex-direction:column}
+  .sheethead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}.sheethead b{font-size:16px}
+  .hint{color:var(--muted);font-size:13px;margin:0 0 12px;line-height:1.5}
+  .dishlist{overflow:auto;display:flex;flex-direction:column;gap:2px}
+  .drow{display:flex;align-items:center;gap:10px;padding:11px 10px;border-radius:9px;cursor:pointer}
+  .drow:hover{background:var(--panel-2)}
+  .drow input{width:20px;height:20px;accent-color:var(--late);flex:none}
+  .drow span{font-size:15px}.drow.hidden-on{color:var(--late)}
+  .dempty{color:var(--faint);font-size:14px;padding:20px;text-align:center}
+  .pop{position:fixed;right:14px;bottom:14px;width:min(340px,92vw);max-height:64vh;background:var(--panel);border:1px solid var(--batch);border-radius:14px;box-shadow:0 14px 44px -12px #000c;z-index:40;display:flex;flex-direction:column;overflow:hidden}
+  .pophead{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:color-mix(in srgb,var(--batch) 18%,var(--panel));border-bottom:1px solid var(--line)}
+  .pophead b{font-size:15px}
+  .popx{border:0;background:transparent;color:var(--muted);font-size:16px;cursor:pointer;padding:3px 9px;border-radius:7px;line-height:1}
+  .popx:hover{background:var(--panel-2);color:var(--fg)}
+  .popbody{overflow:auto;padding:8px;display:flex;flex-direction:column;gap:8px;flex:1 1 auto;min-height:0}
+  .pophead{cursor:grab;touch-action:none;user-select:none}.pop.moving .pophead{cursor:grabbing}.pop.moving{opacity:.92}
+  .popbtns{display:flex;gap:2px}
+  .pophandle{position:absolute;right:0;bottom:0;width:30px;height:30px;cursor:nwse-resize;touch-action:none;
+    background:linear-gradient(135deg,transparent 52%,var(--batch) 52%,var(--batch) 58%,transparent 58%,transparent 70%,var(--batch) 70%,var(--batch) 76%,transparent 76%);border-bottom-right-radius:14px;opacity:.8}
+  .poprow{background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:9px 10px;cursor:pointer}
+  .poprow:hover{border-color:var(--batch)}
+  .poprow .pt{display:flex;align-items:baseline;gap:8px}
+  .poprow .pq{font-size:20px;font-weight:800;color:var(--accent)}
+  .poprow .pn{font-size:15px;font-weight:700;line-height:1.2}
+  .poprow .ps{font-size:12px;color:var(--muted);margin-top:1px}
+  .poprow .pc{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+  .poprow .ch{font-size:11px;padding:2px 7px;border-radius:20px;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+  .popempty{color:var(--faint);font-size:13px;text-align:center;padding:22px 12px}
+  .popfab{position:fixed;right:14px;bottom:14px;z-index:40;border:1px solid var(--batch);background:var(--panel);color:var(--batch);font-weight:700;font-size:14px;padding:11px 16px;border-radius:30px;cursor:pointer;box-shadow:0 10px 30px -12px #000a}
+  .popfab:hover{background:var(--panel-2)}
+  #done{display:flex;flex-direction:row;gap:12px;overflow-x:auto;overflow-y:hidden;align-items:stretch;scrollbar-width:thin}
+  #done .card{flex:0 0 auto;width:var(--colw,215px);max-height:100%}
+  #done ul.dishes{overflow-y:auto;flex:1 1 auto;min-height:0}
+  #done>.empty{margin:auto}
+  .fintime{margin-left:auto;text-align:right;font-size:12px;color:var(--muted);line-height:1.25}
+  .fintime b{display:block;font-size:16px;color:var(--fresh)}
+  li.dish.static{cursor:default}li.dish.static:hover{background:transparent}
+  li.dish.static .check{background:var(--fresh);border-color:var(--fresh);color:#06240f}
+  #ttsModal .sheet{overflow-y:auto}
+  #ttsModal .sheet>*{flex-shrink:0}
+  .sublabel{font-size:13px;font-weight:700;color:var(--muted);margin:2px 2px 6px}
+  .dishlist.tt{max-height:28vh;margin-bottom:12px;border:1px solid var(--line);border-radius:10px;padding:4px}
+  .drow.say input{accent-color:var(--accent)}
+  .drow.say-on{color:var(--accent);font-weight:600}
+  .trows{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
+  .trow{display:flex;align-items:center;gap:10px;padding:11px 10px;border-radius:9px;cursor:pointer;font-size:15px}
+  .trow:hover{background:var(--panel-2)}
+  .trow input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);flex:none}
+  .sel{margin-left:auto;font:inherit;background:var(--panel-2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+  .thint{margin-top:12px;font-size:13px;line-height:1.5;color:var(--warn);background:color-mix(in srgb,var(--warn) 10%,var(--panel));border:1px solid color-mix(in srgb,var(--warn) 40%,var(--line));border-radius:10px;padding:10px 12px}
+  #linkBar{position:fixed;top:0;left:0;right:0;z-index:60;background:var(--late);color:#fff;font-weight:700;text-align:center;padding:10px 14px;font-size:16px;box-shadow:0 2px 12px #0008}
+  li.dish.new{background:color-mix(in srgb,var(--accent) 14%,transparent);box-shadow:inset 3px 0 0 var(--accent)}
+  .thb{display:inline-block;font-size:11px;font-weight:800;color:#fff;background:#1f9d5c;border-radius:5px;padding:1px 6px;margin-left:6px;vertical-align:middle}
+  .nb{display:inline-block;font-size:10px;font-weight:800;color:#1a1100;background:var(--accent);border-radius:5px;padding:1px 6px;margin-left:6px;vertical-align:middle}
+  .sumcard{border-color:var(--accent)}
+  .sumcard .sumbody{padding:12px;overflow-y:auto}
+  .kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  .kpi{background:var(--panel-2);border-radius:10px;padding:8px 10px}
+  .kpi b{display:block;font-size:22px;color:var(--fg)}.kpi span{font-size:12px;color:var(--muted)}
+  .toprow{display:flex;justify-content:space-between;gap:8px;font-size:14px;padding:5px 0;border-bottom:1px solid var(--line)}
+  .toprow b{color:var(--accent)}
+  :root[data-theme=light]{--bg:#eef1f5;--panel:#ffffff;--panel-2:#f1f4f8;--line:#cfd6df;--fg:#111827;--muted:#4b5767;--faint:#7b8796;
+    --accent:#f59e0b;--fresh:#15803d;--warn:#b45309;--late:#dc2626;--info:#0369a1;--batch:#6d28d9;color-scheme:light}
+  :root[data-theme=light] .toast,:root[data-theme=light] .pop,:root[data-theme=light] .sheet{box-shadow:0 10px 30px -12px #0005}
+  /* text size (zoom keeps column widths) and weight */
+  .card header,.card .flags,.card ul.dishes,.card footer,.poprow{zoom:var(--fs,1)}
+  :root[data-fw="0"] .dname,:root[data-fw="0"] .pn{font-weight:400}:root[data-fw="0"] .tbl,:root[data-fw="0"] .qty{font-weight:600}
+  :root[data-fw="2"] .dname,:root[data-fw="2"] .pn{font-weight:700}:root[data-fw="2"] .dsub{font-weight:600}
+  :root[data-fw="3"] .dname,:root[data-fw="3"] .pn{font-weight:800}:root[data-fw="3"] .dsub{font-weight:700}:root[data-fw="3"] .qty,:root[data-fw="3"] .tbl{font-weight:900}
+  .seg{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+  .seg .btn{padding:8px 13px}
+  .vrow{display:flex;align-items:center;gap:10px;padding:10px;font-size:15px}
+  .vprev{margin:6px 0 4px;padding:12px;border:1px dashed var(--line);border-radius:12px}
+  button.ack{margin-top:6px;font:inherit;font-size:12px;font-weight:700;border:1px solid var(--late);background:color-mix(in srgb,var(--late) 14%,transparent);color:var(--late);border-radius:8px;padding:5px 10px;cursor:pointer;animation:ackpulse 1.4s infinite}
+  @keyframes ackpulse{50%{background:color-mix(in srgb,var(--late) 30%,transparent)}}
+  .card footer .ack-all{border-color:var(--late);color:var(--late)}
+  li.dish.cancel{opacity:.75}li.dish.cancel .dname{text-decoration:line-through;color:var(--late)}
+  li.dish.cancel .check{background:var(--late);border-color:var(--late);color:#fff}
+  li.dish.armed{outline:2px dashed var(--accent);outline-offset:-2px;opacity:1}
+  .tagc{color:var(--late);font-weight:700}
+  /* ---- ปรับหน้าจอ: จำนวนจาน ตัวเลือก หมายเหตุ สีหัวการ์ด การจัดวาง ---- */
+  :root{--qc:var(--accent);--qct:#1a1100;--qz:1}
+  .qty{color:var(--qc);font-size:calc(17px * var(--qz));line-height:1.15;text-align:center}
+  :root[data-qs=badge] .qty{background:var(--qc);color:var(--qct);border-radius:8px;padding:1px 7px}
+  :root[data-qs=box] .qty{border:2px solid var(--qc);border-radius:8px;padding:0 6px}
+  li.dish.multi .qty{background:var(--late);color:#fff;border:2px solid var(--late);border-radius:8px;padding:0 7px}
+  .dopts{margin-top:3px;display:flex;flex-direction:column;gap:1px}
+  .dopts div{font-size:14px;font-weight:700;color:var(--info);line-height:1.3}
+  :root[data-rk=band] .rmk{display:block;background:var(--late);color:#fff;border-radius:6px;padding:2px 7px;margin-top:3px}
+  :root[data-hc="1"] .card[data-s=warn] header{background:color-mix(in srgb,var(--warn) 30%,var(--panel-2))}
+  :root[data-hc="1"] .card[data-s=late] header{background:color-mix(in srgb,var(--late) 36%,var(--panel-2))}
+  :root[data-lay=grid] #board{flex-wrap:wrap;overflow-x:hidden;overflow-y:auto;align-content:flex-start;align-items:flex-start;scroll-snap-type:none}
+  :root[data-lay=grid] #board .card{max-height:none}
+  :root[data-lay=grid] #board ul.dishes{overflow:visible}
+  li.rsep{list-style:none;font-size:12px;font-weight:700;color:var(--accent);padding:6px 8px 2px;border-top:1px dashed var(--accent);margin-top:4px;cursor:default}
+  #viewModal .sheet{overflow-y:auto}#viewModal .sheet>*{flex-shrink:0}
+  .vrow .sel{margin-left:auto}
+  .vrow input[type=checkbox]{margin-left:auto;width:22px;height:22px;accent-color:var(--accent);flex:none}
+  .vhint{font-size:12.5px;color:var(--muted);margin:-4px 10px 6px;line-height:1.45}
+  #vPrev .card{width:260px;margin:0 auto}
+  #nagBar{position:fixed;left:0;right:0;bottom:0;z-index:55;background:var(--accent);color:#1a1100;font-weight:800;text-align:center;padding:14px;font-size:18px;animation:nagpulse 1s infinite;cursor:pointer}
+  @keyframes nagpulse{50%{filter:brightness(1.25)}}
+  button.undo{margin-top:6px;font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--panel-2);color:var(--fg);border-radius:8px;padding:5px 10px;cursor:pointer}
+</style><script src="app-bridge.js"></script>
+</head><body>
+<div id="linkBar" hidden></div>
+<div class="wrap">
+  <div class="bar">
+    <div class="brand"><span class="dot off" id="dot"></span><b>ครัวรวมจาน</b><select id="scrSel" title="จอนี้คือจอไหน" aria-label="เลือกจอ" hidden></select><span class="clock" id="clock">--:--</span></div>
+    <div class="stat">ออเดอร์ค้าง <b id="nOrders">0</b></div>
+    <div class="stat">เมนูที่ต้องทำ <b id="nDishes">0</b></div>
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-view="board">บอร์ดออเดอร์</button>
+      <button role="tab" aria-selected="false" data-view="done">เสร็จแล้ว <span class="count" id="doneCount">0</span></button>
+    </div>
+    <button class="btn" id="doneClear" hidden>🗑 ล้างข้อมูล</button>
+    <button class="btn" id="toolsBtn" title="ซ่อน/แสดงเมนูตั้งค่า">⚙ ตั้งค่า ▾</button>
+    <span id="tools">
+    <button class="btn" id="viewBtn" title="ตัวอักษร / ธีม">🎨 ปรับหน้าจอ</button>
+    <button class="btn" id="fsBtn" title="เต็มจอ">⛶ เต็มจอ</button>
+    <button class="btn" id="sizeBtn" title="ปรับขนาดคอลัมน์ / จำนวนโต๊ะที่เห็น">↔ ขนาด: กลาง</button>
+    <button class="btn on" id="soundBtn">🔔 เสียง</button>
+    <button class="btn" id="ttsBtn" title="อ่านออเดอร์ใหม่ออกเสียง">🔊 อ่านออกเสียง: ปิด</button>
+    <button class="btn" id="ttsCfg" title="เสียงเตือน และการอ่านออกเสียง">⚙️ ตั้งค่าเสียง</button>
+    </span>
+  </div>
+  <main id="board"></main>
+  <main id="done" hidden></main>
+</div>
+<div class="modal" id="viewModal" hidden>
+  <div class="sheet">
+    <div class="sheethead"><b>🎨 ปรับหน้าจอ</b><button class="btn" id="viewClose">เสร็จ</button></div>
+    <div class="vrow"><span>ธีม</span><div class="seg" id="segTheme">
+      <button class="btn" data-v="dark">🌙 มืด</button><button class="btn" data-v="light">☀️ สว่าง</button><button class="btn" data-v="auto">🔄 ตามเครื่อง</button></div></div>
+    <div class="vrow"><span>ขนาดตัวอักษร</span><div class="seg" id="segFs">
+      <button class="btn" id="fsMinus">A−</button><button class="btn" id="fsVal" disabled>100%</button><button class="btn" id="fsPlus">A+</button></div></div>
+    <div class="vrow"><span>ความหนา</span><div class="seg" id="segFw">
+      <button class="btn" data-v="0">บาง</button><button class="btn" data-v="1">ปกติ</button><button class="btn" data-v="2">หนา</button><button class="btn" data-v="3">หนามาก</button></div></div>
+    <div class="vprev" id="vPrev"></div>
+    <div class="sublabel" style="margin-top:8px">จำนวนจาน</div>
+    <div class="vrow"><span>แบบ</span><div class="seg" data-vk="qs"><button class="btn" data-v="plain">ตัวเลข</button><button class="btn" data-v="badge">ป้ายสี</button><button class="btn" data-v="box">กรอบ</button></div></div>
+    <div class="vrow"><span>ขนาด</span><div class="seg" data-vk="qz"><button class="btn" data-v="1">ปกติ</button><button class="btn" data-v="1.4">ใหญ่</button><button class="btn" data-v="1.8">ใหญ่มาก</button></div></div>
+    <div class="vrow"><span>สี</span><div class="seg" data-vk="qc"><button class="btn" data-v="accent">ส้ม</button><button class="btn" data-v="late">แดง</button><button class="btn" data-v="fresh">เขียว</button><button class="btn" data-v="info">ฟ้า</button><button class="btn" data-v="fg">ขาว/ดำ</button></div></div>
+    <label class="vrow"><span>จานที่สั่งตั้งแต่ 2 ที่ขึ้นไป เน้นเป็นป้ายแดง</span><input type="checkbox" data-vk="multi"></label>
+    <label class="vrow"><span>รวมจานที่เหมือนกันเป๊ะในโต๊ะเป็นบรรทัดเดียว (×3 แทน 3 บรรทัด)</span><input type="checkbox" data-vk="merge"></label>
+    <p class="vhint">รวมเฉพาะเมนู ตัวเลือก และหมายเหตุเหมือนกันทุกอย่าง ที่สั่งรอบเดียวกัน · แตะบรรทัดที่รวมแล้ว = เสร็จทั้งหมด</p>
+    <div class="sublabel" style="margin-top:8px">รายละเอียดจาน</div>
+    <div class="vrow"><span>ตัวเลือก (เนื้อสัตว์ ความเผ็ด ฯลฯ)</span><div class="seg" data-vk="ol"><button class="btn" data-v="0">ต่อกันบรรทัดเดียว</button><button class="btn" data-v="1">แยกบรรทัด ตัวใหญ่</button></div></div>
+    <div class="vrow"><span>หมายเหตุ / แพ้อาหาร</span><div class="seg" data-vk="rk"><button class="btn" data-v="text">ตัวแดง</button><button class="btn" data-v="band">แถบแดง</button></div></div>
+    <div class="sublabel" style="margin-top:8px">เวลารอ</div>
+    <label class="vrow"><span>ขึ้นสีเหลืองเมื่อรอเกิน</span><select class="sel" data-vk="warn"><option value="3">3 นาที</option><option value="5">5 นาที</option><option value="8">8 นาที</option><option value="10">10 นาที</option><option value="15">15 นาที</option></select></label>
+    <label class="vrow"><span>ขึ้นสีแดงเมื่อรอเกิน</span><select class="sel" data-vk="late"><option value="8">8 นาที</option><option value="10">10 นาที</option><option value="15">15 นาที</option><option value="20">20 นาที</option><option value="25">25 นาที</option><option value="30">30 นาที</option></select></label>
+    <label class="vrow"><span>หัวการ์ดทั้งแถบเปลี่ยนสีตามเวลา</span><input type="checkbox" data-vk="hc"></label>
+    <label class="vrow"><span>สั่งเพิ่มหลังเว้นไป นับเวลาใหม่</span><select class="sel" data-vk="gap"><option value="0">ไม่นับใหม่</option><option value="5">เว้นเกิน 5 นาที</option><option value="10">เว้นเกิน 10 นาที</option><option value="15">เว้นเกิน 15 นาที</option><option value="20">เว้นเกิน 20 นาที</option><option value="30">เว้นเกิน 30 นาที</option></select></label>
+    <p class="vhint">นับใหม่เมื่อจานรอบก่อนทำเสร็จหมดแล้ว · ถ้ารอบก่อนยังมีจานค้าง เวลาจะนับต่อจากจานที่รอนานสุด ครัวจะได้ไม่ลืมจานเก่า</p>
+    <div class="sublabel" style="margin-top:8px">การจัดวาง</div>
+    <div class="vrow"><span>การ์ดโต๊ะ</span><div class="seg" data-vk="lay"><button class="btn" data-v="row">แถวเดียว เลื่อนข้าง</button><button class="btn" data-v="grid">หลายแถว เลื่อนลง</button></div></div>
+    <div class="vrow"><span>เรียงโต๊ะ</span><div class="seg" data-vk="sort"><button class="btn" data-v="old">รอนานสุดก่อน</button><button class="btn" data-v="new">ใหม่สุดก่อน</button></div></div>
+    <div class="vrow" style="justify-content:flex-end"><button class="btn" id="viewReset">คืนค่าเริ่มต้น</button></div>
+  </div>
+</div>
+<div class="modal" id="ttsModal" hidden>
+  <div class="sheet">
+    <div class="sheethead"><b>🔔 ตั้งค่าเสียง</b><button class="btn" id="ttsClose">เสร็จ</button></div>
+    <p class="hint">เมื่อมีออเดอร์ใหม่ เมนูถูกเพิ่ม หรือโต๊ะถูกเร่ง จอจะอ่านออกเสียงให้ เสียงจะออกที่ลำโพงที่ต่อกับเครื่องนี้ (เช่น ลำโพงบลูทูธ) เมนูที่ซ่อนไว้จะไม่ถูกอ่าน</p>
+    <div class="sublabel">🍳 รวมกลุ่มเมนูให้ทำรวม</div>
+    <p class="hint" style="margin:0 0 8px">ใส่คำที่เมนูเหล่านั้นมีเหมือนกัน เช่น “ผัดผงกะหรี่” — เมนูไหนที่ชื่อ/สเปก/ตัวเลือกมีคำนี้ จะถูกรวมเป็นกลุ่มเดียวในป๊อปอัพทำรวม (แม้ชื่อเมนูจะต่างกัน เช่น “ปู” กับ “ผัดผงกะหรี่”)</p>
+    <div class="trow" style="gap:8px"><input id="ruleName" class="sel" style="flex:1;min-width:0;margin-left:0" placeholder="คำที่ใช้รวมกลุ่ม เช่น ผัดผงกะหรี่" autocomplete="off"><button class="btn" id="ruleAdd">+ เพิ่ม</button></div>
+    <div id="ruleList" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 14px"></div>
+    <div class="sublabel">🔔 เสียงเตือนตอนออเดอร์เข้า (ดังแยกจากเสียงพูด)</div>
+    <div class="trows">
+      <label class="trow"><span>เสียงออเดอร์ใหม่</span><select id="sndType" class="sel"><option value="bell">กริ่งดัง (แนะนำ)</option><option value="alarm">นาฬิกาปลุก (เร็ว ถี่)</option><option value="digital">บี๊บดิจิทัล</option><option value="ting">กระดิ่งเคาน์เตอร์ ติ๊ง!</option><option value="dingdong">ออดประตู ติ๊งต่อง</option><option value="chime">ติ๊งหน่อง</option><option value="siren">ไซเรน</option><option value="horn">แตร</option></select></label>
+      <label class="trow"><span>ความดัง</span><select id="sndVol" class="sel"><option value="0.3">เบา</option><option value="0.5">กลาง</option><option value="0.8">ดัง</option><option value="1">ดังมาก</option><option value="1.8">ดังพิเศษ (บูสต์)</option><option value="3">ดังสุดๆ (เสียงอาจแตก)</option></select></label>
+      <label class="trow"><span>จำนวนรอบ</span><select id="sndRep" class="sel"><option value="1">1 รอบ</option><option value="2">2 รอบ</option><option value="3">3 รอบ</option><option value="5">5 รอบ</option><option value="8">8 รอบ</option><option value="10">10 รอบ</option></select></label>
+      <label class="trow"><span>เสียงตอนโต๊ะสั่งเพิ่ม</span><select id="sndAdd" class="sel"><option value="same">เหมือนออเดอร์ใหม่</option><option value="bell">กริ่งดัง (แนะนำ)</option><option value="alarm">นาฬิกาปลุก (เร็ว ถี่)</option><option value="digital">บี๊บดิจิทัล</option><option value="ting">กระดิ่งเคาน์เตอร์ ติ๊ง!</option><option value="dingdong">ออดประตู ติ๊งต่อง</option><option value="chime">ติ๊งหน่อง</option><option value="siren">ไซเรน</option><option value="horn">แตร</option><option value="off">ไม่มีเสียง</option></select></label>
+      <label class="trow"><span>ดังซ้ำจนกว่าจะแตะจอ</span><select id="sndNag" class="sel"><option value="0">ไม่ซ้ำ</option><option value="15">ทุก 15 วินาที</option><option value="30">ทุก 30 วินาที</option><option value="60">ทุก 1 นาที</option><option value="120">ทุก 2 นาที</option></select></label>
+      <div class="trow" style="cursor:default;flex-wrap:wrap"><span style="font-size:13px;color:var(--muted);flex:1 1 200px">ถ้ายังเบา ให้เร่งเสียงมีเดียของแท็บเล็ตหรือลำโพงบลูทูธให้สุดด้วย</span><button class="btn" id="sndTestAdd">▶ เสียงสั่งเพิ่ม</button><button class="btn on" id="sndTest">▶ ลองเสียง</button></div>
+    </div>
+    <div class="sublabel">🔊 อ่านออกเสียง</div>
+    <div class="trows">
+      <label class="trow"><input type="checkbox" id="ttsOpts"><span>อ่านตัวเลือกเพิ่มและหมายเหตุ (เช่น ไม่ใส่พริก)</span></label>
+      <label class="trow"><input type="checkbox" id="ttsSpec"><span>อ่านขนาด/สเปก (รหัสย่อบางตัวอาจอ่านเพี้ยน)</span></label>
+      <label class="trow"><input type="checkbox" id="ttsGroup"><span>อ่านรวมเมนูเดียวกันในโต๊ะ (เช่น “กะเพรา 3 ที่ หมูกรอบ 2 ไก่ 1” แทนอ่านทีละจาน)</span></label>
+      <label class="trow"><input type="checkbox" id="ttsBatch"><span>แจ้งเมื่อมีเมนูซ้ำที่ทำรวมได้</span></label>
+      <label class="trow"><span>ความเร็วเสียง</span>
+        <select id="ttsRate" class="sel"><option value="0.85">ช้า</option><option value="1">ปกติ</option><option value="1.2">เร็ว</option></select></label>
+      <label class="trow"><span>เตือนโต๊ะที่รอนาน</span>
+        <select id="ttsWait" class="sel"><option value="0">ไม่เตือน</option><option value="8">เกิน 8 นาที</option><option value="10">เกิน 10 นาที</option><option value="15">เกิน 15 นาที</option><option value="20">เกิน 20 นาที</option></select></label>
+      <label class="trow"><span>พูดซ้ำ</span>
+        <select id="ttsRepeat" class="sel"><option value="1">พูดครั้งเดียว</option><option value="2">พูด 2 รอบ</option><option value="3">พูด 3 รอบ</option><option value="5">พูด 5 รอบ</option><option value="u">ซ้ำจนกว่าจะกด “ทราบแล้ว” หรือเสร็จ</option></select></label>
+      <label class="trow"><span>เว้นช่วงระหว่างรอบ</span>
+        <select id="ttsEvery" class="sel"><option value="5">5 วินาที</option><option value="10">10 วินาที</option><option value="15">15 วินาที</option><option value="20">20 วินาที</option><option value="30">30 วินาที</option><option value="45">45 วินาที</option><option value="60">1 นาที</option><option value="90">1.5 นาที</option><option value="120">2 นาที</option><option value="180">3 นาที</option><option value="300">5 นาที</option><option value="600">10 นาที</option></select></label>
+    </div>
+    <div class="sublabel">เมนูที่ให้จอเรียก (จะอ่านเฉพาะเมนูที่ติ๊กไว้)</div>
+    <div class="trow" style="gap:8px"><input id="ttsAddName" class="sel" style="flex:1;min-width:0" placeholder="พิมพ์ชื่อเมนู (ตรงกับในออเดอร์) แล้วกดเพิ่ม" autocomplete="off"><button class="btn" id="ttsAdd">+ เพิ่ม</button></div>
+    <div class="dishlist tt" id="ttsDishList"></div>
+    <button class="btn on" id="ttsTest">▶ ลองฟังเสียง</button>
+    <div class="thint" id="ttsHint" hidden>ยังไม่พบเสียงภาษาไทยในเครื่องนี้ บนแท็บเล็ต Android ให้ไปที่ ตั้งค่า → ระบบ → ภาษาและการป้อนข้อมูล → การอ่านออกเสียงข้อความ (Text-to-speech) → Google → ติดตั้งข้อมูลเสียงภาษาไทย แล้วเปิดหน้านี้ใหม่</div>
+  </div>
+</div>
+<div class="pop" id="batchPop" hidden>
+  <div class="pophead" id="popDrag"><b>🍳 ทำรวม <span id="popCount">0</span></b><span class="popbtns"><button class="popx" id="popReset" title="คืนตำแหน่งและขนาด">⟲</button><button class="popx" id="popHide" title="ซ่อน">✕</button></span></div>
+  <div class="popbody" id="popBody"></div>
+  <div class="pophandle" id="popResize" title="ลากเพื่อปรับขนาด"></div>
+</div>
+<button class="popfab" id="popShow" hidden>🍳 ทำรวม <span id="fabCount">0</span></button>
+<div class="toasts" id="toasts"></div>
+<div id="nagBar" hidden>🔔 มีออเดอร์ใหม่ — แตะหน้าจอเพื่อหยุดเสียง</div>
+<script src="kiosk.js"></script>
+<script>
+// ---- which kitchen screen this tablet is: ?screen=<id> in the link, else the last one chosen here, else the server's first screen ----
+const SCREEN=(()=>{const q=new URLSearchParams(location.search).get('screen');if(q){try{localStorage.setItem('kds_screen',q);}catch(e){}return q;}
+  try{return localStorage.getItem('kds_screen')||'';}catch(e){return '';}})();
+const SKEY=k=>SCREEN&&SCREEN!=='main'?k+'_'+SCREEN:k;   // finished-tables history is kept per screen
+const OTYPE={dine_in:['กินที่ร้าน',''],takeaway:['กลับบ้าน','takeaway'],delivery:['เดลิเวอรี','delivery'],
+  self_pick_up:['รับเอง','takeaway'],'1':['กินที่ร้าน',''],'2':['กลับบ้าน','takeaway'],'3':['เดลิเวอรี','delivery']};
+let ORDERS=[], view='board', sound=true, seen=new Set();
+const HIDDEN=new Set(); let KNOWN=[];
+const boardEl=document.getElementById('board'), doneEl=document.getElementById('done');
+const esc=s=>(s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const toMs=t=>{t=Number(t)||0;return t<1e12?t*1000:t;};
+
+function normalize(raw){
+  return (raw||[]).map(o=>{
+    const pend=(o.pending_dishes||o.pending||[])
+      .filter(d=>!HIDDEN.has(d.name)&&!DONEDISH.has(d.id))   // drop hidden menus (e.g. drinks) for this screen
+      .map(d=>({
+      id:d.id, name:d.name, quantity:d.quantity||1, spec:d.spec||'', at:toMs(d.at)||0, thai:!!d.thai,
+      extra_option:[...(d.extra_option||[]),...(d.extra_needing||[])], remark:d.remark||'', status:d.status||'pending'}));
+    return {id:o.id, table_num:o.table_num||'', pick_up_code:o.pick_up_code||'',
+      order_type:String(o.order_type||'dine_in'), third_party_platform:o.third_party_platform||'',
+      is_urge:!!o.is_urge, unpaid:!!o.unpaid, is_add_dish:!!o.is_add_dish, is_need_cutlery:!!o.is_need_cutlery,
+      order_at:toMs(o.order_at||o.create_at), is_cancel:!!o.is_cancel, pending:pend,
+      cancelled:(o.cancelled_dishes||[]).map(d=>({id:d.id,name:d.name,quantity:d.quantity||1,spec:d.spec||'',extra_option:[...(d.extra_option||[]),...(d.extra_needing||[])],remark:d.remark||'',status:'cancelled'})),
+      finished:(o.completed_dishes||[]).filter(d=>!HIDDEN.has(d.name)).map(d=>({id:d.id,name:d.name,quantity:d.quantity||1,spec:d.spec||'',at:toMs(d.at)||0,thai:!!d.thai,extra_option:[...(d.extra_option||[]),...(d.extra_needing||[])],remark:d.remark||'',status:'completed'}))};
+  }).filter(o=>o.pending.length>0);   // hide cards whose every item was filtered out
+}
+// ---- finished / cancelled dishes stay at the bottom of their table; tap twice to hide ----
+const DONEDISH=new Map();   // dishes completed here: id -> {oid, dish}  (shown even if OrderPin does not echo them back)
+const CANCELD=new Map();    // dishes that vanished from an order: id -> {oid, dish}
+const ARMED=new Set();      // first tap done, second tap hides
+let GONE=new Map();try{GONE=new Map(Object.entries(JSON.parse(localStorage.getItem('kds_gone')||'{}')));}catch(e){}
+(function(){const cut=Date.now()-24*3600e3;for(const [k,v] of [...GONE])if(!(v>cut))GONE.delete(k);})();
+const saveGone=()=>{try{localStorage.setItem('kds_gone',JSON.stringify(Object.fromEntries(GONE)));}catch(e){}};
+function markDone(o,d){if(!d||d.status==='completed')return;o.pending=o.pending.filter(x=>x.id!==d.id);
+  DONEDISH.set(d.id,{oid:o.id,dish:{...d,status:'completed'}});
+  post('/api/dish/complete',{order_id:o.id,dishes_id:d.id,status:'completed'});}
+const ADDED=new Set();   // dishes added to a table after it first appeared — highlighted until done
+// ---- batch grouping: same menu = same group. Keyword rules merge dishes whose name/spec/options contain the keyword ----
+const nz=s=>String(s==null?'':s).replace(/\s+/g,'');
+let RULES=[];try{RULES=JSON.parse(localStorage.getItem('kds_rules')||'[]');}catch(e){}if(!Array.isArray(RULES))RULES=[];
+const saveRules=()=>{try{localStorage.setItem('kds_rules',JSON.stringify(RULES));}catch(e){}};
+const fullText=d=>nz([d.name,d.spec,...(d.extra_option||[])].join(''));
+const ruleOf=d=>{const f=fullText(d);return RULES.find(k=>nz(k)&&f.includes(nz(k)))||null;};
+const bkey=d=>{const k=ruleOf(d);return k?'rule:'+k:d.name;};
+const groupName=d=>ruleOf(d)||d.name;
+// what differs between the dishes of one group (the meat etc.), with the group keyword taken out
+const variantOf=d=>{const k=ruleOf(d);
+  if(!k)return[d.spec,...(d.extra_option||[])].filter(Boolean).join(' ');
+  const kz=nz(k);return[d.name,d.spec,...(d.extra_option||[])].filter(Boolean)
+    .map(x=>nz(x)===kz?'':String(x).split(k).join(' ').trim()).filter(Boolean).join(' ');};
+// ---- รอบการสั่ง: จานที่สั่งห่างจากจานก่อนหน้าเกิน gap = รอบใหม่ ----
+const dishesOf=o=>[...o.pending,...(o.finished||[]),...[...DONEDISH.values()].filter(e=>e.oid===o.id).map(e=>e.dish)];
+function roundStarts(o,gap){const ts=dishesOf(o).map(d=>d.at||o.order_at).sort((a,b)=>a-b);
+  const st=[];let prev=-Infinity;for(const t of ts){if(t-prev>=gap)st.push(t);prev=t;}return st.length?st:[o.order_at];}
+const roundOf=(st,t)=>{let k=0;st.forEach((x,i)=>{if(x<=t)k=i;});return k;};
+// เวลาที่การ์ดนับ: ตั้ง "สั่งเพิ่มหลังเว้นไป นับเวลาใหม่" → นับจากรอบเก่าสุดที่ยังมีจานค้าง (รอบก่อนเสร็จหมด = นับใหม่จากรอบสั่งเพิ่ม)
+function startOf(o){const g=(+VIEW.gap||0)*60000;if(!g)return o.order_at;
+  const st=roundStarts(o,g),pend=o.pending.filter(d=>d.status==='pending');
+  return pend.length?Math.min(...pend.map(d=>st[roundOf(st,d.at||o.order_at)])):o.order_at;}
+function ageInfo(o){const ms=Math.max(0,Date.now()-startOf(o)),m=Math.floor(ms/60000),s=Math.floor((ms%60000)/1000);
+  return{label:(m<1?'0':m)+':'+String(s).padStart(2,'0'),sev:m>=(+VIEW.late||10)?'late':m>=(+VIEW.warn||5)?'warn':'fresh'};}
+function buildBatches(){const map=new Map();
+  for(const o of ORDERS){const where=o.table_num?('โต๊ะ '+o.table_num):(o.pick_up_code?('รับ '+o.pick_up_code):(o.third_party_platform||'เดลิเวอรี'));
+    for(const d of o.pending){if(d.status!=='pending')continue;const k=bkey(d);
+      if(!map.has(k))map.set(k,{key:k,name:groupName(d),spec:'',qty:0,sources:[]});
+      const b=map.get(k);b.qty+=d.quantity;b.sources.push({where,qty:d.quantity,v:variantOf(d)});}}
+  return[...map.values()].sort((a,b)=>(b.sources.length-a.sources.length)||(b.qty-a.qty));}
+
+function renderBoard(){
+  const list=[...ORDERS].sort((a,b)=>VIEW.sort==='new'?startOf(b)-startOf(a):startOf(a)-startOf(b));
+  boardEl.innerHTML=list.map(cardHtml).join('')||'<div class="empty">ไม่มีออเดอร์ค้าง 🎉</div>';
+}
+// จานเหมือนกันเป๊ะ (ชื่อ สเปก ตัวเลือก หมายเหตุ) ในรอบเดียวกัน → บรรทัดเดียว จำนวนรวม · _ids = จานจริงทั้งหมดในบรรทัดนั้น
+function mergeSame(list,roundFn){if(!VIEW.merge)return list;const out=[],at=new Map();
+  for(const d of list){const k=roundFn(d)+'|'+(d.thai?'th|':'')+d.name+'|'+d.spec+'|'+(d.extra_option||[]).join('/')+'|'+d.remark;
+    const m=at.get(k);if(m){m.quantity+=d.quantity;m._ids.push(d.id);m.id=m._ids.join(',');continue;}
+    const c={...d,_ids:[d.id]};at.set(k,c);out.push(c);}
+  return out;}
+function cardHtml(o){const a=ageInfo(o);const[tl,tc]=OTYPE[o.order_type]||['',''];
+    const head=o.table_num?('โต๊ะ '+o.table_num):(o.pick_up_code?('#'+o.pick_up_code):(o.third_party_platform||'เดลิเวอรี'));
+    const flags=[];if(o.unpaid)flags.push('<span class="flag unpaid">💰 ยังไม่ได้ชำระ</span>');
+    if(o.is_urge)flags.push('<span class="flag" style="color:var(--late);border-color:var(--late)">⚡ เร่ง</span>');
+    if(o.is_add_dish)flags.push('<span class="flag add">+ เพิ่มเมนู</span>');
+    (NOTES[o.id]||[]).forEach((x,i)=>flags.push('<span class="flag" data-note="'+esc(o.id)+'#'+i+'" style="color:var(--late);border-color:var(--late);cursor:pointer" title="แตะเพื่อรับทราบ">'+esc(x)+' ✕</span>'));
+    if(o.is_need_cutlery)flags.push('<span class="flag cut">ช้อนส้อม</span>');
+    if(o.third_party_platform)flags.push('<span class="flag plat">'+esc(o.third_party_platform)+'</span>');
+    const dishLi=(d,st)=>{const done=st==='done',canc=st==='cancel',armed=ARMED.has(d.id),ids=d._ids||[d.id];
+      const ol=VIEW.ol==='1'&&(d.extra_option||[]).length;   // ตัวเลือกแยกบรรทัด ตัวใหญ่
+      const opt=(d.extra_option||[]).length&&!ol?'<span class="opt">+ '+d.extra_option.map(esc).join(', ')+'</span>':'';
+      const sub=[d.spec?esc(d.spec):'',opt,d.remark?'<span class="rmk">⚑ '+esc(d.remark)+'</span>':''].filter(Boolean).join(' · ');
+      const multi=VIEW.multi&&st==='pending'&&d.quantity>1;
+      const others=st==='pending'&&o.id!=='_pv'?ORDERS.reduce((n,oo)=>n+(oo!==o?oo.pending.filter(x=>x.status==='pending'&&bkey(x)===bkey(d)).length:0),0):0;
+      const nw=st==='pending'&&ids.some(x=>ADDED.has(x));
+      const note=canc?`<div class="dsub tagc">${armed?'แตะอีกครั้งเพื่อซ่อน':'❌ ยกเลิก — แตะเพื่อรับทราบ'}</div>`:(done?`<div class="dsub tagc" style="color:var(--muted);font-weight:600">${armed?'แตะอีกครั้งเพื่อซ่อน':'เสร็จแล้ว · แตะ ✓ เพื่อย้อนกลับ'}</div>`:'');
+      return `<li class="dish${done?' done':''}${canc?' cancel':''}${armed?' armed':''}${nw?' new':''}${multi?' multi':''}" data-st="${st}" data-o="${esc(o.id)}" data-d="${esc(d.id)}"><span class="qty">×${d.quantity}</span>
+        <span class="dmeta"><div class="dname">${esc(d.name)}${d.thai?'<span class="thb">คนไทย</span>':''}${nw?'<span class="nb">เพิ่มใหม่</span>':''}</div>${ol?`<div class="dopts">${d.extra_option.map(x=>'<div>+ '+esc(x)+'</div>').join('')}</div>`:''}${sub?`<div class="dsub">${sub}</div>`:''}
+        ${others?`<div class="dsub" style="color:var(--batch)">↔ อีก ${others} ที่สั่งเหมือนกัน</div>`:''}${note}${st==='pending'&&ids.some(x=>repeating(o,{...d,id:x}))?`<button class="ack" data-ack="${esc(d.id)}">🔇 ทราบแล้ว</button>`:''}</span>
+        <span class="check">${canc?'✕':'✓'}</span></li>`;};
+    const doneIds=new Set(),doneL=[];
+    [...[...DONEDISH.values()].filter(e=>e.oid===o.id).map(e=>e.dish),...(o.finished||[])].forEach(d=>{if(doneIds.has(d.id)||GONE.has(d.id))return;doneIds.add(d.id);doneL.push(d);});
+    const cancL=[...(o.cancelled||[]),...[...CANCELD.values()].filter(e=>e.oid===o.id).map(e=>e.dish)].filter((d,i,a)=>!GONE.has(d.id)&&a.findIndex(x=>x.id===d.id)===i);
+    // จานค้างเรียงตามเวลาสั่ง · คั่นด้วย "สั่งเพิ่ม hh:mm" เมื่อเป็นรอบใหม่ (ใช้ระยะนับเวลาใหม่ ถ้าไม่ตั้งใช้ 1 นาที)
+    const rst=roundStarts(o,((+VIEW.gap||0)||1)*60000);
+    const pend=[...o.pending].sort((x,y)=>(x.at||0)-(y.at||0));let lastR=-1;
+    const pendHtml=mergeSame(pend,d=>roundOf(rst,d.at||o.order_at)).map(d=>{const r=roundOf(rst,d.at||o.order_at),sep=lastR>=0&&r!==lastR?`<li class="rsep">➕ สั่งเพิ่ม ${hhmm(rst[r])}</li>`:'';lastR=r;return sep+dishLi(d,'pending');}).join('');
+    const dishes=pendHtml+mergeSame(doneL,()=>0).map(d=>dishLi(d,'done')).join('')+cancL.map(d=>dishLi(d,'cancel')).join('');
+    return `<article class="card${o.is_urge?' urge':''}${o.unpaid?' unpaid':''}" data-oid="${esc(o.id)}" data-s="${a.sev}"><header><span class="tbl">${esc(head)}</span>
+      ${tl?`<span class="otype ${tc}">${tl}</span>`:''}<span class="age" data-s="${a.sev}">${a.label}</span></header>
+      ${flags.length?`<div class="flags">${flags.join('')}</div>`:''}
+      <ul class="dishes">${dishes}</ul><footer>${o.pending.some(d=>repeating(o,d))?`<button class="btn ack-all" data-ackall="${esc(o.id)}">🔇 ทราบแล้ว</button>`:''}<button class="btn done-all" data-all="${esc(o.id)}">เสร็จทั้งโต๊ะ</button></footer></article>`;
+}
+// ---- finished tables ("เสร็จแล้ว" tab) — kept in this browser for 24 hours ----
+let DONE=[];try{DONE=JSON.parse(localStorage.getItem(SKEY('kds_done'))||'[]');}catch(e){}
+if(!Array.isArray(DONE))DONE=[];
+const recalled=new Map(), GHOST=new Map();
+function trimDone(){const cut=Date.now()-24*3600e3;DONE=DONE.filter(x=>x&&x.done_at>cut).slice(0,100);}
+function saveDone(){try{localStorage.setItem(SKEY('kds_done'),JSON.stringify(DONE));}catch(e){}}
+trimDone();
+const hhmm=ms=>{const d=new Date(ms);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+const mmss=ms=>{const s=Math.max(0,Math.round(ms/1000));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');};
+function recordDone(o){
+  if(DONE.some(x=>x.id===o.id))return;
+  const ids=new Set(),dishes=[];
+  [...(o.finished||[]),...[...DONEDISH.values()].filter(e=>e.oid===o.id).map(e=>e.dish),...o.pending].forEach(d=>{if(ids.has(d.id))return;ids.add(d.id);
+    dishes.push({id:d.id,name:d.name,quantity:d.quantity,spec:d.spec,thai:d.thai||undefined,extra_option:d.extra_option,remark:d.remark,cancelled:!!d.cancelled||undefined});});
+  DONE.unshift({id:o.id,table_num:o.table_num,pick_up_code:o.pick_up_code,order_type:o.order_type,third_party_platform:o.third_party_platform,
+    is_need_cutlery:o.is_need_cutlery,is_cancel:!!o.is_cancel,order_at:o.order_at,done_at:Date.now(),dishes});
+  trimDone();saveDone();renderDone();
+  if(recalled.has(o.id)&&Date.now()-recalled.get(o.id)<20000){recalled.delete(o.id);
+    toast('⚠️ เรียกกลับไม่สำเร็จ','เซิร์ฟเวอร์ไม่ส่งโต๊ะนี้กลับมา โต๊ะอยู่ในแท็บ “เสร็จแล้ว” ตามเดิม');}
+}
+function renderDone(){
+  document.getElementById('doneCount').textContent=DONE.length;
+  const day0=new Date().setHours(0,0,0,0),td=DONE.filter(h=>h.done_at>=day0&&!h.is_cancel);
+  const nDish=td.reduce((n,h)=>n+h.dishes.reduce((s,d)=>s+(d.cancelled?0:d.quantity),0),0);
+  const times=td.map(h=>h.done_at-h.order_at).filter(x=>x>0&&x<6*3600e3);
+  const avg=times.length?mmss(times.reduce((a,b)=>a+b,0)/times.length):'-';
+  const mx=times.length?mmss(Math.max(...times)):'-';
+  const cnt=new Map();td.forEach(h=>h.dishes.forEach(d=>{if(!d.cancelled)cnt.set(d.name,(cnt.get(d.name)||0)+d.quantity);}));
+  const top=[...cnt].sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const sum=`<article class="card sumcard"><header><span class="tbl">📊 สรุปวันนี้</span></header><div class="sumbody">
+    <div class="kpis"><div class="kpi"><b>${td.length}</b><span>โต๊ะที่เสร็จ</span></div><div class="kpi"><b>${nDish}</b><span>จานที่ทำ</span></div>
+    <div class="kpi"><b>${avg}</b><span>เวลาเฉลี่ย/โต๊ะ</span></div><div class="kpi"><b>${mx}</b><span>นานสุด</span></div></div>
+    <div class="sublabel" style="margin:0 0 4px">เมนูขายดี</div>
+    ${top.map(([n,q],i)=>`<div class="toprow"><span>${i+1}. ${esc(n)}</span><b>×${q}</b></div>`).join('')||'<div class="dempty" style="padding:8px">ยังไม่มีข้อมูล</div>'}
+    </div></article>`;
+  doneEl.innerHTML=sum+DONE.map(h=>{const[tl,tc]=OTYPE[h.order_type]||['',''];
+    const head=h.table_num?('โต๊ะ '+h.table_num):(h.pick_up_code?('#'+h.pick_up_code):(h.third_party_platform||'เดลิเวอรี'));
+    const dishes=h.dishes.map(d=>{
+      const opt=(d.extra_option||[]).length?'<span class="opt">+ '+d.extra_option.map(esc).join(', ')+'</span>':'';
+      const sub=[d.spec?esc(d.spec):'',opt,d.remark?'<span class="rmk">⚑ '+esc(d.remark)+'</span>':''].filter(Boolean).join(' · ');
+      return `<li class="dish static${d.cancelled?' cancel':''}"><span class="qty">×${d.quantity}</span><span class="dmeta"><div class="dname">${esc(d.name)}${d.thai?'<span class="thb">คนไทย</span>':''}</div>${sub?`<div class="dsub">${sub}</div>`:''}${d.cancelled?'<div class="dsub tagc">❌ ยกเลิก</div>':''}</span><span class="check">${d.cancelled?'✕':'✓'}</span></li>`;}).join('');
+    return `<article class="card fin"><header><span class="tbl">${esc(head)}</span>${tl?`<span class="otype ${tc}">${tl}</span>`:''}
+      <span class="fintime"><b>${hhmm(h.done_at)}</b>${h.order_at?'ใช้ '+mmss(h.done_at-h.order_at):''}</span></header>
+      ${h.is_cancel?'<div class="flags"><span class="flag" style="color:var(--late);border-color:var(--late)">ยกเลิก</span></div>':''}
+      <ul class="dishes">${dishes}</ul>${h.is_cancel?'':`<footer><button class="btn" data-recall="${esc(h.id)}">↩ เรียกกลับ</button></footer>`}</article>`;
+  }).join('');
+}
+renderDone();
+// ---- read-aloud (Thai text-to-speech through the device's own audio output, e.g. a Bluetooth speaker) ----
+let primed=false; const seenDish=new Set(), urgeSeen=new Set();
+const TTS=Object.assign({on:false,opts:true,spec:false,batch:true,group:true,rate:1,repeat:'2',every:'15',wait:'15',only:[]},(()=>{try{return JSON.parse(localStorage.getItem('kds_tts')||'{}');}catch(e){return {};}})());
+const canSpeak='speechSynthesis' in window;
+let VOICE=null;
+{const m=/^u(\d+)$/.exec(String(TTS.repeat));if(m){TTS.every=m[1];TTS.repeat='u';}}   // old settings: 'u30' = repeat every 30s until done
+function saveTts(){try{localStorage.setItem('kds_tts',JSON.stringify(TTS));}catch(e){}}
+function loadVoices(){if(!canSpeak)return;VOICE=speechSynthesis.getVoices().find(v=>/^th/i.test(v.lang))||null;
+  const h=document.getElementById('ttsHint');if(h)h.hidden=!!VOICE;}
+function speak(text){if(!TTS.on||!canSpeak||!text)return;
+  const go=()=>{const u=new SpeechSynthesisUtterance(text);u.lang='th-TH';u.rate=TTS.rate;if(VOICE)u.voice=VOICE;speechSynthesis.speak(u);};
+  const w=soundUntil-Date.now();if(w>0)setTimeout(go,w);else go();}
+const spokenHead=o=>o.table_num?('โต๊ะ '+o.table_num):(o.pick_up_code?('รับกลับบ้าน หมายเลข '+o.pick_up_code):(o.third_party_platform||'เดลิเวอรี'));
+// รายละเอียดที่อ่านต่อท้ายชื่อจาน (ตัวเลือก สเปก หมายเหตุ ตามที่ตั้งไว้)
+function dishDetail(d){const x=[];
+  if(TTS.spec&&d.spec)x.push(d.spec);
+  if(TTS.opts||byCombo(d)){if((d.extra_option||[]).length)x.push(d.extra_option.join(' '));if(byCombo(d)&&d.spec&&!TTS.spec)x.push(d.spec);}
+  if(TTS.opts){if(d.remark)x.push('หมายเหตุ '+d.remark);}
+  if(d.thai)x.push('คนไทย');
+  return x.join(' ');}
+function dishSay(d){const x=dishDetail(d);return d.name+' '+d.quantity+' ที่'+(x?' '+x:'');}
+// อ่านรวม: เมนูเดียวกันพูดครั้งเดียวพร้อมยอดรวม เช่น "กะเพรา 3 ที่ หมูกรอบ 2 ที่ ไก่ 1 ที่"
+// (พนักงานกดเมนูเดิมทีละจาน จอจะไม่อ่าน "กะเพรา 1 ที่" ซ้ำหลายรอบ)
+function sayList(ds){
+  if(!TTS.group)return ds.map(dishSay).join(', ');
+  const by=new Map();
+  for(const d of ds){if(!by.has(d.name))by.set(d.name,new Map());const v=by.get(d.name),k=dishDetail(d);v.set(k,(v.get(k)||0)+d.quantity);}
+  return [...by].map(([name,v])=>{const tot=[...v.values()].reduce((a,b)=>a+b,0);
+    if(v.size===1){const k=[...v.keys()][0];return name+' '+tot+' ที่'+(k?' '+k:'');}
+    return name+' '+tot+' ที่ '+[...v].map(([k,q])=>(k||'ธรรมดา')+' '+q+' ที่').join(' ');}).join(', ');}
+// only dishes ticked in the settings are ever spoken
+const nk=s=>String(s||'').replace(/\s+/g,'');
+const partsOf=d=>[...(d.extra_option||[]),d.spec].filter(Boolean).map(nk);
+// all the names this dish can be ticked as: หมึก, หมึกกระเทียม (name + one option / spec), or name + every option
+const labelsOf=d=>{const p=partsOf(d),n=nk(d.name);return[...p.map(x=>n+x),...(p.length>1?[n+p.join('')]:[])];};
+const onlySet=()=>new Set((TTS.only||[]).map(nk));
+// a dish is read if its menu name is ticked (any option), or the menu+option combo is ticked
+const chosen=d=>{const s=onlySet();return s.has(nk(d.name))||labelsOf(d).some(l=>s.has(l));};
+const byCombo=d=>{const s=onlySet();return !s.has(nk(d.name))&&labelsOf(d).some(l=>s.has(l));};
+const REPEATS=[];   // announcements waiting to be repeated while their dishes are still pending
+const ACKED=new Set();   // dishes the cook has acknowledged ("ทราบแล้ว") — they stop being repeated but stay on the board
+function pendingOf(r){const o=ORDERS.find(x=>x.id===r.oid);return o?o.pending.filter(d=>r.ids.includes(d.id)&&d.status==='pending'&&!ACKED.has(d.id)):[];}
+const repeating=(o,d)=>d.status==='pending'&&!ACKED.has(d.id)&&REPEATS.some(r=>r.oid===o.id&&r.ids.includes(d.id));
+function announce(prefix,o,dishes,noRepeat){
+  if(!TTS.on)return false;
+  const ds=dishes.filter(d=>d.status==='pending'&&chosen(d));
+  if(!ds.length)return false;
+  speak((prefix?prefix+' ':'')+spokenHead(o)+' '+sayList(ds));
+  if(!noRepeat){
+    const m=String(TTS.repeat);
+    const every=Math.max(3,+TTS.every||15)*1000;
+    const left=m==='u'?Infinity:(+m||1)-1;
+    if(left>0)REPEATS.push({oid:o.id,ids:ds.map(d=>d.id),every,left,next:Date.now()+every});
+  }
+  return true;
+}
+function repeatTick(){
+  if(!TTS.on||!canSpeak||!REPEATS.length)return;
+  if(speechSynthesis.speaking||speechSynthesis.pending)return;
+  const now=Date.now();
+  for(let i=REPEATS.length-1;i>=0;i--){
+    const r=REPEATS[i],ds=pendingOf(r);
+    if(!ds.length){REPEATS.splice(i,1);continue;}   // done or gone: stop repeating
+    if(now<r.next)continue;
+    const o=ORDERS.find(x=>x.id===r.oid);
+    speak((r.every>=30000?'ยังค้างอยู่ ':'')+spokenHead(o)+' '+sayList(ds));
+    r.next=now+r.every;
+    if(r.left!==Infinity&&--r.left<=0)REPEATS.splice(i,1);
+    break;   // one announcement per tick; the others wait until the speaker is free
+  }
+}
+setInterval(repeatTick,1000);
+function renderTtsDishes(soft){
+  const only=new Set(TTS.only||[]);
+  const seenNow=[];const addSeen=d=>{seenNow.push(d.name);[...(d.extra_option||[]),d.spec].filter(Boolean).forEach(x=>seenNow.push(d.name+x));};
+  ORDERS.forEach(o=>[...o.pending,...(o.finished||[])].forEach(addSeen));
+  DONE.forEach(h=>h.dishes.forEach(addSeen));
+  const names=[...new Set([...KNOWN,...seenNow].filter(n=>n&&!HIDDEN.has(n)).concat([...only]))].sort((a,b)=>a.localeCompare(b,'th'));
+  const sig=names.join('|');if(soft&&sig===window._ttsNames)return;window._ttsNames=sig;
+  document.getElementById('ttsDishList').innerHTML=names.length?names.map(n=>`<label class="drow say${only.has(n)?' say-on':''}"><input type="checkbox" data-n="${esc(n)}" ${only.has(n)?'checked':''}><span>${esc(n)}</span></label>`).join('')
+    :'<div class="dempty">ยังไม่เห็นเมนูที่วิ่งเข้ามา — รอให้มีออเดอร์เข้ามาก่อน แล้วกลับมาเลือกได้ครับ</div>';
+}
+const ttsBtn=document.getElementById('ttsBtn'),ttsModal=document.getElementById('ttsModal');
+function updateTtsBtn(){ttsBtn.textContent='🔊 อ่านออกเสียง: '+(TTS.on?'เปิด':'ปิด');ttsBtn.classList.toggle('on',TTS.on);}
+ttsBtn.addEventListener('click',()=>{
+  if(!canSpeak){toast('⚠️ เบราว์เซอร์นี้อ่านออกเสียงไม่ได้','ลองเปิดด้วย Chrome');return;}
+  TTS.on=!TTS.on;saveTts();updateTtsBtn();
+  if(TTS.on){speak('เปิดระบบอ่านออกเสียงแล้ว');
+    if(!(TTS.only||[]).length)toast('🔊 ยังไม่ได้เลือกเมนูที่จะให้อ่าน','กดปุ่ม ⚙️ แล้วติ๊กเมนูที่ต้องการ จอจะอ่านเฉพาะเมนูที่เลือก');}
+  else{REPEATS.length=0;speechSynthesis.cancel();}});
+document.getElementById('ttsCfg').addEventListener('click',()=>{
+  document.getElementById('ttsOpts').checked=TTS.opts;document.getElementById('ttsSpec').checked=TTS.spec;
+  document.getElementById('ttsBatch').checked=TTS.batch;document.getElementById('ttsGroup').checked=TTS.group!==false;document.getElementById('ttsRate').value=String(TTS.rate);
+  renderTtsDishes();document.getElementById('ttsRepeat').value=String(TTS.repeat);document.getElementById('ttsEvery').value=String(TTS.every||'15');renderRules();document.getElementById('ttsWait').value=String(TTS.wait||'0');document.getElementById('sndType').value=SND.type;document.getElementById('sndVol').value=String(SND.vol);document.getElementById('sndRep').value=String(SND.rep);document.getElementById('sndAdd').value=String(SND.add);document.getElementById('sndNag').value=String(SND.nag);loadVoices();ttsModal.hidden=false;});
+function addTtsName(){const i=document.getElementById('ttsAddName'),n=i.value.trim();if(!n)return;
+  const s=new Set(TTS.only||[]);s.add(n);TTS.only=[...s];saveTts();i.value='';renderTtsDishes();}
+document.getElementById('ttsAdd').addEventListener('click',addTtsName);
+document.getElementById('ttsAddName').addEventListener('keydown',e=>{if(e.key==='Enter')addTtsName();});
+document.getElementById('ttsClose').addEventListener('click',()=>{ttsModal.hidden=true;});
+ttsModal.addEventListener('click',e=>{if(e.target===ttsModal)ttsModal.hidden=true;});
+[['ttsOpts','opts'],['ttsSpec','spec'],['ttsBatch','batch'],['ttsGroup','group']].forEach(([id,k])=>
+  document.getElementById(id).addEventListener('change',e=>{TTS[k]=e.target.checked;saveTts();}));
+document.getElementById('ttsRate').addEventListener('change',e=>{TTS.rate=+e.target.value;saveTts();});
+[['sndType','type'],['sndVol','vol'],['sndRep','rep'],['sndAdd','add'],['sndNag','nag']].forEach(([id,k])=>document.getElementById(id).addEventListener('change',e=>{SND[k]=e.target.value;saveSnd();}));
+document.getElementById('sndTest').addEventListener('click',()=>{const w=sound;sound=true;beep('order');sound=w;});
+document.getElementById('sndTestAdd').addEventListener('click',()=>{const w=sound;sound=true;if(SND.add==='off')toast('ปิดเสียงสั่งเพิ่มไว้','');beep('add');sound=w;});
+function renderRules(){document.getElementById('ruleList').innerHTML=RULES.map((k,i)=>`<span class="chip" style="cursor:pointer" data-rule="${i}" title="แตะเพื่อลบ">${esc(k)} ✕</span>`).join('')||'<span class="thint" style="margin:0;background:none;border:0;padding:0;color:var(--faint)">ยังไม่มีกลุ่ม — ตอนนี้รวมเฉพาะเมนูชื่อเหมือนกันเป๊ะ</span>';}
+function addRule(){const i=document.getElementById('ruleName'),v=i.value.trim();if(!v)return;if(!RULES.some(k=>nz(k)===nz(v)))RULES.push(v);saveRules();i.value='';renderRules();render();}
+document.getElementById('ruleAdd').addEventListener('click',addRule);
+document.getElementById('ruleName').addEventListener('keydown',e=>{if(e.key==='Enter')addRule();});
+document.getElementById('ruleList').addEventListener('click',e=>{const c=e.target.closest('[data-rule]');if(!c)return;RULES.splice(+c.dataset.rule,1);saveRules();renderRules();render();});
+document.getElementById('ttsWait').addEventListener('change',e=>{TTS.wait=e.target.value;saveTts();});
+document.getElementById('ttsRepeat').addEventListener('change',e=>{TTS.repeat=e.target.value;saveTts();});
+document.getElementById('ttsEvery').addEventListener('change',e=>{TTS.every=e.target.value;saveTts();});
+document.getElementById('ttsDishList').addEventListener('change',e=>{const cb=e.target;if(cb.type!=='checkbox')return;
+  const s=new Set(TTS.only||[]);if(cb.checked)s.add(cb.dataset.n);else s.delete(cb.dataset.n);
+  TTS.only=[...s];saveTts();cb.closest('.drow').classList.toggle('say-on',cb.checked);});
+document.getElementById('ttsTest').addEventListener('click',()=>{
+  if(!canSpeak){toast('⚠️ เบราว์เซอร์นี้อ่านออกเสียงไม่ได้','ลองเปิดด้วย Chrome');return;}
+  const was=TTS.on;TTS.on=true;speechSynthesis.cancel();
+  const demo=[{name:'ผัดไทย',quantity:1,extra_option:['กุ้ง'],remark:''},{name:'ผัดไทย',quantity:1,extra_option:['กุ้ง'],remark:''},{name:'ผัดไทย',quantity:1,extra_option:['ไก่'],remark:''},
+    {name:'ต้มยำกุ้ง',quantity:1,extra_option:['เผ็ดมาก'],remark:'ไม่ใส่ผักชี'}];
+  const ob=TTS.only;TTS.only=['ผัดไทย','ต้มยำกุ้ง'];const txt='โต๊ะ 12 '+sayList(demo);TTS.only=ob;
+  speak(txt);toast('🔊 ตัวอย่าง',txt,6000);TTS.on=was;});
+if(canSpeak){loadVoices();speechSynthesis.onvoiceschanged=loadVoices;}
+updateTtsBtn();
+// browsers only allow speech after the page has been tapped once — remind after a reload
+if(TTS.on&&!(navigator.userActivation&&navigator.userActivation.hasBeenActive))
+  setTimeout(()=>toast('🔊 แตะหน้าจอ 1 ครั้ง','เพื่อเริ่มอ่านออกเสียง (เบราว์เซอร์ต้องการให้แตะก่อนหลังเปิดหน้า)'),700);
+
+// ---- floating "ทำรวม" popup (shown over the board) ----
+let popOpen=true; try{if(localStorage.getItem('kds_pop')==='0')popOpen=false;}catch(e){}
+function renderPop(){
+  const multi=buildBatches().filter(b=>b.sources.length>1);
+  document.getElementById('popCount').textContent=multi.length;
+  document.getElementById('fabCount').textContent=multi.length;
+  document.getElementById('popBody').innerHTML=multi.length?multi.map(b=>`<div class="poprow" data-bk="${esc(b.key)}" data-bn="${esc(b.name)}">
+    <div class="pt"><span class="pq">×${b.qty}</span><span class="pn">${esc(b.name)}</span></div>
+    ${(()=>{const m=new Map();b.sources.forEach(s=>{if(s.v)m.set(s.v,(m.get(s.v)||0)+s.qty);});return m.size>1||(m.size===1&&[...m.keys()][0])?`<div class="ps">${[...m].map(([v,q])=>esc(v)+' ×'+q).join(' · ')}</div>`:'';})()}
+    <div class="pc">${b.sources.map(s=>`<span class="ch">${esc(s.where)}${s.v?' · '+esc(s.v):''} ×${s.qty}</span>`).join('')}</div></div>`).join('')
+    :'<div class="popempty">ยังไม่มีเมนูที่หลายโต๊ะสั่งซ้ำกันตอนนี้</div>';
+  const onBoard=view==='board';
+  document.getElementById('batchPop').hidden=!(popOpen&&onBoard);
+  document.getElementById('popShow').hidden=!(!popOpen&&onBoard);
+}
+// ---- popup: drag to move, drag corner to resize (position/size remembered) ----
+(function(){
+  const pop=document.getElementById('batchPop'),head=document.getElementById('popDrag'),hnd=document.getElementById('popResize');
+  let geo=null;try{geo=JSON.parse(localStorage.getItem('kds_popgeo')||'null');}catch(e){}
+  const MINW=230,MINH=120;
+  const clamp=g=>{const W=innerWidth,H=innerHeight;g.w=Math.min(Math.max(g.w,MINW),W-8);g.h=Math.min(Math.max(g.h,MINH),H-8);
+    g.x=Math.min(Math.max(g.x,0),W-g.w);g.y=Math.min(Math.max(g.y,0),H-g.h);return g;};
+  function apply(){if(!geo){['left','top','width','height','right','bottom','maxHeight'].forEach(k=>pop.style[k]='');return;}
+    clamp(geo);Object.assign(pop.style,{left:geo.x+'px',top:geo.y+'px',width:geo.w+'px',height:geo.h+'px',right:'auto',bottom:'auto',maxHeight:'none'});}
+  const save=()=>{try{localStorage.setItem('kds_popgeo',JSON.stringify(geo));}catch(e){}};
+  const cur=()=>{const r=pop.getBoundingClientRect();return{x:r.left,y:r.top,w:r.width,h:r.height};};
+  function drag(el,onMove){el.addEventListener('pointerdown',e=>{
+      if(e.target.closest('button'))return;e.preventDefault();
+      const start=cur(),sx=e.clientX,sy=e.clientY;el.setPointerCapture(e.pointerId);pop.classList.add('moving');
+      const mv=ev=>{geo=clamp(onMove(start,ev.clientX-sx,ev.clientY-sy));apply();};
+      const up=()=>{el.removeEventListener('pointermove',mv);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up);pop.classList.remove('moving');save();};
+      el.addEventListener('pointermove',mv);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);});}
+  drag(head,(s,dx,dy)=>({x:s.x+dx,y:s.y+dy,w:s.w,h:s.h}));
+  drag(hnd,(s,dx,dy)=>({x:s.x,y:s.y,w:s.w+dx,h:s.h+dy}));
+  document.getElementById('popReset').addEventListener('click',()=>{geo=null;try{localStorage.removeItem('kds_popgeo');}catch(e){}apply();});
+  addEventListener('resize',()=>{if(geo){apply();save();}});
+  window._popApply=apply;apply();
+})();
+function setPop(o){popOpen=o;try{localStorage.setItem('kds_pop',o?'1':'0');}catch(e){}renderPop();}
+document.getElementById('popHide').addEventListener('click',()=>setPop(false));
+document.getElementById('popShow').addEventListener('click',()=>setPop(true));
+document.getElementById('popBody').addEventListener('click',e=>{const r=e.target.closest('[data-bk]');if(!r)return;
+  for(const o of ORDERS)for(const d of [...o.pending])if(bkey(d)===r.dataset.bk&&d.status==='pending')markDone(o,d);
+  render();toast('✅ ทำเสร็จทั้งชุด',r.dataset.bn);});
+
+function render(){renderBoard();renderPop();
+  document.getElementById('nOrders').textContent=ORDERS.length;
+  document.getElementById('nDishes').textContent=ORDERS.reduce((n,o)=>n+o.pending.filter(d=>d.status==='pending').length,0);}
+
+// actions → server → OrderPin
+async function postJ(url,body){try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return await r.json();}catch(e){return null;}}
+async function post(url,body){try{await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}catch(e){toast('⚠️ ส่งไม่สำเร็จ','ตรวจการเชื่อมต่อ');}}
+boardEl.addEventListener('click',e=>{
+  const ak=e.target.closest('[data-ack]'),aa=e.target.closest('[data-ackall]');
+  if(ak||aa){if(ak)ak.dataset.ack.split(',').forEach(x=>ACKED.add(x));else{const o=ORDERS.find(x=>x.id===aa.dataset.ackall);if(o)o.pending.forEach(d=>ACKED.add(d.id));}
+    try{speechSynthesis.cancel();}catch(_){}render();return;}
+  const li=e.target.closest('li.dish');
+  if(li){const o=ORDERS.find(x=>x.id===li.dataset.o),id=li.dataset.d,st=li.dataset.st,ids=id.split(',');if(!o)return;   // บรรทัดที่รวมจานเหมือนกัน: id = "i1,i2,i3"
+    if(st==='done'&&e.target.closest('.check')){   // tap the green tick of a finished dish = undo: back to the pending list
+      for(const one of ids){const ent=DONEDISH.get(one),d0=ent?ent.dish:(o.finished||[]).find(x=>x.id===one);if(!d0)continue;
+        DONEDISH.delete(one);o.finished=(o.finished||[]).filter(x=>x.id!==one);
+        o.pending.push({...d0,status:'pending'});post('/api/dish/complete',{order_id:o.id,dishes_id:one,status:'pending'});}
+      ARMED.delete(id);render();return;}
+    if(st==='pending'){for(const one of ids)markDone(o,o.pending.find(x=>x.id===one));render();return;}
+    if(ARMED.has(id)){for(const one of ids){GONE.set(one,Date.now());DONEDISH.delete(one);CANCELD.delete(one);}saveGone();ARMED.delete(id);}else ARMED.add(id);
+    render();return;}
+  const all=e.target.closest('[data-all]');if(all){post('/api/order/complete',{order_id:all.dataset.all,status:'completed',screen:SCREEN});
+    const fo=ORDERS.find(x=>x.id===all.dataset.all);if(fo)recordDone(fo);ORDERS=ORDERS.filter(x=>x.id!==all.dataset.all);render();}});
+doneEl.addEventListener('click',async e=>{const b=e.target.closest('[data-recall]');if(!b||b.disabled)return;
+  const h=DONE.find(x=>x.id===b.dataset.recall);if(!h)return;
+  b.disabled=true;b.textContent='กำลังเรียกกลับ…';
+  let failed=false;
+  for(const d of h.dishes){if(await postJ('/api/dish/complete',{order_id:h.id,dishes_id:d.id,status:'pending'})===null)failed=true;}
+  if(await postJ('/api/order/complete',{order_id:h.id,status:'pending',screen:SCREEN})===null)failed=true;
+  if(failed){toast('⚠️ เรียกกลับไม่สำเร็จ','ตรวจการเชื่อมต่อแล้วลองใหม่');b.disabled=false;b.textContent='↩ เรียกกลับ';return;}
+  DONE=DONE.filter(x=>x.id!==h.id);saveDone();renderDone();
+  recalled.set(h.id,Date.now());
+  if(!ORDERS.some(x=>x.id===h.id))ORDERS.push({id:h.id,table_num:h.table_num,pick_up_code:h.pick_up_code,order_type:h.order_type,third_party_platform:h.third_party_platform,
+    is_urge:false,is_add_dish:false,is_need_cutlery:h.is_need_cutlery,is_cancel:false,order_at:h.order_at,pending:h.dishes.map(d=>({...d,status:'pending'})),finished:[]});
+  render();toast('↩ เรียกกลับแล้ว',h.table_num?('โต๊ะ '+h.table_num):(h.pick_up_code||h.third_party_platform||''));});
+
+document.querySelectorAll('.tabs button').forEach(btn=>btn.addEventListener('click',()=>{view=btn.dataset.view;
+  document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',x===btn));
+  boardEl.hidden=view!=='board';doneEl.hidden=view!=='done';if(view==='done')renderDone();document.getElementById('doneClear').hidden=view!=='done';renderPop();}));
+
+// ---- clear the finished list (tap twice to confirm) ----
+(function(){const b=document.getElementById('doneClear');let tm=0;
+  b.addEventListener('click',()=>{
+    if(!tm){b.textContent='แตะอีกครั้งเพื่อยืนยันล้าง';b.classList.add('on');tm=setTimeout(()=>{tm=0;b.textContent='🗑 ล้างข้อมูล';b.classList.remove('on');},3500);return;}
+    clearTimeout(tm);tm=0;b.textContent='🗑 ล้างข้อมูล';b.classList.remove('on');
+    DONE=[];saveDone();renderDone();toast('🗑 ล้างรายการเสร็จแล้วเรียบร้อย','');});})();
+
+// ---- change alerts: cancelled dish / cancelled order / moved table ----
+const NOTES={};
+function addNote(id,text){(NOTES[id]=NOTES[id]||[]).push(text);}
+function alertEv(id,title,detail,say){beep();addNote(id,title+(detail?' '+detail:''));toast(title,detail,12000);
+  if(say){speak(say);}}
+boardEl.addEventListener('click',e=>{const f=e.target.closest('[data-note]');if(!f)return;
+  const [id,i]=f.dataset.note.split('#');if(NOTES[id]){NOTES[id].splice(+i,1);if(!NOTES[id].length)delete NOTES[id];}render();});
+function detectChanges(prev,next,cx){
+  const nm=new Map(next.map(o=>[o.id,o]));
+  const cxO=new Set(cx?.orders||[]),cxD=new Set(cx?.dishes||[]);
+  for(const o of prev){const n=nm.get(o.id);
+    // the whole table left the board: cancelled from the POS (ยกเลิกทั้งโต๊ะ / ยกเลิกจานสุดท้าย) rather than finished
+    if(!n){const w=o.table_num?'โต๊ะ '+o.table_num:(o.pick_up_code?'#'+o.pick_up_code:'');
+      const cd=o.pending.filter(d=>d.status==='pending'&&cxD.has(d.id)&&!GONE.has(d.id));
+      const list=cd.map(d=>d.name+' ×'+d.quantity).join(', ');
+      if(cxO.has(o.id)){o.is_cancel=true;alertEv(o.id,'❌ ยกเลิกทั้งโต๊ะ',w+(list?' · '+list:''),'ยกเลิกทั้งโต๊ะ '+w);}
+      else if(cd.length){if(cd.length===o.pending.length&&!(o.finished||[]).length&&![...DONEDISH.values()].some(e=>e.oid===o.id))o.is_cancel=true;
+        cd.forEach(d=>alertEv(o.id,'❌ ยกเลิกเมนู',(w?w+' · ':'')+d.name+' ×'+d.quantity,'ยกเลิก '+d.name+' '+w));}
+      cd.forEach(d=>{d.cancelled=true;});   // shown struck-through in the "finished" tab, not as cooked
+      continue;}
+    const a=o.table_num||'',b=n.table_num||'';
+    if(a&&b&&a!==b)alertEv(o.id,'🔀 ย้ายโต๊ะ','จากโต๊ะ '+a+' → โต๊ะ '+b,'ย้ายโต๊ะ จาก '+a+' ไป '+b);
+    if(n.is_cancel&&!o.is_cancel)alertEv(o.id,'❌ ยกเลิกออเดอร์',(b?'โต๊ะ '+b:(n.pick_up_code||'')),'ยกเลิกออเดอร์ '+(b?'โต๊ะ '+b:''));
+    const prevC=new Set((o.cancelled||[]).map(d=>d.id));
+    (n.cancelled||[]).filter(d=>!prevC.has(d.id)&&!GONE.has(d.id)).forEach(d=>alertEv(o.id,'❌ ยกเลิกเมนู',(b||a?'โต๊ะ '+(b||a)+' · ':'')+d.name+' ×'+d.quantity,'ยกเลิก '+d.name+' '+(b||a?'โต๊ะ '+(b||a):'')));
+    const keep=new Set([...n.pending.map(d=>d.id),...(n.finished||[]).map(d=>d.id),...(n.cancelled||[]).map(d=>d.id)]);
+    const gone=o.pending.filter(d=>d.status==='pending'&&!keep.has(d.id)&&!DONEDISH.has(d.id));
+    gone.forEach(d=>CANCELD.set(d.id,{oid:o.id,dish:{...d,status:'cancelled'}}));
+    gone.forEach(d=>alertEv(o.id,'❌ ยกเลิกเมนู',(b||a?'โต๊ะ '+(b||a)+' · ':'')+d.name+' ×'+d.quantity,'ยกเลิก '+d.name+' '+(b||a?'โต๊ะ '+(b||a):'')));
+  }}
+
+// ---- column size (how many tables fit on screen) ----
+const SIZES=[{k:'ใหญ่',w:'270px'},{k:'กลาง',w:'215px'},{k:'เล็ก',w:'168px'},{k:'จิ๋ว',w:'134px'}];
+let sizeIdx=1; try{const s=localStorage.getItem('kds_size');if(s!==null)sizeIdx=Math.min(SIZES.length-1,Math.max(0,+s));}catch(e){}
+const sizeBtn=document.getElementById('sizeBtn');
+function applySize(){document.documentElement.style.setProperty('--colw',SIZES[sizeIdx].w);sizeBtn.textContent='↔ ขนาด: '+SIZES[sizeIdx].k;try{localStorage.setItem('kds_size',sizeIdx);}catch(e){}}
+sizeBtn.addEventListener('click',()=>{sizeIdx=(sizeIdx+1)%SIZES.length;applySize();});
+applySize();
+
+const soundBtn=document.getElementById('soundBtn');soundBtn.addEventListener('click',()=>{sound=!sound;soundBtn.classList.toggle('on',sound);});
+// ---- loud alert sounds (Web Audio): bell / siren / chime, volume + repeat ----
+const SND=Object.assign({type:'bell',vol:'1',rep:'2',add:'chime',nag:'0'},(()=>{try{return JSON.parse(localStorage.getItem('kds_snd')||'{}');}catch(e){return {};}})());
+const saveSnd=()=>{try{localStorage.setItem('kds_snd',JSON.stringify(SND));}catch(e){}};
+let actx,master,soundUntil=0;
+function ac(){try{actx=actx||new(window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume();
+  // master (ความดัง) → compressor → makeup (บูสต์: ดังเกิน 1 = ขยายหลังบีบ เสียงแน่นและดังขึ้น อาจแตกถ้าสูงมาก)
+  if(!master){const c=actx.createDynamicsCompressor();c.threshold.value=-24;c.knee.value=0;c.ratio.value=12;c.attack.value=.002;c.release.value=.15;
+    master=actx.createGain();makeup=actx.createGain();master.connect(c);c.connect(makeup);makeup.connect(actx.destination);}
+  const v=+SND.vol||1;master.gain.value=Math.min(1,v);makeup.gain.value=v>1?v:1;return actx;}catch(e){return null;}}
+let makeup;
+// decay = เสียงแบบกระดิ่ง ค่อยๆ จางหาย
+function tone(f,t0,d,type,g,f2,decay){const a=actx,o=a.createOscillator(),e=a.createGain();o.type=type;o.frequency.setValueAtTime(f,t0);if(f2)o.frequency.linearRampToValueAtTime(f2,t0+d);
+  e.gain.setValueAtTime(.0001,t0);e.gain.exponentialRampToValueAtTime(g,t0+.012);if(!decay)e.gain.setValueAtTime(g,Math.max(t0+.013,t0+d-.03));e.gain.exponentialRampToValueAtTime(.0001,t0+d);
+  o.connect(e);e.connect(master);o.start(t0);o.stop(t0+d+.03);}
+const PATTERNS={
+  bell:(t0)=>{for(let i=0;i<8;i++){tone(1300,t0+i*.15,.09,'square',.55);tone(1950,t0+i*.15,.09,'square',.18);}return 1.5;},
+  siren:(t0)=>{tone(650,t0,.45,'sawtooth',.5,1150);tone(650,t0+.5,.45,'sawtooth',.5,1150);return 1.1;},
+  chime:(t0)=>{tone(988,t0,.4,'triangle',.9);tone(1976,t0,.4,'sine',.3);tone(740,t0+.45,.6,'triangle',.9);tone(1480,t0+.45,.6,'sine',.3);return 1.2;},
+  alarm:(t0)=>{for(let i=0;i<14;i++)tone(i%2?2300:1850,t0+i*.08,.065,'square',.6);return 1.15;},
+  digital:(t0)=>{for(let k=0;k<3;k++)for(let i=0;i<4;i++)tone(2050,t0+k*.5+i*.085,.055,'square',.6);return 1.5;},
+  ting:(t0)=>{for(let k=0;k<2;k++){tone(2350,t0+k*.55,1,'sine',1,0,true);tone(3520,t0+k*.55,.7,'sine',.4,0,true);tone(5900,t0+k*.55,.35,'sine',.15,0,true);}return 1.5;},
+  dingdong:(t0)=>{tone(1318,t0,.7,'sine',1,0,true);tone(2636,t0,.5,'sine',.3,0,true);tone(1046,t0+.5,1,'sine',1,0,true);tone(2092,t0+.5,.7,'sine',.3,0,true);return 1.5;},
+  horn:(t0)=>{for(let k=0;k<2;k++){tone(440,t0+k*.7,.55,'sawtooth',.55);tone(554,t0+k*.7,.55,'sawtooth',.4);tone(659,t0+k*.7,.55,'sawtooth',.35);}return 1.3;},
+  warn:(t0)=>{tone(1000,t0,.16,'square',.5);tone(1000,t0+.24,.16,'square',.5);return .5;}};
+// kind: 'order' (chosen sound x rounds) | 'urge' (siren x3) | 'add' (one chime) | undefined (short warning beep)
+function beep(kind){if(!sound)return;const a=ac();if(!a)return;
+  let pat,rep;if(kind==='order'){pat=SND.type;rep=+SND.rep||2;}else if(kind==='urge'){pat='siren';rep=3;}
+  else if(kind==='add'){if(SND.add==='off')return;if(SND.add==='same'){pat=SND.type;rep=+SND.rep||2;}else{pat=SND.add;rep=1;}}else{pat='warn';rep=1;}
+  if(!PATTERNS[pat])pat='bell';
+  let t=a.currentTime+.03;for(let i=0;i<rep;i++){t+=PATTERNS[pat](t)+.25;}
+  soundUntil=Date.now()+(t-a.currentTime)*1000;}
+document.addEventListener('pointerdown',()=>{ac();stopNag();},{passive:true});   // browsers only allow sound after a first tap
+// ---- ดังซ้ำจนกว่าจะแตะจอ (ครัวเสียงดัง ไม่ได้ยินรอบแรก) ----
+let nag=null;const nagBar=document.getElementById('nagBar');
+function alertSound(kind){beep(kind);const s=+SND.nag||0;if(!s||!sound||(kind==='add'&&SND.add==='off'))return;
+  if(!nag||kind!=='add')nag={kind,next:Date.now()+s*1000};nagBar.hidden=false;}
+function stopNag(){if(nag){nag=null;nagBar.hidden=true;}}
+function nagTick(){if(!nag)return;const s=+SND.nag||0;if(!s||!sound){stopNag();return;}
+  if(Date.now()>=nag.next){beep(nag.kind);nag.next=Date.now()+s*1000;}}
+function toast(tt,td,ms){const el=document.createElement('div');el.className='toast';el.innerHTML=`<div class="tt">${esc(tt)}</div>${td?`<div class="td">${esc(td)}</div>`:''}`;document.getElementById('toasts').appendChild(el);setTimeout(()=>{el.style.opacity=0;el.style.transition='opacity .4s';setTimeout(()=>el.remove(),400);},ms||4500);}
+
+// ---- look & feel: theme, text size, weight ----
+const VIEW_DEF={merge:true,theme:'dark',fs:1,fw:'1',qs:'plain',qz:'1',qc:'accent',multi:false,ol:'0',rk:'text',warn:'5',late:'10',hc:false,gap:'10',lay:'row',sort:'old'};
+const VIEW=Object.assign({...VIEW_DEF},(()=>{try{return JSON.parse(localStorage.getItem('kds_view')||'{}');}catch(e){return {};}})());
+const mqLight=window.matchMedia?matchMedia('(prefers-color-scheme: light)'):null;
+function applyView(){const r=document.documentElement;
+  const th=VIEW.theme==='auto'?(mqLight&&mqLight.matches?'light':'dark'):VIEW.theme;
+  r.dataset.theme=th;r.style.setProperty('--fs',VIEW.fs);r.dataset.fw=String(VIEW.fw);
+  r.dataset.qs=VIEW.qs;r.dataset.rk=VIEW.rk;r.dataset.hc=VIEW.hc?'1':'0';r.dataset.lay=VIEW.lay;r.style.setProperty('--qz',VIEW.qz);
+  r.style.setProperty('--qc',VIEW.qc==='fg'?'var(--fg)':'var(--'+VIEW.qc+')');r.style.setProperty('--qct',VIEW.qc==='accent'||VIEW.qc==='fg'?'var(--bg)':'#fff');
+  document.querySelectorAll('[data-vk]').forEach(el=>{const v=VIEW[el.dataset.vk];
+    if(el.classList.contains('seg'))el.querySelectorAll('.btn').forEach(b=>b.classList.toggle('on',b.dataset.v===String(v)));
+    else if(el.type==='checkbox')el.checked=!!v;else el.value=String(v);});
+  if(typeof render==='function'&&boardEl){render();renderViewPrev();}
+  const m=document.querySelector('meta[name=theme-color]');if(m)m.content=th==='light'?'#eef1f5':'#0e1116';
+  document.getElementById('fsVal').textContent=Math.round(VIEW.fs*100)+'%';
+  document.querySelectorAll('#segTheme .btn').forEach(b=>b.classList.toggle('on',b.dataset.v===VIEW.theme));
+  document.querySelectorAll('#segFw .btn').forEach(b=>b.classList.toggle('on',b.dataset.v===String(VIEW.fw)));
+  try{localStorage.setItem('kds_view',JSON.stringify(VIEW));}catch(e){}}
+document.getElementById('segTheme').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(b){VIEW.theme=b.dataset.v;applyView();}});
+document.getElementById('segFw').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(b){VIEW.fw=b.dataset.v;applyView();}});
+document.getElementById('fsMinus').addEventListener('click',()=>{VIEW.fs=Math.max(.7,+(VIEW.fs-.1).toFixed(2));applyView();});
+document.getElementById('fsPlus').addEventListener('click',()=>{VIEW.fs=Math.min(2,+(VIEW.fs+.1).toFixed(2));applyView();});
+document.getElementById('viewReset').addEventListener('click',()=>{Object.assign(VIEW,VIEW_DEF);applyView();});
+document.getElementById('viewModal').addEventListener('click',e=>{const b=e.target.closest('.seg[data-vk] [data-v]');if(!b)return;VIEW[b.closest('[data-vk]').dataset.vk]=b.dataset.v;applyView();});
+document.getElementById('viewModal').addEventListener('change',e=>{const k=e.target.dataset.vk;if(!k)return;VIEW[k]=e.target.type==='checkbox'?e.target.checked:e.target.value;applyView();});
+// ตัวอย่างการ์ดในหน้าปรับหน้าจอ (ใช้ตัววาดเดียวกับบอร์ดจริง)
+function renderViewPrev(){const el=document.getElementById('vPrev');if(!el)return;const t=Date.now();
+  const sample={id:'_pv',table_num:'12',order_type:'dine_in',order_at:t-14*60000,is_add_dish:true,finished:[{id:'_p0',name:'ข้าวผัด',quantity:1,extra_option:['หมู'],remark:'',status:'completed',at:t-14*60000}],cancelled:[],
+    pending:[{id:'_p1',name:'กะเพรา',quantity:3,spec:'',extra_option:['หมูกรอบ','ไข่ดาว','เผ็ดมาก'],remark:'ไม่ใส่ถั่วฝักยาว',status:'pending',at:t-2*60000-30000},
+      {id:'_p4',name:'ข้าวผัด',quantity:1,spec:'',extra_option:['ไก่'],remark:'',status:'pending',thai:true,at:t-2*60000-30000},
+      {id:'_p3',name:'ต้มยำกุ้ง',quantity:1,spec:'',extra_option:['น้ำข้น'],remark:'⚠ แพ้กุ้ง',status:'pending',at:t-2*60000-30000},
+      {id:'_p2',name:'ต้มยำกุ้ง',quantity:1,spec:'',extra_option:['น้ำข้น'],remark:'⚠ แพ้กุ้ง',status:'pending',at:t-2*60000-30000}]};
+  el.innerHTML=cardHtml(sample);}
+document.getElementById('viewBtn').addEventListener('click',()=>{document.getElementById('viewModal').hidden=false;});
+document.getElementById('viewClose').addEventListener('click',()=>{document.getElementById('viewModal').hidden=true;});
+document.getElementById('viewModal').addEventListener('click',e=>{if(e.target.id==='viewModal')e.target.hidden=true;});
+if(mqLight&&mqLight.addEventListener)mqLight.addEventListener('change',()=>{if(VIEW.theme==='auto')applyView();});
+applyView();
+// ---- fullscreen ----
+// ปุ่ม = ล็อกเต็มจอ (จำในเครื่องนี้) · ล็อกอยู่แล้วหลุด แตะหน้าจอครั้งเดียวก็กลับเต็มจอ (kiosk.js)
+Kiosk.bind(document.getElementById('fsBtn'),{label:(on,locked)=>locked
+  ?{text:'🔒 ล็อกเต็มจอ',title:'ล็อกเต็มจออยู่ · แตะเพื่อปลดล็อก'}:{text:'⛶ เต็มจอ',title:'ล็อกเต็มจอ'}});
+// ---- connection bar + keep screen awake ----
+const linkBar=document.getElementById('linkBar');let linkBad=false,linkMsg='';
+function setLink(ok,msg){
+  if(ok){if(linkBad){linkBad=false;linkBar.hidden=true;toast('✅ เชื่อมต่อกลับมาแล้ว','');}return;}
+  linkBar.textContent='⚠️ '+msg;linkBar.hidden=false;
+  if(!linkBad||linkMsg!==msg){linkBad=true;linkMsg=msg;beep();speak('การเชื่อมต่อมีปัญหา');}}
+let wl=null;
+async function keepAwake(){try{if('wakeLock' in navigator&&document.visibilityState==='visible'){wl=await navigator.wakeLock.request('screen');wl.addEventListener('release',()=>{wl=null;});}}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!wl)keepAwake();});
+document.addEventListener('click',()=>{if(!wl)keepAwake();});
+keepAwake();
+// ---- long-wait warning ----
+const WARNED=new Map();
+function waitCheck(){const thr=+(TTS.wait||0);if(!thr||!primed)return;
+  for(const o of ORDERS){if(!o.order_at)continue;const t0=startOf(o),key=o.id+'@'+t0,m=Math.floor((Date.now()-t0)/60000);
+    if(m<thr)continue;const last=WARNED.get(key);if(last!=null&&m<last+5)continue;
+    WARNED.set(key,m);const head=o.table_num?('โต๊ะ '+o.table_num):(o.pick_up_code?('รับ '+o.pick_up_code):(o.third_party_platform||'ออเดอร์'));
+    beep();toast('⏰ รอนานแล้ว',head+' · '+m+' นาที',9000);speak(head+' รอนานแล้ว '+m+' นาที');break;}}
+// screen picker: shown only when the shop has more than one kitchen screen
+let scrKey='';
+function showScreens(j){const sel=document.getElementById('scrSel'),list=j.screens||[];
+  if(!j.ok||!list.length)return;
+  const k=JSON.stringify(list)+'|'+(j.screen&&j.screen.id);if(k===scrKey)return;scrKey=k;
+  sel.hidden=list.length<2;
+  sel.innerHTML=list.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')+'<option value="all">ทุกจอรวมกัน</option>';
+  sel.value=j.screen?.id||list[0].id;
+  document.title=(list.length>1&&j.screen?.name?j.screen.name+' · ':'')+'ครัวรวมจาน';}
+document.getElementById('scrSel').addEventListener('change',e=>{
+  try{localStorage.setItem('kds_screen',e.target.value);}catch(_){}
+  const u=new URL(location.href);u.searchParams.set('screen',e.target.value);location.href=u.toString();});
+async function poll(){try{
+  const r=await fetch('/api/orders'+(SCREEN?'?screen='+encodeURIComponent(SCREEN):''));const j=await r.json();
+  showScreens(j);
+  document.getElementById('dot').classList.toggle('off',!j.ok);
+  const er=String(j.error||'');
+  setLink(j.ok,er||'ติดต่อเซิร์ฟเวอร์ไม่ได้');
+  KNOWN=j.knownDishes||[];
+  const next=normalize(j.orders);
+  // detect new orders / added dishes / urgent flags, and whether a new dish collides with one already pending
+  const prevKeys=new Set();ORDERS.forEach(o=>o.pending.forEach(d=>d.status==='pending'&&prevKeys.add(bkey(d))));
+  if(primed)detectChanges(ORDERS,next,j.cancelled);
+  for(const o of next){
+    const head=o.table_num?('โต๊ะ '+o.table_num):(o.pick_up_code?('#'+o.pick_up_code):o.third_party_platform);
+    const isNew=!seen.has(o.id);
+    if(isNew){
+      seen.add(o.id);o.pending.forEach(d=>seenDish.add(d.id));
+      if(o.is_urge)urgeSeen.add(o.id);
+      if(primed){
+        const hits=o.pending.filter(d=>prevKeys.has(bkey(d)));
+        alertSound(o.is_urge?'urge':'order');
+        if(hits.length){const hit=hits[0];
+          const tot=next.reduce((n,oo)=>n+oo.pending.filter(x=>bkey(x)===bkey(hit)).reduce((s,x)=>s+x.quantity,0),0);
+          toast('🔔 เมนูซ้ำ — ทำรวมได้!',`${head} สั่ง “${groupName(hit)}” ด้วย · รวม ×${tot} → ดูป๊อปอัพ “ทำรวม”`);}
+        else toast('🆕 ออเดอร์ใหม่',head||'');
+        announce(o.is_urge?'ออเดอร์เร่ง':'',o,o.pending);
+        if(TTS.batch)hits.filter(chosen).slice(0,2).forEach(h=>{
+          const tot=next.reduce((n,oo)=>n+oo.pending.filter(x=>bkey(x)===bkey(h)).reduce((s,x)=>s+x.quantity,0),0);
+          speak('เมนูซ้ำ '+groupName(h)+' รวมเป็น '+tot+' ที่ ทำรวมได้');});
+      }
+    }else{
+      const added=o.pending.filter(d=>!seenDish.has(d.id));
+      added.forEach(d=>{seenDish.add(d.id);if(primed)ADDED.add(d.id);});
+      if(primed&&added.length){alertSound('add');toast('➕ เพิ่มเมนู',head||'');announce('เพิ่มเมนู',o,added);}
+      if(o.is_urge&&!urgeSeen.has(o.id)){urgeSeen.add(o.id);if(primed){alertSound('urge');announce('เร่ง',o,o.pending,true);}}
+    }
+  }
+  if(j.ok){const raw=new Set((j.orders||[]).map(x=>x.id));   // ids the server still lists (before the hide-menu filter)
+    ORDERS.forEach(o=>{if(!raw.has(o.id)&&!GHOST.has(o.id))GHOST.set(o.id,{o,n:0});});
+    for(const [id,g] of [...GHOST]){if(raw.has(id)){GHOST.delete(id);continue;}if(++g.n>=2){GHOST.delete(id);recordDone(g.o);for(const [k,e] of [...DONEDISH])if(e.oid===id)DONEDISH.delete(k);}}
+    next.forEach(o=>recalled.delete(o.id));}
+  if(j.ok)primed=true;   // the first successful poll only records what is already on the board
+  if(j.ok){const live=new Set(next.map(o=>o.id));
+    for(const [k,e] of [...DONEDISH])if(!live.has(e.oid)&&!GHOST.has(e.oid))DONEDISH.delete(k);   // keep until the finished table is recorded
+    for(const [k,e] of [...CANCELD])if(!live.has(e.oid))CANCELD.delete(k);}
+  ORDERS=next;render();if(!ttsModal.hidden)renderTtsDishes(true);
+}catch(e){document.getElementById('dot').classList.add('off');setLink(false,'เซิร์ฟเวอร์ ED POS หยุดทำงาน — เปิดเครื่องที่รัน node server.js แล้วตรวจ Wi-Fi');}}
+
+function tick(){waitCheck();const d=new Date();document.getElementById('clock').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  document.querySelectorAll('#board .card[data-oid]').forEach(c=>{const o=ORDERS.find(x=>x.id===c.dataset.oid);if(!o)return;const a=ageInfo(o);c.dataset.s=a.sev;const el=c.querySelector('.age');if(el){el.textContent=a.label;el.dataset.s=a.sev;}});
+  nagTick();}
+poll();setInterval(poll,2500);tick();setInterval(tick,1000);
+
+(function(){const t=document.getElementById('tools'),b=document.getElementById('toolsBtn');
+ const get=()=>{try{return localStorage.getItem('kds_tools')==='0'}catch(e){return false}};
+ const apply=h=>{t.classList.toggle('hid',h);b.textContent=h?'⚙ ตั้งค่า ▸':'⚙ ตั้งค่า ▾';};
+ apply(get());
+ b.addEventListener('click',()=>{const h=!t.classList.contains('hid');apply(h);try{localStorage.setItem('kds_tools',h?'0':'1')}catch(e){}});
+})();
+</script>
+<script src="failover.js"></script></body></html>

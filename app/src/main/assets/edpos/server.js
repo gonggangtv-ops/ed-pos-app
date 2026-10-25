@@ -1,0 +1,1890 @@
+// ED POS — ระบบสั่งอาหาร + พิมพ์ใบเสร็จ + KDS
+// รันด้วย: node server.js   (ไม่ต้องติดตั้ง package เพิ่ม)
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const net = require('net');
+const os = require('os');
+const crypto = require('crypto');
+const https = require('https');
+
+const PORT = process.env.PORT || 3000;
+const DATA_FILE = path.join(__dirname, 'data.json');
+const BACKUP_DIR = path.join(__dirname, 'backup');
+const PUBLIC_DIR = path.join(__dirname, 'public');
+
+// ---------- ข้อมูล ----------
+// ผังโต๊ะเริ่มต้น (ตำแหน่งตามผังร้านจริง) · x,y,w,h เป็นพิกัดบนผืนผ้าใบ LAYOUT_W x LAYOUT_H
+// type: 'table' = โต๊ะ (กดได้) · 'wall' = ฉากกั้น/ผนัง · 'label' = ป้ายข้อความ
+const LAYOUT_W = 1520, LAYOUT_H = 740;
+function defaultLayout() {
+  // [ชื่อ, x, y, w, h] วัดจากรูปผัง (ต้นทาง 309,225)
+  const T = [
+    ['1', 667, 239, 72, 72], ['2', 746, 242, 72, 72], ['3', 834, 236, 72, 72], ['4', 910, 238, 72, 72],
+    ['5', 677, 328, 72, 72], ['6', 675, 404, 72, 72],
+    ['7ติดป้าย', 667, 501, 72, 72], ['7กลาง', 748, 500, 72, 72], ['8', 825, 500, 72, 72],
+    ['9', 1027, 245, 72, 72], ['10', 1027, 327, 72, 72],
+    ['11', 978, 468, 72, 72], ['12', 1059, 464, 72, 72], ['15', 1138, 463, 72, 72], ['16', 1221, 463, 72, 72],
+    ['13', 1188, 227, 72, 72], ['14', 1188, 301, 72, 72],
+    ['17', 1348, 227, 72, 72], ['18', 1346, 302, 72, 72],
+    ['19', 1330, 402, 72, 72], ['19//2', 1412, 402, 72, 72], ['20', 1330, 480, 72, 72], ['20//2', 1412, 482, 72, 72],
+    ['21', 1623, 227, 72, 72], ['22', 1623, 301, 72, 72], ['23', 1612, 384, 72, 72], ['24', 1610, 460, 72, 72],
+    ['25', 1731, 325, 95, 95],
+    ['45', 533, 330, 72, 72], ['46', 460, 328, 72, 72], ['47', 384, 327, 72, 72], ['48', 310, 329, 72, 72],
+    ['35', 1217, 696, 95, 95], ['34', 1320, 696, 95, 95], ['33', 1421, 696, 95, 95],
+    ['32', 1524, 692, 95, 95], ['31', 1626, 692, 95, 95], ['30', 1727, 692, 95, 95],
+    ['39', 1404, 837, 95, 95], ['38', 1504, 837, 95, 95], ['37', 1602, 836, 95, 95], ['36', 1727, 832, 95, 95],
+    ['44', 331, 808, 95, 95], ['43', 437, 810, 95, 95], ['42', 538, 809, 95, 95], ['41', 641, 807, 95, 95], ['40', 741, 809, 95, 95],
+  ];
+  const sn = v => Math.round(v / 2) * 2;
+  const items = T.map(([name, x, y, w, h]) => ({ type: 'table', name, x: sn(x - 309), y: sn(y - 225), w, h }));
+  items.push({ type: 'wall', name: 'ฉากกั้น', x: 299, y: 5, w: 50, h: 410 });
+  return { w: LAYOUT_W, h: LAYOUT_H, items };
+}
+// ตรวจผังที่ส่งมา: ชื่อโต๊ะห้ามซ้ำ/ว่าง, ไม่ขึ้นต้นด้วย TA (ใช้เป็นรหัสกลับบ้าน)
+function cleanLayout(l) {
+  const n = (v, lo, hi, d) => { v = Math.round(Number(v)); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; };
+  const seen = new Set(), items = [];
+  for (const it of Array.isArray(l?.items) ? l.items.slice(0, 400) : []) {
+    const type = ['table', 'wall', 'label'].includes(it.type) ? it.type : 'table';
+    let name = String(it.name ?? '').trim().slice(0, 20);
+    if (type === 'table') {
+      if (!name) throw new Error('มีโต๊ะที่ยังไม่ได้ตั้งชื่อ');
+      if (/^TA/i.test(name)) throw new Error(`ชื่อโต๊ะ "${name}" ห้ามขึ้นต้นด้วย TA (ใช้สำหรับกลับบ้าน)`);
+      if (seen.has(name)) throw new Error(`ชื่อโต๊ะ "${name}" ซ้ำกัน`);
+      seen.add(name);
+    }
+    items.push({ type, name, x: n(it.x, -200, 4000, 0), y: n(it.y, -200, 4000, 0), w: n(it.w, 16, 2000, 72), h: n(it.h, 16, 2000, 72) });
+  }
+  return { w: n(l?.w, 400, 4000, LAYOUT_W), h: n(l?.h, 300, 4000, LAYOUT_H), items };
+}
+const IMG_RE = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/;
+
+const defaultData = {
+  settings: {
+    shopName: 'ร้านของฉัน',
+    shopInfo: 'ขอบคุณที่ใช้บริการ',
+    // เครื่องพิมพ์ เพิ่มได้ไม่จำกัด · id ใช้อ้างจากเมนู (menu.printers) จึงไม่เปลี่ยนแม้เปลี่ยนชื่อ
+    // dots: กระดาษ 80mm = 576, 58mm = 384 · copies = จำนวนใบสั่งอาหารที่พิมพ์ต่อครั้ง
+    printers: [
+      { id: 'front', name: 'หน้าร้าน', ip: '192.168.1.100', port: 9100, dots: 576, copies: 1 },
+      { id: 'kitchen', name: 'ครัว', ip: '192.168.1.101', port: 9100, dots: 576, copies: 1 },
+    ],
+    receiptPrinter: 'front', // ใบเสร็จ/ใบแจ้งยอดออกเครื่องนี้
+    receiptCopies: 1,        // ใบเสร็จที่จ่ายแล้วพิมพ์กี่ใบ (ใบแจ้งยอดพิมพ์ใบเดียวเสมอ)
+    // จอครัว (KDS) หลายจอ เช่น ครัว / บาร์น้ำ · เปิด /kds.html?screen=<id> · เมนูเลือกได้ว่าขึ้นจอไหน (menu.screens)
+    kdsScreens: [{ id: 'main', name: 'ครัว' }],
+    printTickets: true, // พิมพ์ใบสั่งทุกครั้งที่ส่งออเดอร์
+    layout: null,   // ผังโต๊ะ (สร้างตอนเริ่มจาก defaultLayout)
+    takeaway: true,
+    // รูปแบบใบเสร็จ (รูปเก็บใน receipt.images แต่ไม่ส่งไปกับ /api/state)
+    receipt: {
+      logoMode: 'dither', logoWidth: 60,       // dither = ภาพถ่าย · threshold = โลโก้ขาวดำคมชัด
+      footerImgMode: 'threshold', footerImgWidth: 50,
+      nameSize: 36, header: '',                // header = บรรทัดใต้ชื่อร้าน (ที่อยู่ โทร เลขผู้เสียภาษี)
+      footerSize: 22,
+      showNo: true, showTime: true, showTable: true,
+      lang: 'th', headerEn: '', footerEn: '',  // ภาษาใบแจ้งยอด/ใบเสร็จ th | en | both (แต่ละบิลเปลี่ยนเองได้ order.lang)
+      images: {},
+    },
+    // คำแปลชื่อเมนู/ตัวเลือก สำหรับใบเสร็จ {en: {คำไทย: English}} (เพิ่มภาษาอื่นได้ เช่น zh)
+    i18n: { en: {} },
+    // หมวดใหญ่บนหน้าสั่งอาหาร [{name: 'อาหาร', cats: ['ข้าว', 'เส้น']}] · [] = แถบละหมวดเหมือนเดิม
+    catGroups: [],
+    // วิธีชำระเงินที่เปิดใช้ + ค่าธรรมเนียมบัตร (%)
+    payments: { cash: true, transfer: true, card: true, cardFeePct: 3 },
+    // ปุ่มหมายเหตุด่วนตอนสั่ง (ใช้ได้ทุกเมนู)
+    quickNotes: ['พิเศษ', 'ไม่ผัก', 'ไม่ใส่หอม', 'แยกน้ำ'],
+  },
+  categories: ['จานเดียว', 'เพิ่ม', 'ของทอด', 'เครื่องดื่ม', 'ของหวาน'],
+  // ชุดตัวเลือกสำเร็จรูป ผูกกับหลายเมนูได้ แก้ที่เดียวเปลี่ยนทุกเมนู
+  optionSets: [
+    { id: 'os1', name: 'ความเผ็ด', type: 'single', required: false, alert: false,
+      choices: [{ name: 'ไม่เผ็ด', add: 0 }, { name: 'เผ็ดน้อย', add: 0 }, { name: 'เผ็ดกลาง', add: 0 }, { name: 'เผ็ดมาก', add: 0 }] },
+    { id: 'os2', name: 'แพ้อาหาร', type: 'multi', required: false, alert: true,
+      choices: [{ name: 'แพ้ถั่ว', add: 0 }, { name: 'แพ้กุ้ง/อาหารทะเล', add: 0 }, { name: 'แพ้นม', add: 0 },
+                { name: 'แพ้ไข่', add: 0 }, { name: 'ไม่ใส่ผงชูรส', add: 0 }] },
+  ],
+  menu: [
+    // printers = พิมพ์ใบสั่งออกเครื่องไหนบ้าง (id ของเครื่องพิมพ์ ใส่ได้หลายเครื่อง, [] = ไม่พิมพ์)
+    // screens = ขึ้นจอครัวจอไหน ([] = ไม่ขึ้นจอ เช่น เครื่องดื่ม) · available = false คือของหมด
+    // groups = กลุ่มตัวเลือก: type 'single' เลือกได้ 1 / 'multi' เลือกได้หลายอย่าง, required = ต้องเลือก
+    { id: 'm1', name: 'กะเพรา', category: 'จานเดียว', price: 60, printers: ['kitchen'], screens: ['main'], available: true,
+      groups: [
+        { name: 'เนื้อสัตว์', type: 'single', required: true,
+          choices: [{ name: 'หมู', add: 0 }, { name: 'ไก่', add: 0 }, { name: 'หมูกรอบ', add: 10 }, { name: 'กุ้ง', add: 20 }] },
+        { name: 'เพิ่ม', type: 'multi', required: false,
+          choices: [{ name: 'ไข่ดาว', add: 10 }, { name: 'ไข่เจียว', add: 10 }] },
+        { ref: 'os1' }, { ref: 'os2' },
+      ] },
+    { id: 'm2', name: 'ข้าวผัด', category: 'จานเดียว', price: 60, printers: ['kitchen'], screens: ['main'], available: true,
+      groups: [{ name: 'เนื้อสัตว์', type: 'single', required: true,
+        choices: [{ name: 'หมู', add: 0 }, { name: 'ไก่', add: 0 }, { name: 'กุ้ง', add: 20 }] }, { ref: 'os2' }] },
+    { id: 'm3', name: 'ไข่ดาว', category: 'เพิ่ม', price: 10, printers: ['kitchen'], screens: ['main'], available: true, groups: [] },
+    { id: 'm5', name: 'เฟรนช์ฟรายส์', category: 'ของทอด', price: 59, printers: ['front'], screens: ['main'], available: true, groups: [] },
+    { id: 'm6', name: 'ไก่ทอด', category: 'ของทอด', price: 79, printers: ['front'], screens: ['main'], available: true, groups: [] },
+    { id: 'm4', name: 'น้ำเปล่า', category: 'เครื่องดื่ม', price: 10, printers: ['front'], screens: [], available: true, groups: [] },
+    { id: 'm7', name: 'ชาเย็น', category: 'เครื่องดื่ม', price: 35, printers: ['front'], screens: [], available: true,
+      groups: [{ name: 'ความหวาน', type: 'single', required: true,
+        choices: [{ name: 'หวานปกติ', add: 0 }, { name: 'หวานน้อย', add: 0 }, { name: 'ไม่หวาน', add: 0 }] }] },
+    { id: 'm8', name: 'บัวลอย', category: 'ของหวาน', price: 35, printers: ['front'], screens: [], available: true, groups: [] },
+  ],
+  // status 'void' = ยกเลิกทั้งโต๊ะ (ลูกค้าไม่เอาแล้ว) เก็บ voidedAt, voidReason ไว้ดูย้อนหลัง ไม่นับเป็นยอดขาย
+  orders: [], // {id, table, status:'open'|'paid'|'void', createdAt, paidAt, payMethod, received, kdsCleared}
+  // items: printers/screens คัดลอกจากเมนูตอนสั่ง (แก้เมนูทีหลังไม่กระทบจานที่สั่งไปแล้ว)
+  items: [],  // {id, orderId, menuId, name, option, note, qty, price, printers:[], screens:[], status:'new'|'done'|'cancelled', createdAt, doneAt, cancelledAt}
+  events: [], // แจ้งเตือนสำหรับ KDS: {id, type:'cancel'|'move', text, at}
+  daily: {},  // สรุปยอดขายรายวันของวันที่เก่ากว่า 7 วัน: {'2026-10-01': {...}}
+  seq: 1,
+};
+
+let data;
+// โหลดข้อมูล (จากไฟล์ตอนเปิดโปรแกรม หรือจากไฟล์สำรองตอนกู้คืน) แล้วแปลงรูปแบบรุ่นเก่าให้เป็นปัจจุบัน
+function loadData(raw) {
+  if (raw) {
+    const hadCats = Array.isArray(raw.categories);
+    data = { ...JSON.parse(JSON.stringify(defaultData)), ...raw, settings: { ...defaultData.settings, ...raw.settings } };
+    if (!hadCats) data.categories = []; // ไฟล์รุ่นเก่า: สร้างหมวดจากเมนูที่มีจริงเท่านั้น
+  } else data = JSON.parse(JSON.stringify(defaultData));
+  migrateData();
+}
+// แปลงข้อมูลจากเวอร์ชันเครื่องพิมพ์เดียว
+function migrateData() {
+  const s = data.settings;
+  // รุ่นแรกสุด: เครื่องพิมพ์เดียว
+  if (s.printerIp) {
+    s.printers = { front: { ip: s.printerIp, port: s.printerPort || 9100, dots: s.paperDots || 576 },
+      kitchen: { ip: '192.168.1.101', port: 9100, dots: 576 } };
+    delete s.printerIp; delete s.printerPort; delete s.paperDots;
+  }
+  // รุ่นก่อน: เครื่องพิมพ์ตายตัว 2 เครื่อง {front, kitchen} → รายการเครื่องพิมพ์ (คง id เดิมไว้ เมนูเก่าจึงชี้ถูกเครื่อง)
+  if (s.printers && !Array.isArray(s.printers)) {
+    const names = { front: 'หน้าร้าน', kitchen: 'ครัว' };
+    s.printers = Object.entries(s.printers).map(([id, pr]) => ({ id, name: names[id] || id, ...pr }));
+  }
+  s.printers = cleanPrinters(Array.isArray(s.printers) ? s.printers : defaultData.settings.printers);
+  s.kdsScreens = cleanScreens(Array.isArray(s.kdsScreens) && s.kdsScreens.length ? s.kdsScreens : defaultData.settings.kdsScreens);
+  if (!s.printers.some(p => p.id === s.receiptPrinter)) s.receiptPrinter = s.printers[0]?.id || '';
+  s.receiptCopies = Math.min(5, Math.max(1, Number(s.receiptCopies) || 1));
+  // เมนูรุ่นก่อน: station ('front'|'kitchen') + kds (true/false) → printers[] + screens[]
+  for (const m of data.menu) {
+    if (!Array.isArray(m.printers)) m.printers = [m.station || (m.kitchen === false ? 'front' : 'kitchen')];
+    if (!Array.isArray(m.screens)) {
+      const kds = typeof m.kds === 'boolean' ? m.kds : !isNoKdsCategory(m.category);
+      m.screens = kds ? [s.kdsScreens[0].id] : [];
+    }
+    delete m.station; delete m.kitchen; delete m.kds;
+  }
+  fixMenuRefs();
+  // ตัวเลือกแบบเดิม (options ชุดเดียว) → กลุ่มตัวเลือก
+  for (const m of data.menu) {
+    if (!Array.isArray(m.groups)) {
+      m.groups = (m.options || []).length
+        ? [{ name: 'ตัวเลือก', type: 'single', required: true, choices: m.options }] : [];
+    }
+    delete m.options;
+    if (typeof m.available !== 'boolean') m.available = true;
+  }
+  if (!Array.isArray(data.categories)) data.categories = [];
+  for (const m of data.menu) if (m.category && !data.categories.includes(m.category)) data.categories.push(m.category);
+  s.payments = { ...defaultData.settings.payments, ...(s.payments || {}) };
+  s.receipt = { ...defaultData.settings.receipt, ...(s.receipt || {}), images: { ...(s.receipt?.images || {}) } };
+  s.i18n = cleanI18n(s.i18n);
+  if (!Array.isArray(s.layout?.items)) s.layout = defaultLayout();
+  delete s.tables;
+  if (!Array.isArray(data.optionSets)) data.optionSets = JSON.parse(JSON.stringify(defaultData.optionSets));
+  if (!Array.isArray(s.quickNotes)) s.quickNotes = [...defaultData.settings.quickNotes];
+}
+// ---------- โหลดข้อมูลร้านตอนเปิดโปรแกรม ----------
+// ไฟล์ข้อมูลอ่านไม่ได้ (ไฟดับ/เมมเต็ม/แตกไฟล์ทับผิด) → ห้ามเริ่มเป็นร้านเปล่าแล้วบันทึกทับ
+// เก็บไฟล์เสียแยกไว้ (data-broken-เวลา.json) แล้วใช้ไฟล์สำรองล่าสุดที่อ่านได้แทน · แจ้งในหลังร้านและ LINE
+let startupWarn = '';
+{
+  const readOk = f => { try { const r = JSON.parse(fs.readFileSync(f, 'utf8')); return r && typeof r === 'object' && r.settings && Array.isArray(r.menu) ? r : null; } catch { return null; } };
+  let raw = null;
+  if (fs.existsSync(DATA_FILE)) {
+    raw = readOk(DATA_FILE);
+    if (!raw) {
+      const aside = path.join(__dirname, `data-broken-${Date.now()}.json`);
+      try { fs.renameSync(DATA_FILE, aside); } catch {}
+      let backups = [];
+      try { backups = fs.readdirSync(BACKUP_DIR).filter(n => /\.json$/.test(n)).map(n => path.join(BACKUP_DIR, n)); } catch {}
+      const cands = [DATA_FILE + '.tmp', ...backups.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)];
+      let from = '';
+      for (const f of cands) { if (fs.existsSync(f) && (raw = readOk(f))) { from = path.basename(f); break; } }
+      startupWarn = from ? `ไฟล์ข้อมูลเสีย เปิดโปรแกรมด้วยข้อมูลจากไฟล์สำรอง ${from} แทน (บิลหลังจากไฟล์สำรองนั้นอาจหาย) · ไฟล์เสียเก็บไว้ที่ ${path.basename(aside)}`
+        : `ไฟล์ข้อมูลเสีย และไม่มีไฟล์สำรองที่ใช้ได้ เริ่มเป็นร้านใหม่ · ไฟล์เสียเก็บไว้ที่ ${path.basename(aside)} ติดต่อผู้ดูแลระบบ`;
+      console.log('⚠ ' + startupWarn);
+    }
+  }
+  loadData(raw);
+}
+// ---------- โปรแกรมไม่ดับเพราะ error ที่ไม่ได้ดักไว้ (จดลง error.log แทน) ----------
+// ในแอป MAMA POS เปิด Node ใหม่ในกระบวนการเดิมไม่ได้ การไม่ดับจึงสำคัญมาก
+const ERR_LOG = path.join(__dirname, 'error.log');
+function logError(kind, e) {
+  const line = `[${new Date().toISOString()}] ${kind}: ${e?.stack || e}\n`;
+  console.error(line);
+  try { if (fs.existsSync(ERR_LOG) && fs.statSync(ERR_LOG).size > 1e6) fs.renameSync(ERR_LOG, ERR_LOG + '.old'); fs.appendFileSync(ERR_LOG, line); } catch {}
+}
+process.on('uncaughtException', e => logError('uncaughtException', e));
+process.on('unhandledRejection', e => logError('unhandledRejection', e));
+const r2 = n => Math.round(n * 100) / 100;
+
+// ================= รหัส PIN 4 หลัก =================
+// staff = หน้าสั่งอาหาร · admin = หลังร้าน (รหัสเจ้าของร้านเข้าได้ทุกหน้า)
+// เก็บเฉพาะค่าแฮช · โทเค็นที่ให้เครื่องที่ใส่รหัสถูก = HMAC(secret, ระดับ + รุ่น) จึงใช้ได้หลังรีสตาร์ต
+// และใช้กับเครื่องสำรองได้ด้วย (ข้อมูลซิงก์ไปด้วย) · เปลี่ยนรหัส = รุ่นเปลี่ยน → ทุกเครื่องต้องใส่รหัสใหม่
+if (!data.auth?.secret) {
+  data.auth = { salt: crypto.randomBytes(16).toString('hex'), secret: crypto.randomBytes(32).toString('hex'),
+    admin: null, staff: null, ver: { admin: 1, staff: 1 } };
+}
+// ลืมรหัส: พิมพ์ใน Termux ของเครื่องหลัก  node server.js --reset-pin  แล้วเปิดโปรแกรมใหม่ จะให้ตั้งรหัสใหม่
+// ในแอป MAMA POS: หน้าตั้งค่าของแอปสร้างไฟล์ reset-pin.flag แล้วเปิดเซิร์ฟเวอร์ใหม่ (ไม่ต้องพิมพ์คำสั่ง)
+const RESET_FLAG = path.join(__dirname, 'reset-pin.flag');
+const pinResetByFlag = fs.existsSync(RESET_FLAG);
+if (process.argv.includes('--reset-pin') || pinResetByFlag) {
+  data.auth.admin = null; data.auth.staff = null;
+  data.auth.ver = { admin: (data.auth.ver?.admin || 1) + 1, staff: (data.auth.ver?.staff || 1) + 1 };
+  for (const s of data.auth.staffs || []) s.ver = (s.ver || 1) + 1;
+  data.rev = (data.rev || 0) + 1;
+  fs.writeFileSync(DATA_FILE + '.tmp', JSON.stringify(data)); fs.renameSync(DATA_FILE + '.tmp', DATA_FILE);
+  try { fs.unlinkSync(RESET_FLAG); } catch {}
+  console.log('ล้างรหัสแล้ว · เปิดหลังร้าน จะให้ตั้งรหัสเจ้าของร้านใหม่');
+  if (!pinResetByFlag) process.exit(0);
+}
+const LEVELS = { staff: 1, admin: 2 };
+const pinHash = pin => crypto.createHash('sha256').update(data.auth.salt + ':' + pin).digest('hex');
+// พนักงานรายคน: data.auth.staffs = [{id, name, hash, lead, ver}] · lead = หัวหน้า (อนุมัติยกเลิกทั้งโต๊ะได้)
+// โทเค็น: admin.<hmac> = เจ้าของร้าน (หลังร้าน) · staff.<hmac> = รหัสรวม (ไม่รู้ว่าใคร)
+//         staff.owner.<hmac> = เจ้าของร้านเข้าหน้าสั่งอาหาร · staff.<id>.<hmac> = พนักงานคนนั้น
+// เปลี่ยนรหัส/ลบพนักงาน = ver ของคนนั้นเปลี่ยน · "ออกจากระบบทุกเครื่อง" = ver.staff เปลี่ยน ทุกโทเค็นหน้าสั่งอาหารใช้ไม่ได้
+if (!Array.isArray(data.auth.staffs)) data.auth.staffs = [];
+const staffById = id => data.auth.staffs.find(s => s.id === id);
+const tokenFor = (level, who) => {
+  const v = who === 'owner' ? 'o' + (data.auth.ver?.admin || 1) : who ? 's' + (staffById(who)?.ver || 1) : '';
+  return level + '.' + (who ? who + '.' : '') + crypto.createHmac('sha256', data.auth.secret)
+    .update(level + ':' + (data.auth.ver?.[level] || 1) + (who ? ':' + who + ':' + v : '')).digest('hex').slice(0, 40);
+};
+// โทเค็นนี้เป็นใคร · level 0 = ไม่มี/ใช้ไม่ได้แล้ว
+function tokenInfo(t) {
+  const parts = String(t || '').split('.'), level = parts[0], who = parts.length === 3 ? parts[1] : '';
+  const none = { level: 0, id: '', name: '', lead: false };
+  if (!LEVELS[level] || !data.auth.admin || (who && (level !== 'staff' || (who !== 'owner' && !staffById(who))))) return none;
+  const a = Buffer.from(String(t)), b = Buffer.from(tokenFor(level, who || undefined));
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return none;
+  if (level === 'admin' || who === 'owner') return { level: LEVELS[level], id: 'owner', name: 'เจ้าของร้าน', lead: true };
+  if (who) { const s = staffById(who); return { level: 1, id: s.id, name: s.name, lead: !!s.lead }; }
+  return { level: 1, id: 'staff', name: 'พนักงาน (รหัสรวม)', lead: false };
+}
+const tokenLevel = t => tokenInfo(t).level;
+const whoOf = req => tokenInfo(req?.headers?.['x-pin-token']);
+// รหัสทุกคนต้องไม่ซ้ำกัน (ใส่รหัสแล้วต้องรู้ว่าเป็นใคร) · except = id ที่กำลังแก้
+function pinTaken(h, except) {
+  if (except !== 'owner' && h === data.auth.admin) return 'เจ้าของร้าน';
+  if (except !== 'staff' && h === data.auth.staff) return 'รหัสรวมพนักงาน';
+  return data.auth.staffs.find(s => s.id !== except && s.hash === h)?.name || '';
+}
+// ใส่ผิด 5 ครั้ง → พัก 30 วินาที (ครั้งต่อไปนานขึ้น) กันการไล่กดทุกรหัส
+const pinFails = new Map();
+function checkPinLimit(ip) {
+  const f = pinFails.get(ip);
+  if (f && f.until > Date.now()) throw new Error(`ใส่รหัสผิดหลายครั้ง รออีก ${Math.ceil((f.until - Date.now()) / 1000)} วินาที`);
+}
+function pinFailed(ip) {
+  const f = pinFails.get(ip) || { n: 0, until: 0 };
+  f.n++;
+  if (f.n % 5 === 0) f.until = Date.now() + 30000 * Math.min(10, f.n / 5);
+  pinFails.set(ip, f);
+  const left = 5 - (f.n % 5);
+  throw new Error(f.until > Date.now() ? 'ใส่รหัสผิดหลายครั้ง รอ 30 วินาทีแล้วลองใหม่' : `รหัสไม่ถูกต้อง${left <= 2 ? ` (เหลืออีก ${left} ครั้ง)` : ''}`);
+}
+const cleanPin = p => { p = String(p ?? ''); if (!/^\d{4}$/.test(p)) throw new Error('รหัสต้องเป็นตัวเลข 4 หลัก'); return p; };
+const clientIp = req => String(req.socket.remoteAddress || '').replace('::ffff:', '');
+
+// เลขใบเสร็จ: วันที่-ลำดับ เช่น 20261012-007 (นับต่อเนื่องในวัน รวมใบเสร็จจากการแยกจ่าย)
+function nextReceiptNo() {
+  const d = today().replace(/-/g, '');
+  if (!data.rcpt || data.rcpt.day !== d) {
+    // เริ่มวันใหม่ หรือข้อมูลรุ่นเก่า: นับต่อจากใบเสร็จที่มีอยู่แล้วในวันนี้
+    const nums = [];
+    for (const o of data.orders) {
+      for (const r of [o.receiptNo, ...(o.payments || []).map(p => p.receiptNo)])
+        if (r && r.startsWith(d + '-')) nums.push(Number(r.slice(d.length + 1)) || 0);
+    }
+    data.rcpt = { day: d, n: nums.length ? Math.max(...nums) : 0 };
+  }
+  data.rcpt.n++;
+  return `${d}-${String(data.rcpt.n).padStart(3, '0')}`;
+}
+// จำนวนที่จ่ายไปแล้วของแต่ละจาน (จากการแยกจ่ายตามรายการ)
+function paidQtyOf(order) {
+  const q = {};
+  for (const p of order.payments || []) for (const l of p.lines || []) q[l.id] = (q[l.id] || 0) + l.qty;
+  return q;
+}
+
+// กลุ่มตัวเลือกของเมนู: กลุ่มที่เขียนในเมนูเอง + ชุดสำเร็จรูปที่ผูกไว้ ({ref: id})
+function groupsOf(m) {
+  return (m.groups || []).map(g => (g.ref ? data.optionSets.find(s => s.id === g.ref) : g)).filter(Boolean);
+}
+function cleanGroup(g) {
+  return {
+    name: String(g.name || '').trim() || 'ตัวเลือก',
+    type: g.type === 'multi' ? 'multi' : 'single',
+    required: !!g.required,
+    alert: !!g.alert,   // เตือนครัวเป็นสีแดง เช่น แพ้อาหาร
+    // printers = พิมพ์ใบแยกที่เครื่องนี้ด้วยเมื่อเลือกตัวเลือกนี้ (เช่น ไข่ดาว → หน้าร้าน) · [] = ไม่แยก
+    choices: (g.choices || []).map(c => {
+      const printers = pickIds(c.printers, data.settings.printers || []);
+      return { name: String(c.name || '').trim(), add: r2(Number(c.add) || 0), ...(printers.length ? { printers } : {}) };
+    }).filter(c => c.name),
+  };
+}
+
+// เลือกเฉพาะ id ที่มีอยู่จริง ไม่ซ้ำ
+const pickIds = (ids, list) => [...new Set((Array.isArray(ids) ? ids : []).filter(id => list.some(x => x.id === id)))];
+// ทำให้ข้อมูลเมนูที่ส่งมาจากหน้าตั้งค่าถูกรูปแบบเสมอ
+function cleanMenuItem(m) {
+  const name = String(m.name || '').trim();
+  if (!name) throw new Error('ใส่ชื่อเมนูก่อน');
+  const price = Number(m.price);
+  if (!(price >= 0)) throw new Error('ราคาไม่ถูกต้อง');
+  const seen = new Set();
+  const groups = (m.groups || []).map(g => {
+    if (g.ref) {   // ผูกชุดสำเร็จรูป: เก็บแค่รหัส ไม่ซ้ำ
+      if (seen.has(g.ref) || !data.optionSets.some(s => s.id === g.ref)) return null;
+      seen.add(g.ref); return { ref: g.ref };
+    }
+    const c = cleanGroup(g); return c.choices.length ? c : null;
+  }).filter(Boolean);
+  let id = m.id;
+  if (!id) do { id = newId('m'); } while (data.menu.some(x => x.id === id));  // กันชนกับเมนูที่มีอยู่
+  const grid = cleanGrid(m.grid, groupsOf({ groups }));
+  return {
+    id, name,
+    category: String(m.category || '').trim() || 'อื่นๆ',
+    price: grid ? Math.min(...Object.values(grid.prices)) : r2(price),   // มีตารางราคา: ราคาเริ่มต้น = ถูกสุดในตาราง
+    printers: pickIds(m.printers, data.settings.printers), screens: pickIds(m.screens, data.settings.kdsScreens),
+    available: m.available !== false, groups, ...(grid ? { grid } : {}),
+    ...(m.noNote ? { noNote: true } : {}),   // ไม่มีช่องหมายเหตุตอนสั่ง (เช่น น้ำเปล่า)
+    // ราคาคนไทย (ไม่ใส่ = เมนูนี้มีราคาเดียว) · เมนูที่ใช้ตารางราคาเก็บใน grid.pricesTh แทน
+    ...(!grid && m.priceTh !== '' && m.priceTh != null && Number(m.priceTh) >= 0 ? { priceTh: r2(Number(m.priceTh)) } : {}),
+  };
+}
+
+// ---------- ตารางราคา: ราคาขึ้นกับตัวเลือก 1–2 กลุ่มพร้อมกัน (เช่น เนื้อสัตว์ × ขนาด S/M/L) ----------
+// grid = {groups: [ชื่อกลุ่ม, ชื่อกลุ่ม], prices: {'ทะเล|S': 150, 'ไก่/หมู|S': 120, ...}}
+// ช่องที่ไม่มีในตาราง = ไม่มีขาย (เช่น ผัดน้ำมันหอยไม่มีเจ) · กลุ่มในตารางต้องเป็นแบบ "เลือก 1"
+// ราคาจาน = ราคาในตาราง + "บวกราคา" ของกลุ่มอื่นที่ไม่อยู่ในตาราง
+function cleanGrid(grid, groups) {
+  if (!grid || !Array.isArray(grid.groups) || !grid.prices || typeof grid.prices !== 'object') return undefined;
+  const names = [...new Set(grid.groups.map(String))].slice(0, 2);
+  const gs = names.map(n => groups.find(g => g.name === n));
+  if (!names.length || gs.some(g => !g)) return undefined;
+  // กลุ่มแบบ "หลายอย่าง" ใช้ได้ (เช่น เนื้อสัตว์ผสม ไก่ + กุ้ง) → คิดราคาของตัวที่แพงที่สุด
+  const prices = {};
+  for (const [k, v] of Object.entries(grid.prices)) {
+    const parts = k.split('|'), n = Number(v);
+    if (parts.length !== gs.length || v === '' || v == null || !(n >= 0)) continue;
+    if (parts.every((c, i) => gs[i].choices.some(x => x.name === c))) prices[k] = r2(n);
+  }
+  if (!Object.keys(prices).length) return undefined;
+  // ราคาคนไทย: เฉพาะช่องที่มีราคาปกติ · ไม่ใส่ = ใช้ราคาปกติ
+  // thaiSkip = ราคาคนไทยไม่แยกตามกลุ่มนี้ (เช่น "ขนาด") → ตารางราคาไทยใช้กลุ่มที่เหลือ ('' = ราคาเดียว) · ช่องไม่ใส่ = ไม่มีราคาไทย
+  const skip = names.length && names.includes(String(grid.thaiSkip || '')) ? String(grid.thaiSkip) : undefined;
+  const remG = skip ? gs.filter((g, i) => names[i] !== skip) : gs;
+  const pricesTh = {};
+  for (const [k, v] of Object.entries(grid.pricesTh && typeof grid.pricesTh === 'object' ? grid.pricesTh : {})) {
+    const n = Number(v);
+    if (v === '' || v == null || !(n >= 0)) continue;
+    if (!skip) { if (k in prices) pricesTh[k] = r2(n); continue; }
+    const parts = k === '' ? [] : k.split('|');
+    if (parts.length === remG.length && parts.every((c, i) => remG[i].choices.some(x => x.name === c))) pricesTh[k] = r2(n);
+  }
+  return { groups: names, prices, ...(Object.keys(pricesTh).length ? { pricesTh } : {}), ...(skip ? { thaiSkip: skip } : {}) };
+}
+
+// ตรวจตัวเลือกที่ลูกค้าเลือก แล้วคิดราคา
+// thai = ใช้ราคาคนไทย (เฉพาะเมนูที่ตั้งราคาคนไทยไว้ · ตัวเลือกที่บวกราคายังบวกเท่าเดิม)
+function resolveChoices(m, picked, thai = false) {
+  // picked: [{g: ชื่อกลุ่ม, c: ชื่อตัวเลือก}] · รองรับแบบเก่า: string ชื่อตัวเลือกเดียว
+  const groups = groupsOf(m);
+  if (typeof picked === 'string') picked = picked ? [{ g: groups[0]?.name, c: picked }] : [];
+  picked = Array.isArray(picked) ? picked : [];
+  const names = [], parts = [], opts = [], alerts = [], split = [];
+  const grid = m.grid?.groups?.length ? m.grid : null, key = {};
+  let add = 0;
+  // ราคาคนไทยที่ไม่แยกตามกลุ่มหนึ่ง (เช่น ไม่มีไซส์): ข้ามกลุ่มนั้นทั้งการบังคับเลือกและราคา
+  const skip = thai && grid?.thaiSkip && Object.keys(grid.pricesTh || {}).length ? grid.thaiSkip : null;
+  for (const g of groups) {
+    if (g.name === skip) continue;
+    const sel = g.choices.filter(c => picked.some(p => p.g === g.name && p.c === c.name));
+    const inGrid = grid?.groups.includes(g.name);
+    if ((g.required || inGrid) && !sel.length) throw new Error(`${m.name}: ต้องเลือก${g.name}`);
+    if (g.type === 'single' && sel.length > 1) throw new Error(`${m.name}: ${g.name} เลือกได้อย่างเดียว`);
+    for (const c of sel) {
+      names.push(c.name); (g.alert ? alerts : opts).push(c.name); if (!inGrid) add += c.add;
+      if (c.printers?.length) split.push({ name: c.name, printers: [...c.printers] });
+    }
+    if (inGrid) key[g.name] = sel.map(c => c.name);
+    if (sel.length) parts.push({ g: g.name, c: sel.map(c => c.name) });
+  }
+  let base = thai && m.priceTh != null ? m.priceTh : m.price;
+  if (grid && skip) {
+    // ราคาคนไทยตามกลุ่มที่เหลือ (เช่น ตามเนื้อสัตว์) · เนื้อสัตว์ผสม = แพงสุด
+    let combos = [[]];
+    for (const n of grid.groups.filter(n => n !== skip)) combos = combos.flatMap(c => (key[n] || []).map(x => [...c, x]));
+    base = -1;
+    for (const c of combos) {
+      const p = grid.pricesTh[c.join('|')];
+      if (p == null) throw new Error(`${m.name}: ยังไม่ได้ตั้งราคาคนไทยของ ${c.join(' ') || 'เมนูนี้'}`);
+      base = Math.max(base, p);
+    }
+    if (base < 0) throw new Error(`${m.name}: เลือกตัวเลือกให้ครบ`);
+  } else if (grid) {
+    // ทุกคู่ที่เลือก (เนื้อสัตว์ผสมได้หลายอย่าง × ขนาด) ต้องมีในตาราง · ราคา = แพงสุด
+    let combos = [[]];
+    for (const n of grid.groups) combos = combos.flatMap(c => (key[n] || []).map(x => [...c, x]));
+    base = -1;
+    for (const c of combos) {
+      const k = c.join('|'), p = grid.prices[k];
+      if (p == null) throw new Error(`${m.name}: ไม่มี ${c.join(' ')}`);
+      if (thai && grid.pricesTh?.[k] != null) { base = Math.max(base, grid.pricesTh[k]); continue; }   // ช่องที่ไม่ได้ใส่ราคาไทย = ราคาปกติ
+      base = Math.max(base, p);
+    }
+    if (base < 0) throw new Error(`${m.name}: เลือกตัวเลือกให้ครบ`);
+  }
+  return { names, add, parts, opts, alerts, base, split };
+}
+const hasThaiPrice = m => m.priceTh != null || !!(m.grid?.pricesTh && Object.keys(m.grid.pricesTh).length);
+function isNoKdsCategory(c) { return /เครื่องดื่ม|ของหวาน|น้ำ|ขนม/.test(c || ''); }
+
+// ---------- เครื่องพิมพ์ / จอครัว ----------
+// จานที่สั่งก่อนอัปเดต ใช้ station/kitchen แบบเก่า → แปลงตอนอ่าน
+function itemPrinters(i) { return Array.isArray(i.printers) ? i.printers : [i.station || 'kitchen']; }
+function itemScreens(i) { return Array.isArray(i.screens) ? i.screens : i.kitchen ? [data.settings.kdsScreens?.[0]?.id || 'main'] : []; }
+const onScreen = i => itemScreens(i).length > 0;   // ครัวต้องทำ (ติดตามสถานะ รอทำ/เสร็จ)
+const kdsScreenOf = id => (id === 'all' ? 'all' : data.settings.kdsScreens.some(k => k.id === id) ? id : data.settings.kdsScreens[0].id);
+// ---------- ภาษาใบเสร็จ ----------
+const LANGS = ['th', 'en', 'both'];
+// {en: {คำไทย: English}} · ตัดคำว่าง/ยาวเกิน · ภาษาละไม่เกิน 3000 คำ
+function cleanI18n(v) {
+  const out = { en: {} };
+  for (const [lang, dict] of Object.entries(v && typeof v === 'object' ? v : {})) {
+    if (!/^[a-z]{2}$/.test(lang) || !dict || typeof dict !== 'object') continue;
+    const d = {};
+    for (const [k, t] of Object.entries(dict).slice(0, 3000)) {
+      const kk = String(k).trim().slice(0, 80), tt = String(t ?? '').trim().slice(0, 80);
+      if (kk && tt) d[kk] = tt;
+    }
+    out[lang] = d;
+  }
+  return out;
+}
+// ---------- หน้าตาหน้าสั่งอาหาร (หลังร้าน > หน้าสั่งอาหาร) ----------
+function cleanOrderUi(u) {
+  u = u && typeof u === 'object' ? u : {};
+  const pick = (v, list, d) => (list.includes(v) ? v : d);
+  return {
+    theme: pick(u.theme, ['classic', 'dark', 'green', 'blue', 'pink'], 'classic'),
+    size: pick(u.size, ['sm', 'md', 'lg', 'xl'], 'md'), font: pick(u.font, ['sm', 'md', 'lg'], 'md'),
+    cols: pick(String(u.cols), ['auto', '2', '3', '4', '5', '6'], 'auto'),
+    showEn: u.showEn !== false, showPrice: u.showPrice !== false, showSearch: u.showSearch !== false,
+    abroad: u.abroad !== false,   // ปุ่ม "กลับต่างประเทศ"
+  };
+}
+// ---------- รูปแบบใบสั่งครัว (หลังร้าน > ใบสั่งครัว) ----------
+function cleanTicket(t) {
+  t = t && typeof t === 'object' ? t : {};
+  const pick = (v, list, d) => (list.includes(v) ? v : d);
+  const num = (v, lo, hi, d) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : d; };
+  const on = (v, d) => (typeof v === 'boolean' ? v : d);
+  return {
+    lang: pick(t.lang, LANGS, 'th'),
+    sizeTable: num(t.sizeTable, 28, 72, 44), sizeItem: num(t.sizeItem, 24, 60, 36), sizeOpt: num(t.sizeOpt, 20, 48, 30),
+    showTime: on(t.showTime, true), showType: on(t.showType, false), showRound: on(t.showRound, false),
+    showStation: on(t.showStation, false), showCount: on(t.showCount, false), divider: on(t.divider, false), showThai: on(t.showThai, true),
+    qtyPos: pick(t.qtyPos, ['front', 'back'], 'front'), optStyle: pick(t.optStyle, ['inline', 'line'], 'inline'),
+    noteStyle: pick(t.noteStyle, ['normal', 'bold', 'invert'], 'normal'), alertStyle: pick(t.alertStyle, ['bold', 'invert'], 'bold'),
+    mode: pick(t.mode, ['all', 'cat', 'grp', 'each'], 'all'),
+    price: pick(t.price, ['off', 'all', 'thai'], 'all'),   // ราคาบนใบสั่งที่พิมพ์ (จอครัวไม่แสดง)
+    footer: String(t.footer || '').slice(0, 200),
+    feed: num(t.feed, 0, 10, 4), beep: num(t.beep, 0, 5, 0),
+  };
+}
+function slug(prefix, taken) { let k = 1; while (taken.has(prefix + k)) k++; return prefix + k; }
+function cleanPrinters(list) {
+  const ids = new Set(), out = [];
+  for (const p of (list || []).slice(0, 20)) {
+    let id = String(p.id || '').replace(/[^\w-]/g, '').slice(0, 20);
+    if (!id || ids.has(id)) id = slug('p', ids);
+    ids.add(id);
+    const port = Math.round(Number(p.port));
+    out.push({ id, name: String(p.name || '').trim().slice(0, 30) || 'เครื่องพิมพ์ ' + (out.length + 1),
+      ip: String(p.ip || '').trim().slice(0, 64), port: port > 0 && port < 65536 ? port : 9100,
+      dots: Number(p.dots) === 384 ? 384 : 576, copies: Math.min(5, Math.max(1, Math.round(Number(p.copies)) || 1)),
+      // การแบ่งใบของเครื่องนี้ · '' = ตามหลังร้าน > ใบสั่งครัว
+      slip: ['all', 'cat', 'grp', 'each'].includes(p.slip) ? p.slip : '' });
+  }
+  return out;
+}
+function cleanScreens(list) {
+  const ids = new Set(), out = [];
+  for (const k of (list || []).slice(0, 10)) {
+    let id = String(k.id || '').replace(/[^\w-]/g, '').slice(0, 20);
+    if (!id || ids.has(id)) id = slug('k', ids);
+    ids.add(id);
+    out.push({ id, name: String(k.name || '').trim().slice(0, 30) || 'จอ ' + (out.length + 1) });
+  }
+  if (!out.length) throw new Error('ต้องมีจอครัวอย่างน้อย 1 จอ');
+  return out;
+}
+// ลบเครื่องพิมพ์/จอแล้ว เอาออกจากเมนูที่อ้างถึงด้วย
+function fixMenuRefs() {
+  const P = new Set(data.settings.printers.map(p => p.id)), K = new Set(data.settings.kdsScreens.map(k => k.id));
+  for (const m of data.menu) {
+    m.printers = [...new Set((m.printers || []).filter(id => P.has(id)))];
+    m.screens = [...new Set((m.screens || []).filter(id => K.has(id)))];
+  }
+  // ตัวเลือกที่ตั้งให้พิมพ์แยกไปเครื่องที่ถูกลบ → เลิกพิมพ์แยก
+  const fixChoices = g => { for (const c of g?.choices || []) if (c.printers) { c.printers = c.printers.filter(id => P.has(id)); if (!c.printers.length) delete c.printers; } };
+  for (const m of data.menu) for (const g of m.groups || []) if (!g.ref) fixChoices(g);
+  for (const s of data.optionSets || []) fixChoices(s);
+}
+
+function saveRaw() {
+  const tmp = DATA_FILE + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(data));
+  fs.renameSync(tmp, DATA_FILE); // เขียนแบบปลอดภัย ไฟล์ไม่พังถ้าไฟดับกลางคัน
+}
+function save() {
+  data.rev = (data.rev || 0) + 1;   // เลขรุ่นของข้อมูล เครื่องสำรองใช้ดูว่ามีอะไรเปลี่ยน
+  saveRaw();
+}
+
+// ================= เครื่องหลัก / เครื่องสำรอง =================
+// เครื่องสำรองดึงข้อมูลจากเครื่องหลักทุก 2 วินาที ถ้าเครื่องหลักพัง กด "ใช้เครื่องนี้เป็นเครื่องหลัก"
+// epoch เพิ่มทุกครั้งที่สลับเครื่อง ถ้าเครื่องเก่ากลับมา มันจะเห็นว่าอีกเครื่อง epoch สูงกว่า แล้วลดตัวเองเป็นเครื่องสำรอง
+const ROLE_FILE = path.join(__dirname, 'role.json');
+const normUrl = u => {
+  u = String(u || '').trim().replace(/\/+$/, '');
+  if (!u) return '';
+  if (!/^https?:\/\//.test(u)) u = 'http://' + u;
+  if (!/:\d+$/.test(u.replace(/^https?:\/\//, ''))) u += ':3000';
+  return u;
+};
+let role = { role: 'main', peer: '' };
+try { role = { ...role, ...JSON.parse(fs.readFileSync(ROLE_FILE, 'utf8')) }; } catch {}
+{
+  const i = process.argv.indexOf('--standby');
+  if (i > 0) role = { role: 'standby', peer: normUrl(process.argv[i + 1] || role.peer || data.settings.nodes?.main) };
+  if (process.argv.includes('--main')) role = { role: 'main', peer: role.peer };
+  if (role.role === 'standby' && !role.peer) {
+    console.log('ใส่ที่อยู่เครื่องหลักด้วย เช่น: node server.js --standby 192.168.1.50:3000'); process.exit(1);
+  }
+}
+if (!data.epoch) data.epoch = 1;
+const saveRole = () => { try { fs.writeFileSync(ROLE_FILE, JSON.stringify(role)); } catch {} };
+saveRole();
+const myIps = () => Object.values(os.networkInterfaces()).flat()
+  .filter(i => i && i.family === 'IPv4' && !i.internal).map(i => i.address);
+const myUrls = () => [...myIps(), 'localhost', '127.0.0.1'].map(ip => `http://${ip}:${PORT}`);
+function peerUrl() {
+  const mine = new Set(myUrls());
+  return [role.peer, data.settings.nodes?.main, data.settings.nodes?.standby].map(normUrl).find(u => u && !mine.has(u)) || '';
+}
+const repl = { lastSync: 0, syncErr: '', standbySeen: 0, standbyIp: '', peerRole: null, peerSeen: 0, conflict: false,
+  needPair: false, pairAsk: 0, pairAskIp: '' };
+// กุญแจคัดลอกข้อมูล: /api/sync ส่งข้อมูลทั้งร้านให้เฉพาะเครื่องที่มีกุญแจนี้
+// คำนวณจาก auth.secret ของข้อมูลร้าน → เครื่องสำรองที่เคยคัดลอกแล้วมีอยู่แล้ว (สลับเครื่องหลักไปมาก็ใช้ต่อได้)
+// เครื่องสำรองใหม่ (ยังไม่เคยคัดลอก) จับคู่ครั้งแรกด้วยรหัสเจ้าของร้านของเครื่องหลัก → ได้กุญแจเก็บไว้ใน role.key
+const syncKey = () => crypto.createHmac('sha256', data.auth.secret).update('edpos-sync').digest('hex');
+const syncKeyOk = k => { const a = Buffer.from(String(k || '')), b = Buffer.from(syncKey()); return a.length === b.length && crypto.timingSafeEqual(a, b); };
+const getJSON = async (u, opt = {}) => {
+  const r = await fetch(u, { ...opt, signal: AbortSignal.timeout(3000) });
+  return r.json();
+};
+
+// เครื่องสำรอง: ดึงข้อมูลล่าสุด
+async function syncTick() {
+  if (role.role !== 'standby') return;
+  try {
+    // ลองกุญแจจากข้อมูลของเครื่องนี้ก่อน ไม่ผ่านค่อยใช้กุญแจที่ได้ตอนจับคู่ (ซึ่งต้องดึงข้อมูลทั้งชุด rev=-1)
+    let j = null;
+    for (const k of [...new Set([syncKey(), role.key].filter(Boolean))]) {
+      j = await getJSON(`${role.peer}/api/sync?rev=${k === syncKey() ? data.rev || 0 : -1}`, { headers: { 'X-Sync-Key': k } });
+      if (!j.auth) break;
+    }
+    if (j.role === 'main' && j.auth) {
+      repl.needPair = true; repl.syncErr = 'ยังไม่ได้จับคู่กับเครื่องหลัก ใส่รหัสเจ้าของร้านที่หน้าเครื่องสำรอง'; return;
+    }
+    repl.needPair = false;
+    if (j.role !== 'main') { repl.syncErr = 'เครื่องที่ตั้งไว้ไม่ได้เป็นเครื่องหลัก'; return; }
+    if (j.data) {
+      data = j.data; saveRaw(); broadcast();
+      if (role.key) { delete role.key; saveRole(); }   // ข้อมูลชุดนี้มีกุญแจของเครื่องหลักแล้ว
+    }
+    repl.lastSync = Date.now(); repl.syncErr = '';
+  } catch { repl.syncErr = 'ติดต่อเครื่องหลักไม่ได้'; }
+}
+setInterval(syncTick, 2000);
+
+// เครื่องหลัก: คอยดูอีกเครื่อง ถ้าอีกเครื่องรับงานแทนไปแล้ว (epoch สูงกว่า) ให้ตัวเองเป็นเครื่องสำรอง
+async function peerTick() {
+  if (role.role !== 'main') return;
+  const peer = peerUrl(); if (!peer) return;
+  try {
+    const j = await getJSON(`${peer}/api/role`);
+    repl.peerRole = j.role; repl.peerSeen = Date.now();
+    repl.conflict = j.role === 'main' && j.epoch === data.epoch;
+    if (j.role === 'main' && j.epoch > data.epoch) {
+      console.log(`เครื่อง ${peer} รับงานแทนแล้ว → เครื่องนี้เปลี่ยนเป็นเครื่องสำรอง`);
+      role = { role: 'standby', peer }; saveRole(); broadcast(); syncTick();
+    }
+  } catch { repl.peerRole = null; }
+}
+setInterval(peerTick, 5000);
+
+function roleInfo() {
+  return { role: role.role, epoch: data.epoch, rev: data.rev || 0, peer: peerUrl(), me: myUrls().slice(0, -2),
+    nodes: data.settings.nodes || {}, lastSync: repl.lastSync, syncErr: repl.syncErr,
+    standbySeen: repl.standbySeen, standbyIp: repl.standbyIp, peerRole: repl.peerRole, peerSeen: repl.peerSeen,
+    conflict: repl.conflict, now: Date.now(), needPair: repl.needPair, app: !!process.env.EDPOS_APP, startupWarn,
+    pairAsk: Date.now() - repl.pairAsk < 15000 ? repl.pairAskIp : '',
+    openTables: data.orders.filter(o => o.status === 'open').length };
+}
+
+// สำรองข้อมูลวันละไฟล์ (เก็บย้อนหลัง 30 วัน)
+function dailyBackup() {
+  if (!fs.existsSync(DATA_FILE)) return;
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  const f = path.join(BACKUP_DIR, `data-${today()}.json`);
+  fs.copyFileSync(DATA_FILE, f);
+  const files = fs.readdirSync(BACKUP_DIR).filter(n => n.startsWith('data-')).sort();
+  while (files.length > 30) fs.unlinkSync(path.join(BACKUP_DIR, files.shift()));
+}
+setInterval(dailyBackup, 60 * 60 * 1000);
+
+// ล้างบิลเก่า (เก็บบิลที่จ่ายแล้วไว้ 7 วันในไฟล์หลัก ที่เหลืออยู่ใน backup)
+// ---------- สรุปยอดขาย ----------
+// บิลละเอียดเก็บไว้ 7 วันเต็ม (ไฟล์ไม่โตจนแท็บเล็ตช้า) ก่อนลบจะย่อเป็นสรุปรายวันเก็บใน data.daily ไว้ตลอด
+const KEEP_DAYS = 7;
+const dayKey = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const catOf = i => i.category || data.menu.find(m => m.id === i.menuId)?.category || 'อื่นๆ';
+
+function emptyDay(date) {
+  return { date, bills: 0, subtotal: 0, fee: 0, total: 0,
+    byMethod: { cash: 0, transfer: 0, card: 0 }, billsByMethod: { cash: 0, transfer: 0, card: 0 },
+    byHour: {}, items: {}, cats: {}, cancelled: { qty: 0, amount: 0 }, dishes: 0, voids: { bills: 0, amount: 0 }, staff: {} };
+}
+// ยอดรายพนักงาน (เฉพาะบิลที่บันทึกชื่อไว้ · บิลก่อนมีระบบพนักงานรายคนไม่มีชื่อ)
+// dishes = จานที่สั่ง · cancels = จานที่ยกเลิก · voids = โต๊ะที่ยกเลิกทั้งโต๊ะ · bills = ครั้งที่รับเงิน
+function staffRow(day, name) {
+  if (!day.staff) day.staff = {};
+  return day.staff[name] || (day.staff[name] = { name, dishes: 0, amount: 0, cancels: 0, cancelAmt: 0, voids: 0, voidAmt: 0, bills: 0, billAmt: 0 });
+}
+// บิลที่ยกเลิกทั้งโต๊ะ: ไม่นับเป็นยอดขาย แต่นับจำนวนโต๊ะและมูลค่าที่ยกเลิกไว้ดู
+function addVoid(day, its, o = {}) {
+  if (!day.voids) day.voids = { bills: 0, amount: 0 };
+  day.voids.bills++;
+  let tot = 0;
+  for (const i of its) {
+    const amt = r2(i.price * i.qty);
+    day.voids.amount = r2(day.voids.amount + amt);
+    day.cancelled.qty += i.qty; day.cancelled.amount = r2(day.cancelled.amount + amt);
+    if (i.by) { const r = staffRow(day, i.by); r.dishes += i.qty; r.amount = r2(r.amount + amt); }
+    // จานที่ยกเลิกทีละจานไปก่อนแล้ว = การยกเลิกของคนนั้น · ที่เหลือ = ยกเลิกพร้อมทั้งโต๊ะ
+    if (i.cancelledBy) { const r = staffRow(day, i.cancelledBy); r.cancels += i.qty; r.cancelAmt = r2(r.cancelAmt + amt); }
+    else tot = r2(tot + amt);
+  }
+  if (o.voidedBy && its.length) { const r = staffRow(day, o.voidedBy); r.voids++; r.voidAmt = r2(r.voidAmt + tot); }
+}
+// รวมบิลที่จ่ายแล้วเข้าสรุปของวัน
+function addBill(day, o, its) {
+  const subtotal = o.subtotal ?? o.total ?? 0;
+  day.subtotal = r2(day.subtotal + subtotal); day.fee = r2(day.fee + (o.fee || 0));
+  day.total = r2(day.total + (o.total ?? subtotal));
+  // แยกจ่าย: แต่ละครั้งที่จ่ายนับเป็นหนึ่งบิล ตามวิธีชำระของครั้งนั้น
+  const parts = o.payments?.length ? o.payments.map(p => ({ m: p.method, amt: p.amount, tot: p.total, at: p.at, by: p.by }))
+    : [{ m: o.payMethod, amt: subtotal, tot: o.total ?? subtotal, at: o.paidAt, by: o.paidBy }];
+  for (const p of parts) {
+    if (p.by) { const r = staffRow(day, p.by); r.bills++; r.billAmt = r2(r.billAmt + p.amt); }
+    const m = p.m in day.byMethod ? p.m : 'cash';
+    day.bills++; day.byMethod[m] = r2(day.byMethod[m] + p.tot); day.billsByMethod[m]++;
+    const h = new Date(p.at).getHours();
+    day.byHour[h] = r2((day.byHour[h] || 0) + p.amt);
+  }
+  for (const i of its) {
+    const amt = r2(i.price * i.qty);
+    if (i.by) { const r = staffRow(day, i.by); r.dishes += i.qty; r.amount = r2(r.amount + amt); }
+    if (i.status === 'cancelled') {
+      day.cancelled.qty += i.qty; day.cancelled.amount = r2(day.cancelled.amount + amt);
+      if (i.cancelledBy) { const r = staffRow(day, i.cancelledBy); r.cancels += i.qty; r.cancelAmt = r2(r.cancelAmt + amt); }
+      continue;
+    }
+    const it = day.items[i.name] || (day.items[i.name] = { name: i.name, category: catOf(i), qty: 0, amount: 0, opts: {} });
+    it.qty += i.qty; it.amount = r2(it.amount + amt);
+    if (i.option) it.opts[i.option] = (it.opts[i.option] || 0) + i.qty;
+    day.cats[it.category] = r2((day.cats[it.category] || 0) + amt);
+    day.dishes += i.qty;
+  }
+}
+function summarizeLive(date) {
+  const day = emptyDay(date);
+  for (const o of data.orders) if (o.status === 'paid' && dayKey(o.paidAt) === date)
+    addBill(day, o, data.items.filter(i => i.orderId === o.id));
+  for (const o of data.orders) if (o.status === 'void' && dayKey(o.voidedAt) === date)
+    addVoid(day, data.items.filter(i => i.orderId === o.id), o);
+  return day;
+}
+
+const itemLabelSrv = i => i.name + (i.option ? ' ' + i.option : '');
+function prune() {
+  const keepFrom = new Date(); keepFrom.setHours(0, 0, 0, 0); keepFrom.setDate(keepFrom.getDate() - KEEP_DAYS);
+  const old = data.orders.filter(o => (o.status === 'paid' && o.paidAt < keepFrom.getTime())
+    || (o.status === 'void' && o.voidedAt < keepFrom.getTime()));
+  if (!old.length) return;
+  if (!data.daily) data.daily = {};
+  for (const o of old) {
+    const k = dayKey(o.status === 'void' ? o.voidedAt : o.paidAt);
+    const day = data.daily[k] || (data.daily[k] = emptyDay(k));
+    const its = data.items.filter(i => i.orderId === o.id);
+    if (o.status === 'void') addVoid(day, its, o); else addBill(day, o, its);
+  }
+  const ids = new Set(old.map(o => o.id));
+  data.orders = data.orders.filter(o => !ids.has(o.id));
+  data.items = data.items.filter(i => !ids.has(i.orderId));
+}
+
+// สรุปของวันเดียว: บิลละเอียด (7 วันล่าสุด) หรือสรุปรายวันที่ย่อเก็บไว้
+function dayOf(k) {
+  const live = summarizeLive(k);
+  return live.bills || live.voids.bills ? live : (data.daily?.[k] || emptyDay(k));
+}
+const addDays = (k, n) => { const d = new Date(k + 'T00:00:00'); d.setDate(d.getDate() + n); return dayKey(d); };
+// เทียบช่วงก่อนหน้า: ดูวันเดียว = วันเดียวกันของสัปดาห์ก่อน · หลายวัน = ช่วงยาวเท่ากันก่อนหน้า
+// ช่วงที่จบวันนี้ (ร้านยังไม่ปิด) → วันสุดท้ายของช่วงก่อนนับยอดถึงชั่วโมงเดียวกันเท่านั้น จะได้เทียบกันได้จริง
+function prevPeriod(from, n, to) {
+  const pf = n === 1 ? addDays(from, -7) : addDays(from, -n), pt = n === 1 ? pf : addDays(from, -1);
+  const cut = to === dayKey(Date.now()) ? new Date().getHours() : null;
+  const out = { from: pf, to: pt, subtotal: 0, bills: 0, dishes: 0, partial: cut };
+  for (let k = pf; k <= pt; k = addDays(k, 1)) {
+    const d = dayOf(k), last = k === pt;
+    out.subtotal = r2(out.subtotal + (last && cut != null
+      ? Object.entries(d.byHour).reduce((s, [h, v]) => s + (+h <= cut ? v : 0), 0) : d.subtotal));
+    out.bills += d.bills; out.dishes += d.dishes;
+  }
+  return out;
+}
+
+// รวมหลายวันเป็นรายงานเดียว
+function buildReport(from, to) {
+  const days = [];
+  for (let d = new Date(from + 'T00:00:00'); dayKey(d) <= to; d.setDate(d.getDate() + 1)) {
+    days.push(dayOf(dayKey(d)));
+    if (days.length > 400) break;
+  }
+  // ตารางวันในสัปดาห์ × ชั่วโมง (ยอดรวม และจำนวนวันของแต่ละวันในสัปดาห์ เอาไว้หาค่าเฉลี่ย) · ดูตั้งแต่ 7 วันขึ้นไป
+  const heat = days.length >= 7 ? { sums: Array.from({ length: 7 }, () => ({})), days: Array(7).fill(0) } : null;
+  if (heat) for (const d of days) {
+    const w = new Date(d.date + 'T00:00:00').getDay(); heat.days[w]++;
+    for (const h in d.byHour) heat.sums[w][h] = r2((heat.sums[w][h] || 0) + d.byHour[h]);
+  }
+  const sum = emptyDay(`${from}..${to}`);
+  for (const d of days) {
+    for (const f of ['bills', 'dishes']) sum[f] += d[f];
+    for (const f of ['subtotal', 'fee', 'total']) sum[f] = r2(sum[f] + d[f]);
+    for (const m in d.byMethod) { sum.byMethod[m] = r2(sum.byMethod[m] + d.byMethod[m]); sum.billsByMethod[m] += d.billsByMethod[m]; }
+    for (const h in d.byHour) sum.byHour[h] = r2((sum.byHour[h] || 0) + d.byHour[h]);
+    for (const c in d.cats) sum.cats[c] = r2((sum.cats[c] || 0) + d.cats[c]);
+    sum.cancelled.qty += d.cancelled.qty; sum.cancelled.amount = r2(sum.cancelled.amount + d.cancelled.amount);
+    sum.voids.bills += d.voids?.bills || 0; sum.voids.amount = r2(sum.voids.amount + (d.voids?.amount || 0));
+    for (const n in d.staff || {}) {
+      const a = d.staff[n], s = staffRow(sum, n);
+      for (const f of ['dishes', 'cancels', 'voids', 'bills']) s[f] += a[f] || 0;
+      for (const f of ['amount', 'cancelAmt', 'voidAmt', 'billAmt']) s[f] = r2(s[f] + (a[f] || 0));
+    }
+    for (const n in d.items) {
+      const a = d.items[n], s = sum.items[n] || (sum.items[n] = { name: n, category: a.category, qty: 0, amount: 0, opts: {} });
+      s.qty += a.qty; s.amount = r2(s.amount + a.amount);
+      for (const o in a.opts) s.opts[o] = (s.opts[o] || 0) + a.opts[o];
+    }
+  }
+  // บิลรายตัว (มีเฉพาะช่วง 7 วันล่าสุด)
+  const bills = data.orders.filter(o => o.status === 'paid' && dayKey(o.paidAt) >= from && dayKey(o.paidAt) <= to)
+    .sort((a, b) => b.paidAt - a.paidAt)
+    .flatMap(o => {
+      const its = data.items.filter(i => i.orderId === o.id && i.status !== 'cancelled');
+      if (o.payments?.length) return o.payments.map(p => ({ id: o.id, payNo: p.no, receiptNo: p.receiptNo, table: o.table,
+        paidAt: p.at, method: p.method, subtotal: p.amount, fee: p.fee, total: p.total, split: `${p.no}/${o.payments.length}`,
+        items: p.lines ? p.lines.reduce((n, l) => n + l.qty, 0) : null })).reverse();
+      return [{ id: o.id, receiptNo: o.receiptNo, table: o.table, paidAt: o.paidAt, method: o.payMethod,
+        subtotal: o.subtotal ?? o.total, fee: o.fee || 0, total: o.total, items: its.reduce((n, i) => n + i.qty, 0) }];
+    });
+  const detailFrom = new Date(); detailFrom.setHours(0, 0, 0, 0); detailFrom.setDate(detailFrom.getDate() - KEEP_DAYS);
+  return {
+    from, to, summary: { ...sum, items: undefined, items_list: Object.values(sum.items), staff: undefined, staff_list: Object.values(sum.staff) },
+    // จานที่ยกเลิกทีละจาน (ไม่นับโต๊ะที่ยกเลิกทั้งโต๊ะ) · มีเฉพาะ 7 วันล่าสุด
+    cancels: data.items.filter(i => i.status === 'cancelled' && i.cancelledAt && dayKey(i.cancelledAt) >= from && dayKey(i.cancelledAt) <= to
+        && data.orders.find(o => o.id === i.orderId)?.status !== 'void')
+      .sort((a, b) => b.cancelledAt - a.cancelledAt)
+      .map(i => ({ at: i.cancelledAt, table: data.orders.find(o => o.id === i.orderId)?.table || '', name: itemLabelSrv(i), qty: i.qty,
+        amount: r2(i.price * i.qty), by: i.cancelledBy || '', cooking: !!i.kdsCancel })),
+    days: days.map(d => ({ date: d.date, bills: d.bills, subtotal: d.subtotal, total: d.total })),
+    prev: prevPeriod(from, days.length, to), heat,
+    bills, billsComplete: from >= dayKey(detailFrom),
+    // โต๊ะที่ยกเลิกทั้งโต๊ะ (รายตัว มีเฉพาะ 7 วันล่าสุด)
+    voids: data.orders.filter(o => o.status === 'void' && dayKey(o.voidedAt) >= from && dayKey(o.voidedAt) <= to)
+      .sort((a, b) => b.voidedAt - a.voidedAt)
+      .map(o => { const its = data.items.filter(i => i.orderId === o.id);
+        return { id: o.id, table: o.table, at: o.voidedAt, reason: o.voidReason || '', by: o.voidedBy || '', approvedBy: o.approvedBy || '',
+          items: its.reduce((n, i) => n + i.qty, 0), amount: r2(its.reduce((s, i) => s + i.price * i.qty, 0)) }; }),
+    open: data.orders.filter(o => o.status === 'open').map(o => ({ table: o.table,
+      amount: r2(data.items.filter(i => i.orderId === o.id && i.status !== 'cancelled').reduce((s, i) => s + i.price * i.qty, 0)
+        - (o.payments || []).reduce((s, p) => s + p.amount, 0)) })),
+  };
+}
+
+function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const newId = p => p + (data.seq++);
+
+// ---------- แจ้งทุกหน้าจอแบบเรียลไทม์ (Server-Sent Events) ----------
+const clients = new Set();
+function broadcast() {
+  for (const res of clients) res.write(`data: changed\n\n`);
+}
+// ชีพจรทุก 20 วินาที: หน้าเว็บใช้ดูว่าสายยังเชื่อมอยู่ (เงียบเกิน 45 วินาที → ต่อใหม่เอง)
+// เป็น event ชื่อ ping จึงไม่ไปเรียกโหลดข้อมูลใหม่ (หน้าเว็บรุ่นเก่าไม่สนใจ event นี้)
+setInterval(() => { for (const res of clients) res.write(`event: ping\ndata: ${data.rev || 0}\n\n`); }, 20000);
+
+// ================= สรุปยอดส่งเข้า LINE (LINE Official Account · Messaging API) =================
+// settings.line = {on, token, to, time:'23:00', lastSent:'2026-10-24', lastErr}
+// to ว่าง = ส่งถึงทุกคนที่เพิ่ม LINE OA ของร้านเป็นเพื่อน (broadcast) · ใส่ User ID / Group ID = ส่งถึงคนหรือกลุ่มนั้น
+const TH_DAY = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+const TH_MON = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const PAY_TH = { cash: 'เงินสด', transfer: 'โอน/พร้อมเพย์', card: 'บัตร' };
+const LINE_ID = /^[UCR][0-9a-f]{32}$/;
+const LINE_ALERTS = ['printer', 'standby', 'takeover', 'void'];
+function cleanLine(l, old = {}) {
+  const to = String(l.to || '').trim();
+  if (to && !LINE_ID.test(to)) throw new Error('User ID / Group ID ไม่ถูกต้อง (ขึ้นต้นด้วย U หรือ C ตามด้วยตัวอักษร 32 ตัว) หรือเว้นว่างไว้');
+  return { on: !!l.on, to, time: /^([01]\d|2[0-3]):[0-5]\d$/.test(l.time) ? l.time : '23:00',
+    // ช่องโทเค็นว่าง = ใช้ของเดิม (หน้าเว็บไม่เคยได้เห็นโทเค็น) · null = ลบ
+    token: l.token === null ? '' : String(l.token || '').trim().slice(0, 600) || old.token || '',
+    // แจ้งเตือนทันที (ไม่ระบุ = เปิด)
+    alerts: Object.fromEntries(LINE_ALERTS.map(k => [k, (l.alerts || old.alerts || {})[k] !== false])),
+    lastSent: old.lastSent || '', lastErr: old.lastErr || '', alertErr: old.alertErr || '' };
+}
+function lineText(k) {
+  const d = dayOf(k), dt = new Date(k + 'T00:00:00'), fmt = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const L = [`📊 สรุปยอดขาย ${data.settings.shopName || ''}`.trim(), `วัน${TH_DAY[dt.getDay()]} ${dt.getDate()} ${TH_MON[dt.getMonth()]} ${dt.getFullYear() + 543}`, ''];
+  if (!d.bills) L.push('วันนี้ยังไม่มีบิลที่ปิด');
+  else {
+    const pv = prevPeriod(k, 1, k), pct = pv.subtotal ? Math.round((d.subtotal - pv.subtotal) / pv.subtotal * 100) : null;
+    L.push(`💰 ยอดขาย ${fmt(d.subtotal)} ฿`);
+    if (pct != null) L.push(`${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct)}% จากวัน${TH_DAY[dt.getDay()]}ที่แล้ว (${fmt(pv.subtotal)} ฿${pv.partial != null ? ` ถึง ${pv.partial}:59` : ''})`);
+    L.push(`🧾 ${d.bills} บิล · เฉลี่ย ${fmt(Math.round(d.subtotal / d.bills))} ฿/บิล · ${d.dishes} จาน`);
+    if (d.fee) L.push(`รับจริง ${fmt(d.total)} ฿ (รวมค่าธรรมเนียมบัตร ${fmt(d.fee)} ฿)`);
+    L.push('', 'ช่องทางชำระ');
+    for (const m of ['cash', 'transfer', 'card']) if (d.billsByMethod[m]) L.push(`• ${PAY_TH[m]} ${fmt(d.byMethod[m])} ฿ (${d.billsByMethod[m]} บิล)`);
+    const best = Object.entries(d.byHour).sort((a, b) => b[1] - a[1])[0];
+    if (best) L.push('', `⏰ ช่วงขายดี ${best[0]}:00–${best[0]}:59 · ${fmt(best[1])} ฿`);
+    const top = Object.values(d.items).sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 5);
+    if (top.length) L.push('', '🏆 ขายดี', ...top.map((it, i) => `${i + 1}. ${it.name} × ${it.qty}`));
+  }
+  if (d.cancelled.qty) L.push('', `❌ ยกเลิก ${d.cancelled.qty} จาน (${fmt(d.cancelled.amount)} ฿)${d.voids?.bills ? ` · ยกเลิกทั้งโต๊ะ ${d.voids.bills} โต๊ะ` : ''}`);
+  if (k === dayKey(Date.now())) {
+    const open = data.orders.filter(o => o.status === 'open');
+    if (open.length) {
+      const due = open.reduce((s, o) => s + data.items.filter(i => i.orderId === o.id && i.status !== 'cancelled').reduce((a, i) => a + i.price * i.qty, 0)
+        - (o.payments || []).reduce((a, p) => a + p.amount, 0), 0);
+      L.push('', `⚠ ยังเปิดอยู่ ${open.length} โต๊ะ ยอดรอเก็บ ${fmt(r2(due))} ฿ (ยังไม่นับในยอดขาย)`);
+    }
+  }
+  return L.join('\n');
+}
+function linePost(token, to, text) {
+  const body = JSON.stringify(to ? { to, messages: [{ type: 'text', text }] } : { messages: [{ type: 'text', text }] });
+  return new Promise((ok, fail) => {
+    const req = https.request({ host: 'api.line.me', path: to ? '/v2/bot/message/push' : '/v2/bot/message/broadcast', method: 'POST', timeout: 15000,
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, 'Content-Length': Buffer.byteLength(body) } }, res => {
+      let t = ''; res.on('data', c => (t += c));
+      res.on('end', () => {
+        if (res.statusCode === 200) return ok();
+        let msg = t; try { msg = JSON.parse(t).message || t; } catch {}
+        fail(new Error(res.statusCode === 401 ? 'โทเค็นไม่ถูกต้อง (Channel access token)' : res.statusCode === 429 ? 'ใช้โควตาข้อความ LINE ของเดือนนี้หมดแล้ว' : `LINE ตอบกลับ ${res.statusCode}: ${msg}`));
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('ติดต่อ LINE ไม่ได้ (เครื่องหลักต่อเน็ตหรือยัง?)')));
+    req.on('error', e => fail(e.code ? new Error('ติดต่อ LINE ไม่ได้ (เครื่องหลักต่อเน็ตหรือยัง?) · ' + e.code) : e));
+    req.end(body);
+  });
+}
+async function sendLine(k) {
+  const L = data.settings.line || {};
+  if (!L.token) throw new Error('ยังไม่ได้ใส่ Channel access token');
+  await linePost(L.token, L.to, lineText(k));
+}
+// ---------- แจ้งเตือนทันที ----------
+// kind: printer = เครื่องพิมพ์พิมพ์ไม่ออก/กลับมาได้ · standby = เครื่องสำรองหลุด/กลับมา · takeover = เครื่องสำรองรับงานแทน · void = ยกเลิกทั้งโต๊ะ
+// ส่งจากเครื่องหลักเท่านั้น · ส่งไม่สำเร็จจดไว้ใน alertErr (ไม่ลองซ้ำ จะได้ไม่ส่งเรื่องเก่าทีหลัง)
+function lineAlert(kind, text) {
+  const L = data.settings.line;
+  if (!L?.token || role.role !== 'main' || L.alerts?.[kind] === false) return;
+  const t = new Date(), hm = String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
+  linePost(L.token, L.to, `${text}\n— ${data.settings.shopName || 'ED POS'} · ${hm} น.`)
+    .then(() => { if (L.alertErr) { L.alertErr = ''; save(); broadcast(); } })
+    .catch(e => { L.alertErr = e.message; console.log('แจ้งเตือน LINE ไม่สำเร็จ: ' + e.message); save(); broadcast(); });
+}
+// เครื่องพิมพ์: แจ้งครั้งเดียวต่อการเสียหนึ่งรอบ (พิมพ์ไม่ออก → แจ้ง · พิมพ์ได้อีก → แจ้งว่ากลับมาแล้ว) · เสียซ้ำภายใน 10 นาทีไม่แจ้งซ้ำ
+const prnState = {};
+function printerResult(id, err) {
+  const st = prnState[id] || (prnState[id] = { down: false, at: 0 });
+  const name = data.settings.printers.find(p => p.id === id)?.name || id;
+  if (err && !st.down) {
+    st.down = true;
+    if (Date.now() - st.at > 10 * 60000) { st.at = Date.now(); lineAlert('printer', `🖨 เครื่องพิมพ์ "${name}" พิมพ์ไม่ออก\n${err.message}\nตรวจว่าเปิดเครื่อง มีกระดาษ และต่อ Wi-Fi/สาย LAN อยู่`); }
+  } else if (!err && st.down) {
+    st.down = false;
+    if (st.at) lineAlert('printer', `✅ เครื่องพิมพ์ "${name}" กลับมาพิมพ์ได้แล้ว`);
+  }
+}
+// เครื่องสำรอง: เคยเชื่อมแล้วหายไปเกิน 2 นาที → แจ้ง · กลับมา → แจ้ง
+const sbWatch = { alerted: false };
+setInterval(() => {
+  if (role.role !== 'main' || !repl.standbySeen) return;
+  const gone = Date.now() - repl.standbySeen > 120000;
+  if (gone && !sbWatch.alerted) { sbWatch.alerted = true; lineAlert('standby', `⚠ เครื่องสำรองหลุด ไม่ได้คัดลอกข้อมูลมา ${Math.round((Date.now() - repl.standbySeen) / 60000)} นาทีแล้ว\nถ้าเครื่องหลักพังตอนนี้ จะไม่มีเครื่องรับงานแทน · ตรวจว่าเครื่องสำรองเปิดอยู่และต่อ Wi-Fi`); }
+  if (!gone && sbWatch.alerted) { sbWatch.alerted = false; lineAlert('standby', '✅ เครื่องสำรองกลับมาเชื่อมแล้ว'); }
+}, 30000);
+
+// ส่งอัตโนมัติวันละครั้งตามเวลาที่ตั้ง (เฉพาะเครื่องหลัก · เครื่องหลักปิดอยู่ตอนถึงเวลา → ส่งตอนเปิดในวันเดียวกัน)
+// ส่งไม่สำเร็จ → ลองใหม่ทุก 10 นาที
+let lineRetryAt = 0, lineBusy = false;
+setInterval(async () => {
+  const L = data.settings.line, now = new Date(), k = dayKey(now);
+  const hm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  if (!L?.on || !L.token || role.role !== 'main' || lineBusy || hm < L.time || L.lastSent === k || Date.now() < lineRetryAt) return;
+  lineBusy = true;
+  try { await sendLine(k); L.lastSent = k; L.lastErr = ''; console.log('ส่งสรุปยอดเข้า LINE แล้ว'); }
+  catch (e) { L.lastErr = e.message; lineRetryAt = Date.now() + 10 * 60000; console.log('ส่ง LINE ไม่สำเร็จ: ' + e.message); }
+  finally { lineBusy = false; save(); broadcast(); }
+}, 30000);
+
+function addEvent(type, text) {
+  data.events.push({ id: newId('e'), type, text, at: Date.now() });
+  if (data.events.length > 50) data.events = data.events.slice(-50);
+}
+
+// ---------- ส่งไปเครื่องพิมพ์ (ESC/POS ผ่าน TCP 9100) ----------
+// รับภาพขาวดำจากเบราว์เซอร์ (พิมพ์ไทยเป็นรูป ไม่มีปัญหาสระลอย)
+// printer = id ของเครื่องพิมพ์ · copies = พิมพ์กี่ใบ (ตัดกระดาษทีละใบ)
+// feed = บรรทัดว่างก่อนตัด (0–10, เดิม 4) · beep = เสียงบี๊บกี่ครั้ง (0–5, เครื่องที่มีลำโพงเท่านั้น)
+function printRaster({ printer, widthBytes, height, bitsBase64, copies = 1, feed = 4, beep = 0 }, onSent) {
+  const pr = data.settings.printers.find(p => p.id === printer);
+  if (!pr) return Promise.reject(new Error('ไม่พบเครื่องพิมพ์นี้ (อาจถูกลบไปแล้ว) ตรวจที่หลังร้าน > เครื่องพิมพ์'));
+  const label = 'เครื่องพิมพ์' + (pr.name || '');
+  if (!pr.ip) return Promise.reject(new Error(`ยังไม่ได้ใส่ IP ${label}`));
+  const bits = Buffer.from(bitsBase64, 'base64');
+  const chunks = [Buffer.from([0x1b, 0x40])]; // ESC @ รีเซ็ต
+  // แบ่งพิมพ์ทีละ 256 แถว กันเครื่องพิมพ์บางรุ่นบัฟเฟอร์เต็ม
+  for (let y = 0; y < height; y += 256) {
+    const h = Math.min(256, height - y);
+    chunks.push(Buffer.from([0x1d, 0x76, 0x30, 0x00,
+      widthBytes & 0xff, (widthBytes >> 8) & 0xff, h & 0xff, (h >> 8) & 0xff]));
+    chunks.push(bits.subarray(y * widthBytes, (y + h) * widthBytes));
+  }
+  const fd = Number.isFinite(Number(feed)) ? Math.min(10, Math.max(0, Math.round(Number(feed)))) : 4;
+  chunks.push(Buffer.from([0x1b, 0x64, fd]));          // เลื่อนกระดาษก่อนตัด
+  chunks.push(Buffer.from([0x1d, 0x56, 0x42, 0x00])); // ตัดกระดาษ
+  const one = Buffer.concat(chunks);
+  const bp = Math.min(5, Math.max(0, Math.round(Number(beep)) || 0));
+  // ESC B n t = บี๊บ n ครั้ง ครั้งละ t×50ms (เครื่องที่ไม่มีลำโพงจะไม่สนคำสั่งนี้) · บี๊บครั้งเดียวต่องาน ไม่ซ้ำตามสำเนา
+  const payload = Buffer.concat([...(bp ? [Buffer.from([0x1b, 0x42, bp, 3])] : []),
+    ...Array(Math.min(5, Math.max(1, copies | 0))).fill(one)]);
+
+  return sendWithRetry(pr, payload, label, onSent);
+}
+
+// ส่งข้อมูลไปเครื่องพิมพ์ แล้วตัดการเชื่อมต่อเอง
+// เครื่องพิมพ์ใบเสร็จหลายรุ่นไม่ยอมปิดการเชื่อมต่อฝั่งตัวเอง และรับได้แค่ 1–2 การเชื่อมต่อพร้อมกัน
+// ถ้ารอให้มันปิดเอง การเชื่อมต่อจะค้างสะสมจนเครื่องพิมพ์ไม่รับงานใหม่ (ต้องปิดเปิดเครื่อง)
+// จึง: เขียนข้อมูลครบ → end() → รอ 1 วินาทีให้ข้อมูลถึง → destroy() ปิดให้ขาดเสมอ
+//  ขั้นตอน: ต่อ → ส่งงาน + คำสั่งถามสถานะ (DLE EOT) → เครื่องพิมพ์ตอบ = งานถึงเครื่องครบแล้ว
+//          → ตัดสายแบบบังคับ (RST) ให้เครื่องพิมพ์คืนช่องเชื่อมต่อทันที
+//  เครื่องรุ่นที่ไม่ตอบสถานะ: รอเผื่อเวลาตามขนาดงาน (อย่างน้อย 1.5 วินาที) แล้วค่อยตัด
+//  ไม่ใช้ end()/FIN เพราะหลังส่ง FIN ระบบจะตัดแบบบังคับไม่ได้ และเครื่องพิมพ์ดื้อจะค้างสาย
+//  onSent() = แจ้งหน้าจอว่าพิมพ์แล้ว
+const DLE_EOT = Buffer.from([0x10, 0x04, 0x01]);
+function sendOnce(pr, payload, label, onSent) {
+  return new Promise((resolve, reject) => {
+    let done = false, confirmed = false, connected = false, closed = false, timer;
+    const sock = net.connect({ host: pr.ip, port: Number(pr.port) || 9100 });
+    const finish = err => {
+      if (done) return;
+      done = true; clearTimeout(timer);
+      if (!closed && !sock.destroyed) { if (sock.resetAndDestroy) sock.resetAndDestroy(); else sock.destroy(); }
+      if (err) { err.retry = !confirmed; reject(err); } else resolve();
+    };
+    const delivered = () => {           // งานถึงเครื่องพิมพ์แล้ว → แจ้งหน้าจอ แล้วตัดสาย
+      if (confirmed || done) return;
+      confirmed = true; onSent?.();
+      clearTimeout(timer); timer = setTimeout(() => finish(), 150);
+    };
+    sock.setNoDelay(true);
+    // เชื่อมต่อไม่ติดใน 4 วินาที = เครื่องพิมพ์ไม่ตอบ (ปิดอยู่ / IP ผิด / ไม่ว่าง)
+    timer = setTimeout(() => finish(new Error(`${label} (${pr.ip}) ไม่ตอบ ตรวจไฟ/สาย/IP`)), 4000);
+    sock.on('connect', () => {
+      connected = true;
+      clearTimeout(timer);
+      // ส่งไม่หมดใน 20 วินาที (กระดาษหมด/ฝาเปิด/บัฟเฟอร์เต็ม) = ล้มเหลว ไม่ลองซ้ำ (อาจพิมพ์ไปบางส่วนแล้ว)
+      timer = setTimeout(() => { confirmed = true; finish(new Error(`${label} (${pr.ip}) รับงานไม่หมด ตรวจกระดาษ/ฝาเครื่อง`)); }, 20000);
+      sock.write(Buffer.concat([payload, DLE_EOT]), err => {
+        if (err || done) return;
+        // เครื่องที่ไม่ตอบสถานะ: ไม่ถูกตัดสายภายในเวลานี้ = ถือว่ารับงานแล้ว
+        clearTimeout(timer);
+        timer = setTimeout(delivered, Math.min(8000, Math.max(1500, payload.length / 25)));
+      });
+    });
+    sock.on('data', delivered);          // เครื่องพิมพ์ตอบสถานะกลับมา
+    // เครื่องพิมพ์ปิดหรือตัดสายเอง: หลังรับงานแล้ว = ปกติ · ก่อนรับงาน = ไม่ว่าง/ไม่ได้พิมพ์ → ลองใหม่
+    sock.on('close', () => { closed = true; if (confirmed) finish(); else finish(new Error(`${label} (${pr.ip}) ตัดการเชื่อมต่อก่อนรับงาน`)); });
+    sock.on('error', e => { if (confirmed) return finish(); finish(new Error(`${label} (${pr.ip}) เชื่อมต่อไม่ได้: ${e.code || e.message}`)); });
+  });
+}
+// เครื่องพิมพ์ยังไม่ว่าง/เพิ่งตื่น → ลองใหม่เองอีก 2 ครั้ง (เฉพาะกรณีที่เครื่องพิมพ์ยังไม่ได้รับงาน จะได้ไม่พิมพ์ซ้ำ)
+async function sendWithRetry(pr, payload, label, onSent) {
+  let last;
+  for (const wait of [0, 800, 2000]) {
+    if (wait) await new Promise(r => setTimeout(r, wait));
+    try { return await sendOnce(pr, payload, label, onSent); }
+    catch (e) { last = e; if (!e.retry) break; }
+  }
+  throw last;
+}
+
+const printQueue = {};
+const BACKUP_NAME = /^(data|before-restore)-[\w-]+\.json$/;
+
+// ---------- API ----------
+const routes = {
+  // ---------- รหัส PIN ----------
+  'GET /api/auth': () => ({ setup: !data.auth.admin, staff: !!data.auth.staff, shopName: data.settings.shopName }),
+  // ตั้งรหัสเจ้าของร้านครั้งแรก (ทำได้ครั้งเดียว ตอนยังไม่มีรหัส)
+  'POST /api/auth/setup': b => {
+    if (data.auth.admin) throw new Error('ตั้งรหัสไปแล้ว ใส่รหัสเพื่อเข้าใช้งาน');
+    data.auth.admin = pinHash(cleanPin(b.pin));
+    return b.want === 'staff' ? { token: tokenFor('staff', 'owner'), level: 'staff' } : { token: tokenFor('admin'), level: 'admin' };
+  },
+  // ใส่รหัส → ได้โทเค็นของหน้าที่ขอ (want) · รหัสเจ้าของร้านเข้าหน้าพนักงานได้ แต่ไม่กลับกัน
+  'POST /api/login': (b, q, req) => {
+    const ip = clientIp(req);
+    checkPinLimit(ip);
+    if (!data.auth.admin) throw new Error('ยังไม่ได้ตั้งรหัส');
+    const want = b.want === 'admin' ? 'admin' : 'staff';
+    const h = pinHash(String(b.pin ?? ''));
+    const st = want === 'staff' ? data.auth.staffs.find(s => s.hash === h) : null;
+    let token = '';
+    if (h === data.auth.admin) token = want === 'admin' ? tokenFor('admin') : tokenFor('staff', 'owner');
+    else if (st) token = tokenFor('staff', st.id);
+    else if (want === 'staff' && data.auth.staff && h === data.auth.staff) token = tokenFor('staff');
+    if (!token) pinFailed(ip);
+    pinFails.delete(ip);
+    return { token, level: want, name: tokenInfo(token).name };
+  },
+  'GET /api/auth/me': (b, q, req) => { const w = whoOf(req); return { level: ['', 'staff', 'admin'][w.level], name: w.name, lead: w.lead }; },
+  // ---------- พนักงานรายคน (หลังร้าน > รหัสผ่าน) ----------
+  'GET /api/staff': () => ({ staffs: data.auth.staffs.map(s => ({ id: s.id, name: s.name, lead: !!s.lead })), shared: !!data.auth.staff }),
+  'POST /api/staff/save': b => {
+    const name = String(b.name || '').trim().slice(0, 30);
+    if (!name) throw new Error('ใส่ชื่อพนักงาน');
+    let s = b.id ? staffById(b.id) : null;
+    if (b.id && !s) throw new Error('ไม่พบพนักงานคนนี้ (อาจถูกลบไปแล้ว)');
+    if (data.auth.staffs.some(x => x !== s && x.name === name)) throw new Error(`มีพนักงานชื่อ "${name}" แล้ว`);
+    if (!s && (b.pin == null || b.pin === '')) throw new Error('ตั้งรหัส 4 หลักให้พนักงานด้วย');
+    if (!s) {
+      if (data.auth.staffs.length >= 50) throw new Error('เพิ่มพนักงานได้สูงสุด 50 คน');
+      let id; do { id = 's' + crypto.randomBytes(3).toString('hex'); } while (staffById(id));
+      s = { id, name, hash: '', lead: false, ver: 1 }; data.auth.staffs.push(s);
+    }
+    if (b.pin != null && b.pin !== '') {
+      const h = pinHash(cleanPin(b.pin)), dup = pinTaken(h, s.id);
+      if (dup) { if (!s.hash) data.auth.staffs = data.auth.staffs.filter(x => x !== s); throw new Error(`รหัสนี้ซ้ำกับ ${dup} ตั้งรหัสอื่น`); }
+      s.hash = h; s.ver = (s.ver || 1) + 1;   // เครื่องที่คนนี้ใส่รหัสไว้ต้องใส่รหัสใหม่
+    }
+    s.name = name; s.lead = !!b.lead;
+    return { id: s.id };
+  },
+  'POST /api/staff/delete': b => { data.auth.staffs = data.auth.staffs.filter(s => s.id !== b.id); },
+  // เปลี่ยนรหัส (หลังร้าน): staff ใส่ '' = ยกเลิกรหัสพนักงาน (พนักงานใช้รหัสเจ้าของร้านแทน)
+  // รหัสเจ้าของร้าน ต้องใส่รหัสเดิมยืนยันก่อน
+  'POST /api/auth/pin': (b, q, req) => {
+    if (b.which === 'admin') {
+      checkPinLimit(clientIp(req));
+      if (pinHash(String(b.current ?? '')) !== data.auth.admin) pinFailed(clientIp(req));
+      const h = pinHash(cleanPin(b.pin)), dup = pinTaken(h, 'owner');
+      if (dup) throw new Error(`รหัสเจ้าของร้านต้องไม่ซ้ำกับรหัสของ ${dup}`);
+      data.auth.admin = h;
+      data.auth.ver.admin = (data.auth.ver.admin || 1) + 1;
+      return { token: tokenFor('admin') };   // เครื่องนี้ใช้ต่อได้เลย เครื่องอื่นต้องใส่รหัสใหม่
+    }
+    if (b.pin === '' || b.pin == null) data.auth.staff = null;
+    else {
+      const h = pinHash(cleanPin(b.pin)), dup = pinTaken(h, 'staff');
+      if (dup) throw new Error(`รหัสรวมพนักงานต้องไม่ซ้ำกับรหัสของ ${dup}`);
+      data.auth.staff = h;
+    }
+    data.auth.ver.staff = (data.auth.ver.staff || 1) + 1;   // เครื่องพนักงานทุกเครื่องต้องใส่รหัสใหม่
+  },
+  // ให้ทุกเครื่องที่เข้าหน้าสั่งอาหารอยู่ ต้องใส่รหัสใหม่ (เช่น พนักงานลาออก)
+  'POST /api/auth/logout-all': () => { data.auth.ver.staff = (data.auth.ver.staff || 1) + 1; },
+
+  // ---------- เครื่องหลัก / เครื่องสำรอง ----------
+  'GET /api/role': () => roleInfo(),
+  'GET /api/sync': (b, q, req) => {
+    if (role.role !== 'main') return { role: role.role };
+    if (!syncKeyOk(req.headers['x-sync-key'])) {
+      repl.pairAsk = Date.now(); repl.pairAskIp = String(req.socket.remoteAddress || '').replace('::ffff:', '');
+      return { role: 'main', auth: 'sync' };
+    }
+    repl.standbySeen = Date.now(); repl.standbyIp = String(req.socket.remoteAddress || '').replace('::ffff:', '');
+    if (Number(q.get('rev')) === (data.rev || 0)) return { role: 'main', same: true };
+    return { role: 'main', data };
+  },
+  // จับคู่เครื่องสำรองใหม่: เครื่องสำรองส่งรหัสเจ้าของร้านมา → ได้กุญแจคัดลอกข้อมูล (ใส่ผิดหลายครั้งโดนพักเหมือนหน้าใส่รหัส)
+  'POST /api/sync/key': (b, q, req) => {
+    if (role.role !== 'main') throw new Error('เครื่องนี้ไม่ใช่เครื่องหลัก');
+    const ip = clientIp(req);
+    checkPinLimit(ip);
+    if (!data.auth.admin || pinHash(String(b.pin ?? '')) !== data.auth.admin) pinFailed(ip);
+    pinFails.delete(ip);
+    return { key: syncKey() };
+  },
+  // หน้าเครื่องสำรอง: ใส่รหัสเจ้าของร้านของเครื่องหลัก → ขอกุญแจจากเครื่องหลักแล้วเริ่มคัดลอก
+  'POST /api/standby/pair': async b => {
+    if (role.role !== 'standby') throw new Error('เครื่องนี้ไม่ใช่เครื่องสำรอง');
+    let j;
+    try {
+      j = await getJSON(`${role.peer}/api/sync/key`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: String(b.pin ?? '') }) });
+    } catch { throw new Error('ติดต่อเครื่องหลักไม่ได้'); }
+    if (!j.key) throw new Error(j.error || 'จับคู่ไม่สำเร็จ');
+    role.key = j.key; saveRole();
+    await syncTick();
+    if (repl.needPair) throw new Error('จับคู่ไม่สำเร็จ ลองใหม่อีกครั้ง');
+    return { ok: true };
+  },
+  // ให้เครื่องสำรองรับงานแทน (ห้ามถ้ายังติดต่อเครื่องหลักได้ กันข้อมูลแยกเป็นสองชุด)
+  'POST /api/promote': b => {
+    if (role.role === 'main') return { ok: true, already: true };
+    const ago = Date.now() - repl.lastSync;
+    if (repl.lastSync && ago < 8000 && !b.force)
+      throw new Error(`เครื่องหลักยังทำงานอยู่ (ซิงก์ล่าสุด ${Math.round(ago / 1000)} วินาทีที่แล้ว) ใช้เครื่องหลักต่อได้เลย`);
+    data.epoch = (data.epoch || 1) + 1;
+    role = { role: 'main', peer: role.peer };   // จำเครื่องเก่าไว้ ถ้ากลับมาจะให้มันเป็นเครื่องสำรอง
+    saveRole();
+    console.log('เครื่องนี้เป็นเครื่องหลักแล้ว');
+    lineAlert('takeover', `🔁 เครื่องสำรองรับงานแทนเครื่องหลักแล้ว\nเครื่องหลักเดิม (${role.peer.replace(/^https?:\/\//, '') || '-'}) ติดต่อไม่ได้ ตรวจดูว่าดับหรือหลุด Wi-Fi\nตอนนี้ร้านใช้งานต่อได้ตามปกติ`);
+    return { ok: true };
+  },
+
+  // ---------- กู้คืนข้อมูลทั้งร้าน (หลังร้าน > สำรองข้อมูล) ----------
+  // ไฟล์สำรองในเครื่องหลัก: สำรองอัตโนมัติรายวัน + ข้อมูลก่อนกู้คืนแต่ละครั้ง
+  'GET /api/backups': () => {
+    let files = [];
+    try { files = fs.readdirSync(BACKUP_DIR).filter(n => BACKUP_NAME.test(n)); } catch {}
+    return { files: files.map(n => { const st = fs.statSync(path.join(BACKUP_DIR, n)); return { name: n, size: st.size, at: st.mtimeMs }; })
+      .sort((a, b) => b.at - a.at) };
+  },
+  // b.data = เนื้อไฟล์สำรอง (ที่ดาวน์โหลดไว้) หรือ b.file = ชื่อไฟล์ในโฟลเดอร์ backup · b.pin = รหัสเจ้าของร้าน (ยืนยันอีกครั้ง)
+  // เก็บข้อมูลปัจจุบันเป็น backup/before-restore-วันเวลา.json ก่อนเสมอ · รหัส PIN ใช้ของปัจจุบัน (ทุกเครื่องไม่ต้องใส่รหัสใหม่)
+  'POST /api/restore': (b, q, req) => {
+    const ip = clientIp(req);
+    checkPinLimit(ip);
+    if (pinHash(String(b.pin ?? '')) !== data.auth.admin) pinFailed(ip);
+    pinFails.delete(ip);
+    let f = b.data;
+    if (b.file) {
+      if (!BACKUP_NAME.test(String(b.file))) throw new Error('ชื่อไฟล์ไม่ถูกต้อง');
+      try { f = JSON.parse(fs.readFileSync(path.join(BACKUP_DIR, String(b.file)), 'utf8')); } catch { throw new Error('เปิดไฟล์สำรองนี้ไม่ได้'); }
+    }
+    if (f?.edpos === 'menu') throw new Error('ไฟล์นี้เป็นไฟล์เมนู ให้ใช้ หลังร้าน > เมนู > นำเข้าเมนูจากไฟล์');
+    if (!f || typeof f !== 'object' || !f.settings || !Array.isArray(f.menu) || !Array.isArray(f.orders) || !Array.isArray(f.items))
+      throw new Error('ไฟล์นี้ไม่ใช่ไฟล์สำรองข้อมูลของ ED POS');
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const d = new Date(), pad = n => String(n).padStart(2, '0');
+    const saved = `before-restore-${today()}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.json`;
+    fs.writeFileSync(path.join(BACKUP_DIR, saved), JSON.stringify(data));
+    const keep = { auth: data.auth, epoch: data.epoch, rev: data.rev, seq: data.seq };
+    loadData(JSON.parse(JSON.stringify(f)));
+    data.auth = keep.auth;
+    data.epoch = Math.max(keep.epoch || 1, data.epoch || 1);   // ไม่ให้เครื่องสำรองเข้าใจผิดว่าใครเป็นเครื่องหลัก
+    data.seq = Math.max(keep.seq || 1, data.seq || 1);         // รหัสบิล/จานใหม่ไม่ซ้ำกับที่หน้าจอต่างๆ เคยเห็น
+    data.rev = keep.rev;                                       // save() บวกเพิ่ม → เครื่องสำรองดึงข้อมูลชุดนี้ไปเอง
+    addEvent('restore', 'กู้คืนข้อมูลจากไฟล์สำรอง');
+    console.log(`กู้คืนข้อมูลแล้ว · ข้อมูลเดิมเก็บไว้ที่ backup/${saved}`);
+    return { ok: true, saved, menu: data.menu.length, orders: data.orders.length };
+  },
+
+  // สรุปยอดเข้า LINE: ดูข้อความ / ส่งทันที (ใช้ค่าที่บันทึกแล้ว)
+  'GET /api/line/preview': (b, q) => ({ text: lineText(/^\d{4}-\d{2}-\d{2}$/.test(q.get('date') || '') ? q.get('date') : dayKey(Date.now())) }),
+  'POST /api/line/test-alert': async () => {
+    const L = data.settings.line || {};
+    if (!L.token) throw new Error('ยังไม่ได้ใส่ Channel access token');
+    await linePost(L.token, L.to, `🔔 ทดสอบแจ้งเตือนจาก ${data.settings.shopName || 'ED POS'}\nถ้าเห็นข้อความนี้ แปลว่าการแจ้งเตือนทันทีใช้ได้แล้ว`);
+  },
+  'POST /api/line/test': async () => {
+    const L = data.settings.line || (data.settings.line = cleanLine({}));
+    try { await sendLine(dayKey(Date.now())); L.lastErr = ''; } catch (e) { L.lastErr = e.message; throw e; }
+  },
+
+  // รายงานยอดขาย: /api/report?from=2026-10-01&to=2026-10-12 (ส่งพารามิเตอร์มาใน body ของ GET ไม่ได้ จึงอ่านจาก query)
+  'GET /api/report': (b, q) => {
+    const ok = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+    const to = ok(q.get('to')) ? q.get('to') : dayKey(Date.now());
+    const from = ok(q.get('from')) ? q.get('from') : to;
+    if (from > to) throw new Error('วันเริ่มต้องไม่เกินวันสุดท้าย');
+    return buildReport(from, to);
+  },
+
+  // ประวัติการสั่ง (หน้าสั่งอาหาร): บิลของวันที่เลือก ทั้งจ่ายแล้ว ยกเลิก และที่ยังเปิดอยู่ (วันนี้)
+  // บิลละเอียดเก็บไว้ 7 วัน (complete = false → วันนั้นเก่ากว่าที่เก็บ บิลอาจไม่ครบ)
+  'GET /api/history': (b, q) => {
+    const today = dayKey(Date.now());
+    const k = /^\d{4}-\d{2}-\d{2}$/.test(q.get('date') || '') ? q.get('date') : today;
+    const orders = data.orders.filter(o => o.status === 'paid' ? dayKey(o.paidAt) === k : o.status === 'void' ? dayKey(o.voidedAt) === k
+      : o.status === 'open' && k === today);
+    const ids = new Set(orders.map(o => o.id));
+    const keepFrom = new Date(); keepFrom.setHours(0, 0, 0, 0); keepFrom.setDate(keepFrom.getDate() - KEEP_DAYS);
+    return { date: k, orders, items: data.items.filter(i => ids.has(i.orderId)), complete: k >= dayKey(keepFrom) };
+  },
+
+  // เลขรุ่นของข้อมูล (เปลี่ยนทุกครั้งที่บันทึก) · หน้าเว็บถามทุก 15 วินาที ถ้าไม่ตรงกับที่มี → โหลดข้อมูลใหม่
+  // กันกรณีสาย /events ตายเงียบๆ (มือถือพักหน้าจอ/สลับ Wi-Fi) แล้วเมนูที่เพิ่งแก้ไม่ขึ้น
+  'GET /api/rev': () => ({ rev: data.rev || 0 }),
+
+  'GET /api/state': () => {
+    const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+    const orders = data.orders.filter(o => o.status === 'open' || o.paidAt >= dayStart.getTime() || o.voidedAt >= dayStart.getTime());
+    const ids = new Set(orders.map(o => o.id));
+    const rc = data.settings.receipt, imgs = rc.images || {};
+    const settings = { ...data.settings, receipt: { ...rc, images: undefined, has: { logo: !!imgs.logo, footer: !!imgs.footer }, imgV: rc.imgV || 0 },
+      // โทเค็น LINE ไม่ส่งออกไปหน้าเว็บ (หน้าสั่งอาหารก็อ่าน /api/state ได้)
+      line: data.settings.line ? { ...data.settings.line, token: undefined, hasToken: !!data.settings.line.token } : undefined };
+    return { rev: data.rev || 0, settings, menu: data.menu, categories: data.categories, optionSets: data.optionSets, orders,
+             items: data.items.filter(i => ids.has(i.orderId)), events: data.events, now: Date.now() };
+  },
+
+  'POST /api/settings': b => {
+    const s = { ...data.settings, ...b };
+    if (b.nodes) s.nodes = { main: normUrl(b.nodes.main), standby: normUrl(b.nodes.standby) };
+    if (b.payments) {
+      const p = { ...data.settings.payments, ...b.payments };
+      p.cardFeePct = Math.min(20, Math.max(0, Number(p.cardFeePct) || 0));
+      if (!p.cash && !p.transfer && !p.card) throw new Error('ต้องเปิดวิธีชำระเงินอย่างน้อย 1 วิธี');
+      s.payments = p;
+    }
+    if (b.layout) s.layout = cleanLayout(b.layout);
+    if (b.printers) s.printers = cleanPrinters(b.printers);
+    if (b.kdsScreens) s.kdsScreens = cleanScreens(b.kdsScreens);
+    if ('receiptCopies' in b) s.receiptCopies = Math.min(5, Math.max(1, Math.round(Number(b.receiptCopies)) || 1));
+    if (!s.printers.some(p => p.id === s.receiptPrinter)) s.receiptPrinter = s.printers[0]?.id || '';
+    if (b.receipt) {
+      const old = data.settings.receipt, imgs = { ...(old.images || {}) };
+      const num = (v, lo, hi, d) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : d; };
+      const r = { ...old, ...b.receipt };
+      for (const k of ['logo', 'footer']) {
+        const v = b.receipt.images?.[k];
+        if (v === null) delete imgs[k];
+        else if (typeof v === 'string') {
+          if (!IMG_RE.test(v) || v.length > 700000) throw new Error('รูปไม่ถูกต้องหรือใหญ่เกินไป');
+          imgs[k] = v;
+        }
+      }
+      r.images = imgs;
+      if (b.receipt.images) r.imgV = Date.now();
+      r.logoWidth = num(r.logoWidth, 10, 100, 60); r.footerImgWidth = num(r.footerImgWidth, 10, 100, 50);
+      r.nameSize = num(r.nameSize, 24, 60, 36); r.footerSize = num(r.footerSize, 18, 34, 22);
+      r.logoMode = r.logoMode === 'threshold' ? 'threshold' : 'dither';
+      r.footerImgMode = r.footerImgMode === 'dither' ? 'dither' : 'threshold';
+      r.header = String(r.header || '').slice(0, 500);
+      for (const k of ['showNo', 'showTime', 'showTable']) r[k] = r[k] !== false;
+      r.lang = LANGS.includes(r.lang) ? r.lang : 'th';
+      r.headerEn = String(r.headerEn || '').slice(0, 500); r.footerEn = String(r.footerEn || '').slice(0, 500);
+      s.receipt = r;
+    }
+    if (b.i18n) s.i18n = cleanI18n(b.i18n);
+    if (b.ticket) s.ticket = cleanTicket(b.ticket);
+    if (b.orderUi) s.orderUi = cleanOrderUi(b.orderUi);
+    if (b.line) s.line = cleanLine(b.line, data.settings.line || {});
+    if ('voidApproval' in b) s.voidApproval = !!b.voidApproval;
+    data.settings = s;
+    if (b.printers || b.kdsScreens) fixMenuRefs();
+    // ตั้งค่าเมนูทั้งร้านพร้อมกันจากหน้าเครื่องพิมพ์/จอครัว: menuPrinters = {menuId: [printerIds]}
+    for (const [k, list] of [['menuPrinters', s.printers], ['menuScreens', s.kdsScreens]]) {
+      if (!b[k] || typeof b[k] !== 'object') continue;
+      for (const m of data.menu) if (Array.isArray(b[k][m.id])) m[k === 'menuPrinters' ? 'printers' : 'screens'] = pickIds(b[k][m.id], list);
+    }
+  },
+
+  // ---------- เมนู ----------
+  'POST /api/menu': b => { data.menu = (b.menu || []).map(cleanMenuItem); },  // แทนทั้งหมด (แบบเดิม)
+  // ---------- ชุดตัวเลือกสำเร็จรูป ----------
+  'POST /api/optionsets/save': b => {
+    const g = cleanGroup(b.set || {});
+    if (!g.choices.length) throw new Error('ใส่ตัวเลือกอย่างน้อย 1 อย่าง');
+    let id = b.set?.id;
+    const i = id ? data.optionSets.findIndex(s => s.id === id) : -1;
+    if (i < 0) { do { id = newId('os'); } while (data.optionSets.some(s => s.id === id)); data.optionSets.push({ id, ...g }); }
+    else data.optionSets[i] = { id, ...g };
+    // ใช้กับเมนูที่เลือก (ถ้าส่ง menuIds มา): เพิ่มให้เมนูที่ติ๊ก เอาออกจากเมนูที่ไม่ติ๊ก
+    if (Array.isArray(b.menuIds)) {
+      const on = new Set(b.menuIds);
+      for (const m of data.menu) {
+        const has = (m.groups || []).some(x => x.ref === id);
+        if (on.has(m.id) && !has) m.groups = [...(m.groups || []), { ref: id }];
+        if (!on.has(m.id) && has) m.groups = m.groups.filter(x => x.ref !== id);
+      }
+    }
+    return { id };
+  },
+  'POST /api/optionsets/delete': b => {
+    data.optionSets = data.optionSets.filter(s => s.id !== b.id);
+    for (const m of data.menu) m.groups = (m.groups || []).filter(x => x.ref !== b.id);
+  },
+
+  'POST /api/menu/save': b => {
+    const item = cleanMenuItem(b.item || {});
+    const i = data.menu.findIndex(m => m.id === item.id);
+    if (i >= 0) data.menu[i] = item; else data.menu.push(item);
+    if (!data.categories.includes(item.category)) data.categories.push(item.category);
+    return { id: item.id };
+  },
+  // นำเข้าเมนูทั้งร้านจากไฟล์ (หลังร้าน > เมนู > นำเข้าเมนูจากไฟล์) → แทนที่เมนูและหมวดเดิมทั้งหมด
+  //  file = {edpos:'menu', categories, optionSets:[{id,...}], menu:[{name, category, price, groups:[{ref}|กลุ่ม], grid, route:'kitchen'|'drink'}], i18n}
+  //  ชุดตัวเลือกชื่อเดียวกับที่มีอยู่ → แทนที่ (id เดิม) · route kitchen = เครื่องครัว + จอแรก, drink = เครื่องหน้าร้าน ไม่ขึ้นจอ
+  //  บิลที่เปิดอยู่ไม่กระทบ (จานเก็บชื่อ/ราคาไว้แล้ว)
+  'POST /api/menu/import': b => {
+    const f = b.file;
+    if (!f || f.edpos !== 'menu' || !Array.isArray(f.menu) || !f.menu.length) throw new Error('ไฟล์นี้ไม่ใช่ไฟล์เมนูของ ED POS');
+    if (f.menu.length > 1000) throw new Error('เมนูเยอะเกินไป');
+    const sets = JSON.parse(JSON.stringify(data.optionSets)), idMap = {};
+    for (const os of f.optionSets || []) {
+      const g = cleanGroup(os); if (!g.choices.length) continue;
+      let ex = sets.find(s => s.name === g.name);
+      if (ex) Object.assign(ex, g);
+      else { let id; do { id = newId('os'); } while (sets.some(s => s.id === id)); ex = { id, ...g }; sets.push(ex); }
+      idMap[os.id] = ex.id;
+    }
+    const S0 = data.settings, prn = S0.printers;
+    const kp = prn.find(p => p.id === 'kitchen') || prn.find(p => p.id !== S0.receiptPrinter) || prn[0];
+    const fp = prn.find(p => p.id === 'front') || prn.find(p => p.id === S0.receiptPrinter) || prn[0];
+    const oldSets = data.optionSets; data.optionSets = sets;   // cleanMenuItem ตรวจ ref กับชุดใหม่
+    let items;
+    try {
+      items = f.menu.map((m, i) => {
+        try {
+          const drink = m.route === 'drink';
+          return cleanMenuItem({ ...m, id: '', available: true,
+            groups: (m.groups || []).map(g => (g.ref ? (idMap[g.ref] ? { ref: idMap[g.ref] } : null) : g)).filter(Boolean),
+            // ไฟล์ที่ส่งออกจาก ED POS มีเครื่องพิมพ์/จอของแต่ละเมนูมาด้วย → ใช้ตามนั้นถ้าร้านนี้มีเครื่องนั้น ไม่มีก็ใช้ตาม route
+            printers: Array.isArray(m.printers) && pickIds(m.printers, prn).length ? m.printers : [(drink ? fp : kp)?.id].filter(Boolean),
+            screens: Array.isArray(m.screens) && (!m.screens.length || pickIds(m.screens, S0.kdsScreens).length) ? m.screens
+              : drink ? [] : [S0.kdsScreens[0].id] });
+        } catch (e) { throw new Error(`รายการที่ ${i + 1} (${m.name || '?'}): ${e.message}`); }
+      });
+    } catch (e) { data.optionSets = oldSets; throw e; }
+    data.menu = items;
+    data.categories = [...new Set([...(f.categories || []), ...items.map(m => m.category)].map(c => String(c).trim()).filter(Boolean))];
+    if (f.i18n?.en) S0.i18n = cleanI18n({ ...S0.i18n, en: { ...(S0.i18n?.en || {}), ...f.i18n.en } });
+    if (Array.isArray(f.catGroups)) routes['POST /api/categories']({ groups: f.catGroups });
+    return { count: items.length, categories: data.categories.length };
+  },
+  'POST /api/menu/delete': b => { data.menu = data.menu.filter(m => m.id !== b.id); },
+  'POST /api/menu/available': b => {
+    const m = data.menu.find(x => x.id === b.id);
+    if (!m) throw new Error('ไม่พบเมนู');
+    m.available = !!b.available;
+  },
+  // ลำดับเมนูในหมวด: ids เรียงตามที่ต้องการ
+  'POST /api/menu/reorder': b => {
+    const pos = new Map((b.ids || []).map((id, i) => [id, i]));
+    const moved = data.menu.filter(m => pos.has(m.id)).sort((x, y) => pos.get(x.id) - pos.get(y.id));
+    let k = 0;
+    data.menu = data.menu.map(m => (pos.has(m.id) ? moved[k++] : m));
+  },
+  // หมวดหมู่: ตั้งลำดับใหม่ / เปลี่ยนชื่อ / ลบ (ลบได้เมื่อไม่มีเมนูในหมวด)
+  'POST /api/categories': b => {
+    if (b.rename) {
+      const from = b.rename.from, to = String(b.rename.to || '').trim();
+      if (!to) throw new Error('ใส่ชื่อหมวด');
+      if (from !== to && data.categories.includes(to)) throw new Error('มีหมวดชื่อนี้แล้ว');
+      data.categories = data.categories.map(c => (c === from ? to : c));
+      data.menu.forEach(m => { if (m.category === from) m.category = to; });
+      for (const g of data.settings.catGroups || []) g.cats = g.cats.map(c => (c === from ? to : c));
+    }
+    // หมวดใหญ่: [{name, cats:[ชื่อหมวด]}] · หมวดหนึ่งอยู่ได้หมวดใหญ่เดียว · หมวดที่ไม่อยู่ในหมวดใหญ่ไหน = "อื่นๆ"
+    if (Array.isArray(b.groups)) {
+      const seen = new Set(), names = new Set();
+      data.settings.catGroups = b.groups.slice(0, 30).map(g => {
+        const name = String(g?.name || '').trim().slice(0, 30);
+        if (!name || names.has(name)) return null;
+        names.add(name);
+        const cats = (Array.isArray(g.cats) ? g.cats : []).map(String).filter(c => !seen.has(c) && seen.add(c));
+        return { name, cats };
+      }).filter(Boolean);
+    }
+    if (b.add) {
+      const n = String(b.add).trim();
+      if (!n) throw new Error('ใส่ชื่อหมวด');
+      if (data.categories.includes(n)) throw new Error('มีหมวดชื่อนี้แล้ว');
+      data.categories.push(n);
+    }
+    if (b.remove) {
+      if (data.menu.some(m => m.category === b.remove)) throw new Error('ย้ายหรือลบเมนูในหมวดนี้ก่อน');
+      data.categories = data.categories.filter(c => c !== b.remove);
+      for (const g of data.settings.catGroups || []) g.cats = g.cats.filter(c => c !== b.remove);
+    }
+    if (Array.isArray(b.order)) {
+      const rest = data.categories.filter(c => !b.order.includes(c));
+      data.categories = [...b.order.filter(c => data.categories.includes(c)), ...rest];
+    }
+  },
+
+  // สั่งอาหาร: เพิ่มรายการเข้าบิลที่เปิดอยู่ของโต๊ะนั้น หรือเปิดบิลใหม่
+  'POST /api/order': (b, q, req) => {
+    const by = whoOf(req).name;
+    if (!b.table || !Array.isArray(b.items) || !b.items.length) throw new Error('ข้อมูลไม่ครบ');
+    // ตรวจทุกรายการก่อน ถ้ามีรายการไหนผิดจะไม่บันทึกเลยสักรายการ
+    const lines = b.items.map(it => {
+      // เมนูพิเศษ: พนักงานพิมพ์ชื่อและราคาเอง (ไม่อยู่ในรายการเมนู)
+      if (it.custom) {
+        const name = String(it.custom.name || '').trim().slice(0, 60);
+        const price = Number(it.custom.price);
+        if (!name) throw new Error('ใส่ชื่อเมนูพิเศษ');
+        if (!(price >= 0) || price > 100000) throw new Error(`ราคา ${name} ไม่ถูกต้อง`);
+        // เลือกเครื่องพิมพ์/จอเองตอนสั่ง (รองรับแบบเก่า station: 'front'|'kitchen')
+        const S0 = data.settings;
+        const printers = Array.isArray(it.custom.printers) ? pickIds(it.custom.printers, S0.printers)
+          : pickIds([it.custom.station === 'front' ? 'front' : 'kitchen'], S0.printers);
+        const screens = Array.isArray(it.custom.screens) ? pickIds(it.custom.screens, S0.kdsScreens)
+          : it.custom.kds === false ? [] : [S0.kdsScreens[0].id];
+        const m = { id: 'custom', name, price: r2(price), category: 'เมนูพิเศษ', printers, screens, groups: [] };
+        return { it, m, ch: { names: [], add: 0, opts: [], alerts: [] } };
+      }
+      const m = data.menu.find(x => x.id === it.menuId);
+      if (!m) throw new Error('ไม่พบเมนู (อาจถูกลบไปแล้ว) ลองโหลดหน้าใหม่');
+      if (m.available === false) throw new Error(`${m.name} หมดแล้ว`);
+      const thai = !!it.thai && hasThaiPrice(m);
+      return { it, m, thai, ch: resolveChoices(m, it.choices ?? it.option, thai) };
+    });
+    let order = data.orders.find(o => o.table === b.table && o.status === 'open');
+    if (!order) {
+      order = { id: newId('o'), table: b.table, status: 'open', createdAt: Date.now(), openedBy: by };
+      data.orders.push(order);
+    }
+    order.kdsCleared = false;
+    order.kdsDone = false; order.kdsDoneOn = {}; // สั่งเพิ่มหลังกดเสร็จทั้งโต๊ะ → กลับขึ้นจอ
+    const added = [];
+    for (const { it, m, ch, thai } of lines) {
+      const printers = [...(m.printers || [])], screens = [...(m.screens || [])];
+      const item = {
+        id: newId('i'), orderId: order.id, menuId: m.id, name: m.name,
+        option: ch.names.join(' '), opts: ch.opts,
+        alerts: ch.alerts.length ? ch.alerts : undefined,  // เช่น แพ้ถั่ว → ครัวเห็นเป็นสีแดง
+        splits: ch.split?.length ? ch.split : undefined,   // ตัวเลือกที่พิมพ์ใบแยกไปอีกเครื่อง เช่น ไข่ดาว → หน้าร้าน
+        note: String(it.note || '').trim(), qty: Math.max(1, it.qty | 0),
+        takeaway: !!it.takeaway || !!it.abroad || String(b.table).startsWith('TA'), // ห่อกลับบ้าน (นั่งโต๊ะก็ห่อได้รายจาน)
+        abroad: !!it.abroad || undefined,  // กลับต่างประเทศ (ห่อแบบเดินทางไกล)
+        custom: m.id === 'custom' || undefined,
+        thai: thai || undefined,   // สั่งด้วยราคาคนไทย (พนักงานเห็นป้าย · ใบเสร็จไม่บอก)
+        price: r2((ch.base ?? m.price) + ch.add),
+        category: m.category, // เก็บไว้สำหรับรายงาน แม้ภายหลังจะย้ายหมวดเมนู
+        printers, screens, by,   // by = ชื่อพนักงานที่สั่ง
+        // เมนูที่ไม่ขึ้นจอไหนเลย (เครื่องดื่ม ของหวาน) ถือว่าเสร็จทันที ใช้ใบที่พิมพ์ออกแทน
+        status: screens.length ? 'new' : 'done', createdAt: Date.now(),
+      };
+      data.items.push(item);
+      added.push(item.id);
+    }
+    return { orderId: order.id, added };
+  },
+
+  'POST /api/item/status': b => {
+    for (const id of [].concat(b.ids || b.id)) {
+      const it = data.items.find(x => x.id === id);
+      if (it && it.status !== 'cancelled') { it.status = b.status; it.doneAt = b.status === 'done' ? Date.now() : null; }
+    }
+  },
+
+  'POST /api/item/cancel': (b, q, req) => {
+    const it = data.items.find(x => x.id === b.id);
+    if (!it || it.status === 'cancelled') return;
+    const ord = data.orders.find(o => o.id === it.orderId);
+    if (ord && paidQtyOf(ord)[it.id]) throw new Error(`${it.name} จ่ายเงินไปแล้ว ยกเลิกไม่ได้`);
+    if (ord?.payments?.some(p => p.kind === 'share')) throw new Error('บิลนี้เริ่มแยกจ่ายแล้ว ยกเลิกรายการไม่ได้');
+    const wasCooking = onScreen(it) && it.status === 'new';
+    it.status = 'cancelled';
+    it.cancelledAt = Date.now(); it.cancelledBy = whoOf(req).name;
+    it.kdsCancel = wasCooking; // ให้จอครัวแสดงว่า "ยกเลิก"
+    const order = data.orders.find(o => o.id === it.orderId);
+    if (wasCooking) addEvent('cancel', `ยกเลิก โต๊ะ ${order.table} ${it.name}${it.option ? ' ' + it.option : ''} x${it.qty}`);
+  },
+
+  // ยกเลิกทั้งโต๊ะ / ปิดโต๊ะที่ไม่มียอด (ลูกค้าสั่งแล้วไม่เอา)
+  //  - ยังไม่ได้รับเงิน → ยกเลิกทุกจานที่เหลือ แล้วปิดบิลเป็น 'void' (ไม่นับยอดขาย แต่เก็บไว้ดูในรายงาน)
+  //  - รับเงินไปบางส่วนแล้ว → ทำได้เมื่อไม่มียอดค้าง (จานที่เหลือถูกยกเลิกหมด) ปิดเป็นบิลที่จ่ายแล้วตามเงินที่รับจริง
+  'POST /api/order/void': (b, q, req) => {
+    const order = data.orders.find(o => o.id === b.orderId && o.status === 'open');
+    if (!order) throw new Error('ไม่พบบิล (อาจปิดไปแล้ว)');
+    const me = whoOf(req);
+    const now = Date.now();
+    const live = data.items.filter(i => i.orderId === order.id && i.status !== 'cancelled');
+    const pays = order.payments || [];
+    if (pays.length) {
+      const subtotal = r2(live.reduce((s, i) => s + i.price * i.qty, 0));
+      const left = r2(subtotal - pays.reduce((s, p) => s + p.amount, 0));
+      if (left > 0.001) throw new Error(`บิลนี้รับเงินไปแล้วบางส่วน ยังค้างอีก ${left} บาท ยกเลิกทั้งโต๊ะไม่ได้ · ให้ยกเลิกเฉพาะจานที่ยังไม่จ่าย หรือรับเงินส่วนที่เหลือ`);
+      const ms = [...new Set(pays.map(x => x.method))];
+      Object.assign(order, { status: 'paid', paidAt: now, payMethod: ms.length === 1 ? ms[0] : 'split', subtotal,
+        fee: r2(pays.reduce((s, x) => s + x.fee, 0)), total: r2(pays.reduce((s, x) => s + x.total, 0)), received: 0, paidBy: me.name });
+      return { closed: true, paid: true };
+    }
+    // ตั้งให้ต้องอนุมัติ (หลังร้าน > รหัสผ่าน) และคนกดไม่ใช่หัวหน้า → ต้องมีรหัสเจ้าของร้านหรือหัวหน้า
+    // บิลที่ไม่มีจานเหลือ (ปิดโต๊ะว่าง) ไม่ต้องอนุมัติ
+    let approvedBy = '';
+    if (live.length && data.settings.voidApproval && !me.lead) {
+      if (b.approvePin == null || b.approvePin === '') { const e = new Error('ยกเลิกทั้งโต๊ะต้องให้หัวหน้าหรือเจ้าของร้านใส่รหัสอนุมัติ'); e.needApprove = true; throw e; }
+      const ip = clientIp(req); checkPinLimit(ip);
+      const h = pinHash(String(b.approvePin));
+      approvedBy = h === data.auth.admin ? 'เจ้าของร้าน' : data.auth.staffs.find(s => s.lead && s.hash === h)?.name || '';
+      if (!approvedBy) pinFailed(ip);
+      pinFails.delete(ip);
+    }
+    const reason = String(b.reason || '').trim().slice(0, 100);
+    const cooking = live.filter(i => onScreen(i) && i.status === 'new');
+    for (const i of live) {
+      i.kdsCancel = onScreen(i) && i.status === 'new';   // จอครัวเตือน "ยกเลิก" เฉพาะจานที่ยังไม่ได้ทำ
+      i.status = 'cancelled'; i.cancelledAt = now;
+    }
+    Object.assign(order, { status: 'void', voidedAt: now, voidReason: reason, voidedBy: me.name, ...(approvedBy ? { approvedBy } : {}) });
+    if (live.length) {
+      addEvent('cancel', `ยกเลิกทั้งโต๊ะ ${order.table}${reason ? ' (' + reason + ')' : ''}`);
+      const amt = r2(live.reduce((s, i) => s + i.price * i.qty, 0)), n = live.reduce((s, i) => s + i.qty, 0);
+      lineAlert('void', `🚫 ยกเลิกทั้งโต๊ะ ${String(order.table).startsWith('TA') ? 'กลับบ้าน ' + String(order.table).slice(2) : order.table}\n${n} จาน · ${amt.toLocaleString('en-US')} ฿`
+        + `\nโดย ${me.name}${approvedBy ? ` · อนุมัติโดย ${approvedBy}` : ''}${reason ? `\nเหตุผล: ${reason}` : ''}`);
+    }
+    return { closed: true, voided: true, cancelled: live.map(i => i.id), cooking: cooking.length };
+  },
+
+  // ภาษาใบแจ้งยอด/ใบเสร็จของบิลนี้ (ลูกค้าต่างชาติ/คนไทย)
+  'POST /api/order/lang': b => {
+    const o = data.orders.find(x => x.id === b.orderId);
+    if (!o) throw new Error('ไม่พบบิล');
+    if (!LANGS.includes(b.lang)) throw new Error('ภาษาไม่ถูกต้อง');
+    o.lang = b.lang;
+  },
+
+  'POST /api/order/move': (b, q, req) => {
+    const order = data.orders.find(o => o.id === b.orderId && o.status === 'open');
+    if (!order) throw new Error('ไม่พบบิล');
+    if (data.orders.some(o => o.table === b.table && o.status === 'open')) {
+      // โต๊ะปลายทางมีบิลอยู่แล้ว → รวมบิล
+      const target = data.orders.find(o => o.table === b.table && o.status === 'open');
+      if (order.payments?.length || target.payments?.length) throw new Error('โต๊ะที่เริ่มแยกจ่ายแล้วรวมกับโต๊ะอื่นไม่ได้ ย้ายไปโต๊ะว่างแทน');
+      data.items.filter(i => i.orderId === order.id).forEach(i => (i.orderId = target.id));
+      data.orders = data.orders.filter(o => o.id !== order.id);
+      addEvent('move', `รวมโต๊ะ ${order.table} ไปโต๊ะ ${b.table} · ${whoOf(req).name}`);
+    } else {
+      addEvent('move', `ย้ายโต๊ะ ${order.table} ไปโต๊ะ ${b.table} · ${whoOf(req).name}`);
+      order.table = b.table;
+    }
+  },
+
+  // ชำระเงิน
+  //  mode ไม่ระบุ / 'full' → จ่ายยอดที่เหลือทั้งหมด
+  //  'items' → จ่ายเฉพาะรายการที่เลือก lines: [{id, qty}] (แยกจำนวนได้ เช่น กะเพรา 2 จาน จ่ายจานเดียว)
+  //  'share' → หารเท่า จ่าย 1 ส่วน: amount, parts (หารกี่คน)
+  // รายการอาหารยังอยู่ในบิลเดิม (จอครัวไม่สะดุด) แต่ละครั้งที่จ่ายเก็บเป็น payments[] มีเลขใบเสร็จของตัวเอง
+  'POST /api/order/pay': (b, q, req) => {
+    const by = whoOf(req).name;
+    const order = data.orders.find(o => o.id === b.orderId && o.status === 'open');
+    if (!order) throw new Error('ไม่พบบิล (อาจปิดไปแล้ว)');
+    const pay = data.settings.payments;
+    const method = ['cash', 'transfer', 'card'].includes(b.method) ? b.method : 'cash';
+    if (!pay[method]) throw new Error('วิธีชำระเงินนี้ปิดอยู่');
+    const its = data.items.filter(i => i.orderId === order.id && i.status !== 'cancelled');
+    const subtotal = r2(its.reduce((s, i) => s + i.price * i.qty, 0));
+    const pays = order.payments || [];
+    const paidSoFar = r2(pays.reduce((s, p) => s + p.amount, 0));
+    const remaining = r2(subtotal - paidSoFar);
+    const mode = b.mode || 'full';
+    const paidQty = paidQtyOf(order);
+    let amount, lines;
+
+    if (mode === 'items') {
+      if (pays.some(p => p.kind === 'share')) throw new Error('บิลนี้เริ่มหารเท่าไปแล้ว แยกตามรายการไม่ได้ จ่ายส่วนที่เหลือแทน');
+      lines = (b.lines || []).map(l => ({ id: l.id, qty: Math.floor(Number(l.qty) || 0) })).filter(l => l.qty > 0);
+      if (!lines.length) throw new Error('เลือกรายการที่จะจ่ายก่อน');
+      amount = 0;
+      for (const l of lines) {
+        const it = its.find(i => i.id === l.id);
+        if (!it) throw new Error('รายการนี้ถูกยกเลิกหรือย้ายไปแล้ว ลองเปิดใหม่');
+        if (l.qty > it.qty - (paidQty[it.id] || 0)) throw new Error(`${it.name} เหลือให้จ่าย ${it.qty - (paidQty[it.id] || 0)} ที่`);
+        amount += it.price * l.qty;
+      }
+      amount = r2(amount);
+    } else if (mode === 'share') {
+      amount = r2(Number(b.amount));
+      if (!(amount > 0)) throw new Error('ยอดไม่ถูกต้อง');
+      if (amount > remaining + 0.001) throw new Error(`ยอดเกินที่ค้างอยู่ (${remaining})`);
+      if (b.parts) order.splitN = Math.max(2, Math.min(50, b.parts | 0));
+    } else {
+      amount = remaining;
+      // จ่ายส่วนที่เหลือหลังแยกตามรายการ → บันทึกว่าเหลือจานไหน
+      if (pays.length && !pays.some(p => p.kind === 'share'))
+        lines = its.map(i => ({ id: i.id, qty: i.qty - (paidQty[i.id] || 0) })).filter(l => l.qty > 0);
+    }
+    if (amount > remaining + 0.001) throw new Error('ยอดเกินที่ค้างอยู่');
+
+    const feePct = method === 'card' ? Number(pay.cardFeePct) || 0 : 0;
+    const fee = r2(amount * feePct / 100), total = r2(amount + fee);
+    const received = method === 'cash' ? Number(b.received) || 0 : 0;
+    if (received && received < total) throw new Error('รับเงินไม่พอ');
+    const now = Date.now();
+
+    // จ่ายครั้งเดียวทั้งบิล (แบบเดิม)
+    if (mode === 'full' && !pays.length) {
+      Object.assign(order, { status: 'paid', paidAt: now, payMethod: method, subtotal, feePct, fee, total, received,
+        receiptNo: nextReceiptNo(), paidBy: by });
+      return { receiptNo: order.receiptNo, closed: true };
+    }
+
+    const p = { no: pays.length + 1, kind: mode === 'full' ? 'rest' : mode, lines, amount, method, feePct, fee, total,
+      received, at: now, receiptNo: nextReceiptNo(), parts: mode === 'share' ? order.splitN : undefined, by };
+    order.payments = [...pays, p];
+    const left = r2(remaining - amount);
+    if (left <= 0.001) {
+      const ms = [...new Set(order.payments.map(x => x.method))];
+      Object.assign(order, { status: 'paid', paidAt: now, payMethod: ms.length === 1 ? ms[0] : 'split', subtotal,
+        fee: r2(order.payments.reduce((s, x) => s + x.fee, 0)), total: r2(order.payments.reduce((s, x) => s + x.total, 0)),
+        received: 0 });
+    }
+    return { receiptNo: p.receiptNo, paymentNo: p.no, closed: left <= 0.001, left: Math.max(0, left) };
+  },
+
+  // ปุ่มล้างแท็บ "โต๊ะที่เสร็จแล้ว" บนหน้า KDS
+  // ---------- จอ KDS แบบเดิม (ไฟล์ที่เคยใช้กับ OrderPin) ----------
+  // ส่งข้อมูลรูปแบบเดียวกับ OrderPin เพื่อให้จอเดิมใช้ได้โดยไม่ต้องแก้
+  // จอครัวหลายจอ: /api/orders?screen=<id> (ไม่ใส่ = จอแรก · all = ทุกจอรวมกัน)
+  'GET /api/orders': (b, q) => {
+    const screen = kdsScreenOf(q.get('screen'));
+    const mine = i => (screen === 'all' ? onScreen(i) : itemScreens(i).includes(screen));
+    const orders = [];
+    for (const o of data.orders) {
+      if (o.kdsDone || o.kdsDoneOn?.[screen]) continue;
+      const its = data.items.filter(i => i.orderId === o.id && mine(i));
+      const pend = its.filter(i => i.status === 'new');
+      if (!pend.length) continue; // ทำครบทุกจาน → หลุดจากรายการ จอจะย้ายไปแท็บ "เสร็จแล้ว" เอง
+      const dish = i => ({ id: i.id, name: i.name, quantity: i.qty, spec: '', at: i.createdAt, thai: !!i.thai,   // thai = ราคาคนไทย   // at = เวลาที่สั่งจานนี้ (จอครัวใช้นับเวลาใหม่เมื่อสั่งเพิ่ม)
+        extra_option: i.opts || (i.option ? [i.option] : []),
+        // จานที่ห่อกลับทั้งที่นั่งโต๊ะ → ขึ้นเป็นหมายเหตุสีแดง "กลับบ้าน" (ออเดอร์กลับบ้านทั้งบิลมีป้ายที่หัวการ์ดอยู่แล้ว)
+        remark: [...(i.alerts || []).map(a => '⚠ ' + a),
+          i.abroad ? 'กลับต่างประเทศ' : i.takeaway && !String(o.table).startsWith('TA') ? 'กลับบ้าน' : '', i.note].filter(Boolean).join(' · ') });
+      const ta = String(o.table).startsWith('TA');
+      const first = Math.min(...its.map(i => i.createdAt));
+      orders.push({
+        id: o.id,
+        table_num: ta ? '' : String(o.table),
+        pick_up_code: ta ? String(o.table).slice(2) : '',
+        order_type: ta ? 'takeaway' : 'dine_in',
+        third_party_platform: '',
+        is_urge: false,
+        unpaid: ta && o.status !== 'paid', // กลับบ้านที่ยังไม่ได้ชำระเงิน → จอครัวขึ้นป้ายเตือน
+        is_add_dish: pend.some(i => i.createdAt - first > 60000),
+        is_need_cutlery: false,
+        is_cancel: false,
+        order_at: o.createdAt,
+        pending_dishes: pend.map(dish),
+        completed_dishes: its.filter(i => i.status === 'done').map(dish),
+        cancelled_dishes: its.filter(i => i.status === 'cancelled' && i.kdsCancel).map(dish),
+      });
+    }
+    orders.sort((a, b) => a.order_at - b.order_at);
+    const knownDishes = [...new Set(data.menu.filter(m => (screen === 'all' ? m.screens?.length : m.screens?.includes(screen))).map(m => m.name))];
+    // จานที่เพิ่งยกเลิก (15 นาที) ให้จอครัวเตือนได้ แม้ทั้งโต๊ะหายไปจากรายการแล้ว
+    const since = Date.now() - 15 * 60000;
+    const cancelled = {
+      orders: data.orders.filter(o => o.status === 'void' && o.voidedAt >= since).map(o => o.id),
+      dishes: data.items.filter(i => i.kdsCancel && i.cancelledAt >= since).map(i => i.id),
+    };
+    const scr = data.settings.kdsScreens;
+    return { ok: true, orders, knownDishes, cancelled, screen: { id: screen, name: screen === 'all' ? 'ทุกจอ' : scr.find(k => k.id === screen)?.name },
+      screens: scr, shopName: data.settings.shopName };
+  },
+
+  'POST /api/dish/complete': b => {
+    const it = data.items.find(x => x.id === b.dishes_id && x.orderId === b.order_id);
+    if (!it || it.status === 'cancelled') return;
+    it.status = b.status === 'pending' ? 'new' : 'done';
+    it.doneAt = it.status === 'done' ? Date.now() : null;
+  },
+
+  'POST /api/order/complete': b => {
+    const o = data.orders.find(x => x.id === b.order_id);
+    if (!o) return;
+    // กด "เสร็จทั้งโต๊ะ" มีผลเฉพาะจอที่กด (จอบาร์ไม่หาย ถ้าครัวกดเสร็จ)
+    const screen = kdsScreenOf(b.screen);
+    const mine = i => (screen === 'all' ? onScreen(i) : itemScreens(i).includes(screen));
+    if (b.status === 'pending') { o.kdsDone = false; if (o.kdsDoneOn) delete o.kdsDoneOn[screen]; return; } // เรียกกลับ
+    o.kdsDoneOn = { ...(o.kdsDoneOn || {}), [screen]: true };
+    for (const i of data.items) if (i.orderId === o.id && mine(i) && i.status === 'new') { i.status = 'done'; i.doneAt = Date.now(); }
+  },
+
+  'POST /api/kds/clear': b => {
+    for (const o of data.orders) if (!b.orderIds || b.orderIds.includes(o.id)) {
+      const its = data.items.filter(i => i.orderId === o.id && onScreen(i));
+      if (its.every(i => i.status !== 'new')) o.kdsCleared = true;
+    }
+  },
+  'POST /api/events/clear': () => { data.events = []; },
+
+  // เข้าคิวทีละงานต่อเครื่อง (เครื่องพิมพ์ส่วนใหญ่รับได้ทีละการเชื่อมต่อ)
+  'POST /api/print': async b => {
+    const key = String(b.printer || data.settings.receiptPrinter);
+    // คิวต่อเครื่อง: งานถัดไปเริ่มหลังงานก่อนปิดสายเรียบร้อย · ตอบหน้าจอทันทีที่เครื่องพิมพ์รับงาน
+    let markSent; const sentP = new Promise(r => (markSent = r));
+    const job = (printQueue[key] || Promise.resolve()).catch(() => {}).then(() => printRaster({ ...b, printer: key }, markSent));
+    printQueue[key] = job;
+    job.then(() => printerResult(key), e => printerResult(key, e));   // แจ้งเข้า LINE ถ้าพิมพ์ไม่ออก
+    await Promise.race([sentP, job]);
+    return { ok: true };
+  },
+};
+
+// ใช้ได้โดยไม่ต้องใส่รหัส: จอครัว (KDS) การสลับเครื่องสำรอง และหน้าใส่รหัสเอง
+const PUBLIC_ROUTES = new Set(['GET /api/auth', 'POST /api/auth/setup', 'POST /api/login', 'GET /api/auth/me',
+  'GET /api/role', 'GET /api/sync', 'POST /api/promote', 'POST /api/sync/key', 'POST /api/standby/pair',
+  'GET /api/orders', 'POST /api/dish/complete', 'POST /api/order/complete', 'POST /api/kds/clear', 'POST /api/events/clear']);
+// หน้าสั่งอาหาร (รหัสพนักงาน หรือรหัสเจ้าของร้าน)
+const STAFF_ROUTES = new Set(['GET /api/state', 'GET /api/rev', 'GET /api/history', 'POST /api/order', 'POST /api/item/status', 'POST /api/item/cancel',
+  'POST /api/order/void', 'POST /api/order/move', 'POST /api/order/lang', 'POST /api/order/pay', 'POST /api/print']);
+
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
+
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, 'http://x');
+
+  if (url.pathname === '/events') {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+    res.write('retry: 2000\n\n');
+    clients.add(res);
+    req.on('close', () => clients.delete(res));
+    return;
+  }
+
+  if (url.pathname === '/api/export') {
+    if (tokenLevel(url.searchParams.get('t')) < LEVELS.admin) { res.writeHead(401); return res.end('ต้องใส่รหัสเจ้าของร้าน'); }
+    res.writeHead(200, { 'Content-Type': 'application/json',
+      'Content-Disposition': `attachment; filename="ed-pos-${today()}.json"` });
+    return res.end(JSON.stringify(data, null, 1));
+  }
+
+  // หน้าอื่นที่อยู่คนละเครื่องถามสถานะ/สั่งสลับเครื่องได้ (ใช้ตอนเครื่องหลักพัง)
+  if (url.pathname === '/api/role' || url.pathname === '/api/promote') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, POST', 'Access-Control-Allow-Headers': 'Content-Type' });
+      return res.end();
+    }
+  }
+  // เครื่องสำรองอ่านได้อย่างเดียว
+  if (role.role === 'standby' && req.method === 'POST' && url.pathname !== '/api/promote' && url.pathname !== '/api/standby/pair') {
+    res.writeHead(409, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'เครื่องนี้เป็นเครื่องสำรอง ใช้งานที่เครื่องหลัก', standby: true }));
+  }
+  // เปิดหน้าแรกของเครื่องสำรอง → หน้าสถานะเครื่องสำรอง
+  if (role.role === 'standby' && (url.pathname === '/' || url.pathname === '/index.html')) url.pathname = '/standby.html';
+
+  // รูปบนใบเสร็จ: /receipt-img/logo  /receipt-img/footer
+  const im = url.pathname.match(/^\/receipt-img\/(logo|footer)$/);
+  if (im && req.method === 'GET') {
+    const m = /^data:image\/(png|jpeg);base64,(.*)$/.exec(data.settings.receipt?.images?.[im[1]] || '');
+    if (!m) { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { 'Content-Type': 'image/' + m[1], 'Cache-Control': 'public, max-age=31536000, immutable' });
+    return res.end(Buffer.from(m[2], 'base64'));
+  }
+
+  const key = `${req.method} ${url.pathname}`;
+  const handler = routes[key];
+  if (handler) {
+    // ตรวจรหัส: จอครัว/เครื่องสำรอง/หน้าใส่รหัส ไม่ต้องใช้ · หน้าสั่งอาหาร = staff · ที่เหลือ = เจ้าของร้าน
+    const need = PUBLIC_ROUTES.has(key) ? 0 : STAFF_ROUTES.has(key) ? LEVELS.staff : LEVELS.admin;
+    if (need && tokenLevel(req.headers['x-pin-token']) < need) {
+      req.resume();
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: data.auth.admin ? 'ต้องใส่รหัสก่อน' : 'ยังไม่ได้ตั้งรหัส', auth: need === LEVELS.admin ? 'admin' : 'staff' }));
+    }
+    // เก็บเป็น Buffer แล้วค่อยแปลงทีเดียว (ต่อทีละท่อนแบบข้อความ ตัวอักษรไทยที่ตกรอยต่อจะเพี้ยน · เกิดกับไฟล์ใหญ่ เช่น กู้คืน/นำเข้าเมนู)
+    const parts = [];
+    req.on('data', c => parts.push(c));
+    req.on('end', async () => {
+      try {
+        const body = Buffer.concat(parts).toString('utf8');
+        const result = await handler(body ? JSON.parse(body) : {}, url.searchParams, req);
+        // เครื่องสำรองไม่บันทึกเอง (ข้อมูลมาจากเครื่องหลักเท่านั้น) · ขอกุญแจ/ใส่รหัสไม่ได้เปลี่ยนข้อมูล
+        if (req.method === 'POST' && role.role === 'main' && !['/api/print', '/api/login', '/api/sync/key'].includes(url.pathname)) { prune(); save(); broadcast(); }
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });   // ห้ามแคช ข้อมูลต้องสดเสมอ
+        res.end(JSON.stringify(result || { ok: true }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message, ...(e.needApprove ? { needApprove: true } : {}) }));
+      }
+    });
+    return;
+  }
+
+  // ไฟล์หน้าเว็บ
+  let p = url.pathname === '/' ? '/index.html' : url.pathname;
+  const file = path.join(PUBLIC_DIR, path.normalize(p).replace(/^(\.\.[\/\\])+/, ''));
+  if (!file.startsWith(PUBLIC_DIR)) { res.writeHead(403); return res.end(); }
+  fs.readFile(file, (err, buf) => {
+    if (err) { res.writeHead(404); return res.end('not found'); }
+    // ให้เบราว์เซอร์/แอปถามใหม่ทุกครั้ง: อัปเดตโปรแกรมแล้วทุกเครื่องได้หน้าใหม่ทันที ไม่ค้างของเก่า
+    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+    res.end(buf);
+  });
+});
+
+// พอร์ตถูกใช้อยู่ (เช่น เปิด Termux และแอปเป็นเซิร์ฟเวอร์พร้อมกัน) → บอกชัดๆ แล้วปิด ไม่ค้างเงียบ
+server.on('error', e => {
+  if (e.code === 'EADDRINUSE') { console.error(`พอร์ต ${PORT} ถูกใช้อยู่ มีโปรแกรม ED POS เปิดอยู่แล้วในเครื่องนี้ (Termux หรือแอป MAMA POS) ปิดอันหนึ่งก่อน`); process.exit(1); }
+  logError('server', e);
+});
+server.listen(PORT, '0.0.0.0', () => {
+  if (role.role === 'main') { prune(); save(); } else saveRaw();
+  dailyBackup();
+  if (startupWarn) {
+    addEvent('restore', startupWarn);
+    setTimeout(() => lineAlert('system', '⚠ ' + startupWarn), 3000);
+  }
+  if (pinResetByFlag) setTimeout(() => lineAlert('system', '🔑 มีการล้างรหัสเจ้าของร้านและพนักงานจากแอปที่เครื่องหลัก ต้องตั้งรหัสใหม่ทั้งหมด ถ้าไม่ได้ทำเอง ให้ตรวจดูเครื่องหลัก'), 3000);
+  const ips = myIps();
+  if (role.role === 'standby') {
+    console.log(`ED POS เครื่องสำรอง · คัดลอกข้อมูลจาก ${role.peer}`);
+    console.log(`  ถ้าเครื่องหลักพัง เปิด http://${ips[0] || 'localhost'}:${PORT} แล้วกด "ใช้เครื่องนี้เป็นเครื่องหลัก"`);
+    syncTick();
+    return;
+  }
+  peerTick();
+  console.log('ED POS พร้อมใช้งาน (เครื่องหลัก)');
+  for (const ip of ips.length ? ips : ['localhost']) {
+    console.log(`  สั่งอาหาร : http://${ip}:${PORT}/order.html`);
+    console.log(`  KDS ครัว  : http://${ip}:${PORT}/kds.html`);
+    console.log(`  ตั้งค่า    : http://${ip}:${PORT}/admin.html`);
+  }
+});

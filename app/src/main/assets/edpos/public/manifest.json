@@ -1,0 +1,11 @@
+{
+  "name": "ED POS สั่งอาหาร",
+  "short_name": "สั่งอาหาร",
+  "start_url": "/order.html",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#f4f1ea",
+  "theme_color": "#1d1b16",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

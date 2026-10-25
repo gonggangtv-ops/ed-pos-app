@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ED POS</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  main { max-width: 520px; margin: 0 auto; padding: 32px 16px; display: grid; gap: 14px; }
+  a { text-decoration: none; }
+  a button { width: 100%; padding: 26px; font-size: 24px; text-align: left; }
+  a button small { display: block; font-size: 15px; color: var(--muted); font-weight: 400; }
+  a button.primary small { color: #ffffffcc; }
+</style>
+<script src="app-bridge.js"></script>
+</head>
+<body>
+<header><h1>ED POS</h1></header>
+<main>
+  <a href="order.html"><button class="primary">สั่งอาหาร / คิดเงิน<small>สำหรับพนักงานหน้าร้าน</small></button></a>
+  <a href="kds.html"><button>จอครัว (KDS)<small>เปิดค้างไว้ที่แท็บเล็ตในครัว</small></button></a>
+  <a href="admin.html"><button>ตั้งค่าร้าน / เมนู / เครื่องพิมพ์</button></a>
+</main>
+<script src="failover.js"></script>
+</body>
+</html>

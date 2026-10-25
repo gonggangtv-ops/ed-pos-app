@@ -1,0 +1,31 @@
+:root {
+  --bg: #f4f1ea; --card: #fff; --ink: #1d1b16; --muted: #77705f; --line: #e2dccd;
+  --accent: #d2451e; --accent-ink: #fff; --ok: #2f7d4f; --warn: #c98a00; --bad: #c0392b;
+  font-family: "Noto Sans Thai", "Sarabun", system-ui, sans-serif;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-size: 17px; }
+button { font: inherit; border: 0; border-radius: 10px; padding: 12px 16px; cursor: pointer;
+  background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+button:active { transform: scale(.97); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button.ok { background: var(--ok); color: #fff; border-color: var(--ok); }
+button.danger { color: var(--bad); }
+button:disabled { opacity: .4; }
+input, select, textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%; background: #fff; }
+header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--ink); color: #fff;
+  position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 20px; margin: 0; flex: 1; }
+header button { background: transparent; color: #fff; border-color: #ffffff40; padding: 8px 14px; }
+.muted { color: var(--muted); }
+.row { display: flex; gap: 8px; align-items: center; }
+.grow { flex: 1; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff;
+  padding: 12px 20px; border-radius: 10px; z-index: 99; }
+.toast.bad { background: var(--bad); }
+#net.bad { position: fixed; top: 0; left: 0; right: 0; background: var(--bad); color: #fff; text-align: center; padding: 6px; z-index: 100; }
+.modal-bg { position: fixed; inset: 0; background: #0007; display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+.modal { background: var(--card); border-radius: 14px; padding: 20px; width: min(460px, 100%); max-height: 90vh; overflow: auto; }
+.modal h2 { margin: 0 0 12px; font-size: 20px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.chips button.on { background: var(--ink); color: #fff; border-color: var(--ink); }

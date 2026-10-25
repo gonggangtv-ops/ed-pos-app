@@ -1,0 +1,2809 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>หลังร้าน · ED POS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #EDF0EC; --surface: #FFFFFF; --sunk: #F5F7F4; --ink: #18221E; --muted: #5F6B65; --faint: #8C9690;
+    --line: #D5DBD6; --jade: #1E6B58; --jade-soft: #DCEBE5; --brick: #B03A27; --brick-soft: #F6E1DC;
+    --card: #2B4C96; --card-soft: #E1E7F4; --amber: #9A6A00;
+    --r: 10px;
+    font-family: "IBM Plex Sans Thai", system-ui, sans-serif; font-variant-numeric: tabular-nums;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-size: 16px; line-height: 1.5; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--jade); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+
+  /* ---------- โครงหน้า ---------- */
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+  nav.side { background: var(--ink); color: #DDE5E0; padding: 20px 12px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 2px; }
+  .shop { padding: 4px 12px 20px; }
+  .shop b { display: block; font-size: 18px; color: #fff; line-height: 1.3; }
+  .shop span { font-size: 13px; color: #93A39A; }
+  nav.side button { all: unset; cursor: pointer; padding: 10px 12px; border-radius: 8px; display: flex; justify-content: space-between; gap: 8px; font-size: 15px; }
+  nav.side button:hover { background: #ffffff12; }
+  nav.side button[aria-current="true"] { background: #ffffff1c; color: #fff; font-weight: 600; box-shadow: inset 3px 0 0 #6FC2A8; }
+  nav.side button small { color: #93A39A; font-weight: 400; }
+  nav.side .grow { flex: 1; }
+  nav.side a { color: #93A39A; font-size: 14px; padding: 8px 12px; text-decoration: none; }
+  nav.side a:hover { color: #fff; }
+  main { padding: 28px 32px 80px; max-width: 1060px; width: 100%; }
+  h1 { font-size: 26px; margin: 0 0 4px; font-weight: 700; letter-spacing: -.2px; }
+  .lede { color: var(--muted); margin: 0 0 24px; max-width: 62ch; }
+  @media (max-width: 860px) {
+    .app { grid-template-columns: 1fr; }
+    nav.side { position: sticky; height: auto; flex-direction: row; overflow-x: auto; padding: 8px; z-index: 20; gap: 4px; }
+    .shop, nav.side .grow, nav.side a { display: none; }
+    nav.side a#lockBtn { display: block; white-space: nowrap; align-self: center; }
+    nav.side button { white-space: nowrap; padding: 8px 12px; }
+    nav.side button small { display: none; }
+    main { padding: 20px 16px 80px; }
+  }
+
+  /* ---------- ปุ่ม / ฟอร์ม ---------- */
+  .btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 9px 16px; cursor: pointer; font-weight: 500; white-space: nowrap; }
+  .btn:hover { border-color: #B9C2BC; }
+  .btn.primary { background: var(--jade); border-color: var(--jade); color: #fff; font-weight: 600; }
+  .btn.primary:hover { background: #185A4A; }
+  .btn.danger { color: var(--brick); }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn.sm { padding: 5px 10px; font-size: 14px; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .field { display: grid; gap: 6px; }
+  .field > span { font-size: 14px; font-weight: 500; color: var(--muted); }
+  .field small { color: var(--faint); font-size: 13px; }
+  input[type=text], input[type=number], input:not([type]), select, textarea {
+    width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; background: var(--surface); min-height: 42px; }
+  input:focus, select:focus, textarea:focus { border-color: var(--jade); outline: none; box-shadow: 0 0 0 3px var(--jade-soft); }
+  .money { position: relative; }
+  .money input { padding-right: 34px; text-align: right; }
+  .money::after { content: "฿"; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--faint); }
+  .pct::after { content: "%"; }
+
+  /* สวิตช์ */
+  .sw { position: relative; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+  .sw input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .sw i { width: 42px; height: 24px; border-radius: 99px; background: #C3CBC6; position: relative; transition: background .15s; flex: none; }
+  .sw i::after { content: ""; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px #0003; }
+  .sw input:checked + i { background: var(--jade); }
+  .sw input:checked + i::after { transform: translateX(18px); }
+  .sw input:focus-visible + i { outline: 2px solid var(--jade); outline-offset: 2px; }
+
+  /* ปุ่มเลือกแบบแบ่งช่อง */
+  .seg { display: inline-flex; background: var(--sunk); border: 1px solid var(--line); border-radius: 9px; padding: 3px; gap: 2px; }
+  .seg button { border: 0; background: transparent; padding: 6px 14px; border-radius: 6px; cursor: pointer; color: var(--muted); font-weight: 500; }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px #0002; font-weight: 600; }
+
+  /* ---------- แผงตั้งค่า ---------- */
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; margin-bottom: 18px; }
+  .panel h2 { font-size: 18px; margin: 0 0 4px; }
+  .panel > p { color: var(--muted); margin: 0 0 18px; font-size: 15px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .rowline { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-top: 1px solid var(--line); }
+  .rowline:first-of-type { border-top: 0; }
+  .rowline .txt { flex: 1; min-width: 0; }
+  .rowline .txt b { display: block; font-weight: 600; }
+  .rowline .txt span { color: var(--muted); font-size: 14px; }
+  .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; align-items: center; }
+  .actions .note { margin-right: auto; color: var(--muted); font-size: 14px; }
+
+  /* ---------- รายการเมนู ---------- */
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+  .toolbar .search { flex: 1; min-width: 200px; }
+  .toolbar select { width: auto; min-width: 160px; }
+  .catblock { margin-bottom: 22px; }
+  .cathead { display: flex; align-items: baseline; gap: 10px; padding: 0 4px 8px; }
+  .cathead h3 { font-size: 16px; margin: 0; }
+  .cathead span { color: var(--faint); font-size: 14px; }
+  .list { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .item { display: grid; grid-template-columns: 1fr auto auto auto; gap: 16px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line); cursor: pointer; }
+  .item:first-child { border-top: 0; }
+  .item:hover { background: var(--sunk); }
+  .item.off .iname b { color: var(--faint); text-decoration: line-through; }
+  .iname { min-width: 0; }
+  .iname b { font-weight: 600; }
+  .iname small { display: block; color: var(--muted); font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tags { display: flex; gap: 6px; }
+  .tag { font-size: 12.5px; padding: 2px 8px; border-radius: 6px; background: var(--sunk); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+  .tag.k { background: var(--jade-soft); color: var(--jade); border-color: transparent; }
+  .tag.out { background: var(--brick-soft); color: var(--brick); border-color: transparent; font-weight: 600; }
+  .iprice { font-weight: 600; text-align: right; min-width: 92px; }
+  .iprice small { display: block; color: var(--faint); font-weight: 400; font-size: 12.5px; }
+  .move { display: flex; flex-direction: column; }
+  .move button { border: 0; background: none; cursor: pointer; color: var(--faint); padding: 0 6px; line-height: 1.1; font-size: 13px; }
+  .move button:hover { color: var(--ink); }
+  .move button:disabled { visibility: hidden; }
+  .empty { text-align: center; color: var(--muted); padding: 48px 20px; }
+  @media (max-width: 640px) {
+    .item { grid-template-columns: 1fr auto auto; gap: 12px; }
+    .iprice { min-width: 0; }
+    .item .tags, .item .move { display: none; }
+  }
+
+  /* ---------- หน้าต่างแก้ไขเมนู ---------- */
+  .scrim { position: fixed; inset: 0; background: #18221E66; z-index: 40; }
+  .editor { position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 100%); background: var(--bg); z-index: 41;
+    display: grid; grid-template-rows: auto 1fr auto; box-shadow: -12px 0 40px #18221E33; animation: slidein .18s ease-out; }
+  @keyframes slidein { from { transform: translateX(24px); opacity: .6; } }
+  @media (prefers-reduced-motion: reduce) { .editor { animation: none; } }
+
+  /* ---------- ตัวแก้ผังโต๊ะ ---------- */
+  .laytools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .laytools .sp { flex: 1; }
+  .laygrid { display: grid; grid-template-columns: 1fr 240px; gap: 16px; align-items: start; }
+  @media (max-width: 980px) { .laygrid { grid-template-columns: 1fr; } }
+  .laywrap { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; overflow: auto; }
+  .laycv { position: relative; margin: 0 auto; background-color: #fff; border: 1px solid var(--line); touch-action: none; user-select: none; }
+  .le { position: absolute; display: flex; align-items: center; justify-content: center; text-align: center; cursor: move; touch-action: none;
+    border-radius: 6px; overflow: hidden; line-height: 1.1; font-weight: 600; }
+  .le.table { background: #fff; border: 1.5px solid #B9C2BC; box-shadow: 0 1px 2px #0002; }
+  .le.wall { background: #D3D7DE; color: #fff; }
+  .le.label { border: 1.5px dashed #B9C2BC; color: var(--muted); font-weight: 500; }
+  .le.sel { outline: 2px solid var(--jade); outline-offset: 1px; z-index: 5; overflow: visible; }
+  .le.dup { border-color: var(--brick); background: var(--brick-soft); color: var(--brick); }
+  .le .rh { position: absolute; right: -7px; bottom: -7px; width: 16px; height: 16px; border-radius: 4px; background: var(--jade); border: 2px solid #fff; cursor: nwse-resize; }
+  .layside { position: sticky; top: 12px; }
+  .layside .field + .field { margin-top: 10px; }
+  .layside .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+
+  /* ---------- ตัวแก้ใบเสร็จ ---------- */
+  .rcgrid { display: grid; grid-template-columns: 1fr 360px; gap: 20px; align-items: start; }
+  @media (max-width: 980px) { .rcgrid { grid-template-columns: 1fr; } .rcprev { order: -1; } }
+  .rcprev { position: sticky; top: 12px; }
+  .rcpaper { background: #fff; border: 1px solid var(--line); box-shadow: 0 4px 18px #18221E1F; padding: 6px; border-radius: 4px; }
+  .rcpaper canvas { width: 100%; display: block; image-rendering: auto; }
+  .imgrow { display: grid; grid-template-columns: 88px 1fr; gap: 14px; align-items: center; }
+  .imgbox { width: 88px; height: 88px; border: 1px dashed #B9C2BC; border-radius: 10px; display: grid; place-items: center; color: var(--faint); font-size: 13px; background: var(--sunk) center/contain no-repeat; }
+  .imgrow .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  input[type=range] { width: 100%; accent-color: var(--jade); }
+  .rc-h { margin: 22px 0 10px; font-size: 16px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .rc-h:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+  .ehead { display: flex; align-items: center; gap: 12px; padding: 16px 22px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .ehead h2 { flex: 1; margin: 0; font-size: 19px; }
+  .ebody { overflow: auto; padding: 20px 22px; display: grid; grid-template-columns: 1fr 250px; gap: 20px; align-content: start; }
+  @media (max-width: 760px) { .ebody { grid-template-columns: 1fr; } .preview { order: -1; } }
+  .efoot { display: flex; gap: 10px; padding: 14px 22px; background: var(--surface); border-top: 1px solid var(--line); }
+  .efoot .sp { flex: 1; }
+  .sec { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+  .sec h3 { margin: 0 0 14px; font-size: 16px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .sec h3 small { font-weight: 400; color: var(--muted); font-size: 14px; }
+  .stack { display: grid; gap: 14px; }
+  .group { border: 1px solid var(--line); border-radius: 10px; margin-top: 12px; background: var(--sunk); }
+  .ghead { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px; border-bottom: 1px solid var(--line); }
+  .ghead input { flex: 1; min-width: 140px; font-weight: 600; }
+  .choices { padding: 8px 12px 12px; display: grid; gap: 6px; }
+  .choice { display: grid; grid-template-columns: minmax(0, 1fr) 110px 132px 34px; gap: 8px; align-items: center; }
+  .choice select { padding: 8px 6px; font-size: 14px; min-width: 0; }
+  .choice select.on { border-color: var(--ink); font-weight: 600; }
+  @media (max-width: 560px) { .choice, .chead { grid-template-columns: minmax(0, 1fr) 84px 96px 30px !important; } }
+  .choice .x { border: 0; background: none; cursor: pointer; color: var(--faint); font-size: 18px; padding: 4px 8px; border-radius: 6px; }
+  .choice .x:hover { color: var(--brick); background: var(--brick-soft); }
+  .chead { display: grid; grid-template-columns: minmax(0, 1fr) 110px 132px 34px; gap: 8px; font-size: 13px; color: var(--faint); padding: 0 2px; }
+  .gtools { display: flex; gap: 4px; margin-left: auto; }
+
+  /* ตัวอย่างหน้าจอพนักงาน */
+  .preview { position: sticky; top: 0; align-self: start; }
+  .preview > span { display: block; font-size: 14px; font-weight: 500; color: var(--muted); margin-bottom: 8px; }
+  .pv { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; font-size: 14px; }
+  .pv .pvbtn { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+  .pv .pvbtn b { display: block; font-size: 16px; }
+  .pv .pvbtn span { color: var(--muted); }
+  .pv .pvbtn.out { opacity: .5; } .pv .pvbtn.out span { color: var(--brick); font-weight: 600; }
+  .pv .pg { font-weight: 600; margin: 10px 0 6px; }
+  .pv .pg small { font-weight: 400; color: var(--muted); }
+  .pv .pg small.req { color: var(--brick); }
+  .pv .pc { display: flex; flex-wrap: wrap; gap: 5px; }
+  .pv .pc span { border: 1px solid var(--line); border-radius: 7px; padding: 3px 8px; }
+  .pv .pc span.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .pv .range { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); display: flex; justify-content: space-between; }
+  .pv .range b { font-size: 16px; }
+
+  /* ชุดตัวเลือก */
+  .group.galert { border-color: #E3B4AA; background: #FBF1EE; }
+  .linked { border: 1px solid var(--line); border-radius: 10px; margin-top: 12px; background: var(--surface); padding: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .linked.galert { border-color: #E3B4AA; background: #FBF1EE; }
+  .linked .ltxt { flex: 1; min-width: 180px; }
+  .linked .ltxt b { display: block; }
+  .linked .ltxt span { color: var(--muted); font-size: 14px; }
+  .tag.set { background: var(--card-soft); color: var(--card); border-color: transparent; }
+  .tag.al { background: var(--brick-soft); color: var(--brick); border-color: transparent; font-weight: 600; }
+  .addrow { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .addrow select { width: auto; min-width: 200px; }
+  .pv .pg.al { color: var(--brick); }
+  .setcard { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: center; padding: 16px 18px; border-top: 1px solid var(--line); cursor: pointer; }
+  .setcard:first-child { border-top: 0; }
+  .setcard:hover { background: var(--sunk); }
+  .setcard .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .setcard .ch { grid-column: 1 / -1; color: var(--muted); font-size: 14px; }
+  .setcard .uses { color: var(--muted); font-size: 14px; white-space: nowrap; }
+  .ebody.one { grid-template-columns: 1fr; max-width: 720px; }
+  .pick { display: grid; gap: 4px; }
+  .pick .pcat { font-weight: 600; margin: 12px 0 2px; display: flex; justify-content: space-between; align-items: center; }
+  .pick .pcat:first-child { margin-top: 0; }
+  .pick label { display: flex; gap: 10px; align-items: center; padding: 6px 4px; cursor: pointer; border-radius: 6px; }
+  .pick label:hover { background: var(--sunk); }
+  .pick input { width: 18px; height: 18px; accent-color: var(--jade); }
+  .qn { display: flex; flex-wrap: wrap; gap: 8px; }
+  .qn span { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 99px; padding: 4px 6px 4px 12px; background: var(--sunk); }
+  .qn button { border: 0; background: none; cursor: pointer; color: var(--faint); font-size: 16px; padding: 0 6px; }
+  .qn button:hover { color: var(--brick); }
+
+  /* เครื่องสำรอง */
+  .sbrow { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .sbrow:first-child { border-top: 0; padding-top: 0; }
+  .sbrow .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+  .sbrow .dot.ok { background: var(--jade); box-shadow: 0 0 0 4px var(--jade-soft); }
+  .sbrow .dot.bad { background: var(--brick); box-shadow: 0 0 0 4px var(--brick-soft); }
+  .sbrow .dot.off { background: #C3CBC6; }
+  .sbrow b { display: block; } .sbrow span { color: var(--muted); font-size: 14px; }
+  .warnbox { background: var(--brick-soft); color: var(--brick); border-radius: 10px; padding: 12px 14px; margin-top: 12px; font-weight: 500; }
+  ol.steps { margin: 0; padding-left: 22px; display: grid; gap: 10px; }
+  ol.steps code { background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; font-size: 13.5px; word-break: break-all; }
+
+  /* หมวดหมู่ */
+  .cat { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .cat:first-child { border-top: 0; }
+  .cat input { flex: 1; min-width: 0; }
+  .cat select { width: auto; max-width: 160px; padding: 8px; font-size: 14px; }
+  .cat select.none { color: var(--faint); }
+  .cat .cnt { color: var(--muted); font-size: 13px; min-width: 0; text-align: left; flex: 0 1 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 560px) { .cat { flex-wrap: wrap; } .cat .cnt { flex-basis: 100%; order: 9; } }
+  .cat span { color: var(--muted); font-size: 14px; min-width: 72px; text-align: right; }
+
+  /* ตัวอย่างค่าธรรมเนียม */
+  .feedemo { margin-top: 14px; background: var(--card-soft); color: var(--card); border-radius: 10px; padding: 12px 14px; font-size: 15px; }
+  .feedemo b { font-weight: 700; }
+
+  /* ---------- ยอดขาย ---------- */
+  .shead { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+  .shead .seg { flex-wrap: wrap; }
+  .outhemes { flex-wrap: wrap; } .outhemes button { display: inline-flex; align-items: center; gap: 4px; padding: 8px 14px; }
+  .outhemes i { width: 14px; height: 14px; border-radius: 99px; display: inline-block; }
+  .outhemes i + i { margin: 0 4px 0 -8px; box-shadow: 0 0 0 2px var(--surface); }
+  .custom { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin: 14px 0 4px; }
+  .custom .field { width: 180px; }
+  .kpis { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-bottom: 18px; }
+  .kpi { background: var(--surface); padding: 18px 20px; }
+  .kpi span { display: block; color: var(--muted); font-size: 14px; }
+  .kpi b { display: block; font-size: 26px; font-weight: 700; letter-spacing: -.3px; margin-top: 2px; }
+  .kpi.main b { font-size: 36px; color: var(--jade); }
+  .kpi small { display: block; color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+  @media (max-width: 760px) {
+    .kpis { grid-template-columns: repeat(3, 1fr); } .kpi.main { grid-column: 1 / -1; }
+    .kpi { padding: 14px; } .kpi b { font-size: 20px; } .kpi.main b { font-size: 32px; }
+  }
+  main { min-width: 0; }
+  #billList, #topList { overflow-x: auto; }
+  table.t td { white-space: nowrap; }
+  table.t td:nth-child(2) { white-space: normal; }
+  .openline { margin: -6px 0 18px; color: var(--amber); font-size: 15px; }
+  .phead { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .phead h2 { margin: 0; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .two .panel { margin-bottom: 18px; }
+  @media (max-width: 860px) { .two { grid-template-columns: 1fr; gap: 0; } }
+
+  .chart { position: relative; }
+  .chart svg { display: block; width: 100%; height: 240px; overflow: visible; }
+  .chart .grid line { stroke: var(--line); stroke-width: 1; }
+  .chart .grid text, .chart .xl text { fill: var(--faint); font-size: 12px; }
+  .chart .bar { fill: var(--jade); }
+  .chart .bar.zero { fill: transparent; }
+  .chart .hit { fill: transparent; cursor: default; }
+  .chart .hit:hover + .bar, .chart g.on .bar { fill: #165445; }
+  /* เทียบช่วงก่อนหน้า (ลูกศร + ข้อความ ไม่ใช้สีอย่างเดียว) */
+  .kpi .delta { font-style: normal; font-weight: 700; } .kpi .delta.up { color: var(--jade); } .kpi .delta.down { color: var(--brick); }
+  /* ตารางวัน × ชั่วโมง: สีเขียวเดียว อ่อน → เข้ม ตามยอดเฉลี่ย (5 ระดับ) */
+  .heatwrap { overflow-x: auto; position: relative; }
+  .heat { display: grid; grid-template-columns: 40px repeat(var(--hc), minmax(18px, 1fr)); gap: 2px; font-size: 12px; min-width: 420px; position: relative; }
+  .heat .hl { color: var(--faint); text-align: center; } .heat .dl { color: var(--muted); align-self: center; }
+  .heat i, .hlegend i { height: 26px; border-radius: 4px; background: var(--sunk); display: block; }
+  .heat i:hover { box-shadow: 0 0 0 2px var(--ink); }
+  [data-l="1"] { background: color-mix(in srgb, var(--jade) 14%, var(--surface)) !important; }
+  [data-l="2"] { background: color-mix(in srgb, var(--jade) 32%, var(--surface)) !important; }
+  [data-l="3"] { background: color-mix(in srgb, var(--jade) 52%, var(--surface)) !important; }
+  [data-l="4"] { background: color-mix(in srgb, var(--jade) 74%, var(--surface)) !important; }
+  [data-l="5"] { background: var(--jade) !important; }
+  .hlegend { display: flex; gap: 4px; align-items: center; font-size: 12.5px; color: var(--muted); margin-top: 12px; }
+  .hlegend i { width: 22px; height: 12px; border-radius: 3px; }
+  .slowcat { display: grid; grid-template-columns: 150px 1fr; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; }
+  .slowcat b { font-weight: 600; } .slowcat span { color: var(--muted); }
+  @media (max-width: 600px) { .slowcat { grid-template-columns: 1fr; gap: 2px; } }
+  .lnprev { white-space: pre-wrap; background: var(--sunk); border-radius: 10px; padding: 14px 16px; font: inherit; font-size: 14.5px; line-height: 1.6; margin: 0; max-height: 560px; overflow: auto; }
+  ol.steps { padding-left: 20px; color: var(--muted); font-size: 14.5px; margin: 8px 0 0; } ol.steps li { margin: 6px 0; } ol.steps b { color: var(--ink); }
+  .tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; border-radius: 8px; padding: 7px 10px; font-size: 13.5px; white-space: nowrap; transform: translate(-50%, -100%); margin-top: -8px; z-index: 5; }
+  .tip b { display: block; font-size: 15px; }
+
+  .pstack { display: flex; height: 14px; gap: 2px; border-radius: 4px; overflow: hidden; margin: 4px 0 16px; background: var(--sunk); }
+  .pstack i { display: block; height: 100%; }
+  .legrow { display: grid; grid-template-columns: 14px 1fr auto auto; gap: 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--line); }
+  .legrow:first-of-type { border-top: 0; }
+  .legrow .sw2 { width: 12px; height: 12px; border-radius: 3px; align-self: center; }
+  .legrow b { font-weight: 600; text-align: right; }
+  .legrow span.muted { text-align: right; min-width: 64px; }
+  .feenote { color: var(--card); font-size: 14px; margin-top: 8px; }
+
+  .hbar { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .hbar:first-child { border-top: 0; }
+  .hbar .track { grid-column: 1 / -1; height: 6px; background: var(--sunk); border-radius: 3px; overflow: hidden; }
+  .hbar .track i { display: block; height: 100%; background: var(--jade); border-radius: 0 3px 3px 0; }
+
+  table.t { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table.t th { text-align: left; font-weight: 500; color: var(--muted); font-size: 13.5px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  table.t td { padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.t tr:last-child td { border-bottom: 0; }
+  table.t .r { text-align: right; white-space: nowrap; }
+  table.t .rank { color: var(--faint); width: 32px; }
+  table.t tr.top td { cursor: pointer; }
+  table.t tr.top:hover td { background: var(--sunk); }
+  table.t .share { width: 22%; min-width: 80px; }
+  table.t .share i { display: block; height: 6px; background: var(--jade); border-radius: 3px; margin-top: 9px; }
+  table.t .opts td { padding-top: 0; color: var(--muted); font-size: 14px; border-bottom: 1px solid var(--line); }
+  table.t .opts span { display: inline-block; margin: 0 14px 4px 0; }
+  .pm { display: inline-flex; align-items: center; gap: 6px; }
+  .pm i { width: 9px; height: 9px; border-radius: 2px; }
+  @media (max-width: 640px) { table.t .hide-sm { display: none; } }
+  .more { margin-top: 10px; }
+
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 10px; z-index: 99; box-shadow: 0 8px 24px #0004; }
+  .toast.bad { background: var(--brick); }
+  #net.bad { position: fixed; top: 0; left: 0; right: 0; background: var(--brick); color: #fff; text-align: center; padding: 6px; z-index: 100; }
+
+  /* ---------- เครื่องพิมพ์ / จอครัว ---------- */
+  .dev { display: grid; grid-template-columns: minmax(150px, 1.2fr) minmax(140px, 1fr) 90px 110px 100px auto; gap: 12px; align-items: end; }
+  .dev .tools { display: flex; gap: 6px; }
+  @media (max-width: 980px) { .dev { grid-template-columns: 1fr 1fr; } .dev .tools { grid-column: 1 / -1; } }
+  .devhead { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .devhead h2 { margin: 0; } .devhead .tag { margin-left: auto; }
+  .scr { display: grid; grid-template-columns: minmax(160px, 1fr) 2fr auto; gap: 12px; align-items: end; }
+  @media (max-width: 760px) { .scr { grid-template-columns: 1fr; } }
+  .linkbox { display: flex; gap: 6px; align-items: center; min-width: 0; }
+  .linkbox code { flex: 1; min-width: 0; background: var(--sunk); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mx { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; max-height: 60vh; }
+  .mx table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  .mx th, .mx td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: center; white-space: nowrap; }
+  .mx th:first-child, .mx td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); }
+  .mx thead th { position: sticky; top: 0; background: var(--sunk); z-index: 1; font-weight: 600; }
+  .mx thead th:first-child { z-index: 2; background: var(--sunk); }
+  .mx tr.mxcat td { background: var(--sunk); font-weight: 600; }
+  .mx tr.mxcat td:first-child { background: var(--sunk); }
+  .mx input { width: 20px; height: 20px; accent-color: var(--jade); cursor: pointer; }
+  .mx td.none { color: var(--brick); font-size: 13px; }
+  .gtab { border-collapse: collapse; margin-top: 12px; }
+  .gtab th, .gtab td { padding: 4px 6px; text-align: center; font-size: 14px; }
+  .gtab tbody th { text-align: left; font-weight: 500; white-space: nowrap; }
+  .gtab input { width: 84px; text-align: right; }
+  .gtab input:disabled { background: var(--sunk); }
+  .thh { margin: 22px 0 6px; font-size: 15px; } .thh small { color: var(--faint); font-weight: 400; font-size: 13px; }
+  .thfill { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); }
+  .enh { font-size: 14px; color: var(--muted); margin: 22px 0 4px; font-weight: 600; }
+  .enrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 12px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+  .enrow span { overflow-wrap: anywhere; }
+  .enrow input::placeholder { color: var(--faint); font-style: italic; }
+  .savebar { position: sticky; bottom: 0; background: var(--bg); padding: 12px 0; margin-top: 0; z-index: 3; }
+  .pick { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pick button { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit; color: var(--muted); }
+  .pick button[aria-pressed="true"] { background: var(--jade); border-color: var(--jade); color: #fff; font-weight: 600; }
+</style>
+<script src="app-bridge.js"></script>
+</head>
+<body data-pin="admin">
+<div class="app">
+  <nav class="side" aria-label="หมวดการตั้งค่า">
+    <div class="shop"><b id="shopTitle">ร้านของฉัน</b><span>หลังร้าน</span></div>
+    <button data-sec="sales" aria-current="true">ยอดขาย</button>
+    <button data-sec="menu">เมนู <small id="nMenu"></small></button>
+    <button data-sec="sets">ชุดตัวเลือก <small id="nSets"></small></button>
+    <button data-sec="cats">หมวดหมู่ <small id="nCats"></small></button>
+    <button data-sec="english">ชื่อภาษาอังกฤษ <small id="nEn" title="ยังไม่ได้แปล"></small></button>
+    <button data-sec="pay">การชำระเงิน</button>
+    <button data-sec="printers">เครื่องพิมพ์ <small id="nPrn"></small></button>
+    <button data-sec="screens">จอครัว <small id="nScr"></small></button>
+    <button data-sec="layout">ผังโต๊ะ</button>
+    <button data-sec="receipt">ใบเสร็จ</button>
+    <button data-sec="ticket">ใบสั่งครัว</button>
+    <button data-sec="orderui">หน้าสั่งอาหาร</button>
+    <button data-sec="line">สรุปยอดเข้า LINE</button>
+    <button data-sec="shop">ข้อมูลร้าน</button>
+    <button data-sec="backup">สำรองข้อมูล</button>
+    <button data-sec="standby">เครื่องสำรอง <small id="sbDot"></small></button>
+    <button data-sec="pins">รหัสผ่าน</button>
+    <div class="grow"></div>
+    <a href="order.html">ไปหน้าสั่งอาหาร</a>
+    <a href="kds.html">ไปจอครัว</a>
+    <a href="#" id="lockBtn">🔒 ล็อกหลังร้าน</a>
+  </nav>
+
+  <main>
+    <!-- ===== ยอดขาย ===== -->
+    <section id="sec-sales">
+      <div class="shead">
+        <h1>ยอดขาย</h1>
+        <div class="seg" id="range" role="group" aria-label="ช่วงเวลา">
+          <button data-r="today" aria-pressed="true">วันนี้</button>
+          <button data-r="yesterday">เมื่อวาน</button>
+          <button data-r="7">7 วัน</button>
+          <button data-r="30">30 วัน</button>
+          <button data-r="month">เดือนนี้</button>
+          <button data-r="custom">เลือกวัน</button>
+        </div>
+      </div>
+      <div class="custom" id="customBox" hidden>
+        <label class="field"><span>ตั้งแต่</span><input type="date" id="dFrom"></label>
+        <label class="field"><span>ถึง</span><input type="date" id="dTo"></label>
+        <button class="btn primary" id="dGo">ดูยอด</button>
+      </div>
+      <p class="lede" id="rangeLabel"></p>
+
+      <div class="kpis" id="kpis"></div>
+      <p class="openline" id="openLine" hidden></p>
+
+      <div class="panel">
+        <div class="phead"><h2 id="chartTitle">ยอดขาย</h2><span class="muted" id="chartNote"></span></div>
+        <div class="chart" id="chart"></div>
+      </div>
+
+      <div class="panel" id="heatPanel" hidden>
+        <div class="phead"><h2>ช่วงเวลาขายดี</h2><span class="muted" id="heatNote"></span></div>
+        <div class="heatwrap" id="heat"></div>
+      </div>
+
+      <div class="two">
+        <div class="panel">
+          <div class="phead"><h2>วิธีชำระเงิน</h2></div>
+          <div id="payBreak"></div>
+        </div>
+        <div class="panel">
+          <div class="phead"><h2>ตามหมวด</h2></div>
+          <div id="catBreak"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="phead"><h2>เมนูขายดี</h2>
+          <div class="seg" id="topSort" role="group" aria-label="เรียงตาม">
+            <button data-s="qty" aria-pressed="true">ตามจำนวน</button><button data-s="amount">ตามยอดเงิน</button></div></div>
+        <div id="topList"></div>
+      </div>
+
+      <div class="panel">
+        <div class="phead"><h2>พนักงาน</h2><span class="muted" id="staffNote"></span></div>
+        <div id="staffList"></div>
+      </div>
+
+      <div class="panel">
+        <div class="phead"><h2>เมนูที่ขายไม่ออก</h2><span class="muted" id="slowNote"></span></div>
+        <div id="slowList"></div>
+      </div>
+
+      <div class="panel">
+        <div class="phead"><h2>รายการบิล</h2><span class="muted" id="billNote"></span></div>
+        <div id="billList"></div>
+      </div>
+
+      <div class="actions" style="justify-content:flex-start">
+        <button class="btn" id="csv">ดาวน์โหลดเป็นไฟล์ Excel (CSV)</button>
+      </div>
+    </section>
+
+    <!-- ===== เมนู ===== -->
+    <section id="sec-menu" hidden>
+      <h1>เมนู</h1>
+      <p class="lede">แตะเมนูเพื่อแก้ราคา ตัวเลือก และที่พิมพ์ใบสั่ง ปิดสวิตช์เมื่อของหมด พนักงานจะสั่งเมนูนั้นไม่ได้จนกว่าจะเปิดใหม่</p>
+      <div class="toolbar">
+        <input class="search" id="q" type="text" placeholder="ค้นหาเมนู" autocomplete="off">
+        <select id="fCat" aria-label="กรองตามหมวด"></select>
+        <button class="btn" id="exportMenu" title="ดาวน์โหลดเมนู ชุดตัวเลือก หมวด และชื่อภาษาอังกฤษ เป็นไฟล์ .json">ส่งออกเมนู</button>
+        <button class="btn" id="importMenu" title="แทนที่เมนูทั้งหมดด้วยเมนูจากไฟล์ (.json)">นำเข้าเมนูจากไฟล์</button>
+        <button class="btn primary" id="newItem">เพิ่มเมนู</button>
+        <input type="file" id="menuFile" accept=".json,application/json" hidden>
+      </div>
+      <div id="menuList"></div>
+    </section>
+
+    <!-- ===== ชุดตัวเลือก ===== -->
+    <section id="sec-sets" hidden>
+      <h1>ชุดตัวเลือก</h1>
+      <p class="lede">ตั้งกลุ่มตัวเลือกที่ใช้ซ้ำหลายเมนู เช่น ความเผ็ด หรือการแพ้อาหาร ไว้ที่เดียว แก้ตรงนี้แล้วทุกเมนูที่ใช้ชุดนี้เปลี่ยนตาม</p>
+      <div class="toolbar"><span class="grow"></span><button class="btn primary" id="newSet">สร้างชุดตัวเลือก</button></div>
+      <div id="setList"></div>
+      <div class="panel" style="margin-top:22px">
+        <h2>หมายเหตุด่วน</h2>
+        <p>ปุ่มหมายเหตุที่ขึ้นทุกเมนูตอนสั่ง ไม่มีผลกับราคา แตะ × เพื่อลบ</p>
+        <div class="qn" id="qnList"></div>
+        <div class="actions" style="justify-content:flex-start">
+          <input id="qnNew" type="text" placeholder="เช่น ไม่ใส่หอม" style="max-width:240px">
+          <button class="btn" id="qnAdd">เพิ่ม</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== หมวดหมู่ ===== -->
+    <section id="sec-cats" hidden>
+      <h1>หมวดหมู่</h1>
+      <p class="lede">ลำดับตรงนี้คือลำดับบนหน้าสั่งอาหาร เปลี่ยนชื่อหมวดแล้วเมนูในหมวดจะย้ายตามให้เอง</p>
+      <div class="panel">
+        <h2>หมวดใหญ่ <small class="muted" style="font-weight:400;font-size:14px">แถบซ้ายของหน้าสั่งอาหาร</small></h2>
+        <p>รวมหลายหมวดไว้ในหมวดใหญ่เดียว เช่น อาหาร = ข้าว เส้น ผัด แกง แตะหมวดใหญ่แล้วจะเห็นเมนูทุกหมวดย่อยแบ่งเป็นหัวข้อ
+          ถ้าไม่ตั้งหมวดใหญ่เลย แถบซ้ายจะแสดงทุกหมวดเหมือนเดิม · หมวดที่ยังไม่ได้เลือกหมวดใหญ่จะไปอยู่ใน "อื่นๆ"</p>
+        <div id="grpList"></div>
+        <div class="actions" style="justify-content:flex-start">
+          <input id="newGrp" type="text" placeholder="ชื่อหมวดใหญ่ เช่น อาหาร" style="max-width:280px">
+          <button class="btn" id="addGrp">เพิ่มหมวดใหญ่</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>หมวด</h2>
+        <div id="catList"></div>
+        <div class="actions" style="justify-content:flex-start">
+          <input id="newCat" type="text" placeholder="ชื่อหมวดใหม่" style="max-width:280px">
+          <button class="btn" id="addCat">เพิ่มหมวด</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ชื่อภาษาอังกฤษ ===== -->
+    <section id="sec-english" hidden>
+      <h1>ชื่อภาษาอังกฤษ</h1>
+      <p class="lede">ใช้กับใบแจ้งยอดและใบเสร็จภาษาอังกฤษ คำเดียวกันแปลครั้งเดียว เช่น "หมู" ใช้ได้ทุกเมนู
+        คำที่ยังไม่แปลจะพิมพ์เป็นภาษาไทย หน้าสั่งอาหาร จอครัว และใบสั่งในครัวยังเป็นภาษาไทยเหมือนเดิม</p>
+      <div class="panel">
+        <div class="actions" style="justify-content:flex-start;margin:0 0 6px">
+          <span class="note" id="enStat"></span>
+          <button class="btn" id="enFill">เติมคำแนะนำในช่องที่ว่าง</button>
+        </div>
+        <p style="margin:0">ตัวอักษรสีจางในช่อง = คำแนะนำ ยังไม่ถูกใช้จนกว่าจะกดเติมหรือพิมพ์เอง · ตรวจคำแนะนำก่อนบันทึก ให้ตรงกับอาหารของร้าน</p>
+        <div id="enList"></div>
+      </div>
+      <div class="actions savebar"><button class="btn primary" id="enSave">บันทึกชื่อภาษาอังกฤษ</button></div>
+    </section>
+
+    <!-- ===== การชำระเงิน ===== -->
+    <section id="sec-pay" hidden>
+      <h1>การชำระเงิน</h1>
+      <p class="lede">เลือกวิธีที่ร้านรับ ปุ่มที่ปิดไว้จะไม่ขึ้นตอนคิดเงิน</p>
+      <div class="panel">
+        <div class="rowline"><div class="txt"><b>เงินสด</b><span>คำนวณเงินทอนให้</span></div>
+          <label class="sw"><input type="checkbox" id="payCash"><i></i></label></div>
+        <div class="rowline"><div class="txt"><b>โอน / พร้อมเพย์</b><span>บันทึกว่าลูกค้าจ่ายด้วยการโอน</span></div>
+          <label class="sw"><input type="checkbox" id="payTransfer"><i></i></label></div>
+        <div class="rowline"><div class="txt"><b>บัตรเครดิต / เดบิต</b><span>บวกค่าธรรมเนียมเข้าไปในยอดที่ลูกค้าจ่าย และพิมพ์แยกบรรทัดในใบเสร็จ</span></div>
+          <label class="sw"><input type="checkbox" id="payCard"><i></i></label></div>
+        <div class="rowline" id="feeRow"><div class="txt"><b>ค่าธรรมเนียมบัตร</b><span>ใส่ 0 ถ้าไม่เก็บเพิ่ม</span></div>
+          <div class="money pct" style="width:130px"><input type="number" id="cardFee" min="0" max="20" step="0.1"></div></div>
+        <div class="feedemo" id="feeDemo"></div>
+        <div class="actions"><button class="btn primary" id="savePay">บันทึกการชำระเงิน</button></div>
+      </div>
+    </section>
+
+    <!-- ===== เครื่องพิมพ์ ===== -->
+    <section id="sec-printers" hidden>
+      <h1>เครื่องพิมพ์</h1>
+      <p class="lede">เพิ่มเครื่องพิมพ์ที่ต่อ LAN/Wi-Fi ได้ไม่จำกัด เช่น ครัว หน้าร้าน บาร์น้ำ แล้วเลือกว่าเมนูไหนออกเครื่องไหน (เมนูเดียวออกหลายเครื่องได้) ดู IP ได้จากใบทดสอบที่เครื่องพิมพ์พิมพ์เองตอนกดปุ่มค้าง และควรล็อก IP ไว้ในเราเตอร์</p>
+      <div id="prnList"></div>
+      <div class="actions" style="justify-content:flex-start;margin:0 0 18px"><button class="btn" id="prnAdd">+ เพิ่มเครื่องพิมพ์</button></div>
+      <div class="panel">
+        <h2>ใบเสร็จ</h2>
+        <div class="grid2" style="margin-top:12px">
+          <label class="field"><span>พิมพ์ใบเสร็จและใบแจ้งยอดที่</span><select id="rcPrinter"></select></label>
+          <label class="field"><span>ใบเสร็จที่จ่ายแล้ว พิมพ์กี่ใบ</span><select id="rcCopies">
+            <option value="1">1 ใบ</option><option value="2">2 ใบ (ให้ลูกค้า + เก็บที่ร้าน)</option><option value="3">3 ใบ</option></select>
+            <small>ใบแจ้งยอดก่อนจ่าย พิมพ์ใบเดียวเสมอ</small></label>
+        </div>
+        <div class="rowline" style="margin-top:12px"><div class="txt"><b>พิมพ์ใบสั่งทุกครั้งที่ส่งออเดอร์</b><span>ปิดถ้าใช้จอครัวอย่างเดียว (ใบเสร็จยังพิมพ์ได้ตามปกติ)</span></div>
+          <label class="sw"><input type="checkbox" id="printTickets"><i></i></label></div>
+      </div>
+      <div class="panel">
+        <h2>เมนูไหนออกเครื่องไหน</h2>
+        <p>ติ๊กได้หลายเครื่องต่อเมนู ติ๊กที่ชื่อหมวดเพื่อเลือกทั้งหมวด เมนูที่ไม่ติ๊กเลยจะไม่พิมพ์ใบสั่ง</p>
+        <div class="mx" id="prnMatrix"></div>
+      </div>
+      <div class="actions savebar"><span class="note" id="prnNote"></span><button class="btn primary" id="savePrinters">บันทึกเครื่องพิมพ์</button></div>
+    </section>
+
+    <!-- ===== จอครัว ===== -->
+    <section id="sec-screens" hidden>
+      <h1>จอครัว</h1>
+      <p class="lede">มีจอครัวได้หลายจอ เช่น จอครัว กับ จอบาร์น้ำ แต่ละจอแสดงเฉพาะเมนูของตัวเอง เปิดลิงก์ของจอนั้นบนแท็บเล็ตที่วางไว้ หรือเลือกจอจากเมนูตั้งค่าบนหน้าจอครัว</p>
+      <div id="scrList"></div>
+      <div class="actions" style="justify-content:flex-start;margin:0 0 18px"><button class="btn" id="scrAdd">+ เพิ่มจอ</button></div>
+      <div class="panel">
+        <h2>เมนูไหนขึ้นจอไหน</h2>
+        <p>เมนูที่ไม่ติ๊กเลยจะไม่ขึ้นจอ ถือว่าเสร็จทันทีที่สั่ง (เช่น เครื่องดื่มที่หน้าร้านทำเอง ใช้ใบที่พิมพ์ออกแทน)</p>
+        <div class="mx" id="scrMatrix"></div>
+      </div>
+      <div class="actions savebar"><button class="btn primary" id="saveScreens">บันทึกจอครัว</button></div>
+    </section>
+
+    <!-- ===== ผังโต๊ะ ===== -->
+    <section id="sec-layout" hidden>
+      <h1>ผังโต๊ะ</h1>
+      <p class="lede">จัดตำแหน่งโต๊ะให้เหมือนหน้าร้านจริง ลากเพื่อย้าย ลากมุมล่างขวาเพื่อปรับขนาด หน้าสั่งอาหารจะแสดงตามผังนี้</p>
+      <div class="laytools">
+        <button class="btn" id="layAddT">+ โต๊ะ</button>
+        <button class="btn" id="layAddW">+ ฉากกั้น</button>
+        <button class="btn" id="layAddL">+ ป้ายข้อความ</button>
+        <label class="sw" style="margin-left:8px"><input type="checkbox" id="laySnap" checked><i></i><span>ชิดตาราง</span></label>
+        <span class="sp"></span>
+        <span class="muted" id="layInfo" style="color:var(--muted);font-size:14px"></span>
+        <button class="btn primary" id="laySave">บันทึกผัง</button>
+      </div>
+      <div class="laygrid">
+        <div class="laywrap" id="layWrap"><div class="laycv" id="layCv"></div></div>
+        <div class="panel layside" id="laySide">
+          <h2>รายการที่เลือก</h2>
+          <p id="layNone">คลิกที่โต๊ะในผังเพื่อแก้ไข</p>
+          <div id="layForm" hidden>
+            <label class="field"><span id="leNameLbl">ชื่อโต๊ะ</span><input type="text" id="leName" maxlength="20"></label>
+            <div class="two">
+              <label class="field"><span>กว้าง</span><input type="number" id="leW" min="16" max="2000" step="2"></label>
+              <label class="field"><span>สูง</span><input type="number" id="leH" min="16" max="2000" step="2"></label>
+              <label class="field"><span>ซ้าย (X)</span><input type="number" id="leX" step="2"></label>
+              <label class="field"><span>บน (Y)</span><input type="number" id="leY" step="2"></label>
+            </div>
+            <div class="actions" style="justify-content:flex-start;margin-top:14px">
+              <button class="btn sm" id="layDup">คัดลอก</button>
+              <button class="btn sm danger" id="layDel">ลบ</button>
+            </div>
+            <p style="margin:12px 0 0;font-size:13px;color:var(--faint)">เลือกแล้วกดลูกศรบนคีย์บอร์ดเพื่อขยับทีละนิด (ค้าง Shift = ทีละมาก)</p>
+          </div>
+          <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
+          <div class="two" style="margin-top:0">
+            <label class="field"><span>กว้างผัง</span><input type="number" id="layW" min="400" max="4000" step="10"></label>
+            <label class="field"><span>สูงผัง</span><input type="number" id="layH" min="300" max="4000" step="10"></label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ใบเสร็จ ===== -->
+    <section id="sec-receipt" hidden>
+      <h1>รูปแบบใบเสร็จ</h1>
+      <p class="lede">ใส่โลโก้ ที่อยู่ ข้อความท้ายบิล และรูป (เช่น QR พร้อมเพย์) ดูตัวอย่างทางขวาได้ทันที ตัวอย่างแสดงเป็นขาวดำเหมือนที่เครื่องพิมพ์ออกจริง</p>
+      <div class="rcgrid">
+        <div class="panel" id="rcForm">
+          <h3 class="rc-h">โลโก้ (บนสุดของใบเสร็จ)</h3>
+          <div class="imgrow">
+            <div class="imgbox" id="logoBox">ไม่มีรูป</div>
+            <div>
+              <div class="btns"><button class="btn sm" data-pick="logo">เลือกรูป…</button><button class="btn sm danger" data-clear="logo">เอารูปออก</button></div>
+              <label class="field"><span>ขนาด <b id="logoWv"></b></span><input type="range" id="logoWidth" min="20" max="100" step="5"></label>
+            </div>
+          </div>
+          <div class="rowline"><div class="txt"><b>ชนิดรูป</b><span>โลโก้ลายเส้นใช้ "คมชัด" · รูปถ่ายหรือโลโก้มีเฉดสีใช้ "รูปถ่าย"</span></div>
+            <div class="seg" data-seg="logoMode"><button data-v="threshold">คมชัด</button><button data-v="dither">รูปถ่าย</button></div></div>
+
+          <h3 class="rc-h">ภาษา</h3>
+          <div class="rowline"><div class="txt"><b>ภาษาเริ่มต้นของใบแจ้งยอดและใบเสร็จ</b><span>เปลี่ยนเฉพาะบิลได้ที่หน้าสั่งอาหาร · ชื่อเมนูอังกฤษตั้งที่ <a href="#" data-go="english">ชื่อภาษาอังกฤษ</a></span></div>
+            <div class="seg" data-seg="lang"><button data-v="th">ไทย</button><button data-v="en">EN</button><button data-v="both">2 ภาษา</button></div></div>
+
+          <h3 class="rc-h">หัวใบเสร็จ</h3>
+          <div class="grid2">
+            <label class="field"><span>ชื่อร้าน</span><input type="text" id="rcShopName"></label>
+            <label class="field"><span>ขนาดชื่อร้าน</span><select id="nameSize"><option value="28">เล็ก</option><option value="36">กลาง</option><option value="44">ใหญ่</option><option value="52">ใหญ่มาก</option></select></label>
+          </div>
+          <label class="field" style="margin-top:12px"><span>บรรทัดใต้ชื่อร้าน</span>
+            <textarea id="rcHeader" rows="3" placeholder="เช่น ที่อยู่ร้าน · โทร 08x-xxx-xxxx · เลขประจำตัวผู้เสียภาษี"></textarea>
+            <small>ขึ้นบรรทัดใหม่ได้ จัดกึ่งกลางอัตโนมัติ</small></label>
+          <label class="field" style="margin-top:12px"><span>บรรทัดใต้ชื่อร้าน (ภาษาอังกฤษ)</span>
+            <textarea id="rcHeaderEn" rows="2" placeholder="e.g. 12 Beach Rd, Patong · Tel 08x-xxx-xxxx"></textarea>
+            <small>ใช้กับใบเสร็จภาษาอังกฤษ ถ้าเว้นว่างจะใช้ข้อความภาษาไทยด้านบน</small></label>
+
+          <h3 class="rc-h">รายละเอียดที่แสดง</h3>
+          <div class="rowline"><div class="txt"><b>ชื่อโต๊ะ</b></div><label class="sw"><input type="checkbox" id="showTable"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>วันที่และเวลา</b></div><label class="sw"><input type="checkbox" id="showTime"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>เลขที่ใบเสร็จ</b></div><label class="sw"><input type="checkbox" id="showNo"><i></i></label></div>
+
+          <h3 class="rc-h">ท้ายใบเสร็จ</h3>
+          <div class="grid2">
+            <label class="field" style="grid-column:1/-1"><span>ข้อความท้ายใบเสร็จ</span>
+              <textarea id="rcFooter" rows="3" placeholder="เช่น ขอบคุณที่ใช้บริการ · LINE @ร้านของฉัน"></textarea></label>
+            <label class="field" style="grid-column:1/-1"><span>ข้อความท้ายใบเสร็จ (ภาษาอังกฤษ)</span>
+              <textarea id="rcFooterEn" rows="2" placeholder="e.g. Thank you! · Instagram @myshop"></textarea>
+              <small>เว้นว่าง = ใช้ข้อความภาษาไทยด้านบน</small></label>
+            <label class="field"><span>ขนาดตัวอักษร</span><select id="footerSize"><option value="20">เล็ก</option><option value="22">ปกติ</option><option value="28">ใหญ่</option></select></label>
+          </div>
+          <div class="imgrow" style="margin-top:16px">
+            <div class="imgbox" id="footerBox">ไม่มีรูป</div>
+            <div>
+              <div class="btns"><button class="btn sm" data-pick="footer">เลือกรูปท้ายบิล…</button><button class="btn sm danger" data-clear="footer">เอารูปออก</button></div>
+              <label class="field"><span>ขนาด <b id="footerWv"></b></span><input type="range" id="footerImgWidth" min="20" max="100" step="5"></label>
+            </div>
+          </div>
+          <div class="rowline"><div class="txt"><b>ชนิดรูปท้ายบิล</b><span>QR code ใช้ "คมชัด"</span></div>
+            <div class="seg" data-seg="footerImgMode"><button data-v="threshold">คมชัด</button><button data-v="dither">รูปถ่าย</button></div></div>
+
+          <input type="file" id="imgFile" accept="image/*" hidden>
+          <div class="actions"><span class="note" id="rcNote"></span>
+            <button class="btn" id="rcTest">พิมพ์ทดสอบ</button>
+            <button class="btn primary" id="rcSave">บันทึกใบเสร็จ</button></div>
+        </div>
+        <div class="rcprev"><div style="font-size:14px;font-weight:500;color:var(--muted);margin-bottom:8px">ตัวอย่างใบเสร็จ</div>
+          <div class="rcpaper" id="rcPaper"></div></div>
+      </div>
+    </section>
+
+    <!-- ===== ใบสั่งครัว ===== -->
+    <section id="sec-ticket" hidden>
+      <h1>ใบสั่งครัว</h1>
+      <p class="lede">หน้าตาใบสั่งที่พิมพ์ออกเครื่องครัว บาร์ และหน้าร้านทุกครั้งที่ส่งออเดอร์ ใช้กับใบยกเลิกและใบพิมพ์ซ้ำด้วย ดูตัวอย่างทางขวาได้ทันที ตัวอย่างแสดงเป็นขาวดำเหมือนที่เครื่องพิมพ์ออกจริง</p>
+      <div class="rcgrid">
+        <div class="panel" id="tkForm">
+          <h3 class="rc-h">ขนาดตัวอักษร</h3>
+          <div class="grid2">
+            <label class="field"><span>ชื่อโต๊ะ</span><select id="tkSizeTable"><option value="36">เล็ก</option><option value="44">กลาง</option><option value="56">ใหญ่</option><option value="68">ใหญ่มาก</option></select></label>
+            <label class="field"><span>ชื่อเมนู</span><select id="tkSizeItem"><option value="28">เล็ก</option><option value="36">กลาง</option><option value="44">ใหญ่</option><option value="52">ใหญ่มาก</option></select></label>
+            <label class="field"><span>ตัวเลือก / หมายเหตุ</span><select id="tkSizeOpt"><option value="24">เล็ก</option><option value="30">กลาง</option><option value="36">ใหญ่</option><option value="42">ใหญ่มาก</option></select></label>
+          </div>
+
+          <h3 class="rc-h">ภาษาชื่อเมนู</h3>
+          <div class="rowline"><div class="txt"><b>ภาษาบนใบสั่ง</b><span>"2 ภาษา" = ชื่อไทยตัวใหญ่ ชื่ออังกฤษตัวเล็กข้างใต้ · คำที่ยังไม่แปลพิมพ์เป็นไทย · แปลได้ที่ <a href="#" data-go="english">ชื่อภาษาอังกฤษ</a></span></div>
+            <div class="seg" data-kseg="lang"><button data-v="th">ไทย</button><button data-v="en">EN</button><button data-v="both">2 ภาษา</button></div></div>
+
+          <h3 class="rc-h">หัวใบสั่ง</h3>
+          <div class="rowline"><div class="txt"><b>เวลาที่สั่ง</b><span>ขวามือของชื่อโต๊ะ</span></div><label class="sw"><input type="checkbox" id="tkShowTime"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>ทานที่ร้าน / กลับบ้าน</b><span>กลับบ้านพิมพ์เป็นแถบดำ เห็นชัดจากไกล</span></div><label class="sw"><input type="checkbox" id="tkShowType"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>บอกว่าเป็นการสั่งเพิ่ม</b><span>โต๊ะที่สั่งรอบที่ 2 ขึ้นไป พิมพ์ "สั่งเพิ่ม · รอบที่ 2"</span></div><label class="sw"><input type="checkbox" id="tkShowRound"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>ชื่อเครื่องพิมพ์</b><span>เช่น "ครัว" หรือ "บาร์น้ำ" บนสุดของใบ ช่วยแยกใบเวลามีหลายเครื่อง</span></div><label class="sw"><input type="checkbox" id="tkShowStation"><i></i></label></div>
+
+          <h3 class="rc-h">รายการอาหาร</h3>
+          <div class="rowline"><div class="txt"><b>ตำแหน่งจำนวน</b></div>
+            <div class="seg" data-kseg="qtyPos"><button data-v="front">2 x กะเพรา</button><button data-v="back">กะเพรา x2</button></div></div>
+          <div class="rowline"><div class="txt"><b>ตัวเลือก (เนื้อสัตว์ ความเผ็ด ฯลฯ)</b><span>"แยกบรรทัด" อ่านง่ายเวลาเลือกหลายอย่าง</span></div>
+            <div class="seg" data-kseg="optStyle"><button data-v="inline">ต่อท้ายชื่อ</button><button data-v="line">แยกบรรทัด</button></div></div>
+          <div class="rowline"><div class="txt"><b>หมายเหตุ</b></div>
+            <div class="seg" data-kseg="noteStyle"><button data-v="normal">ปกติ</button><button data-v="bold">ตัวหนา</button><button data-v="invert">แถบดำ</button></div></div>
+          <div class="rowline"><div class="txt"><b>คำเตือนแพ้อาหาร</b></div>
+            <div class="seg" data-kseg="alertStyle"><button data-v="bold">ตัวหนา</button><button data-v="invert">แถบดำ</button></div></div>
+          <div class="rowline"><div class="txt"><b>ราคา</b><span>เฉพาะใบที่พิมพ์ จอครัวไม่แสดงราคา · "ทุกจาน" มีรวมท้ายใบด้วย</span></div>
+            <div class="seg" data-kseg="price"><button data-v="off">ไม่แสดง</button><button data-v="all">ทุกจาน</button><button data-v="thai">เฉพาะจานคนไทย</button></div></div>
+          <div class="rowline"><div class="txt"><b>บอกจานราคาคนไทย</b><span>พิมพ์ [คนไทย] ต่อท้ายชื่อจาน (ใบเสร็จลูกค้าไม่มี)</span></div><label class="sw"><input type="checkbox" id="tkShowThai"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>เส้นประคั่นระหว่างจาน</b></div><label class="sw"><input type="checkbox" id="tkDivider"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>รวมจำนวนจานท้ายใบ</b></div><label class="sw"><input type="checkbox" id="tkShowCount"><i></i></label></div>
+
+          <h3 class="rc-h">รูปแบบใบ</h3>
+          <div class="rowline"><div class="txt"><b>การแบ่งใบ</b><span>"ใบละจาน" ตัดกระดาษทุกจาน แจกให้คนทำแต่ละจานได้ (สั่ง 2 จานเหมือนกันนับเป็นใบเดียว) · "แยกตามหมวด" หมวดละใบ เช่น ของทอด กับ เครื่องดื่ม ที่ออกเครื่องเดียวกันได้คนละใบ · "แยกตามหมวดใหญ่" ใช้หมวดใหญ่ที่ตั้งใน <a href="#" data-go="cats">หมวดหมู่</a> เช่น เครื่องดื่มทุกหมวดรวมใบเดียว · ตั้งแยกแต่ละเครื่องได้ที่ <a href="#" data-go="printers">เครื่องพิมพ์</a></span></div>
+            <div class="seg" data-kseg="mode"><button data-v="all">รวมใบเดียว</button><button data-v="cat">แยกตามหมวด</button><button data-v="grp">แยกตามหมวดใหญ่</button><button data-v="each">ใบละจาน</button></div></div>
+
+          <h3 class="rc-h">ท้ายใบ</h3>
+          <label class="field"><span>ข้อความท้ายใบ</span>
+            <textarea id="tkFooter" rows="2" maxlength="200" placeholder="เว้นว่างได้ เช่น ตรวจของก่อนเสิร์ฟ"></textarea></label>
+          <div class="grid2" style="margin-top:12px">
+            <label class="field"><span>เว้นกระดาษก่อนตัด</span><select id="tkFeed">
+              <option value="1">1 บรรทัด (ประหยัดกระดาษ)</option><option value="2">2 บรรทัด</option><option value="3">3 บรรทัด</option>
+              <option value="4">4 บรรทัด (เดิม)</option><option value="6">6 บรรทัด</option><option value="8">8 บรรทัด</option></select>
+              <small>ถ้าข้อความท้ายใบโดนตัด ให้เพิ่มบรรทัด</small></label>
+            <label class="field"><span>เสียงบี๊บตอนพิมพ์</span><select id="tkBeep">
+              <option value="0">ปิด</option><option value="1">1 ครั้ง</option><option value="2">2 ครั้ง</option><option value="3">3 ครั้ง</option><option value="5">5 ครั้ง</option></select>
+              <small>ใช้ได้เฉพาะเครื่องพิมพ์ที่มีลำโพง ถ้าไม่มีจะเงียบ ไม่มีผลอย่างอื่น</small></label>
+          </div>
+
+          <div class="actions"><span class="note" id="tkNote"></span>
+            <select id="tkPrinter" aria-label="เครื่องที่พิมพ์ทดสอบ" style="width:auto"></select>
+            <button class="btn" id="tkTest">พิมพ์ทดสอบ</button>
+            <button class="btn" id="tkReset">ค่าเริ่มต้น</button>
+            <button class="btn primary" id="tkSave">บันทึกใบสั่งครัว</button></div>
+        </div>
+        <div class="rcprev"><div style="font-size:14px;font-weight:500;color:var(--muted);margin-bottom:8px">ตัวอย่างใบสั่ง <span id="tkPrevNote"></span></div>
+          <div class="rcpaper" id="tkPaper"></div></div>
+      </div>
+    </section>
+
+    <!-- ===== หน้าสั่งอาหาร ===== -->
+    <section id="sec-orderui" hidden>
+      <h1>หน้าสั่งอาหาร</h1>
+      <p class="lede">ธีมสีและหน้าตาของหน้าสั่งอาหาร ใช้กับทุกเครื่อง บันทึกแล้วเครื่องที่เปิดหน้าสั่งอาหารอยู่เปลี่ยนตามเอง · <a href="order.html" target="_blank">เปิดหน้าสั่งอาหาร</a></p>
+      <div class="panel" id="ouForm">
+        <h3 class="rc-h">ธีม</h3>
+        <div class="seg outhemes" data-ouseg="theme">
+          <button data-v="classic"><i style="background:#1d1b16"></i><i style="background:#d2451e"></i>คลาสสิก</button>
+          <button data-v="dark"><i style="background:#121417"></i><i style="background:#ff7a45"></i>มืด</button>
+          <button data-v="green"><i style="background:#173b2a"></i><i style="background:#2f8f5b"></i>เขียว</button>
+          <button data-v="blue"><i style="background:#16294a"></i><i style="background:#2b64d6"></i>น้ำเงิน</button>
+          <button data-v="pink"><i style="background:#4a1d2c"></i><i style="background:#d9467a"></i>ชมพู</button></div>
+
+        <h3 class="rc-h">ปุ่มเมนู</h3>
+        <div class="rowline"><div class="txt"><b>ขนาดปุ่ม</b><span>ใหญ่ = กดง่าย เห็นได้น้อยลงต่อหน้า</span></div>
+          <div class="seg" data-ouseg="size"><button data-v="sm">เล็ก</button><button data-v="md">กลาง</button><button data-v="lg">ใหญ่</button><button data-v="xl">ใหญ่มาก</button></div></div>
+        <div class="rowline"><div class="txt"><b>ขนาดตัวอักษร</b></div>
+          <div class="seg" data-ouseg="font"><button data-v="sm">เล็ก</button><button data-v="md">กลาง</button><button data-v="lg">ใหญ่</button></div></div>
+        <div class="rowline"><div class="txt"><b>จำนวนคอลัมน์</b><span>เฉพาะแท็บเล็ต/คอม · มือถือใช้ตามขนาดปุ่ม</span></div>
+          <div class="seg" data-ouseg="cols"><button data-v="auto">อัตโนมัติ</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button><button data-v="5">5</button><button data-v="6">6</button></div></div>
+        <div class="rowline"><div class="txt"><b>ชื่อภาษาอังกฤษใต้ชื่อเมนู</b></div><label class="sw"><input type="checkbox" id="ouShowEn"><i></i></label></div>
+        <div class="rowline"><div class="txt"><b>ราคาบนปุ่ม</b></div><label class="sw"><input type="checkbox" id="ouShowPrice"><i></i></label></div>
+        <div class="rowline"><div class="txt"><b>ช่องค้นหาเมนู</b></div><label class="sw"><input type="checkbox" id="ouShowSearch"><i></i></label></div>
+
+        <h3 class="rc-h">การสั่ง</h3>
+        <div class="rowline"><div class="txt"><b>ปุ่ม "กลับต่างประเทศ"</b><span>เพิ่มจาก ทานที่ร้าน / กลับบ้าน · ใบสั่งพิมพ์แถบดำ "กลับต่างประเทศ" จอครัวขึ้นหมายเหตุ</span></div>
+          <label class="sw"><input type="checkbox" id="ouAbroad"><i></i></label></div>
+        <div class="actions"><button class="btn" id="ouReset">ค่าเริ่มต้น</button><button class="btn primary" id="ouSave">บันทึกหน้าสั่งอาหาร</button></div>
+      </div>
+    </section>
+
+    <!-- ===== สรุปยอดเข้า LINE ===== -->
+    <section id="sec-line" hidden>
+      <h1>สรุปยอดเข้า LINE</h1>
+      <p class="lede">ส่งสรุปยอดขายของวันเข้า LINE ทุกวันตามเวลาที่ตั้ง ใช้ LINE Official Account ของร้าน (สมัครฟรี) เครื่องหลักต้องต่ออินเทอร์เน็ต</p>
+      <div class="two">
+        <div class="panel" id="lnForm">
+          <div class="rowline"><div class="txt"><b>ส่งสรุปยอดอัตโนมัติ</b><span id="lnStatus"></span></div><label class="sw"><input type="checkbox" id="lnOn"><i></i></label></div>
+          <div class="stack" style="margin-top:12px">
+            <label class="field"><span>เวลาส่ง</span><input type="time" id="lnTime">
+              <small>ตั้งหลังปิดร้าน บิลที่ปิดหลังเวลานี้จะไม่อยู่ในข้อความของวันนั้น (ดูได้ที่หน้ายอดขาย)</small></label>
+            <label class="field"><span>Channel access token</span><input type="password" id="lnToken" autocomplete="off"></label>
+            <label class="field"><span>ส่งถึง (User ID / Group ID)</span><input type="text" id="lnTo" placeholder="เว้นว่าง = ทุกคนที่เพิ่ม LINE OA เป็นเพื่อน" autocomplete="off">
+              <small>อยากส่งถึงเจ้าของคนเดียว: ใส่ "Your user ID" จาก LINE Developers > Basic settings</small></label>
+          </div>
+          <h3 class="rc-h">แจ้งเตือนทันที</h3>
+          <p class="muted" style="margin:0 0 6px">ส่งเข้า LINE ทันทีที่เกิดเรื่อง (ใช้โทเค็นและ "ส่งถึง" เดียวกัน) <span id="lnAlertErr" style="color:var(--brick)"></span></p>
+          <div class="rowline"><div class="txt"><b>เครื่องพิมพ์พิมพ์ไม่ออก</b><span>แจ้งครั้งเดียวต่อรอบ และแจ้งอีกครั้งเมื่อกลับมาพิมพ์ได้</span></div><label class="sw"><input type="checkbox" data-alert="printer"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>เครื่องสำรองหลุด</b><span>ไม่ได้คัดลอกข้อมูลเกิน 2 นาที · แจ้งเมื่อกลับมาด้วย</span></div><label class="sw"><input type="checkbox" data-alert="standby"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>เครื่องสำรองรับงานแทน</b><span>มีคนกด "ใช้เครื่องนี้เป็นเครื่องหลัก" (เครื่องหลักเดิมอาจดับ)</span></div><label class="sw"><input type="checkbox" data-alert="takeover"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>ยกเลิกทั้งโต๊ะ</b><span>บอกโต๊ะ จำนวนจาน มูลค่า เหตุผล และใครเป็นคนยกเลิก</span></div><label class="sw"><input type="checkbox" data-alert="void"><i></i></label></div>
+          <div class="actions"><button class="btn" id="lnTestAlert">ทดสอบแจ้งเตือน</button><button class="btn" id="lnTest">ส่งสรุปยอดทดสอบ</button><button class="btn primary" id="lnSave">บันทึก</button></div>
+          <h3 class="rc-h">วิธีตั้งค่า (ทำครั้งเดียว)</h3>
+          <ol class="steps">
+            <li>เข้า <b>manager.line.biz</b> สร้าง LINE Official Account ของร้าน (แพ็กเกจฟรีก็ได้)</li>
+            <li>ในหน้าตั้งค่าของ LINE OA เลือก <b>Messaging API</b> แล้วกดเปิดใช้</li>
+            <li>เข้า <b>developers.line.biz</b> เลือก channel ของร้าน > แท็บ <b>Messaging API</b> > <b>Channel access token</b> กด Issue แล้วคัดลอกมาวางด้านบน</li>
+            <li>เจ้าของร้าน (และคนที่อยากได้รับ) สแกน QR ในแท็บเดียวกันเพื่อ<b>เพิ่ม LINE OA เป็นเพื่อน</b></li>
+            <li>กด <b>บันทึก</b> แล้ว <b>ส่งสรุปยอดทดสอบ</b> และ <b>ทดสอบแจ้งเตือน</b></li>
+          </ol>
+          <p class="muted" style="margin:10px 0 0">แพ็กเกจฟรีมีโควตาข้อความต่อเดือน ส่งแบบ "ทุกคน" นับ 1 ข้อความต่อเพื่อน 1 คน ถ้าเพื่อนเยอะให้ใส่ User ID แทน</p>
+        </div>
+        <div class="panel">
+          <div class="phead"><h2>ตัวอย่างข้อความ (วันนี้)</h2><button class="btn sm" id="lnRefresh">โหลดใหม่</button></div>
+          <pre class="lnprev" id="lnPrev">กำลังโหลด…</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ข้อมูลร้าน ===== -->
+    <section id="sec-shop" hidden>
+      <h1>ข้อมูลร้าน</h1>
+      <p class="lede">ชื่อร้านและการเปิดช่องกลับบ้าน · หัวท้ายใบเสร็จและโลโก้ไปตั้งที่เมนู "ใบเสร็จ"</p>
+      <div class="panel">
+        <label class="field"><span>ชื่อร้าน</span><input type="text" id="shopName"></label>
+        <div class="rowline" style="margin-top:8px"><div class="txt"><b>ปุ่มสั่งกลับบ้าน</b><span>แสดงปุ่ม "+ กลับบ้าน" บนหน้าเลือกโต๊ะ พนักงานพิมพ์เลขคิวหรือชื่อลูกค้าเองได้</span></div>
+          <label class="sw"><input type="checkbox" id="takeaway"><i></i></label></div>
+        <p style="margin:6px 0 0;font-size:14px;color:var(--muted)">จำนวนและตำแหน่งโต๊ะ แก้ที่เมนู "ผังโต๊ะ"</p>
+        <div class="actions"><button class="btn primary" id="saveShop">บันทึกข้อมูลร้าน</button></div>
+      </div>
+    </section>
+
+    <!-- ===== เครื่องสำรอง ===== -->
+    <section id="sec-standby" hidden>
+      <h1>เครื่องสำรอง</h1>
+      <p class="lede">ให้มือถือหรือแท็บเล็ตอีกเครื่องคัดลอกข้อมูลจากเครื่องหลักทุก 2 วินาที ถ้าเครื่องหลักพัง กดปุ่มเดียวให้เครื่องสำรองรับงานแทน โต๊ะที่เปิดค้างอยู่ไม่หาย</p>
+      <div class="panel" id="sbStatus"></div>
+      <div class="panel">
+        <h2>ที่อยู่ของสองเครื่อง</h2>
+        <p>หน้าจอสั่งอาหารและจอครัวใช้ข้อมูลนี้หาเครื่องสำรองตอนเครื่องหลักไม่ตอบ ควรล็อก IP ทั้งสองเครื่องไว้ในเราเตอร์</p>
+        <div class="grid2">
+          <label class="field"><span>เครื่องหลัก</span><input type="text" id="nodeMain" placeholder="192.168.1.50:3000" inputmode="url"></label>
+          <label class="field"><span>เครื่องสำรอง</span><input type="text" id="nodeStandby" placeholder="192.168.1.51:3000" inputmode="url"></label>
+        </div>
+        <div class="actions"><button class="btn primary" id="saveNodes">บันทึกที่อยู่</button></div>
+      </div>
+      <div class="panel">
+        <h2>ตั้งเครื่องสำรอง</h2>
+        <p>ทำครั้งเดียวบนเครื่องที่สอง ใช้โฟลเดอร์ ed-pos ชุดเดียวกับเครื่องหลัก</p>
+        <ol class="steps" id="sbAppSteps" hidden>
+          <li>ติดตั้งแอป <b>MAMA POS</b> บนเครื่องที่สอง</li>
+          <li>เปิดแอป หน้าตั้งค่า เลือก <b>"เครื่องนี้เป็นเซิร์ฟเวอร์: เครื่องสำรอง"</b> แล้วใส่ IP เครื่องหลัก</li>
+          <li>เปิดหน้าเว็บของเครื่องสำรอง ใส่รหัสเจ้าของร้านเพื่อ<b>จับคู่</b> (ครั้งเดียว)</li>
+          <li>กลับมาหน้านี้ สถานะด้านบนจะขึ้นว่าเครื่องสำรองเชื่อมแล้ว</li>
+        </ol>
+        <ol class="steps" id="sbTermuxSteps">
+          <li>ลง Termux และ Node.js เหมือนเครื่องหลัก แล้วคัดลอกโฟลเดอร์ <b>ed-pos</b> ไปไว้</li>
+          <li>ใน Termux พิมพ์ <code id="sbCmd">cd ~/ed-pos && termux-wake-lock && node server.js --standby 192.168.1.50:3000</code></li>
+          <li>กลับมาหน้านี้ สถานะด้านบนจะขึ้นว่าเครื่องสำรองเชื่อมแล้ว</li>
+          <li>ครั้งต่อไปพิมพ์แค่ <code>node server.js</code> เครื่องจะจำได้เองว่าเป็นเครื่องสำรอง (ใส่ใน Termux:Boot ได้เหมือนเครื่องหลัก)</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== สำรองข้อมูล ===== -->
+    <section id="sec-backup" hidden>
+      <h1>สำรองข้อมูล</h1>
+      <p class="lede">เครื่องที่รันเซิร์ฟเวอร์สำรองให้เองวันละไฟล์ในโฟลเดอร์ backup แต่ถ้าเครื่องเสีย ไฟล์นั้นหายไปด้วย ดาวน์โหลดเก็บไว้ที่อื่นสัปดาห์ละครั้ง</p>
+      <div class="panel">
+        <div class="rowline"><div class="txt"><b>ดาวน์โหลดข้อมูลทั้งหมด</b><span>เมนู การตั้งค่า และบิลย้อนหลัง 7 วัน เป็นไฟล์ .json</span></div>
+          <a class="btn primary" href="/api/export" id="exportBtn" style="text-decoration:none">ดาวน์โหลด</a></div>
+      </div>
+      <div class="panel">
+        <h2>กู้คืนข้อมูล</h2>
+        <p>แทนที่ข้อมูลทั้งร้าน (เมนู การตั้งค่า ผังโต๊ะ บิล ยอดขาย) ด้วยไฟล์สำรอง · ข้อมูลปัจจุบันถูกเก็บไว้ในเครื่องหลักก่อนทุกครั้ง ย้อนกลับได้จากรายการด้านล่าง · รหัส PIN ใช้ของปัจจุบัน ไม่ต้องตั้งใหม่
+          · ถ้าอยากได้เฉพาะเมนูคืน ใช้ <a href="#" data-go="menu">เมนู</a> &gt; นำเข้าเมนูจากไฟล์</p>
+        <div class="rowline"><div class="txt"><b>ไฟล์ที่ดาวน์โหลดไว้</b><span>ไฟล์ ed-pos-วันที่.json จากปุ่มดาวน์โหลดด้านบน (บนแท็บเล็ตอยู่ในโฟลเดอร์ Download)</span></div>
+          <button class="btn" id="rsPick">เลือกไฟล์…</button><input type="file" id="rsFile" accept=".json,application/json" hidden></div>
+        <div class="rowline"><div class="txt"><b>สำรองในเครื่องหลัก</b><span>สำรองอัตโนมัติวันละไฟล์ (30 วัน) และข้อมูลก่อนกู้คืนแต่ละครั้ง</span></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><select id="rsList" style="width:auto;max-width:100%"></select><button class="btn" id="rsUseAuto">ใช้ไฟล์นี้</button></div></div>
+        <div id="rsBox" hidden style="margin-top:14px;padding:14px;border:1px solid var(--brick);border-radius:12px;background:color-mix(in srgb,var(--brick) 6%,var(--surface))">
+          <div id="rsInfo" style="line-height:1.6"></div>
+          <div class="actions" style="justify-content:flex-start;align-items:flex-end;margin-top:12px">
+            <label class="field" style="width:200px;flex:none"><span>รหัสเจ้าของร้าน (ยืนยัน)</span><input type="password" id="rsPin" inputmode="numeric" maxlength="4" autocomplete="off" style="width:100%;box-sizing:border-box"></label>
+            <button class="btn" id="rsCancel">ยกเลิก</button>
+            <button class="btn primary danger" id="rsGo" style="background:var(--brick);border-color:var(--brick);color:#fff">กู้คืนข้อมูลนี้</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== รหัสผ่าน ===== -->
+    <section id="sec-pins" hidden>
+      <h1>รหัสผ่าน</h1>
+      <p class="lede">รหัสตัวเลข 4 หลักสำหรับเข้าหน้าสั่งอาหารและหลังร้าน จอครัวไม่ต้องใส่รหัส · หลังร้านล็อกเองเมื่อไม่ได้แตะ 10 นาที</p>
+      <div class="panel">
+        <h2>พนักงานรายคน · หน้าสั่งอาหาร</h2>
+        <p>แต่ละคนมีรหัสของตัวเอง ระบบจะบันทึกว่าใครสั่ง ใครยกเลิก ใครรับเงิน ดูได้ที่ ยอดขาย > พนักงาน · <b>หัวหน้า</b> อนุมัติการยกเลิกทั้งโต๊ะได้</p>
+        <div id="stList"></div>
+        <div class="grid2" style="margin-top:14px;align-items:end">
+          <label class="field"><span>ชื่อ</span><input type="text" id="stName" maxlength="30" placeholder="เช่น สมชาย"></label>
+          <label class="field"><span>รหัส 4 หลัก</span><input type="password" id="stPin" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••"></label>
+        </div>
+        <div class="actions"><label class="sw" style="margin-right:auto"><input type="checkbox" id="stLead"><i></i>หัวหน้า</label>
+          <button class="btn primary" id="stAdd">เพิ่มพนักงาน</button></div>
+        <div class="rowline" style="margin-top:14px"><div class="txt"><b>ยกเลิกทั้งโต๊ะต้องให้หัวหน้าอนุมัติ</b><span>พนักงานที่ไม่ใช่หัวหน้า ต้องให้หัวหน้าหรือเจ้าของร้านใส่รหัสก่อนยกเลิกทั้งโต๊ะ · ปิดโต๊ะว่างไม่ต้องอนุมัติ</span></div>
+          <label class="sw"><input type="checkbox" id="voidApproval"><i></i></label></div>
+      </div>
+      <div class="panel">
+        <h2>รหัสรวมพนักงาน <small class="muted" style="font-weight:400">· ไม่รู้ว่าใครเป็นคนทำ</small></h2>
+        <p id="staffState"></p>
+        <div class="grid2">
+          <label class="field"><span>รหัสใหม่ 4 หลัก</span><input type="password" id="staffPin" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••"></label>
+        </div>
+        <div class="actions">
+          <button class="btn danger" id="staffClear" hidden>ยกเลิกรหัสพนักงาน</button>
+          <span class="sp" style="flex:1"></span>
+          <button class="btn primary" id="staffSave">บันทึกรหัสพนักงาน</button></div>
+      </div>
+      <div class="panel">
+        <h2>รหัสเจ้าของร้าน · หลังร้าน</h2>
+        <p>ใช้เข้าได้ทุกหน้า อย่าบอกพนักงาน เปลี่ยนแล้วเครื่องอื่นที่เปิดหลังร้านอยู่ต้องใส่รหัสใหม่</p>
+        <div class="grid2">
+          <label class="field"><span>รหัสปัจจุบัน</span><input type="password" id="adminCur" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••"></label>
+          <label class="field"><span>รหัสใหม่</span><input type="password" id="adminNew" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••"></label>
+          <label class="field"><span>ใส่รหัสใหม่อีกครั้ง</span><input type="password" id="adminNew2" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••"></label>
+        </div>
+        <div class="actions"><button class="btn primary" id="adminSave">เปลี่ยนรหัสเจ้าของร้าน</button></div>
+      </div>
+      <div class="panel">
+        <div class="rowline"><div class="txt"><b>ออกจากระบบทุกเครื่อง</b><span>ทุกมือถือ/แท็บเล็ตที่เปิดหน้าสั่งอาหารอยู่ ต้องใส่รหัสใหม่ เช่น ตอนทำมือถือหาย หรือพนักงานลาออก (ควรเปลี่ยนรหัสพนักงานด้วย)</span></div>
+          <button class="btn" id="logoutAll">ออกจากระบบทุกเครื่อง</button></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ===== หน้าต่างแก้ไขเมนู ===== -->
+<div class="scrim" id="scrim" hidden></div>
+<aside class="editor" id="editor" hidden aria-labelledby="eTitle" role="dialog">
+  <div class="ehead"><h2 id="eTitle">แก้ไขเมนู</h2><button class="btn ghost" id="eClose" aria-label="ปิด">ปิด</button></div>
+  <div class="ebody" id="eBody"></div>
+  <div class="efoot">
+    <button class="btn danger" id="eDelete">ลบเมนู</button>
+    <button class="btn" id="eCopy">ทำสำเนา</button>
+    <span class="sp"></span>
+    <button class="btn" id="eCancel">ยกเลิก</button>
+    <button class="btn primary" id="eSave">บันทึกเมนู</button>
+  </div>
+</aside>
+
+<aside class="editor" id="setEditor" hidden aria-labelledby="sTitle" role="dialog">
+  <div class="ehead"><h2 id="sTitle">ชุดตัวเลือก</h2><button class="btn ghost" id="sClose">ปิด</button></div>
+  <div class="ebody one" id="sBody"></div>
+  <div class="efoot">
+    <button class="btn danger" id="sDelete">ลบชุดนี้</button>
+    <span class="sp"></span>
+    <button class="btn" id="sCancel">ยกเลิก</button>
+    <button class="btn primary" id="sSave">บันทึกชุดตัวเลือก</button>
+  </div>
+</aside>
+
+<script src="common.js"></script>
+<script src="failover.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+let section = 'sales';
+let draft = null, draftOrig = '';      // เมนูที่กำลังแก้ (สำเนา)
+let firstLoad = true;
+const dirty = new Set();               // ฟอร์มตั้งค่าที่แก้แล้วยังไม่บันทึก
+
+// ---------- เปลี่ยนหน้า ----------
+function goSection(sec) { $(`nav.side button[data-sec="${sec}"]`).click(); }
+$$('nav.side button').forEach(b => b.onclick = () => {
+  section = b.dataset.sec;
+  $$('nav.side button').forEach(x => x.setAttribute('aria-current', x === b));
+  $$('main > section').forEach(s => (s.hidden = s.id !== 'sec-' + section));
+  window.scrollTo(0, 0);
+  if (section === 'sales' && report) renderChart();   // กราฟวัดความกว้างใหม่หลังกลับมาหน้านี้
+  if (section === 'standby') loadRole();
+  if (section === 'layout') { renderLayout(); fillSel(); }
+  if (section === 'receipt' && rc) renderRcPreview();
+  if (section === 'ticket' && tk) { fillTkPrinters(); renderTkPreview(); }
+  if (section === 'line') loadLinePrev();
+  if (section === 'pins') loadPins();
+  if (section === 'backup') loadBackups();
+  if (section === 'printers' || section === 'screens') loadDevices();
+  if (section === 'english') loadEnglish();
+});
+document.addEventListener('click', e => { const a = e.target.closest('[data-go]'); if (a) { e.preventDefault(); goSection(a.dataset.go); } });
+
+// ================= รหัสผ่าน =================
+$('#lockBtn').onclick = e => { e.preventDefault(); PIN.lock(); };
+// ================= กู้คืนข้อมูล =================
+let rsSrc = null;   // {data} = ไฟล์ที่เลือก · {file} = ไฟล์สำรองในเครื่องหลัก
+const fmtSize = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+const fmtWhen = t => new Date(t).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+async function loadBackups() {
+  try {
+    const r = await api('/api/backups');
+    $('#rsList').innerHTML = r.files.length ? r.files.map(f => `<option value="${esc(f.name)}">${f.name.startsWith('before') ? 'ก่อนกู้คืน · ' : 'อัตโนมัติ · '}${esc(fmtWhen(f.at))} · ${fmtSize(f.size)}</option>`).join('')
+      : '<option value="">ยังไม่มีไฟล์</option>';
+    $('#rsUseAuto').disabled = !r.files.length;
+  } catch (err) { $('#rsList').innerHTML = '<option value="">อ่านรายการไม่ได้</option>'; }
+}
+function showRestore(src, info) {
+  rsSrc = src; $('#rsInfo').innerHTML = info; $('#rsPin').value = ''; $('#rsBox').hidden = false;
+  $('#rsBox').scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => $('#rsPin').focus(), 300);
+}
+$('#rsPick').onclick = () => { $('#rsFile').value = ''; $('#rsFile').click(); };
+$('#rsFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  let d;
+  try { d = JSON.parse(await f.text()); } catch { return toast('อ่านไฟล์ไม่ได้ (ต้องเป็นไฟล์ .json)', true); }
+  if (d?.edpos === 'menu') return toast('ไฟล์นี้เป็นไฟล์เมนู ให้ใช้ เมนู > นำเข้าเมนูจากไฟล์', true);
+  if (!d || !d.settings || !Array.isArray(d.menu) || !Array.isArray(d.orders) || !Array.isArray(d.items)) return toast('ไฟล์นี้ไม่ใช่ไฟล์สำรองข้อมูลของ ED POS', true);
+  // วันที่ของข้อมูล = บิล/การสั่งล่าสุดในไฟล์
+  const last = Math.max(0, ...d.orders.map(o => Math.max(o.paidAt || 0, o.createdAt || 0, o.voidedAt || 0)), ...d.items.map(i => i.createdAt || 0));
+  const days = Object.keys(d.daily || {}).length, paid = d.orders.filter(o => o.status === 'paid').length, open = d.orders.filter(o => o.status === 'open').length;
+  showRestore({ data: d }, `<b>${esc(f.name)}</b> · ${fmtSize(f.size)}<br>
+    ร้าน <b>${esc(d.settings.shopName || '-')}</b> · เมนู ${d.menu.length} รายการ · บิลที่จ่ายแล้ว ${paid} บิล${open ? ` · โต๊ะที่ยังเปิด ${open} โต๊ะ` : ''}${days ? ` · สรุปยอดรายวัน ${days} วัน` : ''}<br>
+    ข้อมูลล่าสุดในไฟล์: <b>${last ? esc(fmtWhen(last)) : 'ไม่มีบิล'}</b><br>
+    <b style="color:var(--brick)">ยอดขาย บิล และการแก้เมนูที่เกิดหลังเวลานี้จะหายไป</b> (ข้อมูลปัจจุบันถูกเก็บไว้ก่อน ย้อนกลับได้)`);
+};
+$('#rsUseAuto').onclick = () => {
+  const n = $('#rsList').value; if (!n) return;
+  showRestore({ file: n }, `<b>${esc($('#rsList').selectedOptions[0].textContent)}</b><br>
+    ข้อมูลจะกลับไปเป็นเหมือนเวลาของไฟล์นี้ · <b style="color:var(--brick)">ยอดขาย บิล และการแก้เมนูที่เกิดหลังจากนั้นจะหายไป</b> (ข้อมูลปัจจุบันถูกเก็บไว้ก่อน ย้อนกลับได้)`);
+};
+$('#rsCancel').onclick = () => { rsSrc = null; $('#rsBox').hidden = true; };
+$('#rsGo').onclick = async function () {
+  const pin = $('#rsPin').value.trim();
+  if (!/^\d{4}$/.test(pin)) return toast('ใส่รหัสเจ้าของร้าน 4 หลัก', true);
+  if (!rsSrc) return;
+  try {
+    this.disabled = true; this.textContent = 'กำลังกู้คืน…';
+    const r = await api('/api/restore', { ...rsSrc, pin });
+    dirty.clear(); draft = null;
+    toast(`กู้คืนแล้ว · ข้อมูลเดิมเก็บไว้เป็น "${r.saved}"`);
+    setTimeout(() => location.reload(), 1800);
+  } catch (err) { toast(err.message, true); this.disabled = false; this.textContent = 'กู้คืนข้อมูลนี้'; }
+};
+
+// ดาวน์โหลดข้อมูลสำรองต้องแนบโทเค็นไปด้วย (ลิงก์ธรรมดาส่ง header ไม่ได้)
+$('#exportBtn').onclick = e => { e.preventDefault(); const t = PIN.token(); if (t) location.href = '/api/export?t=' + encodeURIComponent(t); };
+const pinOk = v => /^\d{4}$/.test(v);
+// ---------- พนักงานรายคน ----------
+async function loadStaff() {
+  let r = { staffs: [] }; try { r = await api('/api/staff'); } catch {}
+  $('#voidApproval').checked = !!S.settings.voidApproval;
+  $('#stList').innerHTML = r.staffs.length ? `<table class="t"><thead><tr><th>ชื่อ</th><th>หัวหน้า</th><th>เปลี่ยนรหัส</th><th></th></tr></thead><tbody>
+    ${r.staffs.map(s => `<tr data-sid="${esc(s.id)}"><td><input type="text" data-sf="name" value="${esc(s.name)}" maxlength="30" aria-label="ชื่อ" style="min-width:120px"></td>
+      <td><label class="sw"><input type="checkbox" data-sf="lead" ${s.lead ? 'checked' : ''}><i></i></label></td>
+      <td><input type="password" data-sf="pin" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="ไม่เปลี่ยน" style="width:110px"></td>
+      <td class="r" style="white-space:nowrap"><button class="btn sm" data-ssave>บันทึก</button> <button class="btn sm danger" data-sdel>ลบ</button></td></tr>`).join('')}</tbody></table>`
+    : '<p class="muted">ยังไม่มีพนักงานรายคน ทุกคนใช้รหัสรวม (ด้านล่าง) หรือรหัสเจ้าของร้าน</p>';
+}
+$('#stAdd').onclick = async () => {
+  const name = $('#stName').value.trim(), pin = $('#stPin').value.trim();
+  if (!name) return toast('ใส่ชื่อพนักงาน', true);
+  if (!pinOk(pin)) return toast('รหัสต้องเป็นตัวเลข 4 หลัก', true);
+  try { await api('/api/staff/save', { name, pin, lead: $('#stLead').checked });
+    $('#stName').value = $('#stPin').value = ''; $('#stLead').checked = false; toast(`เพิ่ม ${name} แล้ว`); loadStaff(); }
+  catch (err) { toast(err.message, true); }
+};
+$('#stList').addEventListener('click', async e => {
+  const tr = e.target.closest('[data-sid]'); if (!tr) return;
+  const f = k => tr.querySelector(`[data-sf="${k}"]`), name = f('name').value.trim();
+  if (e.target.closest('[data-sdel]')) {
+    if (!confirm(`ลบ ${name}? เครื่องที่ ${name} ใส่รหัสไว้จะต้องใส่รหัสใหม่ · ชื่อในบิลเก่ายังอยู่`)) return;
+    try { await api('/api/staff/delete', { id: tr.dataset.sid }); toast(`ลบ ${name} แล้ว`); loadStaff(); } catch (err) { toast(err.message, true); }
+  }
+  if (e.target.closest('[data-ssave]')) {
+    const pin = f('pin').value.trim();
+    if (pin && !pinOk(pin)) return toast('รหัสต้องเป็นตัวเลข 4 หลัก', true);
+    try { await api('/api/staff/save', { id: tr.dataset.sid, name, lead: f('lead').checked, pin: pin || undefined });
+      toast(pin ? `บันทึกแล้ว ${name} ต้องใส่รหัสใหม่` : 'บันทึกแล้ว'); loadStaff(); } catch (err) { toast(err.message, true); }
+  }
+});
+$('#voidApproval').onchange = async e => {
+  try { await api('/api/settings', { voidApproval: e.target.checked }); S.settings.voidApproval = e.target.checked;
+    toast(e.target.checked ? 'ยกเลิกทั้งโต๊ะต้องให้หัวหน้าอนุมัติแล้ว' : 'ปิดการอนุมัติแล้ว'); }
+  catch (err) { toast(err.message, true); e.target.checked = !e.target.checked; }
+};
+async function loadPins() {
+  loadStaff();
+  let a = {}; try { a = await (await fetch('/api/auth', { cache: 'no-store' })).json(); } catch {}
+  $('#staffState').innerHTML = a.staff ? 'ตั้งรหัสแล้ว · ทุกคนที่ใช้รหัสนี้จะบันทึกเป็น "พนักงาน (รหัสรวม)" ถ้าตั้งพนักงานรายคนครบแล้ว ควรยกเลิกรหัสรวม'
+    : 'ไม่ได้ใช้ · ถ้าตั้งพนักงานรายคนด้านบนแล้ว ไม่ต้องตั้งรหัสนี้';
+  $('#staffClear').hidden = !a.staff;
+}
+$('#staffSave').onclick = async () => {
+  const v = $('#staffPin').value.trim();
+  if (!pinOk(v)) return toast('รหัสต้องเป็นตัวเลข 4 หลัก', true);
+  try { await api('/api/auth/pin', { which: 'staff', pin: v }); $('#staffPin').value = '';
+    toast('บันทึกรหัสพนักงานแล้ว ทุกเครื่องหน้าสั่งอาหารต้องใส่รหัสใหม่'); loadPins(); }
+  catch (err) { toast(err.message, true); }
+};
+$('#staffClear').onclick = async () => {
+  if (!confirm('ยกเลิกรหัสพนักงาน? พนักงานจะต้องใช้รหัสเจ้าของร้านเข้าหน้าสั่งอาหารแทน')) return;
+  try { await api('/api/auth/pin', { which: 'staff', pin: '' }); toast('ยกเลิกรหัสพนักงานแล้ว'); loadPins(); }
+  catch (err) { toast(err.message, true); }
+};
+$('#adminSave').onclick = async () => {
+  const cur = $('#adminCur').value.trim(), n1 = $('#adminNew').value.trim(), n2 = $('#adminNew2').value.trim();
+  if (!pinOk(cur)) return toast('ใส่รหัสปัจจุบัน 4 หลัก', true);
+  if (!pinOk(n1)) return toast('รหัสใหม่ต้องเป็นตัวเลข 4 หลัก', true);
+  if (n1 !== n2) return toast('รหัสใหม่สองช่องไม่ตรงกัน', true);
+  try {
+    const r = await api('/api/auth/pin', { which: 'admin', current: cur, pin: n1 });
+    PIN.setToken(r.token);
+    ['#adminCur', '#adminNew', '#adminNew2'].forEach(q => ($(q).value = ''));
+    toast('เปลี่ยนรหัสเจ้าของร้านแล้ว');
+  } catch (err) { toast(err.message, true); }
+};
+$('#logoutAll').onclick = async () => {
+  if (!confirm('ให้ทุกเครื่องที่เปิดหน้าสั่งอาหารอยู่ต้องใส่รหัสใหม่?')) return;
+  try { await api('/api/auth/logout-all', {}); toast('ออกจากระบบทุกเครื่องแล้ว'); }
+  catch (err) { toast(err.message, true); }
+};
+
+// ================= ยอดขาย =================
+const PAY_COLOR = { cash: '#0F8A6C', transfer: '#B8770F', card: '#4460C0' };   // ผ่านการตรวจสีสำหรับคนตาบอดสีแล้ว
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const thDate = (s, opt = { day: 'numeric', month: 'short', year: 'numeric' }) => new Date(s + 'T00:00:00').toLocaleDateString('th-TH', opt);
+let range = 'today', report = null, topSort = 'qty', showAllTop = false, showAllBills = false;
+const openTop = new Set();
+
+function rangeDates() {
+  const t = new Date(); const today = ymd(t);
+  const back = n => { const d = new Date(); d.setDate(d.getDate() - n); return ymd(d); };
+  switch (range) {
+    case 'yesterday': return [back(1), back(1)];
+    case '7': return [back(6), today];
+    case '30': return [back(29), today];
+    case 'month': return [today.slice(0, 8) + '01', today];
+    case 'custom': return [$('#dFrom').value || today, $('#dTo').value || today];
+    default: return [today, today];
+  }
+}
+let loading = 0;
+async function loadReport() {
+  const [from, to] = rangeDates();
+  const n = ++loading;
+  try {
+    const r = await api(`/api/report?from=${from}&to=${to}`);
+    if (n !== loading) return;          // มีคำขอใหม่กว่าแล้ว
+    report = r; renderSales();
+  } catch (err) { toast(err.message, true); }
+}
+$('#range').addEventListener('click', e => {
+  const b = e.target.closest('[data-r]'); if (!b) return;
+  range = b.dataset.r;
+  $$('#range button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  $('#customBox').hidden = range !== 'custom';
+  if (range === 'custom') {
+    if (!$('#dFrom').value) { const [f, t] = report ? [report.from, report.to] : rangeDates(); $('#dFrom').value = f; $('#dTo').value = t; }
+    $('#dTo').max = $('#dFrom').max = ymd(new Date());
+    return;
+  }
+  showAllBills = showAllTop = false; loadReport();
+});
+$('#dGo').onclick = () => { showAllBills = showAllTop = false; loadReport(); };
+$('#topSort').addEventListener('click', e => {
+  const b = e.target.closest('[data-s]'); if (!b) return;
+  topSort = b.dataset.s; $$('#topSort button').forEach(x => x.setAttribute('aria-pressed', x === b)); renderTop();
+});
+
+function renderSales() {
+  const r = report, s = r.summary, single = r.from === r.to;
+  const nDays = r.days.length;
+  $('#rangeLabel').textContent = single
+    ? thDate(r.from, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    : `${thDate(r.from)} – ${thDate(r.to)} · ${nDays} วัน`;
+  const avg = s.bills ? r2(s.subtotal / s.bills) : 0;
+  // เทียบช่วงก่อนหน้า: วันเดียว = วันเดียวกันสัปดาห์ก่อน · หลายวัน = ช่วงยาวเท่ากันก่อนหน้า (ดูวันนี้ = ถึงชั่วโมงเดียวกัน)
+  const pv = r.prev, pvName = single ? `${thDate(pv.from, { weekday: 'long' })}ที่แล้ว` : `ช่วง ${nDays} วันก่อนหน้า`;
+  const delta = (a, b, unit = '') => {
+    if (!b) return '';
+    const p = Math.round((a - b) / b * 100);
+    return `<small><em class="delta ${p >= 0 ? 'up' : 'down'}">${p >= 0 ? '▲' : '▼'} ${Math.abs(p)}%</em> จาก${pvName} (${unit ? baht(b) + ' ' + unit : b.toLocaleString('th-TH')}${pv.partial != null ? ` ถึง ${pv.partial}:59` : ''})</small>`;
+  };
+  const pvAvg = pv.bills ? r2(pv.subtotal / pv.bills) : 0;
+  $('#kpis').innerHTML = `
+    <div class="kpi main"><span>ยอดขาย</span><b>${baht(s.subtotal)} ฿</b>
+      <small>${s.fee ? `รับจริง ${baht(s.total)} ฿ รวมค่าธรรมเนียมบัตร ${baht(s.fee)} ฿` : single ? 'ยอดอาหารจากบิลที่ปิดแล้ว' : `เฉลี่ยวันละ ${baht(r2(s.subtotal / nDays))} ฿`}</small>
+      ${delta(s.subtotal, pv.subtotal, '฿')}</div>
+    <div class="kpi"><span>บิล</span><b>${s.bills.toLocaleString('th-TH')}</b>${pv.partial == null ? delta(s.bills, pv.bills) : ''}</div>
+    <div class="kpi"><span>เฉลี่ยต่อบิล</span><b>${baht(avg)} ฿</b>${pv.partial == null ? delta(avg, pvAvg, '฿') : ''}</div>
+    <div class="kpi"><span>จานที่ขาย</span><b>${s.dishes.toLocaleString('th-TH')}</b>
+      ${s.cancelled.qty ? `<small>ยกเลิก ${s.cancelled.qty} จาน (${baht(s.cancelled.amount)} ฿)${s.voids?.bills ? ` · ยกเลิกทั้งโต๊ะ ${s.voids.bills} โต๊ะ` : ''}</small>` : ''}</div>`;
+  const today = ymd(new Date());
+  const openSum = r.open.reduce((a, o) => a + o.amount, 0);
+  $('#openLine').hidden = !(r.to === today && r.open.length);
+  $('#openLine').textContent = `ตอนนี้ยังเปิดอยู่ ${r.open.length} โต๊ะ ยอดรอเก็บ ${baht(openSum)} ฿ ยังไม่นับรวมในยอดขาย`;
+  renderChart(); renderHeat(); renderPay(); renderCatBreak(); renderTop(); renderStaff(); renderSlow(); renderBills();
+}
+
+// ---------- พนักงาน: ใครสั่ง ใครยกเลิก ใครรับเงิน (เฉพาะบิลที่บันทึกชื่อ หลังเริ่มใช้รหัสรายคน) ----------
+function renderStaff() {
+  const list = [...(report.summary.staff_list || [])].sort((a, b) => b.amount - a.amount || b.billAmt - a.billAmt);
+  $('#staffNote').textContent = list.length ? 'ตัวเลขสีแดง = ยกเลิก' : '';
+  $('#staffList').innerHTML = list.length ? `<table class="t"><thead><tr><th>พนักงาน</th><th class="r">สั่ง (จาน)</th><th class="r hide-sm">ยอดที่สั่ง</th>
+      <th class="r">ยกเลิกรายจาน</th><th class="r">ยกเลิกทั้งโต๊ะ</th><th class="r">รับเงิน</th></tr></thead><tbody>
+    ${list.map(s => `<tr><td><b>${esc(s.name)}</b></td><td class="r">${s.dishes}</td><td class="r hide-sm">${baht(s.amount)}</td>
+      <td class="r">${s.cancels ? `<span style="color:var(--brick)">${s.cancels} จาน</span><br><span class="muted">${baht(s.cancelAmt)} ฿</span>` : '<span class="muted">-</span>'}</td>
+      <td class="r">${s.voids ? `<span style="color:var(--brick)">${s.voids} โต๊ะ</span><br><span class="muted">${baht(s.voidAmt)} ฿</span>` : '<span class="muted">-</span>'}</td>
+      <td class="r">${s.bills ? `${s.bills} ครั้ง<br><span class="muted">${baht(s.billAmt)} ฿</span>` : '<span class="muted">-</span>'}</td></tr>`).join('')}</tbody></table>`
+    : '<p class="muted">ยังไม่มีข้อมูล · ตั้งพนักงานรายคนที่ หลังร้าน > รหัสผ่าน แล้วระบบจะเริ่มบันทึกว่าใครทำอะไร</p>';
+}
+
+// ---------- ช่วงเวลาขายดี: วันในสัปดาห์ × ชั่วโมง (ยอดเฉลี่ยต่อวัน) · ดูช่วง 7 วันขึ้นไป ----------
+const DOW_S = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'], DOW_L = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+function renderHeat() {
+  const h = report.heat;
+  $('#heatPanel').hidden = !h; if (!h) return;
+  const order = [1, 2, 3, 4, 5, 6, 0];   // เริ่มวันจันทร์
+  const avg = (w, x) => (h.days[w] ? (h.sums[w][x] || 0) / h.days[w] : 0);
+  const hrs = order.flatMap(w => Object.keys(h.sums[w]).map(Number));
+  if (!hrs.length) { $('#heat').innerHTML = '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>'; $('#heatNote').textContent = ''; return; }
+  const H = []; for (let x = Math.min(10, ...hrs); x <= Math.max(21, ...hrs); x++) H.push(x);
+  let max = 0, best = null;
+  for (const w of order) for (const x of H) if (avg(w, x) > max) { max = avg(w, x); best = [w, x]; }
+  const lvl = v => (v <= 0 ? 0 : Math.max(1, Math.ceil(v / max * 5)));
+  $('#heatNote').textContent = `ขายดีสุด วัน${DOW_L[best[0]]} ${best[1]}:00–${best[1]}:59 · เฉลี่ย ${baht(r2(max))} ฿`;
+  $('#heat').innerHTML = `<div class="heat" style="--hc:${H.length}" role="img" aria-label="ยอดขายเฉลี่ยตามวันและชั่วโมง">
+      <span></span>${H.map(x => `<span class="hl">${x}</span>`).join('')}
+      ${order.map(w => `<span class="dl">${DOW_S[w]}</span>` + H.map(x => `<i data-l="${lvl(avg(w, x))}" data-w="${w}" data-x="${x}"></i>`).join('')).join('')}
+    </div><div class="tip" hidden></div>
+    <div class="hlegend"><span>น้อย</span>${[1, 2, 3, 4, 5].map(l => `<i data-l="${l}"></i>`).join('')}<span>มาก · ยอดเฉลี่ยต่อวัน (ช่องเทา = ไม่มีบิล)</span></div>`;
+  const tip = $('#heat .tip'), wrap = $('#heat');
+  wrap.querySelectorAll('.heat i').forEach(c => {
+    c.addEventListener('pointerenter', () => {
+      const w = +c.dataset.w, x = +c.dataset.x, a = wrap.getBoundingClientRect(), b = c.getBoundingClientRect();
+      tip.innerHTML = `วัน${DOW_L[w]} ${x}:00–${x}:59<b>${baht(r2(avg(w, x)))} ฿</b>เฉลี่ยจาก ${h.days[w]} วัน`;
+      tip.style.left = b.left - a.left + wrap.scrollLeft + b.width / 2 + 'px'; tip.style.top = b.top - a.top + 'px'; tip.hidden = false;
+    });
+    c.addEventListener('pointerleave', () => { tip.hidden = true; });
+  });
+}
+
+// ---------- เมนูที่ขายไม่ออก: เมนูที่เปิดขายแต่ไม่มีคนสั่งเลย + 10 เมนูที่ขายน้อยสุด · ดูช่วง 7 วันขึ้นไป ----------
+function renderSlow() {
+  const n = report.days.length, box = $('#slowList');
+  if (n < 7) { $('#slowNote').textContent = ''; box.innerHTML = '<p class="muted">เลือกช่วง 7 วัน หรือ 30 วัน เพื่อดูเมนูที่ขายไม่ออก (ดูวันเดียวยังสรุปไม่ได้)</p>'; return; }
+  const sold = new Map(report.summary.items_list.map(i => [i.name, i]));
+  const menu = S.menu.filter(m => m.available !== false);
+  const zero = menu.filter(m => !sold.has(m.name));
+  const low = menu.filter(m => sold.has(m.name)).sort((a, b) => sold.get(a.name).qty - sold.get(b.name).qty).slice(0, 10);
+  $('#slowNote').textContent = `จาก ${menu.length} เมนูที่เปิดขาย`;
+  const byCat = cats().map(c => [c, zero.filter(m => m.category === c)]).filter(([, l]) => l.length);
+  box.innerHTML = `<h4 style="margin:0 0 4px">ไม่มีคนสั่งเลย ${zero.length} เมนู</h4>
+    ${zero.length ? byCat.map(([c, l]) => `<div class="slowcat"><b>${esc(c)} (${l.length})</b><span>${l.map(m => esc(m.name)).join(' · ')}</span></div>`).join('')
+      : '<p class="muted">ทุกเมนูมีคนสั่ง 👍</p>'}
+    ${low.length ? `<h4 style="margin:18px 0 4px">ขายน้อยที่สุด</h4>
+    <table class="t"><thead><tr><th>เมนู</th><th class="hide-sm">หมวด</th><th class="r">จำนวน</th><th class="r">ยอดเงิน</th></tr></thead><tbody>
+    ${low.map(m => { const it = sold.get(m.name); return `<tr><td>${esc(m.name)}</td><td class="hide-sm muted">${esc(m.category)}</td>
+      <td class="r">${it.qty}</td><td class="r">${baht(it.amount)}</td></tr>`; }).join('')}</tbody></table>` : ''}
+    <p class="muted" style="margin:10px 0 0">เมนูที่เพิ่งเพิ่ม หรือเปลี่ยนชื่อในช่วงนี้ อาจขึ้นว่าไม่มีคนสั่ง</p>`;
+}
+
+// ---------- กราฟแท่ง (รายชั่วโมงถ้าดูวันเดียว / รายวันถ้าหลายวัน) ----------
+function chartData() {
+  const r = report;
+  if (r.from === r.to) {
+    const hrs = Object.keys(r.summary.byHour).map(Number);
+    const lo = Math.min(10, ...hrs), hi = Math.max(21, ...hrs);
+    const out = [];
+    for (let h = lo; h <= hi; h++) out.push({ label: String(h), tip: `${h}:00–${h}:59`, v: r.summary.byHour[h] || 0 });
+    return { kind: 'hour', rows: out };
+  }
+  return { kind: 'day', rows: r.days.map(d => ({ label: thDate(d.date, { day: 'numeric', month: 'numeric' }),
+    tip: thDate(d.date, { weekday: 'short', day: 'numeric', month: 'short' }), v: d.subtotal, bills: d.bills })) };
+}
+function niceMax(v) {
+  if (v <= 0) return 100;
+  const p = Math.pow(10, Math.floor(Math.log10(v))), f = v / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+}
+function renderChart() {
+  const { kind, rows } = chartData();
+  $('#chartTitle').textContent = kind === 'hour' ? 'ยอดขายรายชั่วโมง' : 'ยอดขายรายวัน';
+  const best = rows.reduce((a, b) => (b.v > a.v ? b : a), rows[0]);
+  $('#chartNote').textContent = best && best.v ? `${kind === 'hour' ? 'ช่วงขายดีสุด' : 'วันขายดีสุด'} ${best.tip} · ${baht(best.v)} ฿` : '';
+  const box = $('#chart'), W = Math.max(320, box.clientWidth || 700), H = 240, L = 54, B = 26, T = 10;
+  const tickStep = niceMax(Math.max(...rows.map(x => x.v)) / 4), max = tickStep * 4;   // แกนเป็นเลขกลมๆ เช่น 0 1k 2k 3k 4k
+  const band = (W - L) / rows.length, bw = Math.max(3, Math.min(44, band * 0.62));
+  const y = v => T + (H - T - B) * (1 - v / max);
+  const step = Math.ceil(rows.length / Math.floor((W - L) / 46));   // ไม่ให้ป้ายแกนชนกัน
+  const ticks = [0, .25, .5, .75, 1].map(f => max * f);
+  const short = v => v >= 1000 ? (v / 1000).toLocaleString('th-TH', { maximumFractionDigits: 1 }) + 'k' : String(v);
+  const bar = (x, v) => {
+    const top = y(v), h = H - B - top; if (h <= 0) return '';
+    const rr = Math.min(4, bw / 2, h);
+    return `M${x},${H - B}V${top + rr}Q${x},${top} ${x + rr},${top}H${x + bw - rr}Q${x + bw},${top} ${x + bw},${top + rr}V${H - B}Z`;
+  };
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${$('#chartTitle').textContent}">
+    <g class="grid">${ticks.map(t => `<line x1="${L}" x2="${W}" y1="${y(t)}" y2="${y(t)}"/><text x="${L - 8}" y="${y(t) + 4}" text-anchor="end">${short(t)}</text>`).join('')}</g>
+    <g class="xl">${rows.map((d, i) => i % step ? '' : `<text x="${L + band * i + band / 2}" y="${H - 6}" text-anchor="middle">${esc(d.label)}</text>`).join('')}</g>
+    ${rows.map((d, i) => { const x = L + band * i + (band - bw) / 2;
+      return `<g data-i="${i}"><rect class="hit" x="${L + band * i}" y="${T}" width="${band}" height="${H - B - T}"/><path class="bar" d="${bar(x, d.v)}"/></g>`; }).join('')}
+  </svg><div class="tip" hidden></div>`;
+  const tip = box.querySelector('.tip');
+  box.querySelectorAll('g[data-i]').forEach(g => {
+    g.addEventListener('pointerenter', () => {
+      const d = rows[+g.dataset.i], rect = box.getBoundingClientRect(), svg = box.querySelector('svg').getBoundingClientRect();
+      const sx = svg.width / W;
+      g.classList.add('on');
+      tip.innerHTML = `${esc(d.tip)}<b>${baht(d.v)} ฿</b>${d.bills != null ? `${d.bills} บิล` : ''}`;
+      tip.style.left = (L + band * (+g.dataset.i + .5)) * sx + 'px';
+      tip.style.top = Math.max(18, y(d.v) * sx) + 'px';
+      tip.hidden = false;
+    });
+    g.addEventListener('pointerleave', () => { g.classList.remove('on'); tip.hidden = true; });
+  });
+}
+let rsz; addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => report && section === 'sales' && renderChart(), 150); });
+
+function renderPay() {
+  const s = report.summary, tot = Object.values(s.byMethod).reduce((a, b) => a + b, 0);
+  const keys = ['cash', 'transfer', 'card'].filter(k => s.byMethod[k] || s.billsByMethod[k]);
+  if (!tot) { $('#payBreak').innerHTML = '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>'; return; }
+  $('#payBreak').innerHTML = `
+    <div class="pstack" role="img" aria-label="สัดส่วนวิธีชำระเงิน">${keys.map(k => `<i style="flex:${s.byMethod[k]};background:${PAY_COLOR[k]}" title="${PAY_NAME[k]}"></i>`).join('')}</div>
+    ${keys.map(k => `<div class="legrow"><span class="sw2" style="background:${PAY_COLOR[k]}"></span>
+      <span>${PAY_NAME[k]} <span class="muted">· ${s.billsByMethod[k]} บิล</span></span>
+      <b>${baht(s.byMethod[k])} ฿</b><span class="muted">${Math.round(s.byMethod[k] / tot * 100)}%</span></div>`).join('')}
+    ${s.fee ? `<p class="feenote">ยอดบัตรรวมค่าธรรมเนียมที่เก็บจากลูกค้า ${baht(s.fee)} ฿</p>` : ''}`;
+}
+
+function renderCatBreak() {
+  const c = Object.entries(report.summary.cats).sort((a, b) => b[1] - a[1]);
+  const tot = c.reduce((a, [, v]) => a + v, 0), max = c[0]?.[1] || 1;
+  $('#catBreak').innerHTML = c.length ? c.map(([n, v]) => `<div class="hbar"><span>${esc(n)}</span>
+      <span><b>${baht(v)} ฿</b> <span class="muted">${Math.round(v / tot * 100)}%</span></span>
+      <span class="track"><i style="width:${v / max * 100}%"></i></span></div>`).join('')
+    : '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>';
+}
+
+function renderTop() {
+  if (!report) return;
+  const list = [...report.summary.items_list].sort((a, b) => b[topSort] - a[topSort] || b.qty - a.qty);
+  if (!list.length) { $('#topList').innerHTML = '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>'; return; }
+  const max = list[0][topSort] || 1, shown = showAllTop ? list : list.slice(0, 10);
+  $('#topList').innerHTML = `<table class="t"><thead><tr><th class="rank">#</th><th>เมนู</th><th class="hide-sm">หมวด</th>
+      <th class="r">จำนวน</th><th class="r">ยอดเงิน</th><th class="share hide-sm"></th></tr></thead><tbody>
+    ${shown.map((it, i) => {
+      const opts = Object.entries(it.opts || {}).sort((a, b) => b[1] - a[1]);
+      return `<tr class="top" data-n="${esc(it.name)}"><td class="rank">${i + 1}</td>
+        <td><b>${esc(it.name)}</b>${opts.length ? ` <span class="muted">${openTop.has(it.name) ? '▾' : '▸'} ${opts.length} แบบ</span>` : ''}</td>
+        <td class="hide-sm muted">${esc(it.category)}</td><td class="r">${it.qty.toLocaleString('th-TH')}</td>
+        <td class="r">${baht(it.amount)}</td><td class="share hide-sm"><i style="width:${it[topSort] / max * 100}%"></i></td></tr>
+        ${openTop.has(it.name) && opts.length ? `<tr class="opts"><td></td><td colspan="5">${opts.map(([o, q]) => `<span>${esc(o)} × ${q}</span>`).join('')}</td></tr>` : ''}`;
+    }).join('')}</tbody></table>
+    ${list.length > 10 ? `<button class="btn sm more" id="topMore">${showAllTop ? 'แสดง 10 อันดับ' : `ดูทั้งหมด ${list.length} เมนู`}</button>` : ''}`;
+}
+$('#topList').addEventListener('click', e => {
+  if (e.target.id === 'topMore') { showAllTop = !showAllTop; renderTop(); return; }
+  const tr = e.target.closest('tr.top'); if (!tr) return;
+  openTop.has(tr.dataset.n) ? openTop.delete(tr.dataset.n) : openTop.add(tr.dataset.n); renderTop();
+});
+
+function renderBills() {
+  const r = report, single = r.from === r.to;
+  $('#billNote').textContent = r.billsComplete ? `${r.bills.length} บิล` : 'บิลรายตัวเก็บย้อนหลัง 7 วัน วันที่เก่ากว่านั้นดูได้เป็นยอดรวม';
+  const when = t => new Date(t).toLocaleString('th-TH', single ? { hour: '2-digit', minute: '2-digit' } : { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  // โต๊ะที่ยกเลิกทั้งโต๊ะ (ไม่นับยอดขาย) แสดงแยกใต้ตารางบิล
+  const voids = (r.voids || []).filter(v => v.items);
+  let voidHtml = voids.length ? `<h4 style="margin:16px 0 6px">ยกเลิกทั้งโต๊ะ ${voids.length} โต๊ะ <span class="muted" style="font-weight:400">· ไม่นับเป็นยอดขาย</span></h4>
+    <table class="t"><thead><tr><th>เวลา</th><th>โต๊ะ</th><th>เหตุผล</th><th>โดย</th><th class="r hide-sm">จาน</th><th class="r">มูลค่า</th></tr></thead><tbody>
+    ${voids.map(v => `<tr><td>${when(v.at)}</td><td>${esc(tableName(v.table))}</td><td class="muted">${esc(v.reason || '-')}</td>
+      <td>${esc(v.by || '-')}${v.approvedBy ? `<br><span class="muted">อนุมัติ: ${esc(v.approvedBy)}</span>` : ''}</td>
+      <td class="r hide-sm">${v.items}</td><td class="r muted" style="text-decoration:line-through">${baht(v.amount)}</td></tr>`).join('')}
+    </tbody></table>` : '';
+  // ยกเลิกรายจาน (ไม่รวมโต๊ะที่ยกเลิกทั้งโต๊ะ)
+  const cc = r.cancels || [];
+  const cancelHtml = cc.length ? `<h4 style="margin:16px 0 6px">ยกเลิกรายจาน ${cc.length} รายการ <span class="muted" style="font-weight:400">· ไม่นับเป็นยอดขาย</span></h4>
+    <table class="t"><thead><tr><th>เวลา</th><th>โต๊ะ</th><th>รายการ</th><th>โดย</th><th class="r">มูลค่า</th></tr></thead><tbody>
+    ${cc.map(c => `<tr><td>${when(c.at)}</td><td>${esc(tableName(c.table))}</td><td>${esc(c.name)} x${c.qty}${c.cooking ? ' <span class="muted">(ครัวกำลังทำ)</span>' : ''}</td>
+      <td>${esc(c.by || '-')}</td><td class="r muted" style="text-decoration:line-through">${baht(c.amount)}</td></tr>`).join('')}
+    </tbody></table>` : '';
+  voidHtml += cancelHtml;
+  if (!r.bills.length) { $('#billList').innerHTML = '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>' + voidHtml; return; }
+  const shown = showAllBills ? r.bills : r.bills.slice(0, 20);
+  $('#billList').innerHTML = `<table class="t"><thead><tr><th>เวลา</th><th class="hide-sm">เลขที่</th><th>โต๊ะ</th><th>ชำระ</th>
+      <th class="r hide-sm">จาน</th><th class="r">ยอด</th><th></th></tr></thead><tbody>
+    ${shown.map(b => `<tr><td>${when(b.paidAt)}</td><td class="hide-sm muted">${esc(b.receiptNo || '')}</td><td>${esc(tableName(b.table))}${b.split ? ` <span class="muted">แยก ${b.split}</span>` : ''}</td>
+      <td><span class="pm"><i style="background:${PAY_COLOR[b.method] || PAY_COLOR.cash}"></i>${PAY_NAME[b.method] || 'เงินสด'}</span></td>
+      <td class="r hide-sm">${b.items}</td><td class="r"><b>${baht(b.total)}</b>${b.fee ? `<br><span class="muted">รวมค่าบัตร ${baht(b.fee)}</span>` : ''}</td>
+      <td class="r">${S.orders.some(o => o.id === b.id) ? `<button class="btn sm" data-reprint="${b.id}" data-pno="${b.payNo || ''}">พิมพ์ซ้ำ</button>` : ''}</td></tr>`).join('')}
+    </tbody></table>
+    ${r.bills.length > 20 ? `<button class="btn sm more" id="billMore">${showAllBills ? 'แสดง 20 บิลล่าสุด' : `ดูทั้งหมด ${r.bills.length} บิล`}</button>` : ''}${voidHtml}`;
+}
+$('#billList').addEventListener('click', async e => {
+  if (e.target.id === 'billMore') { showAllBills = !showAllBills; renderBills(); return; }
+  const b = e.target.closest('[data-reprint]'); if (!b) return;
+  const o = S.orders.find(x => x.id === b.dataset.reprint);
+  const p = b.dataset.pno ? o.payments?.find(x => x.no === Number(b.dataset.pno)) : null;
+  try { b.disabled = true; await printLines(receiptLines(o, p ? { payment: p } : { paid: true })); toast('พิมพ์ใบเสร็จซ้ำแล้ว'); }
+  catch (err) { toast(err.message, true); } finally { b.disabled = false; }
+});
+
+// ไฟล์ CSV เปิดใน Excel ได้ (ใส่ BOM ให้ภาษาไทยไม่เพี้ยน)
+$('#csv').onclick = () => {
+  if (!report) return;
+  const r = report, s = r.summary, q = v => `"${String(v).replace(/"/g, '""')}"`;
+  const lines = [
+    [q('ยอดขาย ' + r.from + ' ถึง ' + r.to)],
+    [], ['วันที่', 'บิล', 'ยอดอาหาร', 'รับจริง (รวมค่าบัตร)'].map(q),
+    ...r.days.map(d => [d.date, d.bills, d.subtotal, d.total]),
+    ['รวม', s.bills, s.subtotal, s.total],
+    [], ['วิธีชำระ', 'บิล', 'ยอด'].map(q),
+    ...['cash', 'transfer', 'card'].map(k => [q(PAY_NAME[k]), s.billsByMethod[k], s.byMethod[k]]),
+    [], ['เมนู', 'หมวด', 'จำนวน', 'ยอดเงิน'].map(q),
+    ...[...s.items_list].sort((a, b) => b.qty - a.qty).map(i => [q(i.name), q(i.category), i.qty, i.amount]),
+  ];
+  const blob = new Blob(['﻿' + lines.map(l => l.join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `ยอดขาย-${r.from}${r.from === r.to ? '' : '-ถึง-' + r.to}.csv` });
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+
+// ---------- ราคา ----------
+const priceRange = m => menuPriceRange(m);   // รวมตารางราคา (common.js)
+const rangeText = (m, thai) => { const [lo, hi] = menuPriceRange(m, thai); return lo === hi ? baht(lo) + ' ฿' : `${baht(lo)}–${baht(hi)} ฿`; };
+const groupSummary = m => groupsOf(m).map(g => g.name + ': ' + g.choices.map(c => c.name + (c.add ? ' +' + baht(c.add) : '')).join(', ')).join(' / ');
+
+// ---------- รายการเมนู ----------
+function cats() { const c = [...(S.categories || [])]; S.menu.forEach(m => c.includes(m.category) || c.push(m.category)); return c; }
+
+function renderMenu() {
+  const q = $('#q').value.trim().toLowerCase(), fc = $('#fCat').value;
+  const all = cats();
+  const keep = $('#fCat').value;
+  $('#fCat').innerHTML = `<option value="">ทุกหมวด</option>` + all.map(c => `<option>${esc(c)}</option>`).join('');
+  $('#fCat').value = all.includes(keep) ? keep : '';
+  const out = all.filter(c => !fc || c === fc).map(c => {
+    const its = S.menu.filter(m => m.category === c);
+    const shown = its.filter(m => !q || m.name.toLowerCase().includes(q) || groupSummary(m).toLowerCase().includes(q));
+    if (!shown.length) return '';
+    return `<div class="catblock"><div class="cathead"><h3>${esc(c)}</h3><span>${its.length} เมนู</span></div>
+      <div class="list">${shown.map(m => {
+        const idx = its.indexOf(m);
+        return `<div class="item ${m.available === false ? 'off' : ''}" data-id="${m.id}">
+          <div class="iname"><b>${esc(m.name)}</b>${groupsOf(m).length ? `<small>${esc(groupSummary(m))}</small>` : ''}</div>
+          <div class="tags">
+            ${m.available === false ? '<span class="tag out">หมด</span>' : ''}
+            ${(m.printers || []).map(id => `<span class="tag k">พิมพ์ ${esc(printerName(id))}</span>`).join('') || '<span class="tag">ไม่พิมพ์ใบสั่ง</span>'}
+            ${(m.screens || []).map(id => `<span class="tag">จอ ${esc(screenList().find(k => k.id === id)?.name || id)}</span>`).join('')}
+          </div>
+          <div class="iprice">${rangeText(m)}${hasThaiPrice(m) ? `<small>คนไทย ${rangeText(m, true)}</small>` : ''}</div>
+          <div class="row" style="display:flex;gap:10px;align-items:center">
+            <div class="move">
+              <button data-up="${m.id}" ${idx === 0 || q ? 'disabled' : ''} aria-label="เลื่อนขึ้น">▲</button>
+              <button data-down="${m.id}" ${idx === its.length - 1 || q ? 'disabled' : ''} aria-label="เลื่อนลง">▼</button>
+            </div>
+            <label class="sw" title="มีขาย" data-stop><input type="checkbox" data-avail="${m.id}" ${m.available !== false ? 'checked' : ''}><i></i></label>
+          </div>
+        </div>`;
+      }).join('')}</div></div>`;
+  }).join('');
+  $('#menuList').innerHTML = out || `<div class="empty">${q ? 'ไม่พบเมนูที่ตรงกับ “' + esc(q) + '”' : 'ยังไม่มีเมนู กด “เพิ่มเมนู” เพื่อเริ่ม'}</div>`;
+  $('#nMenu').textContent = S.menu.length;
+}
+$('#q').oninput = renderMenu;
+$('#fCat').onchange = renderMenu;
+
+$('#menuList').addEventListener('click', async e => {
+  if (e.target.closest('[data-stop]')) return;
+  const up = e.target.closest('[data-up]'), down = e.target.closest('[data-down]');
+  if (up || down) {
+    const id = (up || down).dataset[up ? 'up' : 'down'];
+    const m = S.menu.find(x => x.id === id);
+    const ids = S.menu.filter(x => x.category === m.category).map(x => x.id);
+    const i = ids.indexOf(id), j = up ? i - 1 : i + 1;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    try { await api('/api/menu/reorder', { ids }); } catch (err) { toast(err.message, true); }
+    return;
+  }
+  const row = e.target.closest('.item');
+  if (row) openEditor(S.menu.find(m => m.id === row.dataset.id));
+});
+$('#menuList').addEventListener('change', async e => {
+  const cb = e.target.closest('[data-avail]');
+  if (!cb) return;
+  const m = S.menu.find(x => x.id === cb.dataset.avail);
+  try { await api('/api/menu/available', { id: cb.dataset.avail, available: cb.checked });
+        toast(cb.checked ? `${m.name} กลับมาขายแล้ว` : `${m.name} ปิดเป็นของหมดแล้ว`); }
+  catch (err) { cb.checked = !cb.checked; toast(err.message, true); }
+});
+$('#newItem').onclick = () => openEditor(null);
+// นำเข้าเมนูจากไฟล์ .json (ไฟล์ที่ทำจากรูปเมนูของร้าน) → แทนที่เมนูเดิมทั้งหมด
+// ส่งออกเมนูเป็นไฟล์รูปแบบเดียวกับที่ "นำเข้าเมนูจากไฟล์" อ่านได้ (ใช้ย้ายเครื่อง/สาขา หรือเก็บไว้ก่อนแก้เมนูเยอะๆ)
+// มีราคา ราคาคนไทย ตัวเลือก ตารางราคา หมวด หมวดใหญ่ ชื่อภาษาอังกฤษ และเครื่องพิมพ์/จอของแต่ละเมนู · ไม่มียอดขาย/บิล
+$('#exportMenu').onclick = () => {
+  const strip = o => JSON.parse(JSON.stringify(o));
+  const file = {
+    edpos: 'menu', shop: S.settings.shopName || '', exportedAt: new Date().toISOString(),
+    categories: [...S.categories], catGroups: strip(S.settings.catGroups || []),
+    optionSets: strip(S.optionSets || []),
+    menu: S.menu.map(m => {
+      const x = strip(m); delete x.id; delete x.available;
+      x.route = (m.screens || []).length ? 'kitchen' : 'drink';   // ร้านที่ไม่มีเครื่องพิมพ์/จอแบบเดียวกัน ใช้ค่านี้แทน
+      return x;
+    }),
+    i18n: { en: strip(S.settings.i18n?.en || {}) },
+  };
+  const d = new Date(), ymdS = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const name = `menu-${(S.settings.shopName || 'shop').replace(/[\\/:*?"<>|\s]+/g, '-')}-${ymdS}.json`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(file, null, 1)], { type: 'application/json' }));
+  a.download = name; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast(`ส่งออกเมนู ${file.menu.length} รายการแล้ว (${name})`);
+};
+$('#importMenu').onclick = () => { $('#menuFile').value = ''; $('#menuFile').click(); };
+$('#menuFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const file = JSON.parse(await f.text());
+    if (file?.edpos !== 'menu' || !Array.isArray(file.menu)) throw new Error('ไฟล์นี้ไม่ใช่ไฟล์เมนูของ ED POS');
+    const cs = [...new Set(file.menu.map(m => m.category))];
+    if (!confirm(`นำเข้าเมนู ${file.menu.length} รายการ (${cs.length} หมวด)?\n\nเมนูเดิม ${S.menu.length} รายการจะถูกแทนที่ทั้งหมด\nบิลที่เปิดอยู่และยอดขายเดิมไม่กระทบ`)) return;
+    $('#importMenu').disabled = true;
+    const r = await api('/api/menu/import', { file });
+    toast(`นำเข้าเมนู ${r.count} รายการแล้ว`);
+  } catch (err) { toast(err instanceof SyntaxError ? 'อ่านไฟล์ไม่ได้ (ต้องเป็นไฟล์ .json)' : err.message, true); }
+  finally { $('#importMenu').disabled = false; }
+};
+
+// ---------- หน้าต่างแก้ไขเมนู ----------
+function openEditor(m) {
+  const fc = $('#fCat').value;
+  draft = m ? JSON.parse(JSON.stringify(m))
+    : { id: '', name: '', category: fc || cats()[0] || 'อื่นๆ', price: 0, available: true, groups: [],
+        // เมนูใหม่: ใช้เครื่องพิมพ์/จอเดียวกับเมนูอื่นในหมวดนี้ ถ้าไม่มีใช้เครื่องแรกที่ไม่ใช่เครื่องใบเสร็จ + จอแรก
+        ...(() => { const sib = S.menu.find(m => m.category === (fc || cats()[0]));
+          const defP = printerList().find(p => p.id !== receiptPrinter()) || printerList()[0];
+          return sib ? { printers: [...(sib.printers || [])], screens: [...(sib.screens || [])] }
+            : { printers: defP ? [defP.id] : [], screens: [screenList()[0].id] }; })() };
+  draftOrig = JSON.stringify(draft);
+  $('#eTitle').textContent = m ? 'แก้ไขเมนู' : 'เพิ่มเมนู';
+  $('#eDelete').hidden = $('#eCopy').hidden = !m;
+  $('#scrim').hidden = $('#editor').hidden = false;
+  renderEditor();
+  setTimeout(() => $('#eBody [data-f="name"]')?.focus(), 50);
+}
+function closeEditor(force) {
+  if (!force && draft && JSON.stringify(draft) !== draftOrig && !confirm('ยังไม่ได้บันทึก ปิดเลยไหม?')) return;
+  draft = null; $('#scrim').hidden = $('#editor').hidden = true;
+}
+$('#eClose').onclick = $('#eCancel').onclick = () => closeEditor();
+$('#scrim').addEventListener('click', () => { if (draft) closeEditor(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && draft) closeEditor(); });
+
+function renderEditor() {
+  const d = draft, all = cats();
+  if (!all.includes(d.category)) all.push(d.category);
+  $('#eBody').innerHTML = `
+  <div>
+    <div class="sec"><h3>ข้อมูลหลัก</h3>
+      <div class="stack">
+        <label class="field"><span>ชื่อเมนู</span><input type="text" data-f="name" value="${esc(d.name)}" placeholder="เช่น ผัดกะเพรา"></label>
+        <div class="grid2">
+          <label class="field"><span>หมวด</span><select data-f="category">
+            ${all.map(c => `<option ${c === d.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}
+            <option value="__new">+ หมวดใหม่…</option></select></label>
+          ${gridOf(d) ? `<div class="field"><span>ราคา</span><p class="muted" style="margin:10px 0 0">ใช้ตารางราคาด้านล่าง</p></div>`
+            : `<label class="field"><span>ราคาเริ่มต้น</span><div class="money"><input type="number" data-f="price" value="${d.price}" min="0" step="1" inputmode="decimal"></div></label>
+               <label class="field"><span>ราคาคนไทย <small class="muted">ไม่ใส่ = มีราคาเดียว</small></span><div class="money"><input type="number" data-f="priceTh" value="${esc(d.priceTh ?? '')}" min="0" step="1" inputmode="decimal" placeholder="—"></div></label>`}
+        </div>
+      </div>
+    </div>
+
+    <div class="sec"><h3>ตัวเลือก <small>เช่น เนื้อสัตว์ ระดับความหวาน ท็อปปิ้ง</small></h3>
+      ${d.groups.length ? '' : '<p class="lede" style="margin:0">เมนูนี้ยังไม่มีตัวเลือก พนักงานกดแล้วเพิ่มได้เลย</p>'}
+      ${d.groups.map((g, k) => g.ref ? linkedGroup(g, k) : `
+        <div class="group ${g.alert ? 'galert' : ''}">
+          <div class="ghead">
+            <input type="text" data-g="${k}" data-gf="name" value="${esc(g.name)}" placeholder="ชื่อกลุ่ม เช่น เนื้อสัตว์" aria-label="ชื่อกลุ่มตัวเลือก">
+            <div class="seg" role="group" aria-label="เลือกได้กี่อย่าง">
+              <button data-gtype="${k}" data-v="single" aria-pressed="${g.type !== 'multi'}">เลือก 1</button>
+              <button data-gtype="${k}" data-v="multi" aria-pressed="${g.type === 'multi'}">หลายอย่าง</button>
+            </div>
+            <label class="sw"><input type="checkbox" data-g="${k}" data-gf="required" ${g.required ? 'checked' : ''}><i></i>ต้องเลือก</label>
+            <label class="sw" title="ครัวเห็นเป็นคำเตือนสีแดง เหมาะกับการแพ้อาหาร"><input type="checkbox" data-g="${k}" data-gf="alert" ${g.alert ? 'checked' : ''}><i></i>เตือนครัว</label>
+            <div class="gtools">
+              <button class="btn ghost sm" data-gmove="${k}" data-dir="-1" ${k === 0 ? 'disabled' : ''} aria-label="เลื่อนกลุ่มขึ้น">▲</button>
+              <button class="btn ghost sm" data-gmove="${k}" data-dir="1" ${k === d.groups.length - 1 ? 'disabled' : ''} aria-label="เลื่อนกลุ่มลง">▼</button>
+              <button class="btn ghost sm danger" data-gdel="${k}">ลบกลุ่ม</button>
+            </div>
+          </div>
+          <div class="choices">
+            <div class="chead"><span>ตัวเลือก</span><span>บวกราคา</span><span title="เลือกตัวเลือกนี้แล้วพิมพ์ใบแยกไปเครื่องนี้ด้วย">พิมพ์แยกที่</span><span></span></div>
+            ${g.choices.map((c, j) => `
+              <div class="choice">
+                <input type="text" data-g="${k}" data-c="${j}" data-cf="name" value="${esc(c.name)}" placeholder="เช่น หมูกรอบ" aria-label="ชื่อตัวเลือก">
+                <div class="money"><input type="number" data-g="${k}" data-c="${j}" data-cf="add" value="${c.add || 0}" step="1" inputmode="decimal" aria-label="บวกราคา"></div>
+                ${splitSel(`data-g="${k}" data-c="${j}" data-cf="printers"`, c)}
+                <button class="x" data-cdel="${k}:${j}" aria-label="ลบตัวเลือก">×</button>
+              </div>`).join('')}
+            <div class="row" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-cadd="${k}">+ เพิ่มตัวเลือก</button>
+              <button class="btn sm ghost" data-gsave="${k}" title="เก็บกลุ่มนี้ไว้ใช้กับเมนูอื่น">บันทึกเป็นชุดสำเร็จรูป</button></div>
+          </div>
+        </div>`).join('')}
+      <div class="addrow">
+        <button class="btn" id="gAdd">+ เพิ่มกลุ่มตัวเลือก</button>
+        ${(S.optionSets || []).filter(o => !d.groups.some(g => g.ref === o.id)).length ? `<select id="gAttach" aria-label="ใช้ชุดสำเร็จรูป">
+          <option value="">+ ใช้ชุดสำเร็จรูป…</option>
+          ${S.optionSets.filter(o => !d.groups.some(g => g.ref === o.id)).map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select>` : ''}
+      </div>
+    </div>
+
+    ${gridSection(d)}
+
+    <div class="sec"><h3>ครัวและการขาย</h3>
+      <div class="rowline"><div class="txt"><b>พิมพ์ใบสั่งที่</b><span>เลือกได้หลายเครื่อง ไม่เลือก = ไม่พิมพ์ใบสั่ง</span></div>
+        <div class="pick" role="group" aria-label="พิมพ์ใบสั่งที่">${printerList().map(p =>
+          `<button data-mp="${esc(p.id)}" aria-pressed="${(d.printers || []).includes(p.id)}">${esc(p.name)}</button>`).join('') || '<span class="muted">ยังไม่มีเครื่องพิมพ์</span>'}</div></div>
+      <div class="rowline"><div class="txt"><b>ขึ้นจอครัว</b><span>ไม่เลือก = ไม่ขึ้นจอ เช่น เครื่องดื่ม ของหวาน</span></div>
+        <div class="pick" role="group" aria-label="ขึ้นจอครัว">${screenList().map(k =>
+          `<button data-ms="${esc(k.id)}" aria-pressed="${(d.screens || []).includes(k.id)}">${esc(k.name)}</button>`).join('')}</div></div>
+      <div class="rowline"><div class="txt"><b>ช่องหมายเหตุ</b><span>ปิด = ตอนสั่งไม่มีช่องหมายเหตุ เช่น น้ำเปล่า น้ำอัดลม</span></div>
+        <label class="sw"><input type="checkbox" data-nonote ${d.noNote ? '' : 'checked'}><i></i></label></div>
+      <div class="rowline"><div class="txt"><b>มีขาย</b><span>ปิดเมื่อของหมด พนักงานจะสั่งไม่ได้</span></div>
+        <label class="sw"><input type="checkbox" data-f="available" ${d.available !== false ? 'checked' : ''}><i></i></label></div>
+    </div>
+  </div>
+  <div class="preview"><span>พนักงานจะเห็นแบบนี้</span><div class="pv" id="pv"></div></div>`;
+  renderPreview();
+}
+
+// ช่อง "พิมพ์แยกที่" ของตัวเลือก (เช่น ไข่ดาว → หน้าร้าน) · ค่าเก็บเป็น printers: [id]
+const splitSel = (attrs, c) => { const cur = (c.printers || [])[0] || '';
+  return `<select ${attrs} class="${cur ? 'on' : ''}" aria-label="พิมพ์ใบแยกที่"><option value="">ไม่แยก</option>${printerList().map(p =>
+    `<option value="${esc(p.id)}" ${p.id === cur ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`; };
+
+// ---------- ตารางราคา (ราคาตามตัวเลือก เช่น เนื้อสัตว์ × ขนาด) ----------
+// d.grid = {groups: [แถว, คอลัมน์], prices: {'ทะเล|S': 150}} · ช่องว่าง = ไม่มีขาย
+function gridSection(d) {
+  // กลุ่มแบบหลายอย่างใช้ได้ (เนื้อสัตว์ผสม) แต่ไม่รวมกลุ่มเตือนครัว (แพ้อาหาร)
+  const singles = groupsOf(d).filter(g => !g.alert && String(g.name || '').trim() && g.choices.some(c => c.name));
+  if (!singles.length) return '';
+  const gs = (d.grid?.groups || []).map(n => singles.find(g => g.name === n)).filter(Boolean);
+  const [rowG, colG] = gs;
+  const opt = (sel, skip) => singles.filter(g => g.name !== skip).map(g => `<option ${g.name === sel ? 'selected' : ''}>${esc(g.name)}</option>`).join('');
+  const val = k => d.grid?.prices?.[k] ?? '';
+  const cell = k => `<td><input type="number" min="0" step="1" inputmode="decimal" data-gk="${esc(k)}" value="${esc(val(k))}" aria-label="${esc(k.replace('|', ' '))}"></td>`;
+  // ช่องราคาคนไทย: ช่องที่ไม่มีขาย (ไม่มีราคาปกติ) ใส่ไม่ได้ · ตัวจางในช่อง = ราคาปกติ
+  const cellTh = k => `<td><input type="number" min="0" step="1" inputmode="decimal" data-gkth="${esc(k)}" value="${esc(d.grid?.pricesTh?.[k] ?? '')}"
+    placeholder="${esc(val(k))}" ${val(k) === '' ? 'disabled' : ''} aria-label="ราคาคนไทย ${esc(k.replace('|', ' '))}"></td>`;
+  const rows = rowG ? rowG.choices.filter(c => c.name) : [], cols = colG ? colG.choices.filter(c => c.name) : [];
+  // ราคาคนไทยไม่แยกตามกลุ่มหนึ่ง (เช่น ไม่มีไซส์) → ตารางราคาไทยตามกลุ่มที่เหลือ
+  const skip = gs.some(g => g.name === d.grid?.thaiSkip) ? d.grid.thaiSkip : '';
+  const remG = gs.find(g => g.name !== skip && skip);   // กลุ่มที่เหลือ (ไม่มี = ราคาไทยราคาเดียว)
+  const thSel = gs.length ? `<label class="field" style="max-width:340px;margin:6px 0 10px"><span>ราคาคนไทย</span><select data-thskip="1">
+      <option value="">แยกเหมือนตารางราคาปกติ</option>${gs.map(g => `<option value="${esc(g.name)}" ${g.name === skip ? 'selected' : ''}>ไม่แยกตาม${esc(g.name)}${gs.length > 1 ? ` (ราคาตาม${esc(gs.find(x => x !== g).name)})` : ' (ราคาเดียว)'}</option>`).join('')}</select></label>` : '';
+  const thHtml = !skip ? `<table class="gtab"><thead><tr><th></th>${cols.length ? cols.map(c => `<th>${esc(c.name)}</th>`).join('') : '<th>ราคาคนไทย</th>'}</tr></thead>
+      <tbody>${rows.map(r => `<tr><th>${esc(r.name)}</th>${cols.length ? cols.map(c => cellTh(r.name + '|' + c.name)).join('') : cellTh(r.name)}</tr>`).join('')}</tbody></table>`
+    : `<table class="gtab"><thead><tr><th></th><th>ราคาคนไทย</th></tr></thead><tbody>${(remG ? remG.choices.filter(c => c.name).map(c => c.name) : ['']).map(k =>
+        `<tr><th>${esc(k || d.name || 'ทุกแบบ')}</th><td><input type="number" min="0" step="1" inputmode="decimal" data-gkth="${esc(k)}" value="${esc(d.grid?.pricesTh?.[k] ?? '')}"
+          placeholder="${esc(thBase(d, skip, k) ?? '')}" ${thBase(d, skip, k) == null ? 'disabled' : ''} aria-label="ราคาคนไทย ${esc(k)}"></td></tr>`).join('')}</tbody></table>`;
+  return `<div class="sec"><h3>ตารางราคา <small>เมื่อราคาขึ้นกับตัวเลือก 2 อย่างพร้อมกัน เช่น เนื้อสัตว์ × ขนาด</small></h3>
+    <div class="grid2">
+      <label class="field"><span>แถว</span><select data-grid="0"><option value="">ไม่ใช้ตารางราคา</option>${opt(rowG?.name, colG?.name)}</select></label>
+      ${rowG ? `<label class="field"><span>คอลัมน์</span><select data-grid="1"><option value="">— ไม่มี (ราคาตามแถวอย่างเดียว) —</option>${opt(colG?.name, rowG.name)}</select></label>` : ''}
+    </div>
+    ${rowG ? `<table class="gtab"><thead><tr><th></th>${cols.length ? cols.map(c => `<th>${esc(c.name)}</th>`).join('') : '<th>ราคา</th>'}</tr></thead>
+      <tbody>${rows.map(r => `<tr><th>${esc(r.name)}</th>${cols.length ? cols.map(c => cell(r.name + '|' + c.name)).join('') : cell(r.name)}</tr>`).join('')}</tbody></table>
+      <p class="muted" style="margin:8px 0 0;font-size:14px">ราคาเต็มของจาน · ช่องว่าง = ไม่มีขาย (พนักงานจะไม่เห็นตัวเลือกนั้น) · ช่อง "บวกราคา" ของกลุ่มในตารางจะไม่ถูกใช้
+        ${gs.some(g => g.type === 'multi') ? `<br>“${esc(gs.find(g => g.type === 'multi').name)}” เลือกได้หลายอย่าง เช่น ไก่ + กุ้ง → คิดราคาของตัวที่แพงที่สุด` : ''}</p>
+      <h4 class="thh">ราคาคนไทย <small>${skip ? `ตอนเลือกราคาคนไทย พนักงานไม่ต้องเลือก${esc(skip)} · ช่องที่ไม่ใส่ = ไม่มีราคาคนไทย · ตัวจาง = ราคาปกติที่ถูกสุด` : 'ไม่ใส่ = ใช้ราคาปกติ · ไม่ใส่เลยสักช่อง = เมนูนี้มีราคาเดียว'}</small></h4>
+      ${thSel}
+      <div class="thfill">${skip ? 'ลดจากราคาปกติที่ถูกสุด' : 'ลดจากราคาปกติทุกช่อง'} <div class="money" style="width:110px"><input type="number" id="thLess" min="0" step="1" inputmode="decimal" placeholder="เช่น 20"></div>
+        <button class="btn sm" id="thFill">เติมทุกช่อง</button>${Object.keys(d.grid?.pricesTh || {}).length ? '<button class="btn sm ghost danger" id="thClear">ล้างราคาคนไทย</button>' : ''}</div>
+      ${thHtml}` : ''}
+  </div>`;
+}
+// ราคาปกติที่ถูกสุดของคู่ที่ไม่สนกลุ่ม skip (เช่น ไซส์ S ของหมู) · ใช้เป็นตัวจางและฐานของปุ่มลดราคา · null = ไม่มีขาย
+function thBase(d, skip, key) {
+  const gsN = d.grid?.groups || [], i = gsN.indexOf(skip); let best = null;
+  for (const [k, v] of Object.entries(d.grid?.prices || {})) {
+    const parts = k.split('|'); parts.splice(i, 1);
+    if (parts.join('|') === key) best = best == null ? Number(v) : Math.min(best, Number(v));
+  }
+  return best;
+}
+
+function renderPreview() {
+  const d = draft;
+  $('#pv').innerHTML = `
+    <div class="pvbtn ${d.available === false ? 'out' : ''}"><b>${esc(d.name || 'ชื่อเมนู')}</b>
+      <span>${d.available === false ? 'หมด' : baht(Number(d.price) || 0) + ' ฿' + (d.groups.length ? ' · มีตัวเลือก' : '')}</span></div>
+    ${groupsOf(d).map(g => `<div class="pg ${g.alert ? 'al' : ''}">${g.alert ? '⚠ ' : ''}${esc(g.name || 'ตัวเลือก')} <small class="${g.required ? 'req' : ''}">${g.required ? 'ต้องเลือก' : 'ไม่บังคับ'}${g.type === 'multi' ? ' · หลายอย่าง' : ''}</small></div>
+      <div class="pc">${g.choices.filter(c => c.name).map((c, j) => `<span class="${g.required && g.type !== 'multi' && j === 0 ? 'on' : ''}">${esc(c.name)}${Number(c.add) ? ' +' + baht(c.add) : ''}</span>`).join('') || '<span>—</span>'}</div>`).join('')}
+    <div class="range"><span>ราคาขาย</span><b>${rangeText(d)}</b></div>
+    ${hasThaiPrice(d) ? `<div class="range" style="border-top:0;margin-top:0;padding-top:4px"><span>ราคาคนไทย</span><b>${rangeText(d, true)}</b></div>` : ''}`;
+}
+
+// พิมพ์ในช่อง → อัปเดตข้อมูลโดยไม่วาดใหม่ (เคอร์เซอร์ไม่หลุด)
+$('#eBody').addEventListener('input', e => {
+  const t = e.target, d = draft;
+  if (t.dataset.f && t.dataset.f !== 'category') d[t.dataset.f] = t.type === 'checkbox' ? t.checked : t.type === 'number' ? t.value : t.value;
+  if (t.dataset.gf) d.groups[t.dataset.g][t.dataset.gf] = t.type === 'checkbox' ? t.checked : t.value;
+  if (t.dataset.cf) d.groups[t.dataset.g].choices[t.dataset.c][t.dataset.cf] = t.dataset.cf === 'printers' ? (t.value ? [t.value] : []) : t.value;
+  if (t.dataset.cf === 'printers') t.classList.toggle('on', !!t.value);
+  if (t.dataset.gk != null) {
+    d.grid.prices = d.grid.prices || {};
+    if (t.value === '') delete d.grid.prices[t.dataset.gk]; else d.grid.prices[t.dataset.gk] = Number(t.value);
+    // ช่องราคาคนไทยของคู่นี้: ตัวจางตามราคาปกติ / ปิดถ้าไม่มีขาย
+    const th = $(`#eBody [data-gkth="${CSS.escape(t.dataset.gk)}"]`);
+    if (th) { th.placeholder = t.value; th.disabled = t.value === ''; }
+  }
+  if (t.dataset.gkth != null) {
+    d.grid.pricesTh = d.grid.pricesTh || {};
+    if (t.value === '') delete d.grid.pricesTh[t.dataset.gkth]; else d.grid.pricesTh[t.dataset.gkth] = Number(t.value);
+  }
+  renderPreview();
+});
+$('#eBody').addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'gAttach' && t.value) { draft.groups.push({ ref: t.value }); renderEditor(); return; }
+  if (t.dataset.thskip) {   // เปลี่ยนว่าราคาคนไทยแยกตามอะไร → ราคาไทยที่ใส่ไว้ใช้ไม่ได้แล้ว เริ่มใหม่
+    if (Object.keys(draft.grid.pricesTh || {}).length && !confirm('ราคาคนไทยที่ใส่ไว้จะถูกล้าง เพื่อใส่ใหม่ตามแบบที่เลือก ตกลงไหม?')) { renderEditor(); return; }
+    if (t.value) draft.grid.thaiSkip = t.value; else delete draft.grid.thaiSkip;
+    delete draft.grid.pricesTh; renderEditor(); return;
+  }
+  if (t.dataset.grid != null) {   // เลือกกลุ่มของแถว/คอลัมน์ในตารางราคา (ราคาที่ใส่ไว้ของกลุ่มเดิมจะหายไป)
+    const gs = [...(draft.grid?.groups || [])];
+    gs[+t.dataset.grid] = t.value;
+    const groups = (t.dataset.grid === '0' && !t.value ? [] : gs).filter(Boolean);
+    const same = JSON.stringify(groups) === JSON.stringify(draft.grid?.groups || []);
+    draft.grid = groups.length ? { groups, prices: same ? draft.grid.prices : {} } : undefined;
+    if (!draft.grid) delete draft.grid;
+    renderEditor(); return;
+  }
+  if (t.dataset.f === 'category') {
+    if (t.value === '__new') {
+      const n = (prompt('ชื่อหมวดใหม่') || '').trim();
+      if (n) draft.category = n;
+      renderEditor();
+    } else draft.category = t.value;
+  }
+  if (t.type === 'checkbox') {
+    if (t.dataset.f) draft[t.dataset.f] = t.checked;
+    if ('nonote' in t.dataset) { if (t.checked) delete draft.noNote; else draft.noNote = true; }
+    if (t.dataset.gf) draft.groups[t.dataset.g][t.dataset.gf] = t.checked;
+    renderPreview();
+  }
+});
+$('#eBody').addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  const d = draft;
+  if (t.id === 'thFill') {        // ราคาคนไทย = ราคาปกติ − ส่วนลด ทุกช่องที่มีขาย
+    const less = Number($('#thLess').value);
+    if (!(less > 0)) { toast('ใส่จำนวนเงินที่ลดก่อน', true); return; }
+    d.grid.pricesTh = {};
+    const skip = d.grid.thaiSkip && (d.grid.groups || []).includes(d.grid.thaiSkip) ? d.grid.thaiSkip : '';
+    if (!skip) for (const [k, v] of Object.entries(d.grid.prices || {})) d.grid.pricesTh[k] = Math.max(0, Number(v) - less);
+    else for (const k of new Set(Object.keys(d.grid.prices || {}).map(k => { const p = k.split('|'); p.splice(d.grid.groups.indexOf(skip), 1); return p.join('|'); })))
+      d.grid.pricesTh[k] = Math.max(0, thBase(d, skip, k) - less);
+  } else if (t.id === 'thClear') delete d.grid.pricesTh;
+  else if (t.id === 'gAdd') {
+    d.groups.push({ name: '', type: 'single', required: true, choices: [{ name: '', add: 0 }] });
+  } else if (t.dataset.gtype) d.groups[t.dataset.gtype].type = t.dataset.v;
+  else if (t.dataset.mp || t.dataset.ms) {
+    const key = t.dataset.mp ? 'printers' : 'screens', id = t.dataset.mp || t.dataset.ms;
+    const set = new Set(d[key] || []); set.has(id) ? set.delete(id) : set.add(id); d[key] = [...set];
+  }
+  else if (t.dataset.gdel) {
+    const g = d.groups[t.dataset.gdel], nm = g.ref ? setName(g.ref) : g.name || 'ตัวเลือก';
+    if (!g.ref && !confirm(`ลบกลุ่ม “${nm}”?`)) return;   // ชุดสำเร็จรูปแค่เอาออกจากเมนูนี้ ตัวชุดยังอยู่
+    d.groups.splice(+t.dataset.gdel, 1); }
+  else if (t.dataset.gsave) { saveGroupAsSet(+t.dataset.gsave); return; }
+  else if (t.dataset.gopen) { const id = t.dataset.gopen; closeEditor(); if (!draft) { goSection('sets'); openSetEditor(S.optionSets.find(o => o.id === id)); } return; }
+  else if (t.dataset.gmove) { const k = +t.dataset.gmove, j = k + +t.dataset.dir; [d.groups[k], d.groups[j]] = [d.groups[j], d.groups[k]]; }
+  else if (t.dataset.cadd) d.groups[t.dataset.cadd].choices.push({ name: '', add: 0 });
+  else if (t.dataset.cdel) { const [k, j] = t.dataset.cdel.split(':').map(Number); d.groups[k].choices.splice(j, 1); }
+  else return;
+  renderEditor();
+  if (t.dataset.cadd || t.id === 'gAdd') {        // โฟกัสช่องที่เพิ่งเพิ่ม
+    const ins = $$('#eBody input[type=text]');
+    ins[t.id === 'gAdd' ? ins.length - 2 : ins.findLastIndex(x => x.dataset.g === t.dataset.cadd && x.dataset.cf === 'name')]?.focus();
+  }
+});
+
+$('#eSave').onclick = async () => {
+  const d = draft;
+  if (!d.name.trim()) { toast('ใส่ชื่อเมนูก่อน', true); $('#eBody [data-f="name"]').focus(); return; }
+  for (const g of d.groups.filter(x => !x.ref)) {
+    g.choices = g.choices.filter(c => String(c.name).trim());
+    if (!g.choices.length) { toast(`กลุ่ม “${g.name || 'ตัวเลือก'}” ยังไม่มีตัวเลือก ใส่อย่างน้อย 1 อย่างหรือลบกลุ่มนี้`, true); renderEditor(); return; }
+    if (!String(g.name).trim()) { toast('ตั้งชื่อกลุ่มตัวเลือกด้วย เช่น เนื้อสัตว์', true); renderEditor(); return; }
+  }
+  try {
+    $('#eSave').disabled = true;
+    await api('/api/menu/save', { item: { ...d, price: Number(d.price) || 0 } });
+    toast(`บันทึก ${d.name} แล้ว`); closeEditor(true);
+  } catch (err) { toast(err.message, true); }
+  finally { $('#eSave').disabled = false; }
+};
+$('#eDelete').onclick = async () => {
+  if (!confirm(`ลบ “${draft.name}” ออกจากเมนู? บิลเก่าที่เคยสั่งยังอยู่ครบ`)) return;
+  try { await api('/api/menu/delete', { id: draft.id }); toast(`ลบ ${draft.name} แล้ว`); closeEditor(true); }
+  catch (err) { toast(err.message, true); }
+};
+$('#eCopy').onclick = () => {
+  const copy = { ...JSON.parse(JSON.stringify(draft)), id: '', name: draft.name + ' (สำเนา)' };
+  draft = copy; draftOrig = ''; $('#eTitle').textContent = 'เพิ่มเมนู (สำเนา)';
+  $('#eDelete').hidden = $('#eCopy').hidden = true; renderEditor();
+};
+
+// ================= ชุดตัวเลือกสำเร็จรูป =================
+const setName = id => S.optionSets.find(o => o.id === id)?.name || 'ชุดที่ถูกลบ';
+const usesOf = id => S.menu.filter(m => (m.groups || []).some(g => g.ref === id));
+function setMeta(o) {
+  return `${o.type === 'multi' ? 'เลือกได้หลายอย่าง' : 'เลือก 1'} · ${o.required ? 'ต้องเลือก' : 'ไม่บังคับ'}`;
+}
+// การ์ดชุดสำเร็จรูปในหน้าแก้เมนู (แก้รายละเอียดที่หน้าชุดตัวเลือก)
+function linkedGroup(g, k) {
+  const o = S.optionSets.find(x => x.id === g.ref);
+  if (!o) return '';
+  return `<div class="linked ${o.alert ? 'galert' : ''}">
+    <div class="ltxt"><b>${o.alert ? '⚠ ' : ''}${esc(o.name)} <span class="tag set">ชุดสำเร็จรูป</span></b>
+      <span>${setMeta(o)} · ${esc(o.choices.map(c => c.name + (c.add ? ' +' + baht(c.add) : '')).join(', '))}</span></div>
+    <div class="gtools">
+      <button class="btn ghost sm" data-gmove="${k}" data-dir="-1" ${k === 0 ? 'disabled' : ''} aria-label="เลื่อนขึ้น">▲</button>
+      <button class="btn ghost sm" data-gmove="${k}" data-dir="1" ${k === draft.groups.length - 1 ? 'disabled' : ''} aria-label="เลื่อนลง">▼</button>
+      <button class="btn ghost sm" data-gopen="${o.id}">แก้ชุดนี้</button>
+      <button class="btn ghost sm danger" data-gdel="${k}">เอาออก</button>
+    </div></div>`;
+}
+// กลุ่มที่เขียนในเมนู → เก็บเป็นชุดสำเร็จรูป แล้วเมนูนี้ผูกกับชุดนั้นแทน
+async function saveGroupAsSet(k) {
+  const g = draft.groups[k];
+  g.choices = g.choices.filter(c => String(c.name).trim());
+  if (!String(g.name).trim() || !g.choices.length) { toast('ตั้งชื่อกลุ่มและใส่ตัวเลือกก่อน', true); return; }
+  if (S.optionSets.some(o => o.name === g.name.trim()) && !confirm(`มีชุดชื่อ “${g.name}” อยู่แล้ว สร้างอีกชุดชื่อเดียวกันไหม?`)) return;
+  try {
+    const r = await api('/api/optionsets/save', { set: { ...g, id: '' } });
+    S.optionSets.push({ id: r.id, ...g, name: g.name.trim() });
+    draft.groups[k] = { ref: r.id };
+    renderEditor();
+    toast(`เก็บ “${g.name}” เป็นชุดสำเร็จรูปแล้ว อย่าลืมกดบันทึกเมนู`);
+  } catch (err) { toast(err.message, true); }
+}
+
+function renderSets() {
+  $('#nSets').textContent = S.optionSets.length;
+  $('#setList').innerHTML = S.optionSets.length ? `<div class="list">${S.optionSets.map(o => {
+    const n = usesOf(o.id).length;
+    return `<div class="setcard" data-set="${o.id}">
+      <div><b>${esc(o.name)}</b><div class="meta"><span class="tag">${setMeta(o)}</span>${o.alert ? '<span class="tag al">เตือนครัวสีแดง</span>' : ''}</div></div>
+      <span class="uses">ใช้กับ ${n} เมนู</span>
+      <div class="ch">${esc(o.choices.map(c => c.name + (c.add ? ' +' + baht(c.add) : '')).join(', '))}</div>
+    </div>`; }).join('')}</div>`
+    : '<div class="empty">ยังไม่มีชุดตัวเลือก กด “สร้างชุดตัวเลือก” เช่น ความเผ็ด หรือ แพ้อาหาร</div>';
+  const qn = S.settings.quickNotes || [];
+  $('#qnList').innerHTML = qn.map((n, i) => `<span>${esc(n)}<button data-qdel="${i}" aria-label="ลบ ${esc(n)}">×</button></span>`).join('')
+    || '<span class="muted" style="border:0;background:none">ยังไม่มี</span>';
+}
+$('#setList').addEventListener('click', e => { const c = e.target.closest('[data-set]'); if (c) openSetEditor(S.optionSets.find(o => o.id === c.dataset.set)); });
+$('#newSet').onclick = () => openSetEditor(null);
+
+async function saveQuick(list) {
+  try { await api('/api/settings', { quickNotes: list }); } catch (err) { toast(err.message, true); }
+}
+$('#qnList').addEventListener('click', e => {
+  const b = e.target.closest('[data-qdel]'); if (!b) return;
+  const l = [...(S.settings.quickNotes || [])]; l.splice(+b.dataset.qdel, 1); saveQuick(l);
+});
+$('#qnAdd').onclick = () => {
+  const v = $('#qnNew').value.trim(); if (!v) return;
+  const l = S.settings.quickNotes || [];
+  if (l.includes(v)) { toast('มีอยู่แล้ว', true); return; }
+  saveQuick([...l, v]); $('#qnNew').value = '';
+};
+$('#qnNew').onkeydown = e => { if (e.key === 'Enter') $('#qnAdd').click(); };
+
+// ---------- หน้าต่างแก้ชุดตัวเลือก ----------
+let sdraft = null, sdraftOrig = '';
+function openSetEditor(o) {
+  sdraft = o ? { ...JSON.parse(JSON.stringify(o)), menuIds: usesOf(o.id).map(m => m.id) }
+    : { id: '', name: '', type: 'single', required: false, alert: false, choices: [{ name: '', add: 0 }], menuIds: [] };
+  sdraftOrig = JSON.stringify(sdraft);
+  $('#sTitle').textContent = o ? 'แก้ชุดตัวเลือก' : 'สร้างชุดตัวเลือก';
+  $('#sDelete').hidden = !o;
+  $('#scrim').hidden = $('#setEditor').hidden = false;
+  renderSetEditor();
+  setTimeout(() => $('#sBody [data-sf="name"]')?.focus(), 50);
+}
+function closeSetEditor(force) {
+  if (!force && sdraft && JSON.stringify(sdraft) !== sdraftOrig && !confirm('ยังไม่ได้บันทึก ปิดเลยไหม?')) return;
+  sdraft = null; $('#scrim').hidden = $('#setEditor').hidden = true;
+}
+$('#sClose').onclick = $('#sCancel').onclick = () => closeSetEditor();
+$('#scrim').addEventListener('click', () => { if (sdraft) closeSetEditor(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && sdraft) closeSetEditor(); });
+
+function renderSetEditor() {
+  const d = sdraft, on = new Set(d.menuIds);
+  $('#sBody').innerHTML = `
+    <div class="sec"><h3>ชุดตัวเลือก</h3>
+      <div class="stack">
+        <label class="field"><span>ชื่อชุด</span><input type="text" data-sf="name" value="${esc(d.name)}" placeholder="เช่น ความเผ็ด, แพ้อาหาร, ขนาด"></label>
+        <div class="rowline"><div class="txt"><b>เลือกได้กี่อย่าง</b><span>ความเผ็ดเลือกได้อย่างเดียว · แพ้อาหารเลือกได้หลายอย่าง</span></div>
+          <div class="seg" role="group"><button data-stype="single" aria-pressed="${d.type !== 'multi'}">เลือก 1</button>
+            <button data-stype="multi" aria-pressed="${d.type === 'multi'}">หลายอย่าง</button></div></div>
+        <div class="rowline"><div class="txt"><b>ต้องเลือก</b><span>พนักงานต้องเลือกก่อนถึงจะเพิ่มเมนูได้</span></div>
+          <label class="sw"><input type="checkbox" data-sf="required" ${d.required ? 'checked' : ''}><i></i></label></div>
+        <div class="rowline"><div class="txt"><b>เตือนครัวเป็นสีแดง</b><span>สำหรับเรื่องสำคัญอย่างการแพ้อาหาร จอครัวขึ้นป้ายแดง ใบสั่งพิมพ์ตัวหนาแยกบรรทัด</span></div>
+          <label class="sw"><input type="checkbox" data-sf="alert" ${d.alert ? 'checked' : ''}><i></i></label></div>
+      </div>
+    </div>
+    <div class="sec"><h3>ตัวเลือก</h3>
+      <div class="choices" style="padding:0">
+        <div class="chead"><span>ตัวเลือก</span><span>บวกราคา</span><span title="เลือกตัวเลือกนี้แล้วพิมพ์ใบแยกไปเครื่องนี้ด้วย">พิมพ์แยกที่</span><span></span></div>
+        ${d.choices.map((c, j) => `<div class="choice">
+          <input type="text" data-sc="${j}" data-scf="name" value="${esc(c.name)}" placeholder="เช่น เผ็ดน้อย" aria-label="ชื่อตัวเลือก">
+          <div class="money"><input type="number" data-sc="${j}" data-scf="add" value="${c.add || 0}" step="1" inputmode="decimal" aria-label="บวกราคา"></div>
+          ${splitSel(`data-sc="${j}" data-scf="printers"`, c)}
+          <button class="x" data-scdel="${j}" aria-label="ลบตัวเลือก">×</button></div>`).join('')}
+        <div><button class="btn sm" id="scAdd">+ เพิ่มตัวเลือก</button></div>
+      </div>
+    </div>
+    <div class="sec"><h3>ใช้กับเมนู <small>${on.size} เมนู</small></h3>
+      <div class="pick">${cats().map(c => {
+        const ms = S.menu.filter(m => m.category === c); if (!ms.length) return '';
+        const all = ms.every(m => on.has(m.id));
+        return `<div class="pcat"><span>${esc(c)}</span><button class="btn ghost sm" data-pickcat="${esc(c)}">${all ? 'ไม่เลือกทั้งหมวด' : 'เลือกทั้งหมวด'}</button></div>
+          ${ms.map(m => `<label><input type="checkbox" data-pm="${m.id}" ${on.has(m.id) ? 'checked' : ''}>${esc(m.name)}</label>`).join('')}`;
+      }).join('')}</div>
+    </div>`;
+}
+$('#sBody').addEventListener('input', e => {
+  const t = e.target, d = sdraft;
+  if (t.dataset.sf) d[t.dataset.sf] = t.type === 'checkbox' ? t.checked : t.value;
+  if (t.dataset.scf) d.choices[t.dataset.sc][t.dataset.scf] = t.dataset.scf === 'printers' ? (t.value ? [t.value] : []) : t.value;
+  if (t.dataset.scf === 'printers') t.classList.toggle('on', !!t.value);
+  if (t.dataset.pm) { const s = new Set(d.menuIds); t.checked ? s.add(t.dataset.pm) : s.delete(t.dataset.pm); d.menuIds = [...s];
+    $('#sBody .sec:last-child h3 small').textContent = `${s.size} เมนู`; }
+});
+$('#sBody').addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  const d = sdraft;
+  if (t.dataset.stype) d.type = t.dataset.stype;
+  else if (t.id === 'scAdd') d.choices.push({ name: '', add: 0 });
+  else if (t.dataset.scdel) d.choices.splice(+t.dataset.scdel, 1);
+  else if (t.dataset.pickcat) {
+    const ids = S.menu.filter(m => m.category === t.dataset.pickcat).map(m => m.id), s = new Set(d.menuIds);
+    const all = ids.every(id => s.has(id)); ids.forEach(id => all ? s.delete(id) : s.add(id)); d.menuIds = [...s];
+  } else return;
+  renderSetEditor();
+  if (t.id === 'scAdd') $$('#sBody [data-scf="name"]').pop()?.focus();
+});
+$('#sSave').onclick = async () => {
+  const d = sdraft;
+  d.choices = d.choices.filter(c => String(c.name).trim());
+  if (!d.name.trim()) { toast('ตั้งชื่อชุดก่อน', true); renderSetEditor(); return; }
+  if (!d.choices.length) { toast('ใส่ตัวเลือกอย่างน้อย 1 อย่าง', true); d.choices.push({ name: '', add: 0 }); renderSetEditor(); return; }
+  try {
+    $('#sSave').disabled = true;
+    const { menuIds, ...set } = d;
+    await api('/api/optionsets/save', { set, menuIds });
+    toast(`บันทึก “${d.name}” แล้ว · ใช้กับ ${menuIds.length} เมนู`); closeSetEditor(true);
+  } catch (err) { toast(err.message, true); }
+  finally { $('#sSave').disabled = false; }
+};
+$('#sDelete').onclick = async () => {
+  const n = usesOf(sdraft.id).length;
+  if (!confirm(`ลบชุด “${sdraft.name}”?${n ? ` ${n} เมนูที่ใช้อยู่จะไม่มีตัวเลือกชุดนี้แล้ว` : ''}`)) return;
+  try { await api('/api/optionsets/delete', { id: sdraft.id }); toast('ลบชุดตัวเลือกแล้ว'); closeSetEditor(true); }
+  catch (err) { toast(err.message, true); }
+};
+
+// ================= เครื่องสำรอง =================
+let roleInfo = null, nodesDirty = false;
+const secAgo = t => Math.round((Date.now() - t) / 1000);
+async function loadRole() {
+  try { roleInfo = await api('/api/role'); } catch { return; }
+  const r = roleInfo, st = S.settings.nodes || {};
+  const linked = r.standbySeen && secAgo(r.standbySeen) < 8;
+  $('#sbDot').textContent = linked ? '●' : '';
+  $('#sbDot').style.color = '#6FC2A8';
+  if (!nodesDirty) {
+    $('#nodeMain').value = (st.main || r.me[0] || '').replace(/^https?:\/\//, '');
+    $('#nodeStandby').value = (st.standby || '').replace(/^https?:\/\//, '');
+  }
+  $('#sbCmd').textContent = `cd ~/ed-pos && termux-wake-lock && node server.js --standby ${$('#nodeMain').value || '192.168.1.50:3000'}`;
+  $('#sbAppSteps').hidden = !r.app; $('#sbTermuxSteps').hidden = !!r.app;
+  $('#sbStatus').innerHTML = `${r.startupWarn ? `<div class="warnbox">${esc(r.startupWarn)}</div>` : ''}
+    <div class="sbrow"><span class="dot ok"></span><div><b>เครื่องนี้เป็นเครื่องหลัก</b>
+      <span>${esc((r.me || []).map(u => u.replace(/^https?:\/\//, '')).join(', ') || '')} · รุ่นข้อมูล ${r.rev}</span></div></div>
+    <div class="sbrow"><span class="dot ${linked ? 'ok' : r.standbySeen ? 'bad' : 'off'}"></span><div>
+      <b>${linked ? 'เครื่องสำรองเชื่อมอยู่' : r.standbySeen ? 'เครื่องสำรองหายไป' : 'ยังไม่มีเครื่องสำรอง'}</b>
+      <span>${r.standbySeen ? `คัดลอกล่าสุด ${secAgo(r.standbySeen)} วินาทีที่แล้ว จาก ${esc(r.standbyIp)}` : 'ตั้งตามขั้นตอนด้านล่าง'}</span></div></div>
+    ${r.pairAsk && !linked ? `<div class="warnbox">เครื่อง ${esc(r.pairAsk)} ขอคัดลอกข้อมูลแต่ยังไม่ได้จับคู่ · เปิดหน้าเว็บของเครื่องนั้นแล้วใส่รหัสเจ้าของร้าน (ถ้าไม่ใช่เครื่องของร้าน ไม่ต้องทำอะไร เครื่องนั้นไม่ได้ข้อมูลไป)</div>` : ''}
+    ${r.conflict ? '<div class="warnbox">มีอีกเครื่องเปิดเป็นเครื่องหลักพร้อมกัน ข้อมูลจะแยกเป็นสองชุด ปิดโปรแกรมที่เครื่องหนึ่งแล้วเปิดใหม่ด้วย --standby</div>' : ''}`;
+}
+['nodeMain', 'nodeStandby'].forEach(id => $('#' + id).addEventListener('input', () => { nodesDirty = true;
+  $('#sbCmd').textContent = `cd ~/ed-pos && termux-wake-lock && node server.js --standby ${$('#nodeMain').value || '192.168.1.50:3000'}`; }));
+$('#saveNodes').onclick = async () => {
+  try { await api('/api/settings', { nodes: { main: $('#nodeMain').value, standby: $('#nodeStandby').value } });
+        nodesDirty = false; toast('บันทึกที่อยู่แล้ว'); loadRole(); }
+  catch (err) { toast(err.message, true); }
+};
+setInterval(() => { if (section === 'standby' || !roleInfo) loadRole(); }, 3000);
+loadRole();
+
+// ---------- หมวดหมู่ ----------
+// ---------- หมวดใหญ่ (settings.catGroups = [{name, cats}]) ----------
+const grps = () => JSON.parse(JSON.stringify(S.settings.catGroups || []));
+const grpOf = c => (S.settings.catGroups || []).find(g => g.cats.includes(c))?.name || '';
+async function saveGroups(g, msg) {
+  try { await api('/api/categories', { groups: g }); if (msg) toast(msg); } catch (err) { toast(err.message, true); }
+}
+function renderGroups() {
+  const gs = S.settings.catGroups || [], all = cats();
+  const free = all.filter(c => !grpOf(c));
+  $('#grpList').innerHTML = gs.map((g, i) => `<div class="cat">
+      <div class="move"><button data-gup="${i}" ${i === 0 ? 'disabled' : ''} aria-label="เลื่อนขึ้น">▲</button><button data-gdown="${i}" ${i === gs.length - 1 ? 'disabled' : ''} aria-label="เลื่อนลง">▼</button></div>
+      <input type="text" value="${esc(g.name)}" data-gname="${i}" aria-label="ชื่อหมวดใหญ่">
+      <span class="cnt" title="${esc(all.filter(c => g.cats.includes(c)).join(', '))}">${all.filter(c => g.cats.includes(c)).map(esc).join(' · ') || 'ยังไม่มีหมวด เลือกด้านล่าง'}</span>
+      <button class="btn sm danger" data-gdel="${i}">ลบ</button></div>`).join('')
+    + (gs.length && free.length ? `<div class="cat"><div class="move" style="visibility:hidden"><button>▲</button><button>▼</button></div>
+      <input type="text" value="อื่นๆ" disabled aria-label="หมวดที่ไม่ได้อยู่ในหมวดใหญ่"><span class="cnt">${free.map(esc).join(' · ')}</span><span style="width:52px"></span></div>` : '')
+    || '<div class="empty" style="padding:14px 0">ยังไม่มีหมวดใหญ่ แถบซ้ายแสดงทุกหมวด</div>';
+}
+$('#grpList').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const g = grps();
+  if (b.dataset.gup || b.dataset.gdown) { const i = +(b.dataset.gup ?? b.dataset.gdown), j = b.dataset.gup ? i - 1 : i + 1; [g[i], g[j]] = [g[j], g[i]]; }
+  else if (b.dataset.gdel) { if (!confirm(`ลบหมวดใหญ่ “${g[+b.dataset.gdel].name}”? หมวดย่อยและเมนูไม่หาย`)) return; g.splice(+b.dataset.gdel, 1); }
+  else return;
+  saveGroups(g);
+});
+$('#grpList').addEventListener('change', e => {
+  const t = e.target.closest('[data-gname]'); if (!t) return;
+  const g = grps(), v = t.value.trim();
+  if (!v || g.some((x, i) => x.name === v && i !== +t.dataset.gname)) { t.value = g[+t.dataset.gname].name; toast(v ? 'มีหมวดใหญ่ชื่อนี้แล้ว' : 'ใส่ชื่อหมวดใหญ่', true); return; }
+  g[+t.dataset.gname].name = v; saveGroups(g, 'เปลี่ยนชื่อแล้ว');
+});
+$('#addGrp').onclick = () => {
+  const v = $('#newGrp').value.trim(), g = grps();
+  if (!v) return toast('ใส่ชื่อหมวดใหญ่', true);
+  if (g.some(x => x.name === v)) return toast('มีหมวดใหญ่ชื่อนี้แล้ว', true);
+  g.push({ name: v, cats: [] }); $('#newGrp').value = '';
+  saveGroups(g, `เพิ่ม “${v}” แล้ว · เลือกหมวดที่จะอยู่ในหมวดใหญ่นี้ได้ด้านล่าง`);
+};
+$('#newGrp').onkeydown = e => { if (e.key === 'Enter') $('#addGrp').click(); };
+
+function renderCats() {
+  const all = cats(), gs = S.settings.catGroups || [];
+  renderGroups();
+  $('#catList').innerHTML = all.map((c, i) => {
+    const n = S.menu.filter(m => m.category === c).length, cur = grpOf(c);
+    return `<div class="cat">
+      <div class="move"><button data-cup="${i}" ${i === 0 ? 'disabled' : ''} aria-label="เลื่อนขึ้น">▲</button><button data-cdown="${i}" ${i === all.length - 1 ? 'disabled' : ''} aria-label="เลื่อนลง">▼</button></div>
+      <input type="text" value="${esc(c)}" data-cname="${esc(c)}" aria-label="ชื่อหมวด">
+      ${gs.length ? `<select data-cgrp="${esc(c)}" class="${cur ? '' : 'none'}" aria-label="หมวดใหญ่ของ ${esc(c)}"><option value="">อื่นๆ</option>${gs.map(g =>
+        `<option ${g.name === cur ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select>` : ''}
+      <span>${n} เมนู</span>
+      <button class="btn sm danger" data-cdel="${esc(c)}" ${n ? 'disabled title="ย้ายหรือลบเมนูในหมวดนี้ก่อน"' : ''}>ลบ</button>
+    </div>`;
+  }).join('') || '<div class="empty">ยังไม่มีหมวด</div>';
+  $('#nCats').textContent = all.length;
+}
+$('#catList').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const all = cats();
+  try {
+    if (b.dataset.cup || b.dataset.cdown) {
+      const i = +(b.dataset.cup ?? b.dataset.cdown), j = b.dataset.cup ? i - 1 : i + 1;
+      [all[i], all[j]] = [all[j], all[i]];
+      await api('/api/categories', { order: all });
+    } else if (b.dataset.cdel) {
+      if (!confirm(`ลบหมวด “${b.dataset.cdel}”?`)) return;
+      await api('/api/categories', { remove: b.dataset.cdel });
+    }
+  } catch (err) { toast(err.message, true); }
+});
+$('#catList').addEventListener('change', async e => {
+  const sg = e.target.closest('[data-cgrp]');
+  if (sg) {   // ย้ายหมวดไปหมวดใหญ่อื่น
+    const c = sg.dataset.cgrp, g = grps();
+    g.forEach(x => (x.cats = x.cats.filter(y => y !== c)));
+    if (sg.value) g.find(x => x.name === sg.value).cats.push(c);
+    return saveGroups(g, sg.value ? `${c} → ${sg.value}` : `${c} → อื่นๆ`);
+  }
+  const t = e.target.closest('[data-cname]'); if (!t) return;
+  try { await api('/api/categories', { rename: { from: t.dataset.cname, to: t.value } }); toast('เปลี่ยนชื่อหมวดแล้ว'); }
+  catch (err) { t.value = t.dataset.cname; toast(err.message, true); }
+});
+$('#addCat').onclick = async () => {
+  try { await api('/api/categories', { add: $('#newCat').value }); $('#newCat').value = ''; toast('เพิ่มหมวดแล้ว'); }
+  catch (err) { toast(err.message, true); }
+};
+$('#newCat').onkeydown = e => { if (e.key === 'Enter') $('#addCat').click(); };
+
+// ---------- การชำระเงิน ----------
+function feeDemo() {
+  const pct = Number($('#cardFee').value) || 0, on = $('#payCard').checked;
+  $('#feeRow').hidden = !on;
+  $('#feeDemo').hidden = !on;
+  $('#feeDemo').innerHTML = pct
+    ? `ตัวอย่าง: ค่าอาหาร 250 ฿ จ่ายบัตร ลูกค้าจ่าย <b>${baht(r2(250 + 250 * pct / 100))} ฿</b> (ค่าธรรมเนียม ${baht(r2(250 * pct / 100))} ฿)`
+    : 'ไม่เก็บค่าธรรมเนียม ลูกค้าจ่ายบัตรเท่ากับยอดอาหาร';
+}
+['payCash', 'payTransfer', 'payCard', 'cardFee'].forEach(id => $('#' + id).addEventListener('input', () => { dirty.add('pay'); feeDemo(); }));
+$('#savePay').onclick = async () => {
+  const payments = { cash: $('#payCash').checked, transfer: $('#payTransfer').checked, card: $('#payCard').checked,
+    cardFeePct: Number($('#cardFee').value) || 0 };
+  try { await api('/api/settings', { payments }); dirty.delete('pay'); toast('บันทึกการชำระเงินแล้ว'); }
+  catch (err) { toast(err.message, true); }
+};
+
+// ---------- เครื่องพิมพ์ / จอครัว ----------
+// แก้ในสำเนา (prn, scr) แล้วบันทึกทีเดียว · menuP/menuK = เมนูไหนออกเครื่อง/ขึ้นจอไหน {menuId: Set(ids)}
+let prn = null, scr = null, menuP = null, menuK = null;
+const newDevId = (prefix, list) => { let k = 1; while (list.some(x => x.id === prefix + k)) k++; return prefix + k; };
+function loadDevices(force) {
+  // กำลังแตะช่องในหน้านี้อยู่ → ไม่วาดใหม่ (ไม่ให้เคอร์เซอร์หลุดตอนมีออเดอร์เข้า)
+  const busy = id => !force && document.activeElement && $(id).contains(document.activeElement);
+  if (force || (!dirty.has('printers') && !busy('#sec-printers'))) {
+    prn = JSON.parse(JSON.stringify(S.settings.printers || []));
+    menuP = Object.fromEntries(S.menu.map(m => [m.id, new Set(m.printers || [])]));
+    $('#printTickets').checked = S.settings.printTickets !== false;
+    $('#rcCopies').value = String(S.settings.receiptCopies || 1);
+    renderPrinters();
+  }
+  if (force || (!dirty.has('screens') && !busy('#sec-screens'))) {
+    scr = JSON.parse(JSON.stringify(S.settings.kdsScreens || []));
+    menuK = Object.fromEntries(S.menu.map(m => [m.id, new Set(m.screens || [])]));
+    renderScreens();
+  }
+  $('#nPrn').textContent = (S.settings.printers || []).length;
+  $('#nScr').textContent = (S.settings.kdsScreens || []).length;
+}
+// ตาราง เมนู × เครื่อง (หรือ × จอ) · ติ๊กที่หมวด = ทั้งหมวด
+function matrix(box, cols, map, kind) {
+  if (!cols.length) { box.innerHTML = `<p class="muted" style="padding:14px">ยังไม่มี${kind === 'p' ? 'เครื่องพิมพ์' : 'จอ'}</p>`; return; }
+  const rows = cats().map(c => {
+    const ms = S.menu.filter(m => m.category === c); if (!ms.length) return '';
+    const all = id => ms.every(m => map[m.id]?.has(id)), some = id => ms.some(m => map[m.id]?.has(id));
+    return `<tr class="mxcat"><td>${esc(c)}</td>${cols.map(x => `<td><input type="checkbox" data-mx="${kind}" data-cat="${esc(c)}" data-col="${esc(x.id)}" ${all(x.id) ? 'checked' : ''} ${!all(x.id) && some(x.id) ? 'data-mixed' : ''} aria-label="${esc(c)} ทั้งหมวด → ${esc(x.name)}"></td>`).join('')}<td></td></tr>`
+      + ms.map(m => `<tr><td>${esc(m.name)}</td>${cols.map(x => `<td><input type="checkbox" data-mx="${kind}" data-menu="${m.id}" data-col="${esc(x.id)}" ${map[m.id]?.has(x.id) ? 'checked' : ''} aria-label="${esc(m.name)} → ${esc(x.name)}"></td>`).join('')}
+        <td class="none">${map[m.id]?.size ? '' : kind === 'p' ? 'ไม่พิมพ์' : 'ไม่ขึ้นจอ'}</td></tr>`).join('');
+  }).join('');
+  box.innerHTML = `<table><thead><tr><th>เมนู</th>${cols.map(x => `<th>${esc(x.name)}</th>`).join('')}<th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  box.querySelectorAll('[data-mixed]').forEach(i => (i.indeterminate = true));
+}
+function onMatrix(e) {
+  const t = e.target; if (!t.dataset.mx) return;
+  const map = t.dataset.mx === 'p' ? menuP : menuK, col = t.dataset.col;
+  const ms = t.dataset.menu ? [t.dataset.menu] : S.menu.filter(m => m.category === t.dataset.cat).map(m => m.id);
+  for (const id of ms) { const st = map[id] || (map[id] = new Set()); t.checked ? st.add(col) : st.delete(col); }
+  dirty.add(t.dataset.mx === 'p' ? 'printers' : 'screens');
+  t.dataset.mx === 'p' ? matrix($('#prnMatrix'), prn, menuP, 'p') : matrix($('#scrMatrix'), scr, menuK, 'k');
+}
+$('#prnMatrix').addEventListener('change', onMatrix);
+$('#scrMatrix').addEventListener('change', onMatrix);
+
+// การแบ่งใบของแต่ละเครื่อง ('' = ตามหลังร้าน > ใบสั่งครัว) เช่น หน้าร้านแยกตามหมวด ครัวรวมใบเดียว
+const SLIP_NAME = { '': '', all: 'รวมใบเดียว', cat: 'แยกตามหมวด', grp: 'แยกตามหมวดใหญ่', each: 'ใบละจาน' };
+function renderPrinters() {
+  const rp = S.settings.receiptPrinter;
+  const uses = id => S.menu.filter(m => menuP[m.id]?.has(id)).length;
+  $('#prnList').innerHTML = prn.map((p, k) => `
+    <div class="panel" data-pk="${k}">
+      <div class="devhead"><h2>${esc(p.name || 'เครื่องพิมพ์ใหม่')}</h2>
+        <span class="tag ${p.id === ($('#rcPrinter').value || rp) ? 'k' : ''}">${p.id === ($('#rcPrinter').value || rp) ? 'ใบเสร็จ · ' : ''}เมนู ${uses(p.id)} รายการ</span></div>
+      <div class="dev">
+        <label class="field"><span>ชื่อ</span><input type="text" data-pf="name" value="${esc(p.name)}" maxlength="30" placeholder="เช่น บาร์น้ำ"></label>
+        <label class="field"><span>IP</span><input type="text" data-pf="ip" value="${esc(p.ip)}" placeholder="192.168.1.100" inputmode="decimal"></label>
+        <label class="field"><span>พอร์ต</span><input type="number" data-pf="port" value="${p.port || 9100}"></label>
+        <label class="field"><span>กระดาษ</span><select data-pf="dots"><option value="576" ${p.dots != 384 ? 'selected' : ''}>80 มม.</option><option value="384" ${p.dots == 384 ? 'selected' : ''}>58 มม.</option></select></label>
+        <label class="field"><span>ใบสั่ง/ครั้ง</span><select data-pf="copies">${[1, 2, 3, 4, 5].map(n => `<option value="${n}" ${(p.copies || 1) == n ? 'selected' : ''}>${n} ใบ</option>`).join('')}</select></label>
+        <label class="field"><span>การแบ่งใบ</span><select data-pf="slip">${Object.entries(SLIP_NAME).map(([v, t]) =>
+          `<option value="${v}" ${(p.slip || '') === v ? 'selected' : ''}>${v ? t : `ตามใบสั่งครัว (${SLIP_NAME[tk?.mode || ticketCfg().mode]})`}</option>`).join('')}</select></label>
+        <div class="tools"><button class="btn" data-ptest="${k}">พิมพ์ทดสอบ</button><button class="btn danger" data-pdel="${k}" aria-label="ลบเครื่องพิมพ์ ${esc(p.name)}">ลบ</button></div>
+      </div>
+    </div>`).join('') || '<div class="panel"><p>ยังไม่มีเครื่องพิมพ์ กด “เพิ่มเครื่องพิมพ์”</p></div>';
+  const keep = $('#rcPrinter').value || rp;
+  $('#rcPrinter').innerHTML = prn.map(p => `<option value="${esc(p.id)}">${esc(p.name || p.id)}</option>`).join('');
+  $('#rcPrinter').value = prn.some(p => p.id === keep) ? keep : prn[0]?.id || '';
+  matrix($('#prnMatrix'), prn, menuP, 'p');
+}
+$('#prnList').addEventListener('input', e => {
+  const t = e.target, k = t.closest('[data-pk]')?.dataset.pk; if (k == null || !t.dataset.pf) return;
+  prn[k][t.dataset.pf] = ['port', 'dots', 'copies'].includes(t.dataset.pf) ? Number(t.value) : t.value;
+  dirty.add('printers');
+  if (t.dataset.pf === 'name') { t.closest('.panel').querySelector('h2').textContent = t.value || 'เครื่องพิมพ์ใหม่';
+    $('#rcPrinter').querySelector(`option[value="${CSS.escape(prn[k].id)}"]`).textContent = t.value || prn[k].id;
+    matrix($('#prnMatrix'), prn, menuP, 'p'); }
+});
+$('#rcPrinter').onchange = () => { dirty.add('printers'); renderPrinters(); };
+$('#rcCopies').onchange = $('#printTickets').onchange = () => dirty.add('printers');
+$('#prnAdd').onclick = () => {
+  prn.push({ id: newDevId('p', prn), name: 'เครื่องพิมพ์ ' + (prn.length + 1), ip: '', port: 9100, dots: 576, copies: 1, slip: '' });
+  dirty.add('printers'); renderPrinters();
+  $$('#prnList [data-pf="name"]').at(-1)?.select();
+};
+$('#prnList').addEventListener('click', async e => {
+  const del = e.target.closest('[data-pdel]'), test = e.target.closest('[data-ptest]');
+  if (del) {
+    const p = prn[del.dataset.pdel], n = S.menu.filter(m => menuP[m.id]?.has(p.id)).length;
+    if (!confirm(`ลบ “${p.name}”?${n ? `\n${n} เมนูที่ตั้งให้ออกเครื่องนี้ จะไม่พิมพ์ที่เครื่องนี้อีก` : ''}`)) return;
+    prn.splice(+del.dataset.pdel, 1); Object.values(menuP).forEach(st => st.delete(p.id));
+    dirty.add('printers'); renderPrinters();
+  }
+  if (test) {
+    const p = prn[test.dataset.ptest];
+    try {
+      await savePrinters(true);          // บันทึกก่อน เซิร์ฟเวอร์จะได้รู้ IP ล่าสุด
+      test.disabled = true; test.textContent = 'กำลังพิมพ์…';
+      await printLines([
+        { text: S.settings.shopName || 'ทดสอบ', align: 'center', size: 36, bold: true },
+        { text: 'ทดสอบเครื่อง ' + p.name, align: 'center', size: 30, bold: true },
+        { text: 'ภาษาไทย สระ วรรณยุกต์ ครบไหม', align: 'center' },
+        { hr: true },
+        { text: '2 x กะเพราหมูกรอบ ไข่ดาว', right: '140' },
+        { text: '1 x ต้มยำกุ้งน้ำข้น', right: '150' },
+        { hr: true },
+        { text: 'รวม', right: '290 ฿', size: 32, bold: true },
+      ], p.id);
+      toast('ส่งไปเครื่อง ' + p.name + ' แล้ว');
+    } catch (err) { toast(err.message, true); }
+    finally { const b = $(`[data-ptest="${test.dataset.ptest}"]`); if (b) { b.disabled = false; b.textContent = 'พิมพ์ทดสอบ'; } }
+  }
+});
+const mapOut = map => Object.fromEntries(Object.entries(map).map(([k, v]) => [k, [...v]]));
+async function savePrinters(quiet) {
+  if (prn.some(p => !String(p.name).trim())) throw new Error('ตั้งชื่อเครื่องพิมพ์ให้ครบ');
+  await api('/api/settings', { printers: prn, receiptPrinter: $('#rcPrinter').value, receiptCopies: Number($('#rcCopies').value),
+    printTickets: $('#printTickets').checked, menuPrinters: mapOut(menuP) });
+  Object.assign(S, await api('/api/state'));
+  dirty.delete('printers'); loadDevices();
+  if (!quiet) toast('บันทึกเครื่องพิมพ์แล้ว');
+}
+$('#savePrinters').onclick = () => savePrinters().catch(err => toast(err.message, true));
+
+function renderScreens() {
+  const base = location.origin + '/kds.html?screen=';
+  const uses = id => S.menu.filter(m => menuK[m.id]?.has(id)).length;
+  $('#scrList').innerHTML = scr.map((k, i) => `
+    <div class="panel" data-sk="${i}">
+      <div class="devhead"><h2>${esc(k.name || 'จอใหม่')}</h2><span class="tag">เมนู ${uses(k.id)} รายการ</span></div>
+      <div class="scr">
+        <label class="field"><span>ชื่อจอ</span><input type="text" data-sf="name" value="${esc(k.name)}" maxlength="30" placeholder="เช่น บาร์น้ำ"></label>
+        <div class="field"><span>ลิงก์สำหรับแท็บเล็ตของจอนี้</span><div class="linkbox"><code>${esc(base + k.id)}</code>
+          <button class="btn sm" data-scopy="${esc(k.id)}">คัดลอก</button><a class="btn sm" style="text-decoration:none;color:inherit" href="kds.html?screen=${encodeURIComponent(k.id)}" target="_blank" rel="noopener">เปิด</a></div></div>
+        <div class="tools"><button class="btn danger" data-sdel="${i}" ${scr.length < 2 ? 'disabled title="ต้องมีอย่างน้อย 1 จอ"' : ''}>ลบ</button></div>
+      </div>
+    </div>`).join('');
+  matrix($('#scrMatrix'), scr, menuK, 'k');
+}
+$('#scrList').addEventListener('input', e => {
+  const t = e.target, i = t.closest('[data-sk]')?.dataset.sk; if (i == null) return;
+  scr[i].name = t.value; dirty.add('screens');
+  t.closest('.panel').querySelector('h2').textContent = t.value || 'จอใหม่';
+  matrix($('#scrMatrix'), scr, menuK, 'k');
+});
+$('#scrList').addEventListener('click', async e => {
+  const del = e.target.closest('[data-sdel]'), cp = e.target.closest('[data-scopy]');
+  if (cp) { try { await navigator.clipboard.writeText(location.origin + '/kds.html?screen=' + cp.dataset.scopy); toast('คัดลอกลิงก์แล้ว'); } catch { toast('คัดลอกไม่ได้ กดค้างที่ลิงก์แล้วคัดลอกเอง', true); } }
+  if (del && scr.length > 1) {
+    const k = scr[del.dataset.sdel], n = S.menu.filter(m => menuK[m.id]?.has(k.id)).length;
+    if (!confirm(`ลบจอ “${k.name}”?${n ? `\n${n} เมนูที่ขึ้นจอนี้ จะไม่ขึ้นจอนี้อีก` : ''}`)) return;
+    scr.splice(+del.dataset.sdel, 1); Object.values(menuK).forEach(st => st.delete(k.id));
+    dirty.add('screens'); renderScreens();
+  }
+});
+$('#scrAdd').onclick = () => {
+  scr.push({ id: newDevId('k', scr), name: 'จอ ' + (scr.length + 1) });
+  dirty.add('screens'); renderScreens();
+  $$('#scrList [data-sf="name"]').at(-1)?.select();
+};
+$('#saveScreens').onclick = async () => {
+  try {
+    if (scr.some(k => !String(k.name).trim())) throw new Error('ตั้งชื่อจอให้ครบ');
+    await api('/api/settings', { kdsScreens: scr, menuScreens: mapOut(menuK) });
+    Object.assign(S, await api('/api/state'));
+    dirty.delete('screens'); loadDevices(); toast('บันทึกจอครัวแล้ว');
+  } catch (err) { toast(err.message, true); }
+};
+
+// ---------- ข้อมูลร้าน ----------
+$('#sec-shop').addEventListener('input', () => dirty.add('shop'));
+$('#saveShop').onclick = async () => {
+  try {
+    await api('/api/settings', { shopName: $('#shopName').value.trim() || 'ร้านของฉัน', takeaway: $('#takeaway').checked });
+    dirty.delete('shop'); toast('บันทึกข้อมูลร้านแล้ว');
+  } catch (err) { toast(err.message, true); }
+};
+
+// ================= ผังโต๊ะ =================
+let lay = null, sel = -1, drag = null;
+const layScale = () => Math.min(1, Math.max(0.2, ($('#layWrap').clientWidth - 22) / lay.w));
+const snapV = v => ($('#laySnap').checked ? Math.round(v / 10) * 10 : Math.round(v));
+function loadLayout() {
+  lay = JSON.parse(JSON.stringify(S.settings.layout || { w: 1520, h: 740, items: [] }));
+  if (sel >= lay.items.length) sel = -1;
+}
+function dupNames() {
+  const seen = new Set(), dup = new Set();
+  for (const it of lay.items) if (it.type === 'table') { if (seen.has(it.name)) dup.add(it.name); seen.add(it.name); }
+  return dup;
+}
+function renderLayout() {
+  if (!lay || section !== 'layout') return;
+  const s = layScale(), cv = $('#layCv'), dup = dupNames();
+  cv.style.width = lay.w * s + 'px'; cv.style.height = lay.h * s + 'px';
+  cv.style.backgroundImage = 'linear-gradient(#0000000d 1px,transparent 1px),linear-gradient(90deg,#0000000d 1px,transparent 1px)';
+  cv.style.backgroundSize = `${10 * s}px ${10 * s}px`;
+  cv.innerHTML = lay.items.map((it, i) => `<div class="le ${it.type} ${i === sel ? 'sel' : ''} ${it.type === 'table' && dup.has(it.name) ? 'dup' : ''}" data-i="${i}"
+    style="left:${it.x * s}px;top:${it.y * s}px;width:${it.w * s}px;height:${it.h * s}px;font-size:${Math.max(10, Math.min(it.w, it.h) * s * .32)}px">
+    <span style="${it.type === 'wall' && it.h > it.w ? 'writing-mode:vertical-rl' : ''}">${esc(it.name)}</span>${i === sel ? '<i class="rh"></i>' : ''}</div>`).join('');
+  const nt = lay.items.filter(i => i.type === 'table').length;
+  $('#layInfo').textContent = `${nt} โต๊ะ` + (dup.size ? ` · ชื่อซ้ำ: ${[...dup].join(', ')}` : '');
+  $('#layW').value = lay.w; $('#layH').value = lay.h;
+}
+function fillSel() {
+  const it = lay?.items[sel];
+  $('#layNone').hidden = !!it; $('#layForm').hidden = !it;
+  if (!it) return;
+  $('#leNameLbl').textContent = it.type === 'table' ? 'ชื่อโต๊ะ' : it.type === 'wall' ? 'ข้อความบนฉากกั้น' : 'ข้อความ';
+  $('#leName').value = it.name; $('#leW').value = it.w; $('#leH').value = it.h; $('#leX').value = it.x; $('#leY').value = it.y;
+}
+function selectItem(i) { sel = i; renderLayout(); fillSel(); }
+function addLayItem(type) {
+  const used = new Set(lay.items.map(i => i.name));
+  let name = type === 'wall' ? 'ฉากกั้น' : type === 'label' ? 'ป้าย' : '';
+  if (type === 'table') { let n = 1; while (used.has(String(n))) n++; name = String(n); }
+  const o = { table: [72, 72], wall: [50, 200], label: [160, 40] }[type];
+  const k = lay.items.length % 12;
+  lay.items.push({ type, name, x: 20 + k * 10, y: 20 + k * 10, w: o[0], h: o[1] });
+  dirty.add('layout'); selectItem(lay.items.length - 1);
+}
+$('#layAddT').onclick = () => addLayItem('table');
+$('#layAddW').onclick = () => addLayItem('wall');
+$('#layAddL').onclick = () => addLayItem('label');
+$('#layDup').onclick = () => {
+  const it = lay.items[sel]; if (!it) return;
+  const c = { ...it, x: it.x + 20, y: it.y + 20 };
+  if (c.type === 'table') { const used = new Set(lay.items.map(i => i.name)); let n = (parseInt(it.name) || 0) + 1; while (used.has(String(n))) n++; c.name = String(n); }
+  lay.items.push(c); dirty.add('layout'); selectItem(lay.items.length - 1);
+};
+$('#layDel').onclick = () => { if (!lay.items[sel]) return; lay.items.splice(sel, 1); dirty.add('layout'); selectItem(-1); };
+for (const [id, k] of [['leName', 'name'], ['leW', 'w'], ['leH', 'h'], ['leX', 'x'], ['leY', 'y']]) {
+  $('#' + id).addEventListener('input', e => {
+    const it = lay.items[sel]; if (!it) return;
+    it[k] = k === 'name' ? e.target.value : Number(e.target.value) || 0;
+    dirty.add('layout'); renderLayout();
+  });
+}
+for (const [id, k] of [['layW', 'w'], ['layH', 'h']]) $('#' + id).addEventListener('input', e => {
+  lay[k] = Math.max(k === 'w' ? 400 : 300, Math.min(4000, Number(e.target.value) || 0)); dirty.add('layout'); renderLayout();
+});
+// ลากย้าย / ลากมุมปรับขนาด (เมาส์และสัมผัส)
+$('#layCv').addEventListener('pointerdown', e => {
+  const el = e.target.closest('.le');
+  if (!el) { selectItem(-1); return; }
+  const i = Number(el.dataset.i), it = lay.items[i];
+  e.preventDefault();
+  drag = { i, mode: e.target.classList.contains('rh') ? 'resize' : 'move', sx: e.clientX, sy: e.clientY, ox: it.x, oy: it.y, ow: it.w, oh: it.h, moved: false };
+  if (sel !== i) selectItem(i);
+});
+window.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const it = lay.items[drag.i], s = layScale();
+  const dx = (e.clientX - drag.sx) / s, dy = (e.clientY - drag.sy) / s;
+  if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 3 / s) return;
+  drag.moved = true;
+  if (drag.mode === 'move') { it.x = snapV(drag.ox + dx); it.y = snapV(drag.oy + dy); }
+  else { it.w = Math.max(16, snapV(drag.ow + dx)); it.h = Math.max(16, snapV(drag.oh + dy)); }
+  renderLayout();
+});
+window.addEventListener('pointerup', () => { if (drag?.moved) { dirty.add('layout'); fillSel(); } drag = null; });
+document.addEventListener('keydown', e => {
+  if (section !== 'layout' || !lay?.items[sel] || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) return;
+  const it = lay.items[sel], st = e.shiftKey ? 10 : 2;
+  const mv = { ArrowLeft: ['x', -st], ArrowRight: ['x', st], ArrowUp: ['y', -st], ArrowDown: ['y', st] }[e.key];
+  if (mv) { it[mv[0]] += mv[1]; dirty.add('layout'); renderLayout(); fillSel(); e.preventDefault(); }
+  else if (e.key === 'Delete' || e.key === 'Backspace') { $('#layDel').click(); e.preventDefault(); }
+});
+window.addEventListener('resize', renderLayout);
+$('#laySave').onclick = async () => {
+  try {
+    await api('/api/settings', { layout: lay });
+    dirty.delete('layout'); toast('บันทึกผังโต๊ะแล้ว');
+  } catch (err) { toast(err.message, true); }
+};
+
+// ================= ใบเสร็จ =================
+const RC_KEYS = ['logoMode', 'logoWidth', 'footerImgMode', 'footerImgWidth', 'nameSize', 'header', 'footerSize', 'showNo', 'showTime', 'showTable',
+  'lang', 'headerEn', 'footerEn'];
+let rc = null, rcShop = '', rcFoot = '', rcImgs = {};   // rcImgs: รูปที่เพิ่งเลือก/เอาออกและยังไม่บันทึก
+function loadReceipt() {
+  const r = S.settings.receipt || {};
+  rc = {}; for (const k of RC_KEYS) rc[k] = r[k];
+  rcShop = S.settings.shopName || ''; rcFoot = S.settings.shopInfo || ''; rcImgs = {};
+  const set = (id, v) => { const el = $('#' + id); if (el.type === 'checkbox') el.checked = v !== false; else el.value = v ?? ''; };
+  set('rcShopName', rcShop); set('nameSize', rc.nameSize); set('rcHeader', rc.header); set('rcFooter', rcFoot); set('footerSize', rc.footerSize);
+  rc.lang = rc.lang || 'th'; set('rcHeaderEn', rc.headerEn); set('rcFooterEn', rc.footerEn);
+  for (const k of ['showTable', 'showTime', 'showNo']) set(k, rc[k]);
+  set('logoWidth', rc.logoWidth); set('footerImgWidth', rc.footerImgWidth);
+  $$('[data-seg]').forEach(sg => sg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === rc[sg.dataset.seg])));
+  renderRcImgs(); renderRcPreview();
+}
+function rcImgSrc(k) { return k in rcImgs ? rcImgs[k] : S.settings.receipt?.has?.[k] ? `/receipt-img/${k}?v=${S.settings.receipt.imgV || 0}` : null; }
+function renderRcImgs() {
+  for (const k of ['logo', 'footer']) {
+    const src = rcImgSrc(k), box = $('#' + k + 'Box');
+    box.style.backgroundImage = src ? `url("${src}")` : ''; box.textContent = src ? '' : 'ไม่มีรูป';
+    $(`[data-clear="${k}"]`).disabled = !src;
+  }
+  $('#logoWv').textContent = rc.logoWidth + '%'; $('#footerWv').textContent = rc.footerImgWidth + '%';
+}
+function rcSample() {
+  const items = [
+    { id: 'a', menuId: 'x1', name: 'กะเพรา', option: 'หมูกรอบ', opts: ['หมูกรอบ'], qty: 2, price: 70 },
+    { id: 'b', menuId: 'x2', name: 'ชาเย็น', option: 'หวานน้อย', opts: ['หวานน้อย'], qty: 1, price: 35 },
+    { id: 'c', menuId: 'x3', name: 'ไข่ดาว', option: '', qty: 1, price: 10 }];
+  return { items, order: { id: 'demo', table: '5', status: 'paid', paidAt: Date.now(), payMethod: 'cash', received: 200, total: 185, fee: 0, receiptNo: '20261014-001' } };
+}
+function rcOpts() {
+  const images = {}; for (const k of ['logo', 'footer']) images[k] = rcImgSrc(k);
+  return { paid: true, items: rcSample().items, receipt: { ...S.settings.receipt, ...rc }, images,
+    settings: { shopName: rcShop || 'ร้านของฉัน', shopInfo: rcFoot } };
+}
+let rcSeq = 0;
+async function renderRcPreview() {
+  if (!rc) return;
+  const my = ++rcSeq;
+  try {
+    const lines = receiptLines(rcSample().order, rcOpts());
+    await document.fonts.ready; await preloadImages(lines);
+    if (my !== rcSeq) return;
+    const c = drawReceipt(lines, Number(printerById(receiptPrinter())?.dots) || 576);
+    $('#rcPaper').replaceChildren(bwCanvas(c));
+  } catch (e) { $('#rcPaper').textContent = e.message; }
+}
+// แสดงภาพที่ผ่านการแปลงขาวดำแล้ว = เหมือนที่เครื่องพิมพ์จะพิมพ์จริง
+function bwCanvas(c) {
+  const r = canvasToRaster(c), out = document.createElement('canvas');
+  out.width = r.widthBytes * 8; out.height = r.height;
+  const ctx = out.getContext('2d'), img = ctx.createImageData(out.width, out.height);
+  const bin = atob(r.bitsBase64);
+  for (let y = 0; y < r.height; y++) for (let x = 0; x < out.width; x++) {
+    const on = bin.charCodeAt(y * r.widthBytes + (x >> 3)) & (0x80 >> (x & 7)), p = (y * out.width + x) * 4;
+    img.data[p] = img.data[p + 1] = img.data[p + 2] = on ? 0 : 255; img.data[p + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return out;
+}
+
+// ================= สรุปยอดเข้า LINE (settings.line) =================
+// หน้าเว็บไม่เคยได้เห็นโทเค็น (เซิร์ฟเวอร์ส่งแค่ hasToken) · ช่องโทเค็นว่างตอนบันทึก = ใช้ของเดิม
+function loadLine() {
+  const L = S.settings.line || {};
+  $('#lnOn').checked = !!L.on; $('#lnTime').value = L.time || '23:00'; $('#lnTo').value = L.to || ''; $('#lnToken').value = '';
+  $('#lnToken').placeholder = L.hasToken ? '•••••• ใส่แล้ว (วางใหม่เพื่อเปลี่ยน)' : 'วางโทเค็นจาก LINE Developers';
+  $('#lnStatus').textContent = L.lastErr ? 'ส่งล่าสุดไม่สำเร็จ: ' + L.lastErr : L.lastSent ? 'ส่งล่าสุด ' + thDate(L.lastSent) : 'ยังไม่เคยส่ง';
+  $('#lnStatus').style.color = L.lastErr ? 'var(--brick)' : '';
+  $$('[data-alert]').forEach(x => (x.checked = L.alerts?.[x.dataset.alert] !== false));
+  $('#lnAlertErr').textContent = L.alertErr ? '· แจ้งเตือนล่าสุดส่งไม่สำเร็จ: ' + L.alertErr : '';
+}
+async function loadLinePrev() {
+  try { $('#lnPrev').textContent = (await api('/api/line/preview')).text; } catch (err) { $('#lnPrev').textContent = err.message; }
+}
+const lineBody = () => ({ on: $('#lnOn').checked, time: $('#lnTime').value, to: $('#lnTo').value.trim(), token: $('#lnToken').value.trim(),
+  alerts: Object.fromEntries($$('[data-alert]').map(x => [x.dataset.alert, x.checked])) });
+$('#lnTestAlert').onclick = async function () {
+  try {
+    this.disabled = true;
+    if (dirty.has('line')) { await api('/api/settings', { line: lineBody() }); dirty.delete('line'); }
+    await api('/api/line/test-alert', {}); toast('ส่งแจ้งเตือนทดสอบแล้ว ลองเปิด LINE ดู');
+  } catch (err) { toast(err.message, true); }
+  finally { this.disabled = false; }
+};
+$('#lnForm').addEventListener('input', () => dirty.add('line'));
+$('#lnRefresh').onclick = loadLinePrev;
+$('#lnSave').onclick = async () => {
+  try {
+    if (($('#lnOn').checked || $$('[data-alert]').some(x => x.checked)) && !S.settings.line?.hasToken && !$('#lnToken').value.trim()) return toast('ใส่ Channel access token ก่อน', true);
+    await api('/api/settings', { line: lineBody() }); dirty.delete('line');
+    Object.assign(S, await api('/api/state')); loadLine(); toast('บันทึกแล้ว');
+  } catch (err) { toast(err.message, true); }
+};
+$('#lnTest').onclick = async function () {
+  try {
+    this.disabled = true; this.textContent = 'กำลังส่ง…';
+    if (dirty.has('line')) { await api('/api/settings', { line: lineBody() }); dirty.delete('line'); }
+    await api('/api/line/test', {});
+    toast('ส่งเข้า LINE แล้ว ลองเปิด LINE ดู');
+  } catch (err) { toast(err.message, true); }
+  finally { this.disabled = false; this.textContent = 'ส่งทดสอบตอนนี้'; try { Object.assign(S, await api('/api/state')); loadLine(); } catch {} }
+};
+
+// ================= หน้าสั่งอาหาร (settings.orderUi) =================
+let ou = null;   // ค่าที่กำลังแก้ (ยังไม่บันทึก)
+const OU_SW = { ouShowEn: 'showEn', ouShowPrice: 'showPrice', ouShowSearch: 'showSearch', ouAbroad: 'abroad' };
+function loadOrderUi(cfg) {
+  ou = { ...(cfg || orderUi()) };
+  for (const [id, k] of Object.entries(OU_SW)) $('#' + id).checked = !!ou[k];
+  $$('[data-ouseg]').forEach(sg => sg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === String(ou[sg.dataset.ouseg]))));
+}
+$('#ouForm').addEventListener('change', e => { const k = OU_SW[e.target.id]; if (k) { ou[k] = e.target.checked; dirty.add('orderui'); } });
+$$('[data-ouseg] button').forEach(b => b.onclick = () => {
+  const sg = b.parentElement; ou[sg.dataset.ouseg] = b.dataset.v; dirty.add('orderui');
+  sg.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+});
+$('#ouSave').onclick = async () => {
+  try { await api('/api/settings', { orderUi: ou }); S.settings.orderUi = { ...ou }; dirty.delete('orderui'); toast('บันทึกหน้าสั่งอาหารแล้ว ทุกเครื่องเปลี่ยนตามเอง'); }
+  catch (err) { toast(err.message, true); }
+};
+$('#ouReset').onclick = () => { loadOrderUi(ORDER_UI_DEF); dirty.add('orderui'); };
+
+// ================= ใบสั่งครัว (settings.ticket) =================
+let tk = null;   // ค่าที่กำลังแก้ (ยังไม่บันทึก)
+const TK_FIELDS = { tkSizeTable: 'sizeTable', tkSizeItem: 'sizeItem', tkSizeOpt: 'sizeOpt', tkFeed: 'feed', tkBeep: 'beep',
+  tkShowTime: 'showTime', tkShowType: 'showType', tkShowRound: 'showRound', tkShowStation: 'showStation',
+  tkDivider: 'divider', tkShowCount: 'showCount', tkFooter: 'footer', tkShowThai: 'showThai' };
+// ตัวเลือกในรายการ select ไม่มีค่าที่บันทึกไว้ (เช่นตั้งผ่านไฟล์) → เพิ่มให้เห็น
+function selVal(el, v) {
+  if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === String(v))) el.add(new Option(String(v), String(v)));
+  el.value = String(v);
+}
+function loadTicket(cfg) {
+  tk = { ...(cfg || ticketCfg()) };
+  for (const [id, k] of Object.entries(TK_FIELDS)) { const el = $('#' + id); if (el.type === 'checkbox') el.checked = !!tk[k]; else selVal(el, tk[k]); }
+  $$('[data-kseg]').forEach(sg => sg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === tk[sg.dataset.kseg])));
+  fillTkPrinters(); renderTkPreview();
+}
+function fillTkPrinters() {
+  const sel = $('#tkPrinter'), was = sel.value;
+  const def = printerList().find(p => p.id !== receiptPrinter()) || printerList()[0];   // มักเป็นเครื่องครัว
+  sel.innerHTML = printerList().map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+  sel.value = printerById(was) ? was : def?.id || '';
+  $('#tkTest').disabled = !sel.value;
+}
+// ตัวอย่างโต๊ะ 5 สั่งรอบที่ 2 · มีตัวเลือก คำเตือนแพ้อาหาร หมายเหตุ ห่อกลับบ้าน
+function tkSample() {
+  return [
+    { qty: 2, name: 'กะเพรา', category: 'จานเดียว', opts: ['หมูกรอบ', 'ไข่ดาว', 'เผ็ดมาก'], note: 'ไม่ใส่ถั่วฝักยาว', price: 90 },
+    { qty: 1, name: 'ต้มยำกุ้ง', category: 'กับข้าว', opts: ['น้ำข้น'], alerts: ['แพ้กุ้ง'], note: '', price: 180 },
+    { qty: 1, name: 'ข้าวผัด', category: 'จานเดียว', opts: ['ไก่'], takeaway: true, note: '', thai: true, price: 50 }];
+}
+let tkSeq = 0;
+async function renderTkPreview() {
+  if (!tk) return;
+  const my = ++tkSeq;
+  try {
+    await document.fonts.ready;
+    if (my !== tkSeq) return;
+    const p = printerById($('#tkPrinter').value), dots = Number(p?.dots) || 576;
+    const its = tkSample(), slips = ticketSlips(its, p?.slip || tk.mode);
+    const box = document.createElement('div');
+    slips.forEach((s, n) => {
+      const c = drawReceipt(ticketLines('5', s, '', { cfg: tk, station: p?.name || 'ครัว', round: 2,
+        part: slips.length > 1 ? `ใบ ${n + 1}/${slips.length}` : '' }), dots);
+      const cv = bwCanvas(c); if (n) cv.style.cssText = 'border-top:2px dashed #999;margin-top:6px;padding-top:6px';
+      box.append(cv);
+    });
+    $('#tkPaper').replaceChildren(...box.children);
+    $('#tkPrevNote').textContent = `· ${p?.name || ''} ${dots === 384 ? '58 มม.' : '80 มม.'}`;
+  } catch (e) { $('#tkPaper').textContent = e.message; }
+}
+$('#tkForm').addEventListener('input', e => {
+  const k = TK_FIELDS[e.target.id]; if (!k) return;
+  tk[k] = e.target.type === 'checkbox' ? e.target.checked : e.target.tagName === 'SELECT' ? Number(e.target.value) : e.target.value;
+  dirty.add('ticket'); renderTkPreview();
+});
+$('#tkPrinter').onchange = () => renderTkPreview();
+$$('[data-kseg] button').forEach(b => b.onclick = () => {
+  const sg = b.parentElement; tk[sg.dataset.kseg] = b.dataset.v; dirty.add('ticket');
+  sg.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); renderTkPreview();
+});
+$('#tkSave').onclick = async () => {
+  try { await api('/api/settings', { ticket: tk }); S.settings.ticket = { ...tk }; dirty.delete('ticket'); toast('บันทึกใบสั่งครัวแล้ว ใช้กับออเดอร์ถัดไปทุกเครื่อง'); }
+  catch (err) { toast(err.message, true); }
+};
+$('#tkReset').onclick = () => {
+  if (!confirm('กลับไปใช้หน้าตาใบสั่งแบบเดิม? (ยังไม่บันทึกจนกว่าจะกดบันทึก)')) return;
+  loadTicket(TICKET_DEF); dirty.add('ticket');
+};
+$('#tkTest').onclick = async function () {
+  const pid = $('#tkPrinter').value; if (!pid) return;
+  try {
+    this.disabled = true; this.textContent = 'กำลังพิมพ์…';
+    const its = tkSample(), slips = ticketSlips(its, printerById(pid)?.slip || tk.mode);
+    for (let n = 0; n < slips.length; n++)
+      await printLines(ticketLines('5', slips[n], '', { cfg: tk, station: printerName(pid), round: 2,
+        part: slips.length > 1 ? `ใบ ${n + 1}/${slips.length}` : '' }), pid, 1, { feed: tk.feed, beep: tk.beep });
+    toast('ส่งไปเครื่อง ' + printerName(pid) + ' แล้ว');
+  } catch (err) { toast(err.message, true); }
+  finally { this.disabled = false; this.textContent = 'พิมพ์ทดสอบ'; }
+};
+// อ่านรูปที่เลือก → ย่อให้กว้างไม่เกิน 800 พื้นขาว → เก็บเป็น PNG (ถ้าใหญ่เกินใช้ JPEG)
+function readImage(file) {
+  return new Promise((ok, no) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const w = Math.min(800, im.naturalWidth), h = Math.round(im.naturalHeight * w / im.naturalWidth);
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(im, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      let d = c.toDataURL('image/png'); if (d.length > 400000) d = c.toDataURL('image/jpeg', 0.85);
+      d.length > 650000 ? no(new Error('รูปใหญ่เกินไป ลองใช้รูปที่เล็กลง')) : ok(d);
+    };
+    im.onerror = () => no(new Error('เปิดไฟล์รูปไม่ได้'));
+    im.src = url;
+  });
+}
+let pickKey = null;
+$$('[data-pick]').forEach(b => b.onclick = () => { pickKey = b.dataset.pick; $('#imgFile').value = ''; $('#imgFile').click(); });
+$$('[data-clear]').forEach(b => b.onclick = () => { rcImgs[b.dataset.clear] = null; dirty.add('receipt'); renderRcImgs(); renderRcPreview(); });
+$('#imgFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { rcImgs[pickKey] = await readImage(f); dirty.add('receipt'); renderRcImgs(); renderRcPreview(); }
+  catch (err) { toast(err.message, true); }
+};
+$('#rcForm').addEventListener('input', e => {
+  const id = e.target.id;
+  if (!id) return;
+  dirty.add('receipt');
+  if (id === 'rcShopName') rcShop = e.target.value;
+  else if (id === 'rcFooter') rcFoot = e.target.value;
+  else if (id === 'rcHeader') rc.header = e.target.value;
+  else if (id === 'rcHeaderEn') rc.headerEn = e.target.value;
+  else if (id === 'rcFooterEn') rc.footerEn = e.target.value;
+  else if (['nameSize', 'footerSize', 'logoWidth', 'footerImgWidth'].includes(id)) rc[id] = Number(e.target.value);
+  else if (['showNo', 'showTime', 'showTable'].includes(id)) rc[id] = e.target.checked;
+  renderRcImgs(); renderRcPreview();
+});
+$$('[data-seg] button').forEach(b => b.onclick = () => {
+  const sg = b.parentElement; rc[sg.dataset.seg] = b.dataset.v; dirty.add('receipt');
+  sg.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); renderRcPreview();
+});
+async function saveReceipt() {
+  const receipt = {}; for (const k of RC_KEYS) receipt[k] = rc[k];
+  if (Object.keys(rcImgs).length) receipt.images = rcImgs;
+  await api('/api/settings', { shopName: rcShop.trim() || 'ร้านของฉัน', shopInfo: rcFoot, receipt });
+  dirty.delete('receipt'); rcImgs = {};
+}
+$('#rcSave').onclick = async () => {
+  try { await saveReceipt(); toast('บันทึกรูปแบบใบเสร็จแล้ว'); } catch (err) { toast(err.message, true); }
+};
+$('#rcTest').onclick = async function () {
+  try {
+    this.disabled = true; this.textContent = 'กำลังพิมพ์…';
+    await printLines(receiptLines(rcSample().order, rcOpts()));
+    toast('ส่งไปเครื่อง ' + printerName(receiptPrinter()) + ' แล้ว');
+  } catch (err) { toast(err.message, true); }
+  finally { this.disabled = false; this.textContent = 'พิมพ์ทดสอบ'; }
+};
+
+// ---------- เติมฟอร์มจากข้อมูลล่าสุด (ไม่ทับฟอร์มที่กำลังแก้) ----------
+function fillForms() {
+  const st = S.settings;
+  $('#shopTitle').textContent = st.shopName || 'ร้านของฉัน';
+  if (!dirty.has('pay')) {
+    const p = st.payments || {};
+    $('#payCash').checked = p.cash !== false; $('#payTransfer').checked = p.transfer !== false;
+    $('#payCard').checked = !!p.card; $('#cardFee').value = p.cardFeePct ?? 3; feeDemo();
+  }
+  loadDevices();
+  if (!dirty.has('shop')) {
+    $('#shopName').value = st.shopName || '';
+    $('#takeaway').checked = !!st.takeaway;
+  }
+  if (!dirty.has('layout')) { loadLayout(); renderLayout(); fillSel(); }
+  if (!dirty.has('receipt')) loadReceipt();
+  if (!dirty.has('ticket')) loadTicket(); else fillTkPrinters();
+  if (!dirty.has('orderui')) loadOrderUi();
+  if (!dirty.has('line')) loadLine();
+  loadEnglish();
+}
+
+// ================= ชื่อภาษาอังกฤษ (พจนานุกรม settings.i18n.en) =================
+// คำแนะนำ (ไม่ถูกใช้จนกว่าจะกดเติม/พิมพ์เอง)
+const EN_HINT = {
+  'หมู': 'Pork', 'ไก่': 'Chicken', 'เนื้อ': 'Beef', 'หมูกรอบ': 'Crispy pork', 'หมูสับ': 'Minced pork', 'กุ้ง': 'Shrimp',
+  'ปลาหมึก': 'Squid', 'ทะเล': 'Seafood', 'ซีฟู้ด': 'Seafood', 'รวมมิตร': 'Mixed', 'ปลา': 'Fish', 'เต้าหู้': 'Tofu', 'มังสวิรัติ': 'Vegetarian', 'เจ': 'Vegan',
+  'ไข่ดาว': 'Fried egg', 'ไข่เจียว': 'Omelette', 'ไข่ต้ม': 'Boiled egg', 'ข้าวสวย': 'Steamed rice', 'ข้าวเหนียว': 'Sticky rice',
+  'พิเศษ': 'Large', 'ธรรมดา': 'Regular', 'เพิ่มข้าว': 'Extra rice',
+  'ไม่เผ็ด': 'Not spicy', 'เผ็ดน้อย': 'Mild', 'เผ็ดกลาง': 'Medium spicy', 'เผ็ดมาก': 'Very spicy',
+  'หวานปกติ': 'Normal sweet', 'หวานน้อย': 'Less sweet', 'ไม่หวาน': 'No sugar', 'ไม่ใส่น้ำแข็ง': 'No ice',
+  'กะเพรา': 'Holy basil stir-fry', 'ผัดกะเพรา': 'Holy basil stir-fry', 'ข้าวผัด': 'Fried rice', 'ผัดไทย': 'Pad Thai',
+  'ผัดซีอิ๊ว': 'Pad See Ew', 'ราดหน้า': 'Rad Na (gravy noodles)', 'ผัดผักรวม': 'Stir-fried mixed vegetables',
+  'ต้มยำกุ้ง': 'Tom Yum Goong', 'ต้มยำ': 'Tom Yum', 'ต้มข่าไก่': 'Tom Kha Gai', 'แกงเขียวหวาน': 'Green curry',
+  'แกงแดง': 'Red curry', 'แกงมัสมั่น': 'Massaman curry', 'พะแนง': 'Panang curry', 'ส้มตำ': 'Papaya salad',
+  'ส้มตำไทย': 'Thai papaya salad', 'ลาบ': 'Larb', 'ยำวุ้นเส้น': 'Glass noodle salad', 'ไก่ทอด': 'Fried chicken',
+  'ข้าวมันไก่': 'Chicken rice', 'ปอเปี๊ยะทอด': 'Fried spring rolls', 'ทอดมันปลา': 'Thai fish cakes', 'หมูสะเต๊ะ': 'Pork satay',
+  'ข้าวเหนียวมะม่วง': 'Mango sticky rice', 'ชาเย็น': 'Thai iced tea', 'ชาไทย': 'Thai tea', 'ชามะนาว': 'Iced lemon tea',
+  'ชาเขียว': 'Green tea', 'กาแฟเย็น': 'Iced coffee', 'กาแฟร้อน': 'Hot coffee', 'โอเลี้ยง': 'Thai black iced coffee',
+  'น้ำเปล่า': 'Water', 'น้ำแข็ง': 'Ice', 'โค้ก': 'Coke', 'น้ำส้ม': 'Orange juice', 'น้ำมะพร้าว': 'Coconut water',
+  'มะพร้าว': 'Coconut', 'เบียร์': 'Beer', 'โซดา': 'Soda',
+};
+let enDraft = null;
+// คำที่ต้องแปล: ชื่อเมนูตามหมวด + ตัวเลือก (ไม่รวมกลุ่มเตือนแพ้อาหาร ซึ่งไม่พิมพ์บนใบเสร็จ)
+function enTerms() {
+  const menu = cats().map(c => ({ cat: c, names: [...new Set(S.menu.filter(m => m.category === c).map(m => m.name))] })).filter(x => x.names.length);
+  const opts = new Set();
+  const addG = g => { if (g && !g.alert) for (const c of g.choices || []) if (c.name) opts.add(c.name); };
+  for (const m of S.menu) for (const g of m.groups || []) addG(g.ref ? S.optionSets.find(s => s.id === g.ref) : g);
+  for (const s of S.optionSets || []) addG(s);
+  const inMenu = new Set(menu.flatMap(x => x.names));
+  return { menu, opts: [...opts].filter(t => !inMenu.has(t)) };
+}
+function enCount() {
+  const { menu, opts } = enTerms(), all = [...menu.flatMap(x => x.names), ...opts];
+  const done = all.filter(t => String(enDraft[t] || '').trim()).length;
+  $('#enStat').textContent = `แปลแล้ว ${done} จาก ${all.length} คำ`;
+  $('#nEn').textContent = all.length - done || '';
+  $('#enFill').disabled = !all.some(t => !String(enDraft[t] || '').trim() && EN_HINT[t]);
+  return all;
+}
+function loadEnglish(force) {
+  if (!force && enDraft && (dirty.has('english') || $('#sec-english').contains(document.activeElement))) return;
+  enDraft = { ...(S.settings.i18n?.en || {}) };
+  renderEnglish();
+}
+function renderEnglish() {
+  const { menu, opts } = enTerms();
+  const row = t => `<div class="enrow"><span>${esc(t)}</span><input type="text" data-en="${esc(t)}" value="${esc(enDraft[t] || '')}"
+    placeholder="${esc(EN_HINT[t] || '')}" maxlength="80" aria-label="${esc(t)} ภาษาอังกฤษ"></div>`;
+  $('#enList').innerHTML = menu.map(x => `<h3 class="enh">${esc(x.cat)}</h3>${x.names.map(row).join('')}`).join('')
+    + (opts.length ? `<h3 class="enh">ตัวเลือก (เนื้อสัตว์ ความเผ็ด ความหวาน ฯลฯ)</h3>${opts.map(row).join('')}` : '');
+  enCount();
+}
+$('#enList').addEventListener('input', e => {
+  const t = e.target.dataset.en; if (t == null) return;
+  enDraft[t] = e.target.value; dirty.add('english'); enCount();
+});
+$('#enFill').onclick = () => {
+  for (const t of enCount()) if (!String(enDraft[t] || '').trim() && EN_HINT[t]) enDraft[t] = EN_HINT[t];
+  dirty.add('english'); renderEnglish();
+};
+$('#enSave').onclick = async () => {
+  try {
+    const i18n = { ...(S.settings.i18n || {}), en: enDraft };
+    await api('/api/settings', { i18n });
+    S.settings.i18n = i18n; dirty.delete('english'); loadEnglish(true); renderRcPreview(); renderTkPreview();
+    toast('บันทึกชื่อภาษาอังกฤษแล้ว');
+  } catch (err) { toast(err.message, true); }
+};
+
+window.addEventListener('beforeunload', e => {
+  if (dirty.size || (draft && JSON.stringify(draft) !== draftOrig)) { e.preventDefault(); e.returnValue = ''; }
+});
+
+// ยอดวันนี้อัปเดตเองเมื่อมีบิลปิดเพิ่ม (รอ 1.5 วินาที รวมหลายการเปลี่ยนแปลงเป็นครั้งเดียว)
+let reportTimer;
+live(() => {
+  renderMenu(); renderCats(); renderSets(); fillForms();
+  if (draft && !$('#editor').hidden) renderPreview();
+  if (!report || report.to === ymd(new Date())) { clearTimeout(reportTimer); reportTimer = setTimeout(loadReport, report ? 1500 : 0); }
+});
+</script>
+</body>
+</html>

@@ -44,6 +44,15 @@
   .tts { font-size: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .tts span { flex: 1; min-width: 180px; }
   .tts button { padding: 8px 12px; font-size: 14px; }
+  .seg.two { grid-template-columns: repeat(3, 1fr); }
+  .ipbox { background: #EAF3EF; border-radius: 12px; padding: 12px 14px; margin: 12px 0 0; font-size: 15px; }
+  .ipbox b { font-size: 22px; display: block; letter-spacing: .5px; }
+  .warn { background: #FBEDE9; border-radius: 12px; padding: 12px 14px; margin: 12px 0 0; font-size: 14.5px; }
+  .warn button, .ipbox button { margin-top: 8px; padding: 8px 12px; font-size: 14px; }
+  pre.log { white-space: pre-wrap; word-break: break-all; font-size: 11.5px; background: #1b1f1d; color: #d7e2dc; border-radius: 10px; padding: 10px; max-height: 260px; overflow: auto; margin: 10px 0 0; }
+  .spin { width: 54px; height: 54px; border-radius: 50%; margin: 0 auto; border: 5px solid var(--line); border-top-color: var(--jade); animation: r 1s linear infinite; }
+  @keyframes r { to { transform: rotate(360deg); } }
+  .linkish { background: none; border: 0; color: var(--muted); text-decoration: underline; font-weight: 400; font-size: 14px; padding: 8px 0; }
 </style>
 </head>
 <body>
@@ -60,20 +69,38 @@
       <input type="password" id="pin" class="pin" inputmode="numeric" maxlength="4" autocomplete="off">
       <div class="res bad" id="pinMsg" style="margin-top:10px"></div>
       <div class="row"><button id="pinBack">กลับ</button><button class="primary" id="pinOk" style="flex:1">ตกลง</button></div>
+      <button class="linkish" id="forgot" hidden>ลืมรหัสเจ้าของร้าน?</button>
     </div>
   </section>
 
   <!-- ===== ตั้งค่า ===== -->
   <section id="v-setup" hidden>
     <div class="card">
+      <h2>เครื่องนี้ทำหน้าที่</h2>
+      <div class="seg two" id="srv">
+        <button data-v="off">หน้าจออย่างเดียว<small>ต่อเครื่องอื่น</small></button>
+        <button data-v="main">เครื่องหลัก<small>เซิร์ฟเวอร์ร้าน</small></button>
+        <button data-v="standby">เครื่องสำรอง<small>รับงานแทนได้</small></button>
+      </div>
+      <p style="margin:10px 0 0;font-size:13.5px;color:var(--muted)" id="srvHint"></p>
+      <div id="srvBox" hidden>
+        <div class="ipbox" id="ipBox"></div>
+        <div class="warn" id="batBox" hidden>⚠ Android อาจปิดเซิร์ฟเวอร์เพื่อประหยัดแบต ตอนปิดจอนานๆ
+          <br><button id="batBtn">อนุญาตให้ทำงานตลอด</button></div>
+        <div class="row" style="margin-top:12px"><button id="logBtn" style="flex:1">ดูบันทึกเซิร์ฟเวอร์</button><button id="restartBtn" style="flex:1">เปิดเซิร์ฟเวอร์ใหม่</button></div>
+        <pre class="log" id="log" hidden></pre>
+      </div>
+    </div>
+
+    <div class="card" id="connCard">
       <h2>เชื่อมต่อเซิร์ฟเวอร์ของร้าน</h2>
-      <label class="f"><span>เครื่องหลัก</span>
+      <div id="mainWrap"><label class="f"><span>เครื่องหลัก</span>
         <div class="row"><input type="text" id="main" inputmode="url" placeholder="192.168.1.34" autocomplete="off"><button id="tMain">ทดสอบ</button></div></label>
-      <div class="res" id="rMain"></div>
-      <label class="f"><span>เครื่องสำรอง <small>(ไม่บังคับ)</small></span>
+      <div class="res" id="rMain"></div></div>
+      <div id="standbyWrap"><label class="f"><span>เครื่องสำรอง <small>(ไม่บังคับ)</small></span>
         <div class="row"><input type="text" id="standby" inputmode="url" placeholder="เช่น 192.168.1.35" autocomplete="off"><button id="tStandby">ทดสอบ</button></div></label>
-      <div class="res" id="rStandby"></div>
-      <p style="margin:0;font-size:13.5px;color:var(--muted)">ใส่แค่ IP ก็พอ ระบบเติม :3000 ให้เอง · ดู IP ได้ที่หน้าจอ Termux ตอนรัน node server.js</p>
+      <div class="res" id="rStandby"></div></div>
+      <p style="margin:0;font-size:13.5px;color:var(--muted)">ใส่แค่ IP ก็พอ ระบบเติม :3000 ให้เอง · ดู IP ได้ที่หน้าตั้งค่าแอปของเครื่องหลัก (หรือหน้าจอ Termux ถ้ายังใช้ Termux)</p>
     </div>
 
     <div class="card">
@@ -98,13 +125,23 @@
     <p class="note">เปิดหน้านี้อีกครั้ง: แตะ<b>มุมซ้ายบน</b>ของจอ 5 ครั้งติดกัน</p>
   </section>
 
+  <!-- ===== รอเซิร์ฟเวอร์ในเครื่องนี้เปิด ===== -->
+  <section id="v-starting" hidden>
+    <div class="center">
+      <div class="spin"></div>
+      <h1>กำลังเปิดเซิร์ฟเวอร์ร้าน…</h1>
+      <p>ครั้งแรกหลังติดตั้งหรืออัปเดตแอปอาจใช้เวลาสักครู่</p>
+    </div>
+  </section>
+
   <!-- ===== ติดต่อเซิร์ฟเวอร์ไม่ได้ ===== -->
   <section id="v-offline" hidden>
     <div class="center">
       <div class="pulse"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M2 8.8a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16.2a5 5 0 0 1 6 0"/><path d="M3 3l18 18"/></svg></div>
       <h1>ติดต่อเซิร์ฟเวอร์ไม่ได้</h1>
       <p id="offWhere"></p>
-      <p>ตรวจว่าแท็บเล็ตเครื่องหลักเปิดอยู่ Termux ยังรัน node server.js และต่อ Wi-Fi ร้านเดียวกัน</p>
+      <p id="offHint">ตรวจว่าแท็บเล็ตเครื่องหลักเปิดอยู่ แอป MAMA POS (หรือ Termux) ยังทำงาน และต่อ Wi-Fi ร้านเดียวกัน</p>
+      <pre class="log" id="offLog" hidden style="text-align:left"></pre>
       <p style="font-weight:600;color:var(--ink);margin-top:14px" id="offCount"></p>
       <div class="btns"><button id="offSetup">ตั้งค่า</button><button class="primary" id="offRetry">ลองใหม่ตอนนี้</button></div>
     </div>
@@ -114,13 +151,15 @@
 <script>
 const A = window.EdPosApp;
 const $ = s => document.querySelector(s);
-const cfg = A ? JSON.parse(A.getConfig()) : { main: '', standby: '', page: 'order', lock: false, version: 'dev' };
+const cfg = A ? JSON.parse(A.getConfig()) : { main: '', standby: '', page: 'order', lock: false, version: 'dev', server: 'off', ip: '' };
 $('#ver').textContent = 'หน้าจอร้าน · รุ่น ' + cfg.version;
 const short = u => String(u || '').replace(/^https?:\/\//, '');
 let page = cfg.page || 'order';
+let srv = cfg.server || 'off';
 
 function show(mode) {
-  ['locked', 'setup', 'offline'].forEach(m => ($('#v-' + m).hidden = m !== mode));
+  ['locked', 'setup', 'offline', 'starting'].forEach(m => ($('#v-' + m).hidden = m !== mode));
+  if (mode === 'locked') $('#forgot').hidden = cfg.server !== 'main';
   if (mode === 'setup') fillSetup();
   if (mode === 'offline') startCountdown();
   if (mode === 'locked') { $('#pin').value = ''; $('#pinMsg').textContent = ''; setTimeout(() => $('#pin').focus(), 200); }
@@ -129,8 +168,35 @@ function show(mode) {
 // ----- ตั้งค่า -----
 function fillSetup() {
   $('#main').value = short(cfg.main); $('#standby').value = short(cfg.standby); $('#lock').checked = !!cfg.lock;
-  paintPage(); checkTts();
+  paintPage(); paintSrv(); checkTts();
 }
+
+// ----- เครื่องนี้ทำหน้าที่: หน้าจออย่างเดียว / เครื่องหลัก / เครื่องสำรอง -----
+const SRV_HINT = {
+  off: 'แท็บเล็ตสั่งอาหาร จอครัว หรือหลังร้าน ที่ต่อไปยังเครื่องหลักของร้าน',
+  main: 'เครื่องนี้เป็นเซิร์ฟเวอร์ของร้าน (แทน Termux) เครื่องอื่นต่อมาที่ IP ของเครื่องนี้ · ควรเสียบชาร์จไว้ตลอด',
+  standby: 'เครื่องนี้คัดลอกข้อมูลจากเครื่องหลักตลอดเวลา ถ้าเครื่องหลักพัง กดให้เครื่องนี้รับงานแทนได้ · ใส่ IP เครื่องหลักด้านล่าง',
+};
+function paintSrv() {
+  document.querySelectorAll('#srv button').forEach(b => b.classList.toggle('on', b.dataset.v === srv));
+  $('#srvHint').textContent = SRV_HINT[srv];
+  $('#srvBox').hidden = srv === 'off';
+  $('#mainWrap').hidden = srv === 'main';
+  $('#standbyWrap').hidden = srv === 'standby';
+  const running = cfg.server === srv && srv !== 'off';
+  $('#ipBox').innerHTML = cfg.ip ? `IP ของเครื่องนี้ (ใส่ในแท็บเล็ตเครื่องอื่น)<b>${cfg.ip.replace(':3000', '')}</b>${running ? '' : '<span style="font-size:13.5px;color:var(--muted)">เซิร์ฟเวอร์จะเปิดหลังกดบันทึก</span>'}`
+    : 'ยังไม่ได้ต่อ Wi-Fi · ต่อ Wi-Fi ของร้านก่อน เครื่องอื่นจึงจะเชื่อมต่อได้';
+  $('#batBox').hidden = !!cfg.battery;
+}
+document.querySelectorAll('#srv button').forEach(b => b.onclick = () => {
+  if (b.dataset.v === 'main' && cfg.server !== 'main' && !confirm('ให้เครื่องนี้เป็นเครื่องหลัก (เซิร์ฟเวอร์ร้าน)?\n\nถ้ายังเปิดเซิร์ฟเวอร์ใน Termux อยู่ ให้ปิด Termux ก่อน และย้ายข้อมูลร้านด้วย หลังร้าน > สำรองข้อมูล')) return;
+  srv = b.dataset.v; paintSrv();
+});
+$('#batBtn').onclick = () => A && A.requestBattery();
+$('#logBtn').onclick = () => { const l = $('#log'); l.hidden = !l.hidden; if (!l.hidden) { l.textContent = (A ? A.serverLog() : '') || '(ยังไม่มีบันทึก)'; l.scrollTop = l.scrollHeight; } };
+$('#restartBtn').onclick = () => { if (confirm('ปิดแล้วเปิดเซิร์ฟเวอร์ใหม่? ระหว่างนี้ (ไม่กี่วินาที) เครื่องอื่นจะสั่งอาหารไม่ได้')) A && A.restartServer(); };
+// กลับมาจากหน้าตั้งค่าแบตเตอรี่ → อัปเดตสถานะ
+document.addEventListener('visibilitychange', () => { if (!document.hidden && A && !$('#v-setup').hidden) { Object.assign(cfg, JSON.parse(A.getConfig())); paintSrv(); } });
 function paintPage() { document.querySelectorAll('#page button').forEach(b => b.classList.toggle('on', b.dataset.v === page)); }
 document.querySelectorAll('#page button').forEach(b => b.onclick = () => { page = b.dataset.v; paintPage(); });
 
@@ -149,13 +215,15 @@ $('#tMain').onclick = () => test('#main', '#rMain');
 $('#tStandby').onclick = () => test('#standby', '#rStandby');
 
 $('#save').onclick = async () => {
+  const conf = () => JSON.stringify({ server: srv, main: $('#main').value, standby: $('#standby').value, page, lock: $('#lock').checked });
+  if (srv === 'main') { A && A.saveConfig(conf()); return; }   // เครื่องหลักไม่ต้องทดสอบ IP
   if (!$('#main').value.trim()) { $('#rMain').className = 'res bad'; $('#rMain').textContent = 'ใส่ IP เครื่องหลักก่อน'; $('#main').focus(); return; }
   $('#save').disabled = true; $('#save').textContent = 'กำลังเชื่อมต่อ…';
   const r = await test('#main', '#rMain');
   if (!r?.ok && !confirm('ยังติดต่อเครื่องหลักไม่ได้ บันทึกไว้ก่อนไหม? (แอปจะลองเชื่อมต่อเองเรื่อยๆ)')) {
     $('#save').disabled = false; $('#save').textContent = 'บันทึกและเปิดร้าน'; return;
   }
-  A && A.saveConfig(JSON.stringify({ main: $('#main').value, standby: $('#standby').value, page, lock: $('#lock').checked }));
+  A && A.saveConfig(conf());
 };
 
 // ----- เสียงอ่านภาษาไทย (จอครัว) -----
@@ -184,11 +252,21 @@ $('#pinOk').onclick = tryPin;
 $('#pin').addEventListener('keydown', e => { if (e.key === 'Enter') tryPin(); });
 $('#pin').addEventListener('input', e => { if (e.target.value.length === 4) tryPin(); });
 $('#pinBack').onclick = () => A && A.retry();
+// ลืมรหัส (เฉพาะเครื่องหลัก): ล้างรหัสเจ้าของร้านและพนักงานทั้งหมด แล้วตั้งใหม่ในหลังร้าน · แจ้งเข้า LINE ด้วย
+$('#forgot').onclick = () => {
+  if (!confirm('ล้างรหัสเจ้าของร้านและรหัสพนักงานทั้งหมด?\n\nข้อมูลร้าน เมนู และบิลไม่หาย · ทุกเครื่องต้องใส่รหัสใหม่ · ระบบจะแจ้งเข้า LINE ของร้าน')) return;
+  if (!confirm('ยืนยันอีกครั้ง: ล้างรหัสทั้งหมด?')) return;
+  const r = A ? A.resetPins() : 'ok';
+  if (r !== 'ok') return alert(r);
+  alert('ล้างรหัสแล้ว · เปิดหลังร้านเพื่อตั้งรหัสเจ้าของร้านใหม่');
+};
 
 // ----- ออฟไลน์: ลองใหม่เองทุก 5 วินาที -----
 let cd = null;
 function startCountdown() {
-  $('#offWhere').textContent = 'ลองแล้ว: ' + [cfg.main, cfg.standby].filter(Boolean).map(short).join(' และ ');
+  $('#offWhere').textContent = cfg.server === 'main' ? 'เซิร์ฟเวอร์ในเครื่องนี้ยังไม่ตอบ'
+    : 'ลองแล้ว: ' + [cfg.main, cfg.server === 'standby' ? 'เครื่องนี้' : cfg.standby].filter(Boolean).map(short).join(' และ ');
+  if (cfg.server === 'main' && A) { $('#offHint').textContent = 'บันทึกเซิร์ฟเวอร์ด้านล่าง (ส่งรูปหน้าจอนี้ให้ผู้ดูแลได้)'; $('#offLog').hidden = false; $('#offLog').textContent = A.serverLog() || '(ยังไม่มีบันทึก)'; }
   let n = 5; clearInterval(cd);
   const tick = () => { $('#offCount').textContent = `ลองเชื่อมต่อใหม่ใน ${n} วินาที…`; if (n-- <= 0) { clearInterval(cd); $('#offCount').textContent = 'กำลังเชื่อมต่อ…'; A && A.retry(); } };
   tick(); cd = setInterval(tick, 1000);

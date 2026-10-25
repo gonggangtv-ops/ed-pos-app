@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>เครื่องสำรอง · ED POS</title>
+<style>
+  :root { --bg: #EDF0EC; --ink: #18221E; --muted: #5F6B65; --line: #D5DBD6; --jade: #1E6B58; --brick: #B03A27; --amber: #9A6A00;
+    font-family: "IBM Plex Sans Thai", "Noto Sans Thai", system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); }
+  main { max-width: 520px; margin: 0 auto; padding: 28px 18px 60px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .lede { color: var(--muted); margin: 0 0 22px; }
+  .state { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 22px; margin-bottom: 18px; }
+  .big { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 700; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; }
+  .ok .dot { background: var(--jade); box-shadow: 0 0 0 5px #DCEBE5; }
+  .bad .dot { background: var(--brick); box-shadow: 0 0 0 5px #F6E1DC; }
+  .wait .dot { background: var(--amber); }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 18px 0 0; font-size: 15px; }
+  dt { color: var(--muted); } dd { margin: 0; font-weight: 500; text-align: right; }
+  button { font: inherit; width: 100%; padding: 16px; border-radius: 12px; border: 0; font-size: 18px; font-weight: 700; cursor: pointer; }
+  .promote { background: var(--brick); color: #fff; }
+  .promote:disabled { background: #C3CBC6; cursor: default; }
+  .note { color: var(--muted); font-size: 14.5px; margin: 12px 2px 0; line-height: 1.6; }
+  a { color: var(--jade); }
+  .pair { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 22px; margin-bottom: 18px; }
+  .pair h2 { font-size: 18px; margin: 0 0 6px; } .pair p { color: var(--muted); font-size: 14.5px; margin: 0 0 14px; line-height: 1.6; }
+  .pair input { font: inherit; width: 100%; padding: 14px; border: 1px solid var(--line); border-radius: 12px; font-size: 24px; text-align: center; letter-spacing: 8px; margin-bottom: 10px; }
+  .pair button { background: var(--jade); color: #fff; }
+  .pair .err { color: var(--brick); font-size: 14.5px; min-height: 22px; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>เครื่องสำรอง</h1>
+  <p class="lede">เครื่องนี้คัดลอกข้อมูลจากเครื่องหลักอยู่ตลอด ปกติไม่ต้องทำอะไร ใช้หน้านี้เมื่อเครื่องหลักพังเท่านั้น</p>
+  <div class="state" id="state"><div class="big wait"><span class="dot"></span>กำลังตรวจสอบ…</div></div>
+  <form class="pair" id="pair" hidden>
+    <h2>จับคู่กับเครื่องหลัก</h2>
+    <p>ทำครั้งเดียว ใส่รหัสเจ้าของร้าน (4 หลัก) ของเครื่องหลัก เพื่อยืนยันว่าเครื่องนี้เป็นเครื่องสำรองของร้านจริง เครื่องหลักจึงจะยอมส่งข้อมูลให้</p>
+    <input type="password" id="pin" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••" aria-label="รหัสเจ้าของร้าน">
+    <button type="submit" id="pairBtn">จับคู่</button>
+    <p class="err" id="pairErr"></p>
+  </form>
+  <button class="promote" id="promote" disabled>ใช้เครื่องนี้เป็นเครื่องหลัก</button>
+  <p class="note" id="note"></p>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+let info = null;
+const ago = t => { if (!t) return 'ยังไม่เคย'; const s = Math.round((Date.now() - t) / 1000); return s < 60 ? `${s} วินาทีที่แล้ว` : `${Math.round(s / 60)} นาทีที่แล้ว`; };
+async function tick() {
+  try {
+    info = await (await fetch('/api/role', { cache: 'no-store' })).json();
+    if (info.role === 'main') { location.href = '/'; return; }          // สลับแล้ว → ไปหน้าหลัก
+    const fresh = info.lastSync && Date.now() - info.lastSync < 8000;
+    $('#pair').hidden = !info.needPair;
+    $('#state').innerHTML = `
+      <div class="big ${fresh ? 'ok' : info.needPair ? 'wait' : 'bad'}"><span class="dot"></span>${fresh ? 'เครื่องหลักทำงานปกติ' : info.needPair ? 'ยังไม่ได้จับคู่กับเครื่องหลัก' : 'ติดต่อเครื่องหลักไม่ได้'}</div>
+      <dl><dt>เครื่องหลัก</dt><dd>${info.peer.replace(/^https?:\/\//, '')}</dd>
+        <dt>คัดลอกล่าสุด</dt><dd>${ago(info.lastSync)}</dd>
+        <dt>โต๊ะที่เปิดอยู่</dt><dd>${info.openTables} โต๊ะ</dd></dl>`;
+    $('#promote').disabled = fresh || info.needPair;   // ยังไม่เคยได้ข้อมูลร้าน → รับงานแทนไม่ได้
+    $('#note').innerHTML = info.needPair ? 'จับคู่กับเครื่องหลักก่อน เครื่องนี้ยังไม่มีข้อมูลร้าน จึงยังรับงานแทนไม่ได้'
+      : fresh
+      ? 'เครื่องหลักยังทำงาน ปุ่มนี้จะกดได้เมื่อเครื่องหลักไม่ตอบเกิน 8 วินาที เพื่อไม่ให้ข้อมูลแยกเป็นสองชุด'
+      : `กดปุ่มนี้แล้ว เครื่องนี้จะรับออเดอร์และพิมพ์แทนทันที โต๊ะที่เปิดอยู่ ${info.openTables} โต๊ะยังอยู่ครบ
+         มือถือสั่งอาหารและจอครัวจะย้ายมาที่เครื่องนี้เอง<br>ถ้าเครื่องหลักเดิมกลับมา มันจะเปลี่ยนเป็นเครื่องสำรองให้อัตโนมัติ`;
+  } catch {
+    $('#state').innerHTML = '<div class="big bad"><span class="dot"></span>หน้านี้ติดต่อโปรแกรมในเครื่องไม่ได้ ตรวจว่า Termux หรือแอป MAMA POS (โหมดเซิร์ฟเวอร์) ยังเปิดอยู่</div>';
+  }
+}
+$('#pair').onsubmit = async e => {
+  e.preventDefault();
+  $('#pairBtn').disabled = true; $('#pairBtn').textContent = 'กำลังจับคู่…'; $('#pairErr').textContent = '';
+  try {
+    const r = await fetch('/api/standby/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: $('#pin').value }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    $('#pin').value = ''; tick();
+  } catch (err) { $('#pairErr').textContent = err.message; $('#pin').select(); }
+  finally { $('#pairBtn').disabled = false; $('#pairBtn').textContent = 'จับคู่'; }
+};
+$('#promote').onclick = async () => {
+  if (!confirm('ให้เครื่องนี้รับงานแทนเครื่องหลัก?')) return;
+  $('#promote').disabled = true; $('#promote').textContent = 'กำลังสลับ…';
+  const r = await fetch('/api/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  const j = await r.json();
+  if (!r.ok) { alert(j.error); $('#promote').textContent = 'ใช้เครื่องนี้เป็นเครื่องหลัก'; tick(); return; }
+  location.href = '/';
+};
+tick(); setInterval(tick, 2000);
+</script>
+</body>
+</html>

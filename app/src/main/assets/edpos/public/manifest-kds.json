@@ -1,0 +1,11 @@
+{
+  "name": "ED POS จอครัว",
+  "short_name": "จอครัว",
+  "start_url": "/kds.html",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#14130f",
+  "theme_color": "#14130f",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

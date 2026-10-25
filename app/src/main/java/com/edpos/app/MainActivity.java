@@ -12,6 +12,8 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.provider.MediaStore;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
@@ -36,6 +38,8 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.RandomAccessFile;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -53,11 +57,14 @@ import java.util.Locale;
  * · ต่อเครื่องหลักไม่ได้ → ลองเครื่องสำรอง → ไม่ได้ทั้งคู่ ขึ้นหน้าออฟไลน์และลองใหม่เองทุก 5 วินาที
  * · ส่วนที่หน้าเว็บทำเองไม่ได้ในแอป: เสียงอ่านภาษาไทย (Android TextToSpeech), บันทึกไฟล์ลง Download, เลือกไฟล์
  *   หน้าเว็บเรียกผ่าน window.EdPosApp (ดู public/app-bridge.js ในเซิร์ฟเวอร์ ED POS)
+ * · โหมดเซิร์ฟเวอร์ (prefs "server" = main | standby): เครื่องนี้รันเซิร์ฟเวอร์ ED POS เองใน NodeService ไม่ต้องมี Termux
+ *   main = เครื่องหลัก เปิดหน้าเว็บจาก 127.0.0.1 · standby = เครื่องสำรอง คัดลอกข้อมูลจากเครื่องหลักที่ใส่ IP ไว้
  */
 public class MainActivity extends Activity {
     private static final String PREFS = "edpos";
     private static final int REQ_FILE = 7;
     private static final String SETUP_URL = "file:///android_asset/app.html";
+    static final String LOCAL = "http://127.0.0.1:" + NodeService.PORT;   // เซิร์ฟเวอร์ในเครื่องนี้
 
     private WebView web;
     private SharedPreferences prefs;
@@ -104,7 +111,8 @@ public class MainActivity extends Activity {
         });
 
         hideBars();
-        if (main().isEmpty()) showPage("setup");
+        if (serverOn()) { ensureServer(); askNotifications(); }
+        if (!hasTarget()) showPage("setup");
         else openServer();
     }
 
@@ -113,6 +121,59 @@ public class MainActivity extends Activity {
     private String standby() { return prefs.getString("standby", ""); }
     private String screen() { return prefs.getString("page", "order"); }
     private boolean lockApp() { return prefs.getBoolean("lock", false); }
+    private String serverMode() { return prefs.getString("server", "off"); }
+    private boolean serverOn() { return !"off".equals(serverMode()); }
+    /** มีที่ให้เปิดหน้าร้านแล้ว (ใส่ IP เครื่องหลัก หรือเครื่องนี้เป็นเครื่องหลักเอง) */
+    private boolean hasTarget() { return "main".equals(serverMode()) || !main().isEmpty(); }
+
+    // ---------- เซิร์ฟเวอร์ในเครื่องนี้ ----------
+    private void ensureServer() {
+        if (!serverOn()) return;
+        try { startForegroundService(new Intent(this, NodeService.class)); }
+        catch (Exception e) { toast("เปิดเซิร์ฟเวอร์ไม่ได้: " + e.getMessage()); }
+    }
+
+    /** ปิดแล้วเปิดใหม่ (Node เปิดซ้ำในกระบวนการเดิมไม่ได้ ต้องรอกระบวนการเก่าปิดและพอร์ตว่าง) */
+    private void restartServer() {
+        stopService(new Intent(this, NodeService.class));
+        ui.postDelayed(this::ensureServer, 1500);
+    }
+
+    /** role.json ของเซิร์ฟเวอร์: เขียนเฉพาะตอนเปลี่ยนโหมดในหน้าตั้งค่า
+     *  (ถ้าเขียนทุกครั้งที่เปิด เครื่องสำรองที่รับงานแทนไปแล้วจะกลับเป็นเครื่องสำรองเอง ร้านไม่มีเครื่องหลัก) */
+    private void writeRole(String mode, String peer) {
+        File d = NodeService.dir(this);
+        d.mkdirs();
+        try (FileWriter w = new FileWriter(new File(d, "role.json"))) {
+            JSONObject o = new JSONObject();
+            o.put("role", "standby".equals(mode) ? "standby" : "main");
+            o.put("peer", peer == null ? "" : peer);
+            w.write(o.toString());
+        } catch (Exception e) { toast("บันทึกโหมดเซิร์ฟเวอร์ไม่ได้: " + e.getMessage()); }
+    }
+
+    private void askNotifications() {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED)
+            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 9);
+    }
+
+    private boolean batteryOk() {
+        try { return ((PowerManager) getSystemService(POWER_SERVICE)).isIgnoringBatteryOptimizations(getPackageName()); }
+        catch (Exception e) { return false; }
+    }
+
+    /** ท้ายไฟล์ log ของเซิร์ฟเวอร์ (ไว้ดูตอนเปิดไม่ขึ้น) */
+    private String tail(String name, int max) {
+        File f = new File(NodeService.dir(this), name);
+        if (!f.exists()) return "";
+        try (RandomAccessFile r = new RandomAccessFile(f, "r")) {
+            long start = Math.max(0, r.length() - max);
+            r.seek(start);
+            byte[] b = new byte[(int) (r.length() - start)];
+            r.readFully(b);
+            return new String(b, StandardCharsets.UTF_8);
+        } catch (Exception e) { return ""; }
+    }
 
     private String pagePath() {
         switch (screen()) {
@@ -139,14 +200,27 @@ public class MainActivity extends Activity {
     }
 
     // ---------- เปิดเซิร์ฟเวอร์: เครื่องหลัก → เครื่องสำรอง → หน้าออฟไลน์ ----------
+    // โหมดเซิร์ฟเวอร์: เครื่องหลักเปิดจากเครื่องนี้เลย (รอเซิร์ฟเวอร์ในเครื่องพร้อมได้ถึง 40 วินาที)
+    //                เครื่องสำรองลองเครื่องหลักก่อน ไม่ได้ค่อยใช้เครื่องนี้
     private void openServer() {
+        final String mode = serverMode();
         final List<String> tryList = new ArrayList<>();
-        if (!main().isEmpty()) tryList.add(main());
-        if (!standby().isEmpty()) tryList.add(standby());
+        if ("main".equals(mode)) tryList.add(LOCAL);
+        else {
+            if (!main().isEmpty()) tryList.add(main());
+            if ("standby".equals(mode)) tryList.add(LOCAL);
+            else if (!standby().isEmpty()) tryList.add(standby());
+        }
+        if ("main".equals(mode)) showPage("starting");
         new Thread(() -> {
             String ok = null;
             for (String b : tryList) {
-                if (httpGet(b + "/api/role", 3000) != null) { ok = b; break; }
+                int tries = LOCAL.equals(b) ? 80 : 1;
+                for (int t = 0; t < tries && ok == null; t++) {
+                    if (httpGet(b + "/api/role", 3000) != null) ok = b;
+                    else if (tries > 1) { ensureServerFromThread(); try { Thread.sleep(500); } catch (InterruptedException ignored) { } }
+                }
+                if (ok != null) break;
             }
             final String found = ok;
             ui.post(() -> {
@@ -157,6 +231,13 @@ public class MainActivity extends Activity {
                 applyLock(true);
             });
         }).start();
+    }
+
+    private long lastEnsure = 0;
+    private void ensureServerFromThread() {
+        if (System.currentTimeMillis() - lastEnsure < 10000) return;
+        lastEnsure = System.currentTimeMillis();
+        ui.post(this::ensureServer);
     }
 
     private void showPage(String mode) {
@@ -208,7 +289,7 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
         if (onServer && web.canGoBack()) { web.goBack(); return; }
-        if (!onServer && !main().isEmpty()) { openServer(); return; }   // ออกจากหน้าตั้งค่า = กลับไปหน้าร้าน
+        if (!onServer && hasTarget()) { openServer(); return; }   // ออกจากหน้าตั้งค่า = กลับไปหน้าร้าน
         // หน้าหลักของร้าน: ไม่ปิดแอปเมื่อพนักงานกดย้อนกลับ
     }
 
@@ -216,6 +297,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         hideBars();
+        ensureServer();   // เซิร์ฟเวอร์ถูกปิดไป (เช่น Android ปิดทิ้ง) → เปิดใหม่ตอนกลับมาที่แอป
         web.onResume();
     }
 
@@ -391,6 +473,9 @@ public class MainActivity extends Activity {
                 o.put("lock", lockApp());
                 o.put("version", version());
                 o.put("current", base);
+                o.put("server", serverMode());
+                o.put("ip", NodeService.firstIp());
+                o.put("battery", batteryOk());
                 return o.toString();
             } catch (Exception e) { return "{}"; }
         }
@@ -399,14 +484,28 @@ public class MainActivity extends Activity {
         public void saveConfig(String json) {
             try {
                 JSONObject o = new JSONObject(json);
+                String oldMode = serverMode(), oldMain = main();
+                String mode = o.optString("server", "off");
+                if (!mode.equals("main") && !mode.equals("standby")) mode = "off";
+                String newMain = "main".equals(mode) ? "" : normalize(o.optString("main"));
+                String newStandby = normalize(o.optString("standby"));
                 prefs.edit()
-                        .putString("main", normalize(o.optString("main")))
-                        .putString("standby", normalize(o.optString("standby")))
+                        .putString("server", mode)
+                        .putString("main", newMain)
+                        .putString("standby", newStandby)
                         .putString("page", o.optString("page", "order"))
                         .putBoolean("lock", o.optBoolean("lock", false))
-                        .apply();
+                        .commit();
+                // เปลี่ยนโหมดเซิร์ฟเวอร์ / เปลี่ยนเครื่องหลักของเครื่องสำรอง → ตั้ง role.json แล้วเปิดเซิร์ฟเวอร์ใหม่
+                if (!mode.equals(oldMode) || ("standby".equals(mode) && !newMain.equals(oldMain))) {
+                    if ("off".equals(mode)) ui.post(() -> stopService(new Intent(MainActivity.this, NodeService.class)));
+                    else {
+                        writeRole(mode, "standby".equals(mode) ? newMain : newStandby);
+                        ui.post(() -> { MainActivity.this.restartServer(); askNotifications(); });
+                    }
+                }
             } catch (Exception ignored) { }
-            ui.post(MainActivity.this::openServer);
+            ui.postDelayed(MainActivity.this::openServer, 300);
         }
 
         /** ทดสอบเครื่อง → {"ok":true,"role":"main","shop":"..."} หรือ {"ok":false} */
@@ -458,6 +557,35 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void retry() { ui.post(MainActivity.this::openServer); }
+
+        // ----- โหมดเซิร์ฟเวอร์ -----
+        /** ขอให้ Android ไม่ปิดแอปเพื่อประหยัดแบต (สำคัญมากกับเครื่องหลัก) */
+        @JavascriptInterface
+        public void requestBattery() {
+            ui.post(() -> {
+                try { startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()))); }
+                catch (Exception e) {
+                    try { startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); }
+                    catch (Exception e2) { toast("เปิดหน้าตั้งค่าแบตเตอรี่ไม่ได้"); }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void restartServer() { ui.post(() -> { MainActivity.this.restartServer(); ui.postDelayed(MainActivity.this::openServer, 500); }); }
+
+        /** ลืมรหัสเจ้าของร้าน: ทำได้จากเครื่องหลักเท่านั้น · เซิร์ฟเวอร์ล้างรหัสทั้งหมดแล้วแจ้งเข้า LINE */
+        @JavascriptInterface
+        public String resetPins() {
+            if (!"main".equals(serverMode())) return "เครื่องนี้ไม่ใช่เครื่องหลัก";
+            try { new File(NodeService.dir(MainActivity.this), "reset-pin.flag").createNewFile(); }
+            catch (Exception e) { return "ล้างรหัสไม่ได้: " + e.getMessage(); }
+            ui.post(() -> { MainActivity.this.restartServer(); ui.postDelayed(MainActivity.this::openServer, 500); });
+            return "ok";
+        }
+
+        @JavascriptInterface
+        public String serverLog() { return tail("error.log", 2000) + tail("app.log", 1500) + tail("server.log", 3000); }
 
         @JavascriptInterface
         public void openSetup() { ui.post(() -> showPage("setup")); }

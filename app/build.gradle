@@ -5,6 +5,11 @@ plugins {
 // เลขรุ่นเพิ่มเองทุกครั้งที่ GitHub สร้างแอปใหม่ → ติดตั้งทับรุ่นเก่าได้เลย (การตั้งค่าในแอปไม่หาย)
 def run = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
 
+// Node.js สำหรับมือถือ (nodejs-mobile) ดาวน์โหลดไว้ที่ app/libnode/ ตอน build (ดู .github/workflows/build.yml)
+// abis.txt = สถาปัตยกรรมที่มี libnode.so เช่น "arm64-v8a armeabi-v7a"
+def abiFile = file('libnode/abis.txt')
+def nodeAbis = abiFile.exists() ? abiFile.text.trim().split(/\s+/) as List : ['arm64-v8a']
+
 android {
     namespace 'com.edpos.app'
     compileSdk 34
@@ -15,6 +20,24 @@ android {
         targetSdk 34
         versionCode run
         versionName "1." + run
+        ndk { abiFilters(*nodeAbis) }
+        externalNativeBuild {
+            cmake { arguments '-DANDROID_STL=c++_shared' }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+            version '3.22.1'
+        }
+    }
+    sourceSets {
+        main { jniLibs.srcDirs = ['libnode/bin'] }
+    }
+    // บีบอัด libnode.so ในไฟล์ติดตั้ง (ไฟล์ .apk เล็กลงมาก)
+    packaging {
+        jniLibs { useLegacyPackaging = true }
     }
 
     // ใช้กุญแจเดียวกันทุกรุ่น ไม่งั้นติดตั้งทับไม่ได้
