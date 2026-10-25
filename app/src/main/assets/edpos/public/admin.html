@@ -836,7 +836,7 @@
           <div class="rowline"><div class="txt"><b>ส่งสรุปยอดอัตโนมัติ</b><span id="lnStatus"></span></div><label class="sw"><input type="checkbox" id="lnOn"><i></i></label></div>
           <div class="stack" style="margin-top:12px">
             <label class="field"><span>เวลาส่ง</span><input type="time" id="lnTime">
-              <small>ตั้งหลังปิดร้าน บิลที่ปิดหลังเวลานี้จะไม่อยู่ในข้อความของวันนั้น (ดูได้ที่หน้ายอดขาย)</small></label>
+              <small>ตั้งหลังปิดร้าน บิลที่ปิดหลังเวลานี้จะไม่อยู่ในข้อความของวันนั้น · ร้านเปิดเลยเที่ยงคืน ตั้ง <a href="#" data-go="shop">ตัดรอบวันขาย</a> ด้วย สรุปจะได้รวมยอดทั้งคืน</small></label>
             <label class="field"><span>Channel access token</span><input type="password" id="lnToken" autocomplete="off"></label>
             <label class="field"><span>ส่งถึง (User ID / Group ID)</span><input type="text" id="lnTo" placeholder="เว้นว่าง = ทุกคนที่เพิ่ม LINE OA เป็นเพื่อน" autocomplete="off">
               <small>อยากส่งถึงเจ้าของคนเดียว: ใส่ "Your user ID" จาก LINE Developers > Basic settings</small></label>
@@ -873,6 +873,8 @@
         <label class="field"><span>ชื่อร้าน</span><input type="text" id="shopName"></label>
         <div class="rowline" style="margin-top:8px"><div class="txt"><b>ปุ่มสั่งกลับบ้าน</b><span>แสดงปุ่ม "+ กลับบ้าน" บนหน้าเลือกโต๊ะ พนักงานพิมพ์เลขคิวหรือชื่อลูกค้าเองได้</span></div>
           <label class="sw"><input type="checkbox" id="takeaway"><i></i></label></div>
+        <div class="rowline" style="margin-top:8px"><div class="txt"><b>ตัดรอบวันขาย</b><span>ร้านเปิดเลยเที่ยงคืน ให้ตั้งเวลาหลังปิดร้าน เช่น ปิด 00:30 → ตี 5 · บิลก่อนเวลานี้นับเป็นยอดของวันก่อน (ยอดขาย สรุป LINE ประวัติ เลขใบเสร็จ)</span></div>
+          <select id="dayCutoff" style="width:auto"><option value="0">เที่ยงคืน</option><option value="1">ตี 1</option><option value="2">ตี 2</option><option value="3">ตี 3</option><option value="4">ตี 4</option><option value="5">ตี 5</option><option value="6">6 โมงเช้า</option></select></div>
         <p style="margin:6px 0 0;font-size:14px;color:var(--muted)">จำนวนและตำแหน่งโต๊ะ แก้ที่เมนู "ผังโต๊ะ"</p>
         <div class="actions"><button class="btn primary" id="saveShop">บันทึกข้อมูลร้าน</button></div>
       </div>
@@ -1188,8 +1190,8 @@ let range = 'today', report = null, topSort = 'qty', showAllTop = false, showAll
 const openTop = new Set();
 
 function rangeDates() {
-  const t = new Date(); const today = ymd(t);
-  const back = n => { const d = new Date(); d.setDate(d.getDate() - n); return ymd(d); };
+  const today = bizDay();   // วันขาย (ตัดรอบตามที่ตั้ง)
+  const back = n => bizDay(n);
   switch (range) {
     case 'yesterday': return [back(1), back(1)];
     case '7': return [back(6), today];
@@ -1250,7 +1252,7 @@ function renderSales() {
     <div class="kpi"><span>เฉลี่ยต่อบิล</span><b>${baht(avg)} ฿</b>${pv.partial == null ? delta(avg, pvAvg, '฿') : ''}</div>
     <div class="kpi"><span>จานที่ขาย</span><b>${s.dishes.toLocaleString('th-TH')}</b>
       ${s.cancelled.qty ? `<small>ยกเลิก ${s.cancelled.qty} จาน (${baht(s.cancelled.amount)} ฿)${s.voids?.bills ? ` · ยกเลิกทั้งโต๊ะ ${s.voids.bills} โต๊ะ` : ''}</small>` : ''}</div>`;
-  const today = ymd(new Date());
+  const today = bizDay();
   const openSum = r.open.reduce((a, o) => a + o.amount, 0);
   $('#openLine').hidden = !(r.to === today && r.open.length);
   $('#openLine').textContent = `ตอนนี้ยังเปิดอยู่ ${r.open.length} โต๊ะ ยอดรอเก็บ ${baht(openSum)} ฿ ยังไม่นับรวมในยอดขาย`;
@@ -1279,7 +1281,8 @@ function renderHeat() {
   const avg = (w, x) => (h.days[w] ? (h.sums[w][x] || 0) / h.days[w] : 0);
   const hrs = order.flatMap(w => Object.keys(h.sums[w]).map(Number));
   if (!hrs.length) { $('#heat').innerHTML = '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>'; $('#heatNote').textContent = ''; return; }
-  const H = []; for (let x = Math.min(10, ...hrs); x <= Math.max(21, ...hrs); x++) H.push(x);
+  // เรียงชั่วโมงตามวันขาย (ร้านเปิดเลยเที่ยงคืน: 22 23 00 01 ต่อกัน)
+  const H = []; for (let r = Math.min(relHour(10), ...hrs.map(relHour)); r <= Math.max(relHour(21), ...hrs.map(relHour)); r++) H.push((r + dayCut()) % 24);
   let max = 0, best = null;
   for (const w of order) for (const x of H) if (avg(w, x) > max) { max = avg(w, x); best = [w, x]; }
   const lvl = v => (v <= 0 ? 0 : Math.max(1, Math.ceil(v / max * 5)));
@@ -1325,9 +1328,10 @@ function chartData() {
   const r = report;
   if (r.from === r.to) {
     const hrs = Object.keys(r.summary.byHour).map(Number);
-    const lo = Math.min(10, ...hrs), hi = Math.max(21, ...hrs);
+    // เรียงตามวันขาย: ร้านเปิดเลยเที่ยงคืน กราฟต่อ 22 23 00 01 ไม่กระโดดไปซ้ายสุด
+    const lo = Math.min(relHour(10), ...hrs.map(relHour)), hi = Math.max(relHour(21), ...hrs.map(relHour));
     const out = [];
-    for (let h = lo; h <= hi; h++) out.push({ label: String(h), tip: `${h}:00–${h}:59`, v: r.summary.byHour[h] || 0 });
+    for (let x = lo; x <= hi; x++) { const h = (x + dayCut()) % 24; out.push({ label: String(h), tip: `${h}:00–${h}:59`, v: r.summary.byHour[h] || 0 }); }
     return { kind: 'hour', rows: out };
   }
   return { kind: 'day', rows: r.days.map(d => ({ label: thDate(d.date, { day: 'numeric', month: 'numeric' }),
@@ -2348,7 +2352,7 @@ $('#saveScreens').onclick = async () => {
 $('#sec-shop').addEventListener('input', () => dirty.add('shop'));
 $('#saveShop').onclick = async () => {
   try {
-    await api('/api/settings', { shopName: $('#shopName').value.trim() || 'ร้านของฉัน', takeaway: $('#takeaway').checked });
+    await api('/api/settings', { shopName: $('#shopName').value.trim() || 'ร้านของฉัน', takeaway: $('#takeaway').checked, dayCutoff: Number($('#dayCutoff').value) });
     dirty.delete('shop'); toast('บันทึกข้อมูลร้านแล้ว');
   } catch (err) { toast(err.message, true); }
 };
@@ -2728,6 +2732,7 @@ function fillForms() {
   if (!dirty.has('shop')) {
     $('#shopName').value = st.shopName || '';
     $('#takeaway').checked = !!st.takeaway;
+    $('#dayCutoff').value = String(st.dayCutoff || 0);
   }
   if (!dirty.has('layout')) { loadLayout(); renderLayout(); fillSel(); }
   if (!dirty.has('receipt')) loadReceipt();
@@ -2815,7 +2820,7 @@ let reportTimer;
 live(() => {
   renderMenu(); renderCats(); renderSets(); fillForms();
   if (draft && !$('#editor').hidden) renderPreview();
-  if (!report || report.to === ymd(new Date())) { clearTimeout(reportTimer); reportTimer = setTimeout(loadReport, report ? 1500 : 0); }
+  if (!report || report.to === bizDay()) { clearTimeout(reportTimer); reportTimer = setTimeout(loadReport, report ? 1500 : 0); }
 });
 </script>
 </body>

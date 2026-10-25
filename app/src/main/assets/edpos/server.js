@@ -304,7 +304,7 @@ const clientIp = req => String(req.socket.remoteAddress || '').replace('::ffff:'
 
 // เลขใบเสร็จ: วันที่-ลำดับ เช่น 20261012-007 (นับต่อเนื่องในวัน รวมใบเสร็จจากการแยกจ่าย)
 function nextReceiptNo() {
-  const d = today().replace(/-/g, '');
+  const d = dayKey(Date.now()).replace(/-/g, '');   // นับเลขต่อเนื่องทั้งวันขาย (ไม่เริ่ม 001 ใหม่ตอนเที่ยงคืน)
   if (!data.rcpt || data.rcpt.day !== d) {
     // เริ่มวันใหม่ หรือข้อมูลรุ่นเก่า: นับต่อจากใบเสร็จที่มีอยู่แล้วในวันนี้
     const nums = [];
@@ -670,7 +670,16 @@ setInterval(dailyBackup, 60 * 60 * 1000);
 // ---------- สรุปยอดขาย ----------
 // บิลละเอียดเก็บไว้ 7 วันเต็ม (ไฟล์ไม่โตจนแท็บเล็ตช้า) ก่อนลบจะย่อเป็นสรุปรายวันเก็บใน data.daily ไว้ตลอด
 const KEEP_DAYS = 7;
-const dayKey = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+// วันที่ตามปฏิทิน (ไม่เลื่อน) · ใช้ไล่วันในช่วงรายงาน
+const ymdOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// ตัดรอบวันขาย (หลังร้าน > ข้อมูลร้าน): ร้านเปิดเลยเที่ยงคืน ตั้งเช่น 5 = บิลก่อนตี 5 นับเป็นของวันก่อน
+// ใช้กับยอดขาย สรุป LINE ประวัติการสั่ง เลขใบเสร็จ ให้ตรงกันทั้งระบบ · 0 = ตัดตอนเที่ยงคืน (เดิม)
+const cutoffH = () => Math.min(8, Math.max(0, Math.round(Number(data.settings?.dayCutoff) || 0)));
+const dayKey = t => ymdOf(new Date(+new Date(t) - cutoffH() * 3600000));
+// เวลาเริ่มวันขายของวันที่ k (เช่น 2026-10-24 ตัดรอบตี 5 → 24 ต.ค. 05:00)
+const bizStart = k => { const d = new Date(k + 'T00:00:00'); d.setHours(cutoffH()); return d.getTime(); };
+// ลำดับชั่วโมงในวันขาย (ตัดรอบตี 5: 05:00 = 0 … 04:00 = 23)
+const relH = h => (Number(h) - cutoffH() + 24) % 24;
 const catOf = i => i.category || data.menu.find(m => m.id === i.menuId)?.category || 'อื่นๆ';
 
 function emptyDay(date) {
@@ -741,7 +750,7 @@ function summarizeLive(date) {
 
 const itemLabelSrv = i => i.name + (i.option ? ' ' + i.option : '');
 function prune() {
-  const keepFrom = new Date(); keepFrom.setHours(0, 0, 0, 0); keepFrom.setDate(keepFrom.getDate() - KEEP_DAYS);
+  const keepFrom = new Date(bizStart(addDays(dayKey(Date.now()), -KEEP_DAYS)));
   const old = data.orders.filter(o => (o.status === 'paid' && o.paidAt < keepFrom.getTime())
     || (o.status === 'void' && o.voidedAt < keepFrom.getTime()));
   if (!old.length) return;
@@ -762,7 +771,7 @@ function dayOf(k) {
   const live = summarizeLive(k);
   return live.bills || live.voids.bills ? live : (data.daily?.[k] || emptyDay(k));
 }
-const addDays = (k, n) => { const d = new Date(k + 'T00:00:00'); d.setDate(d.getDate() + n); return dayKey(d); };
+const addDays = (k, n) => { const d = new Date(k + 'T00:00:00'); d.setDate(d.getDate() + n); return ymdOf(d); };
 // เทียบช่วงก่อนหน้า: ดูวันเดียว = วันเดียวกันของสัปดาห์ก่อน · หลายวัน = ช่วงยาวเท่ากันก่อนหน้า
 // ช่วงที่จบวันนี้ (ร้านยังไม่ปิด) → วันสุดท้ายของช่วงก่อนนับยอดถึงชั่วโมงเดียวกันเท่านั้น จะได้เทียบกันได้จริง
 function prevPeriod(from, n, to) {
@@ -772,7 +781,7 @@ function prevPeriod(from, n, to) {
   for (let k = pf; k <= pt; k = addDays(k, 1)) {
     const d = dayOf(k), last = k === pt;
     out.subtotal = r2(out.subtotal + (last && cut != null
-      ? Object.entries(d.byHour).reduce((s, [h, v]) => s + (+h <= cut ? v : 0), 0) : d.subtotal));
+      ? Object.entries(d.byHour).reduce((s, [h, v]) => s + (relH(h) <= relH(cut) ? v : 0), 0) : d.subtotal));
     out.bills += d.bills; out.dishes += d.dishes;
   }
   return out;
@@ -781,8 +790,8 @@ function prevPeriod(from, n, to) {
 // รวมหลายวันเป็นรายงานเดียว
 function buildReport(from, to) {
   const days = [];
-  for (let d = new Date(from + 'T00:00:00'); dayKey(d) <= to; d.setDate(d.getDate() + 1)) {
-    days.push(dayOf(dayKey(d)));
+  for (let d = new Date(from + 'T00:00:00'); ymdOf(d) <= to; d.setDate(d.getDate() + 1)) {
+    days.push(dayOf(ymdOf(d)));
     if (days.length > 400) break;
   }
   // ตารางวันในสัปดาห์ × ชั่วโมง (ยอดรวม และจำนวนวันของแต่ละวันในสัปดาห์ เอาไว้หาค่าเฉลี่ย) · ดูตั้งแต่ 7 วันขึ้นไป
@@ -822,7 +831,7 @@ function buildReport(from, to) {
       return [{ id: o.id, receiptNo: o.receiptNo, table: o.table, paidAt: o.paidAt, method: o.payMethod,
         subtotal: o.subtotal ?? o.total, fee: o.fee || 0, total: o.total, items: its.reduce((n, i) => n + i.qty, 0) }];
     });
-  const detailFrom = new Date(); detailFrom.setHours(0, 0, 0, 0); detailFrom.setDate(detailFrom.getDate() - KEEP_DAYS);
+  const detailFrom = new Date(bizStart(addDays(dayKey(Date.now()), -KEEP_DAYS)));
   return {
     from, to, summary: { ...sum, items: undefined, items_list: Object.values(sum.items), staff: undefined, staff_list: Object.values(sum.staff) },
     // จานที่ยกเลิกทีละจาน (ไม่นับโต๊ะที่ยกเลิกทั้งโต๊ะ) · มีเฉพาะ 7 วันล่าสุด
@@ -967,8 +976,10 @@ setInterval(() => {
 let lineRetryAt = 0, lineBusy = false;
 setInterval(async () => {
   const L = data.settings.line, now = new Date(), k = dayKey(now);
-  const hm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-  if (!L?.on || !L.token || role.role !== 'main' || lineBusy || hm < L.time || L.lastSent === k || Date.now() < lineRetryAt) return;
+  // เทียบเวลาตามลำดับในวันขาย: ตัดรอบตี 5 ส่ง 01:00 = ส่งหลังปิดร้านคืนนั้น (ไม่ใช่ตอนตี 5 ของวันใหม่)
+  const rel = (h, m) => relH(h) * 60 + m, [sh, sm] = String(L?.time || '23:00').split(':').map(Number);
+  if (!L?.on || !L.token || role.role !== 'main' || lineBusy || rel(now.getHours(), now.getMinutes()) < rel(sh, sm)
+    || L.lastSent === k || Date.now() < lineRetryAt) return;
   lineBusy = true;
   try { await sendLine(k); L.lastSent = k; L.lastErr = ''; console.log('ส่งสรุปยอดเข้า LINE แล้ว'); }
   catch (e) { L.lastErr = e.message; lineRetryAt = Date.now() + 10 * 60000; console.log('ส่ง LINE ไม่สำเร็จ: ' + e.message); }
@@ -1275,7 +1286,7 @@ const routes = {
     const orders = data.orders.filter(o => o.status === 'paid' ? dayKey(o.paidAt) === k : o.status === 'void' ? dayKey(o.voidedAt) === k
       : o.status === 'open' && k === today);
     const ids = new Set(orders.map(o => o.id));
-    const keepFrom = new Date(); keepFrom.setHours(0, 0, 0, 0); keepFrom.setDate(keepFrom.getDate() - KEEP_DAYS);
+    const keepFrom = new Date(bizStart(addDays(today, -KEEP_DAYS)));
     return { date: k, orders, items: data.items.filter(i => ids.has(i.orderId)), complete: k >= dayKey(keepFrom) };
   },
 
@@ -1284,8 +1295,8 @@ const routes = {
   'GET /api/rev': () => ({ rev: data.rev || 0 }),
 
   'GET /api/state': () => {
-    const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-    const orders = data.orders.filter(o => o.status === 'open' || o.paidAt >= dayStart.getTime() || o.voidedAt >= dayStart.getTime());
+    const dayStart = bizStart(dayKey(Date.now()));   // บิลของวันขายนี้ (ตัดรอบตามที่ตั้ง)
+    const orders = data.orders.filter(o => o.status === 'open' || o.paidAt >= dayStart || o.voidedAt >= dayStart);
     const ids = new Set(orders.map(o => o.id));
     const rc = data.settings.receipt, imgs = rc.images || {};
     const settings = { ...data.settings, receipt: { ...rc, images: undefined, has: { logo: !!imgs.logo, footer: !!imgs.footer }, imgV: rc.imgV || 0 },
@@ -1338,6 +1349,7 @@ const routes = {
     if (b.orderUi) s.orderUi = cleanOrderUi(b.orderUi);
     if (b.line) s.line = cleanLine(b.line, data.settings.line || {});
     if ('voidApproval' in b) s.voidApproval = !!b.voidApproval;
+    if ('dayCutoff' in b) s.dayCutoff = Math.min(8, Math.max(0, Math.round(Number(b.dayCutoff) || 0)));
     data.settings = s;
     if (b.printers || b.kdsScreens) fixMenuRefs();
     // ตั้งค่าเมนูทั้งร้านพร้อมกันจากหน้าเครื่องพิมพ์/จอครัว: menuPrinters = {menuId: [printerIds]}

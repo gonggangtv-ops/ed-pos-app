@@ -506,6 +506,15 @@ function ticketLines(table, items, title = '', o = {}) {
   return L;
 }
 const isTA = t => String(t).startsWith('TA');
+// วันขาย (ตัดรอบตาม หลังร้าน > ข้อมูลร้าน > ตัดรอบวันขาย) · back = ย้อนกี่วัน → 'YYYY-MM-DD'
+// ตัดรอบตี 5: ตอน 00:40 ของวันที่ 25 ยังเป็นวันขายของวันที่ 24
+const dayCut = () => Math.min(8, Math.max(0, Number(S.settings?.dayCutoff) || 0));
+function bizDay(back = 0) {
+  const d = new Date(Date.now() - dayCut() * 3600000); d.setDate(d.getDate() - back);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// ลำดับชั่วโมงในวันขาย (ตัดรอบตี 5: 05 = 0 … 04 = 23) ใช้เรียงกราฟรายชั่วโมงข้ามเที่ยงคืน
+const relHour = h => (Number(h) - dayCut() + 24) % 24;
 // โต๊ะทั้งหมดในผัง (ไม่รวมฉากกั้น/ป้าย)
 const layoutTables = () => (S.settings.layout?.items || []).filter(i => i.type === 'table').map(i => i.name);
 

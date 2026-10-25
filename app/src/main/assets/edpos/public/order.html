@@ -307,7 +307,7 @@ function render() {
 // เปิดโต๊ะจากหน้านี้แล้วกด ← จะกลับมาที่ประวัติ
 let hist = null;   // {date, filter, q, open:Set, data}
 const dkey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const dayBack = n => { const d = new Date(); d.setDate(d.getDate() - n); return dkey(d); };
+const dayBack = n => bizDay(n);   // วันขาย (ตัดรอบตาม หลังร้าน > ข้อมูลร้าน)
 function openHistory() { hist = { date: dayBack(0), filter: 'all', q: '', open: new Set(), data: null }; render(); loadHistory(); }
 async function loadHistory() {
   if (!hist) return;
