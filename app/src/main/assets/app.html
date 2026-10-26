@@ -48,6 +48,9 @@
   .ipbox { background: #EAF3EF; border-radius: 12px; padding: 12px 14px; margin: 12px 0 0; font-size: 15px; }
   .ipbox b { font-size: 22px; display: block; letter-spacing: .5px; }
   .warn { background: #FBEDE9; border-radius: 12px; padding: 12px 14px; margin: 12px 0 0; font-size: 14.5px; }
+  .stat { border-radius: 12px; padding: 10px 14px; margin: 12px 0 0; font-size: 14.5px; background: #F3F1EC; }
+  .stat .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+  .stat small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
   .warn button, .ipbox button { margin-top: 8px; padding: 8px 12px; font-size: 14px; }
   pre.log { white-space: pre-wrap; word-break: break-all; font-size: 11.5px; background: #1b1f1d; color: #d7e2dc; border-radius: 10px; padding: 10px; max-height: 260px; overflow: auto; margin: 10px 0 0; }
   .spin { width: 54px; height: 54px; border-radius: 50%; margin: 0 auto; border: 5px solid var(--line); border-top-color: var(--jade); animation: r 1s linear infinite; }
@@ -85,8 +88,11 @@
       <p style="margin:10px 0 0;font-size:13.5px;color:var(--muted)" id="srvHint"></p>
       <div id="srvBox" hidden>
         <div class="ipbox" id="ipBox"></div>
-        <div class="warn" id="batBox" hidden>⚠ Android อาจปิดเซิร์ฟเวอร์เพื่อประหยัดแบต ตอนปิดจอนานๆ
-          <br><button id="batBtn">อนุญาตให้ทำงานตลอด</button></div>
+        <div class="stat" id="statBox"></div>
+        <div class="warn" id="batBox" hidden>⚠ ยังไม่ได้อนุญาตให้ทำงานตลอด · Android อาจปิดเซิร์ฟเวอร์ตอนปิดจอนานๆ และเปิดใหม่เองไม่ได้
+          <br><button id="batBtn">อนุญาตให้ทำงานตลอด</button>
+          <small style="display:block;margin-top:6px;color:var(--muted)">Samsung: ตั้งค่า › แบตเตอรี่ › แอปที่ไม่ต้องพักการทำงาน · Xiaomi/OPPO/vivo: เปิด "เริ่มอัตโนมัติ" ให้แอปนี้ด้วย</small></div>
+        <div class="warn" id="tzBox" hidden></div>
         <div class="row" style="margin-top:12px"><button id="logBtn" style="flex:1">ดูบันทึกเซิร์ฟเวอร์</button><button id="restartBtn" style="flex:1">เปิดเซิร์ฟเวอร์ใหม่</button></div>
         <pre class="log" id="log" hidden></pre>
       </div>
@@ -187,7 +193,25 @@ function paintSrv() {
   $('#ipBox').innerHTML = cfg.ip ? `IP ของเครื่องนี้ (ใส่ในแท็บเล็ตเครื่องอื่น)<b>${cfg.ip.replace(':3000', '')}</b>${running ? '' : '<span style="font-size:13.5px;color:var(--muted)">เซิร์ฟเวอร์จะเปิดหลังกดบันทึก</span>'}`
     : 'ยังไม่ได้ต่อ Wi-Fi · ต่อ Wi-Fi ของร้านก่อน เครื่องอื่นจึงจะเชื่อมต่อได้';
   $('#batBox').hidden = !!cfg.battery;
+  paintStatus();
 }
+// ไฟสถานะเซิร์ฟเวอร์ในเครื่องนี้ (เช็กทุก 5 วิ ระหว่างเปิดหน้าตั้งค่า)
+function paintStatus() {
+  const box = $('#statBox'), tzb = $('#tzBox');
+  if (srv === 'off' || cfg.server !== srv || !A || !A.serverStatus) { box.hidden = true; tzb.hidden = true; return; }
+  const st = JSON.parse(A.serverStatus());
+  box.hidden = false;
+  const fix = st.restarts ? `ตัวเฝ้าช่วยเปิดเซิร์ฟเวอร์กลับมาแล้ว ${st.restarts} ครั้ง · ล่าสุด ${new Date(st.last).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}`
+    : 'ตัวเฝ้าเซิร์ฟเวอร์ตรวจทุก 2 นาที ดับหรือค้างจะเปิดใหม่เอง';
+  box.innerHTML = st.up
+    ? `<span class="dot" style="background:#2E8B57"></span><b>เซิร์ฟเวอร์ทำงานปกติ</b><small>${fix}</small>`
+    : `<span class="dot" style="background:#C0392B"></span><b>เซิร์ฟเวอร์ยังไม่ตอบ</b><small>กำลังเปิด… ถ้านานเกิน 1 นาที กด "เปิดเซิร์ฟเวอร์ใหม่"</small>`;
+  // เวลาเซิร์ฟเวอร์ต้องเป็นเขตเวลาเดียวกับมือถือ ไม่งั้นเวลาบิล/ตัดรอบวันขายเพี้ยน
+  const bad = st.up && typeof st.tz === 'number' && st.tz !== new Date().getTimezoneOffset();
+  tzb.hidden = !bad;
+  if (bad) tzb.textContent = `⚠ เขตเวลาเซิร์ฟเวอร์ (UTC${st.tz <= 0 ? '+' : '-'}${Math.abs(st.tz) / 60}) ไม่ตรงกับมือถือ · เวลาบิลจะเพี้ยน กด "เปิดเซิร์ฟเวอร์ใหม่" ถ้ายังไม่หายแจ้งผู้ดูแล`;
+}
+setInterval(() => { if (!$('#v-setup').hidden && !document.hidden) paintStatus(); }, 5000);
 document.querySelectorAll('#srv button').forEach(b => b.onclick = () => {
   if (b.dataset.v === 'main' && cfg.server !== 'main' && !confirm('ให้เครื่องนี้เป็นเครื่องหลัก (เซิร์ฟเวอร์ร้าน)?\n\nถ้ายังเปิดเซิร์ฟเวอร์ใน Termux อยู่ ให้ปิด Termux ก่อน และย้ายข้อมูลร้านด้วย หลังร้าน > สำรองข้อมูล')) return;
   srv = b.dataset.v; paintSrv();

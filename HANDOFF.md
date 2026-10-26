@@ -1,7 +1,7 @@
 # ส่งต่องาน — MAMA POS / ED POS (Mama Mia Bangkok)
 
-อัปเดตล่าสุด: 25 ต.ค. 2569 · กิ่งทำงาน `claude/elegant-tesla-97hg19` (ยังไม่ merge เข้า `main`)
-รุ่นทดสอบล่าสุด: **test-1.6** (Pre-release ในหน้า Releases) · ผู้ใช้กำลังทดสอบบนมือถือจริง
+อัปเดตล่าสุด: 26 ต.ค. 2569 · กิ่งทำงาน `claude/elegant-tesla-97hg19` (ยังไม่ merge เข้า `main`)
+รุ่นทดสอบล่าสุด: **test-1.7** (ตัวเฝ้าเซิร์ฟเวอร์) (Pre-release ในหน้า Releases) · ผู้ใช้กำลังทดสอบบนมือถือจริง
 
 ## ภาพรวม
 - **ED POS** = ระบบ POS ร้านอาหาร (Node.js ไฟล์เดียว `server.js` + หน้าเว็บ `public/`) ไม่มี dependency ภายนอก
@@ -18,7 +18,8 @@
 |---|---|
 | `MainActivity.java` | WebView, โหมดเซิร์ฟเวอร์ (prefs `server` = off/main/standby), เขียน `role.json` เฉพาะตอนเปลี่ยนโหมด, bridge `window.EdPosApp` |
 | `NodeService.java` | foreground service กระบวนการ `:node` (type specialUse) รัน `node server.js`, wake lock + Wi-Fi lock, คัดลอก assets เมื่อแอปอัปเดต, ใส่ `edpos-seed.json` เมื่อยังไม่มี `data.json`, Node ดับ → kill process (START_STICKY) |
-| `BootReceiver.java` | BOOT_COMPLETED / MY_PACKAGE_REPLACED → เปิดเซิร์ฟเวอร์ |
+| `BootReceiver.java` | BOOT_COMPLETED / MY_PACKAGE_REPLACED → เปิดเซิร์ฟเวอร์ + เริ่มตัวเฝ้า |
+| `Watchdog.java` | ตัวเฝ้า: AlarmManager ทุก 2 นาที ถาม `/api/role` · ไม่ตอบ 1 ครั้ง → startForegroundService · 2 ครั้งติด → `ACTION_RESTART` (kill process) · เปิดจากเบื้องหลังไม่ได้ → แจ้งเตือน "เซิร์ฟเวอร์ร้านดับ" · นับ `wdRestarts` |
 | `cpp/native-lib.cpp` | JNI เรียก `node::Start`, stdout/stderr → `server.log` |
 | `assets/app.html` | หน้าตั้งค่า: เครื่องนี้ทำหน้าที่, IP เครื่องนี้, แบตเตอรี่, ดูบันทึก, เปิดเซิร์ฟเวอร์ใหม่, ลืมรหัส (สร้าง `reset-pin.flag`) |
 | `assets/edpos-seed.json` | ตั้งค่า+เมนู 177 รายการ ของร้าน (จากไฟล์สำรอง 25 ต.ค.) **ไม่มีบิล รหัส โทเค็น LINE** · ตัดรอบตี 5 · LINE 01:00 |
@@ -36,12 +37,13 @@
 - 37: โหลดข้อมูลล่าสุดก่อน ชำระเงิน / พิมพ์ใบแจ้งยอด / ยกเลิกทั้งโต๊ะ
 - 38: ไฟล์ข้อมูลเสีย → ใช้ไฟล์สำรองล่าสุดแทน (ไม่ทับ), ดัก uncaughtException → `error.log`, EADDRINUSE บอกชัด
 - 39: กู้คืน "เฉพาะตั้งค่าและเมนู" (`/api/restore` + `only: 'config'`) ไม่ทับบิล/รหัส/พนักงาน
+- test-1.7: ตัวเฝ้าเซิร์ฟเวอร์ (`Watchdog`), ขอ "อนุญาตให้ทำงานตลอด" อัตโนมัติ (หลังขอแจ้งเตือน, ซ้ำทุก 12 ชม.), `TZ` ให้ Node, `/api/role` มี `tz`, หน้าตั้งค่าแอปมีไฟสถานะเซิร์ฟเวอร์ + เตือนเขตเวลาไม่ตรง
 - 40 / test-1.6: **ตัดรอบวันขาย** (`settings.dayCutoff` 0–6 ชม.) ใช้ทั้งระบบ: `dayKey()`, `bizStart()`, `relH()` ฝั่งเซิร์ฟเวอร์ · `bizDay()`, `relHour()` ฝั่งหน้าเว็บ · LINE ส่งตามลำดับเวลาในวันขาย
 
 ## งานค้าง / สิ่งที่ควรทำต่อ
 1. **ผู้ใช้ต้องตั้งเองในเครื่องที่มีข้อมูลแล้ว:** ข้อมูลร้าน > ตัดรอบวันขาย = ตี 5 · สรุปยอด LINE เวลาส่ง = 01:00 · ใส่ Channel access token ใหม่ (seed ไม่มีโทเค็น) · ตั้งพนักงานรายคน
-2. **ตัวเฝ้าเซิร์ฟเวอร์ในแอป (ยังไม่ทำ):** ถ้า Node ดับเบื้องหลัง Android 12+ อาจไม่เปิด service ใหม่จนกว่าจะเปิดแอป → เสนอ AlarmManager/JobScheduler เช็ก `127.0.0.1:3000/api/role` ทุก 1–2 นาที
-3. **ใส่ TZ ให้ Node (กันไว้):** `Os.setenv("TZ", TimeZone.getDefault().getID())` ใน NodeService · ผู้ใช้ยืนยันว่าเวลาตรงอยู่แล้ว แต่เครื่องอื่นอาจไม่ตรง
+2. ~~ตัวเฝ้าเซิร์ฟเวอร์~~ / ~~TZ~~ ทำแล้วใน test-1.7 · รอผู้ใช้ทดสอบ: ปิดจอนาน, ไฟสถานะในหน้าตั้งค่า, ไม่มีเตือนเขตเวลา
+3. ถัดไปที่เสนอไว้: สำรองข้อมูลออกนอกเครื่องอัตโนมัติ, ไฟสถานะบนหน้าสั่งอาหาร/จอครัว, เครื่องสำรองหาเครื่องหลักเอง, ล็อกให้อยู่ในแอป
 4. **merge เข้า `main`** เมื่อผู้ใช้ทดสอบผ่าน (ปิดจอนาน 1–2 ชม., รีสตาร์ทมือถือ, LINE) — ผู้ใช้ขอให้ใช้รุ่นทดสอบไปก่อน **อย่า merge/เปิด PR จนกว่าผู้ใช้จะบอก**
 5. ไอเดียที่ผู้ใช้ยังไม่ได้สั่ง: QR พร้อมเพย์แบบมียอด, ส่วนลด/service charge, ปิดกะนับเงินสด, นับสต็อก, สกุลเงินอื่นบนบิล, สั่งเองผ่าน QR ที่โต๊ะ, จอเรียกคิว, รูปเมนู
 
@@ -49,6 +51,7 @@
 - **แก้โค้ดเซิร์ฟเวอร์ที่ `app/src/main/assets/edpos/`** แล้ว zip เป็น `ed-posNN.zip` (โฟลเดอร์ `ed-pos/` ข้างใน) ให้ผู้ใช้ที่ยังใช้ Termux
 - **ทดสอบก่อนส่งทุกครั้ง:** รันเซิร์ฟเวอร์จริง (พอร์ต 39xx) + Playwright (`require('playwright')` ใช้ได้เลย) · ทดสอบกับ **Node 18.20.4** (ดาวน์โหลดจาก nodejs.org ได้) เพราะแอปใช้รุ่นนี้ · LINE ใช้เซิร์ฟเวอร์ https จำลองบน localhost (แก้ host ใน server.js สำเนาทดสอบเท่านั้น)
 - **อย่าใช้ `pkill -f "node server.js"`** — จับบรรทัดคำสั่งของ shell เองแล้วฆ่า shell · ใช้ไฟล์ pid
+- Node 18.20.4: nodejs.org อาจถูกบล็อก → `npm pack node-linux-x64@18.20.4` แล้วแตกไฟล์ใช้ `package/bin/node`
 - **build APK ในเครื่องนี้ไม่ได้** (Google Maven ถูกบล็อก) → push แล้วดูผลใน GitHub Actions ผ่าน MCP github tools (`actions_list` / `get_job_logs`) · build ใช้เวลา ~1.5 นาที
 - ห้าม commit `data.json`, ไฟล์สำรองของร้าน, หรือโทเค็น LINE
 - คอมเมนต์ในโค้ดเป็นภาษาไทย · ผู้ใช้สื่อสารภาษาไทย ชอบคำอธิบายสั้น มีตาราง/ตัวอย่างจริง

@@ -11,5 +11,6 @@ public class BootReceiver extends BroadcastReceiver {
         String mode = c.getSharedPreferences("edpos", Context.MODE_PRIVATE).getString("server", "off");
         if ("off".equals(mode)) return;
         try { c.startForegroundService(new Intent(c, NodeService.class)); } catch (Exception ignored) { }
+        Watchdog.schedule(c, 60_000);   // เปิดเครื่อง/อัปเดตแอป → เริ่มตัวเฝ้า (ปลุกครั้งแรกใน 1 นาที)
     }
 }

@@ -131,6 +131,26 @@ public class MainActivity extends Activity {
         if (!serverOn()) return;
         try { startForegroundService(new Intent(this, NodeService.class)); }
         catch (Exception e) { toast("เปิดเซิร์ฟเวอร์ไม่ได้: " + e.getMessage()); }
+        Watchdog.schedule(this);   // ตัวเฝ้าเซิร์ฟเวอร์ทำงานต่อแม้ปิดแอป/ปิดจอ
+    }
+
+    /** เครื่องหลัก/สำรองที่ยังไม่ได้ "อนุญาตให้ทำงานตลอด" → เปิดหน้าขออนุญาตของ Android ให้เอง
+     *  (ไม่อนุญาต = Android ปิดเซิร์ฟเวอร์ตอนปิดจอนานๆ และตัวเฝ้าเปิดใหม่จากเบื้องหลังไม่ได้)
+     *  ถามซ้ำได้ทุก 12 ชม. ถ้ากดไม่อนุญาตไว้ (เพิ่งตั้งโหมดเซิร์ฟเวอร์ = ล้าง batAsk ให้ถามเลย) */
+    private void askBattery() {
+        if (!serverOn() || batteryOk()) return;
+        long last = prefs.getLong("batAsk", 0), now = System.currentTimeMillis();
+        if (now - last < 12 * 3600_000L) return;
+        prefs.edit().putLong("batAsk", now).apply();
+        ui.postDelayed(this::openBatteryRequest, 1200);
+    }
+
+    private void openBatteryRequest() {
+        try { startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()))); }
+        catch (Exception e) {
+            try { startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); }
+            catch (Exception e2) { toast("เปิดหน้าตั้งค่าแบตเตอรี่ไม่ได้"); }
+        }
     }
 
     /** ปิดแล้วเปิดใหม่ (Node เปิดซ้ำในกระบวนการเดิมไม่ได้ ต้องรอกระบวนการเก่าปิดและพอร์ตว่าง) */
@@ -152,9 +172,17 @@ public class MainActivity extends Activity {
         } catch (Exception e) { toast("บันทึกโหมดเซิร์ฟเวอร์ไม่ได้: " + e.getMessage()); }
     }
 
+    /** ขออนุญาตแจ้งเตือน (Android 13+) ก่อน แล้วค่อยขออนุญาตแบต ไม่ให้หน้าขออนุญาตซ้อนกัน */
     private void askNotifications() {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 9);
+        else askBattery();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
+        super.onRequestPermissionsResult(code, perms, results);
+        if (code == 9) askBattery();
     }
 
     private boolean batteryOk() {
@@ -298,6 +326,7 @@ public class MainActivity extends Activity {
         super.onResume();
         hideBars();
         ensureServer();   // เซิร์ฟเวอร์ถูกปิดไป (เช่น Android ปิดทิ้ง) → เปิดใหม่ตอนกลับมาที่แอป
+        askBattery();     // แอปเปิดค้างเป็นวันๆ (onCreate ไม่เกิดอีก) → เตือนซ้ำทุก 12 ชม. ถ้ายังไม่อนุญาต
         web.onResume();
     }
 
@@ -501,7 +530,7 @@ public class MainActivity extends Activity {
                     if ("off".equals(mode)) ui.post(() -> stopService(new Intent(MainActivity.this, NodeService.class)));
                     else {
                         writeRole(mode, "standby".equals(mode) ? newMain : newStandby);
-                        ui.post(() -> { MainActivity.this.restartServer(); askNotifications(); });
+                        ui.post(() -> { MainActivity.this.restartServer(); prefs.edit().putLong("batAsk", 0).apply(); askNotifications(); });
                     }
                 }
             } catch (Exception ignored) { }
@@ -561,14 +590,24 @@ public class MainActivity extends Activity {
         // ----- โหมดเซิร์ฟเวอร์ -----
         /** ขอให้ Android ไม่ปิดแอปเพื่อประหยัดแบต (สำคัญมากกับเครื่องหลัก) */
         @JavascriptInterface
-        public void requestBattery() {
-            ui.post(() -> {
-                try { startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()))); }
-                catch (Exception e) {
-                    try { startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); }
-                    catch (Exception e2) { toast("เปิดหน้าตั้งค่าแบตเตอรี่ไม่ได้"); }
+        public void requestBattery() { ui.post(MainActivity.this::openBatteryRequest); }
+
+        /** สถานะเซิร์ฟเวอร์ในเครื่องนี้ (หน้าตั้งค่า): ทำงานไหม · เขตเวลาตรงกับมือถือไหม · ตัวเฝ้าช่วยเปิดกี่ครั้ง */
+        @JavascriptInterface
+        public String serverStatus() {
+            try {
+                JSONObject o = new JSONObject();
+                String r = httpGet(LOCAL + "/api/role", 2000);
+                o.put("up", r != null);
+                if (r != null) {
+                    JSONObject role = new JSONObject(r);
+                    if (role.has("tz")) o.put("tz", role.optInt("tz"));
+                    o.put("role", role.optString("role"));
                 }
-            });
+                o.put("restarts", prefs.getInt("wdRestarts", 0));
+                o.put("last", prefs.getLong("wdLast", 0));
+                return o.toString();
+            } catch (Exception e) { return "{\"up\":false}"; }
         }
 
         @JavascriptInterface

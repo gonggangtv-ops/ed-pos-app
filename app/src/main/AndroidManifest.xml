@@ -51,6 +51,9 @@
                 android:value="Local point-of-sale server for restaurant devices on the same Wi-Fi" />
         </service>
 
+        <!-- ตัวเฝ้าเซิร์ฟเวอร์: ปลุกทุก 2 นาที ดับ/ค้าง → เปิดใหม่เอง -->
+        <receiver android:name=".Watchdog" android:exported="false" />
+
         <receiver android:name=".BootReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

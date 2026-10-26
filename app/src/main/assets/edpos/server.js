@@ -650,7 +650,7 @@ function roleInfo() {
   return { role: role.role, epoch: data.epoch, rev: data.rev || 0, peer: peerUrl(), me: myUrls().slice(0, -2),
     nodes: data.settings.nodes || {}, lastSync: repl.lastSync, syncErr: repl.syncErr,
     standbySeen: repl.standbySeen, standbyIp: repl.standbyIp, peerRole: repl.peerRole, peerSeen: repl.peerSeen,
-    conflict: repl.conflict, now: Date.now(), needPair: repl.needPair, app: !!process.env.EDPOS_APP, startupWarn,
+    conflict: repl.conflict, now: Date.now(), tz: new Date().getTimezoneOffset(), needPair: repl.needPair, app: !!process.env.EDPOS_APP, startupWarn,
     pairAsk: Date.now() - repl.pairAsk < 15000 ? repl.pairAskIp : '',
     openTables: data.orders.filter(o => o.status === 'open').length };
 }

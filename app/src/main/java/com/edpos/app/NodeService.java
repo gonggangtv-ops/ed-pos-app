@@ -28,6 +28,7 @@ import java.net.NetworkInterface;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Collections;
+import java.util.TimeZone;
 
 /**
  * เซิร์ฟเวอร์ ED POS ในแอป (แทน node server.js ใน Termux)
@@ -41,6 +42,7 @@ public class NodeService extends Service {
     static final String CHANNEL = "server";
     static final int NOTIF_ID = 1;
     static final int PORT = 3000;
+    static final String ACTION_RESTART = "com.edpos.app.RESTART";
 
     static {
         System.loadLibrary("node");
@@ -88,6 +90,12 @@ public class NodeService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // ตัวเฝ้าเห็นว่า Node ค้าง (กระบวนการยังอยู่แต่ไม่ตอบ) → ปิดกระบวนการ ตัวเฝ้า/START_STICKY เปิดใหม่ให้
+        if (started && intent != null && ACTION_RESTART.equals(intent.getAction())) {
+            log("ตัวเฝ้าสั่งปิดเซิร์ฟเวอร์ที่ค้าง");
+            Process.killProcess(Process.myPid());
+            return START_STICKY;
+        }
         if (!started) {
             started = true;
             holdLocks();
@@ -109,6 +117,9 @@ public class NodeService extends Service {
             Os.setenv("EDPOS_APP", "1", true);
             Os.setenv("HOME", d.getAbsolutePath(), true);
             Os.setenv("TMPDIR", getCacheDir().getAbsolutePath(), true);
+            // เขตเวลาของมือถือ (เช่น Asia/Bangkok) → เวลาบิล/ตัดรอบวันขายตรงกับนาฬิกาเครื่อง ทุกยี่ห้อ
+            String tz = TimeZone.getDefault().getID();
+            if (tz != null && tz.contains("/")) Os.setenv("TZ", tz, true);
             log("เริ่มเซิร์ฟเวอร์");
             code = startNode(new String[]{"node", new File(d, "server.js").getAbsolutePath()}, logf.getAbsolutePath());
             log("เซิร์ฟเวอร์ปิด รหัส " + code);
