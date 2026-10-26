@@ -691,8 +691,38 @@ const catOf = i => i.category || data.menu.find(m => m.id === i.menuId)?.categor
 function emptyDay(date) {
   return { date, bills: 0, subtotal: 0, fee: 0, total: 0,
     byMethod: { cash: 0, transfer: 0, card: 0 }, billsByMethod: { cash: 0, transfer: 0, card: 0 },
-    byHour: {}, items: {}, cats: {}, cancelled: { qty: 0, amount: 0 }, dishes: 0, voids: { bills: 0, amount: 0 }, staff: {} };
+    byHour: {}, items: {}, cats: {}, cancelled: { qty: 0, amount: 0 }, dishes: 0, voids: { bills: 0, amount: 0 }, staff: {},
+    cook: emptyTimes(), sit: emptyTimes() };
 }
+// ---------- เวลา: ครัวทำนานแค่ไหน (cook) · ลูกค้านั่งนานแค่ไหน (sit) ----------
+// เก็บเป็นนาที: n = จำนวน · sum = รวมนาที · b = จำนวนในแต่ละช่วงเวลา (TIME_B) · byHour = แยกตามชั่วโมงที่เริ่ม
+// cook.items = แยกตามเมนู {name: {n, sum, max}}
+const TIME_B = { cook: [10, 15, 20, 30], sit: [30, 60, 90, 120] };   // ช่วง: <10, 10–15, 15–20, 20–30, 30+ นาที
+const TIME_MAX = { cook: 120, sit: 360 };   // นานเกินนี้ = ลืมกดเสร็จ/ลืมปิดโต๊ะ ไม่นับ
+function emptyTimes() { return { n: 0, sum: 0, b: [0, 0, 0, 0, 0], byHour: {}, items: {} }; }
+function addTime(day, kind, from, to, name) {
+  if (!from || !to) return;
+  const min = (to - from) / 60000;
+  if (!(min >= 0) || min > TIME_MAX[kind]) return;
+  const t = day[kind] || (day[kind] = emptyTimes());
+  t.n++; t.sum = r2(t.sum + min);
+  t.b[TIME_B[kind].filter(x => min >= x).length]++;
+  const h = new Date(from).getHours(), hr = t.byHour[h] || (t.byHour[h] = { n: 0, sum: 0 });
+  hr.n++; hr.sum = r2(hr.sum + min);
+  if (name) { const it = t.items[name] || (t.items[name] = { n: 0, sum: 0, max: 0 }); it.n++; it.sum = r2(it.sum + min); it.max = Math.max(it.max, r2(min)); }
+}
+// รวมเวลาของหลายวัน (สรุปรายวันรุ่นเก่าไม่มี cook/sit → ข้าม)
+function mergeTimes(into, t) {
+  if (!t) return;
+  into.n += t.n; into.sum = r2(into.sum + t.sum);
+  t.b.forEach((v, i) => (into.b[i] += v));
+  for (const h in t.byHour) { const a = into.byHour[h] || (into.byHour[h] = { n: 0, sum: 0 }); a.n += t.byHour[h].n; a.sum = r2(a.sum + t.byHour[h].sum); }
+  for (const k in t.items || {}) {
+    const a = into.items[k] || (into.items[k] = { n: 0, sum: 0, max: 0 }), x = t.items[k];
+    a.n += x.n; a.sum = r2(a.sum + x.sum); a.max = Math.max(a.max, x.max);
+  }
+}
+const avgMin = t => (t?.n ? Math.round(t.sum / t.n) : null);
 // ยอดรายพนักงาน (เฉพาะบิลที่บันทึกชื่อไว้ · บิลก่อนมีระบบพนักงานรายคนไม่มีชื่อ)
 // dishes = จานที่สั่ง · cancels = จานที่ยกเลิก · voids = โต๊ะที่ยกเลิกทั้งโต๊ะ · bills = ครั้งที่รับเงิน
 function staffRow(day, name) {
@@ -730,6 +760,8 @@ function addBill(day, o, its) {
     const h = new Date(p.at).getHours();
     day.byHour[h] = r2((day.byHour[h] || 0) + p.amt);
   }
+  // ลูกค้านั่งนานแค่ไหน: เปิดโต๊ะ → จ่ายครบ (ไม่นับกลับบ้าน TA)
+  if (!String(o.table).startsWith('TA')) addTime(day, 'sit', o.createdAt, o.paidAt);
   for (const i of its) {
     const amt = r2(i.price * i.qty);
     if (i.by) { const r = staffRow(day, i.by); r.dishes += i.qty; r.amount = r2(r.amount + amt); }
@@ -743,6 +775,8 @@ function addBill(day, o, its) {
     if (i.option) it.opts[i.option] = (it.opts[i.option] || 0) + i.qty;
     day.cats[it.category] = r2((day.cats[it.category] || 0) + amt);
     day.dishes += i.qty;
+    // ครัวทำนานแค่ไหน: สั่ง → จอครัวกดเสร็จ (เฉพาะจานที่ขึ้นจอครัว)
+    if (i.status === 'done' && onScreen(i)) addTime(day, 'cook', i.createdAt, i.doneAt, i.name);
   }
 }
 function summarizeLive(date) {
@@ -783,13 +817,15 @@ const addDays = (k, n) => { const d = new Date(k + 'T00:00:00'); d.setDate(d.get
 function prevPeriod(from, n, to) {
   const pf = n === 1 ? addDays(from, -7) : addDays(from, -n), pt = n === 1 ? pf : addDays(from, -1);
   const cut = to === dayKey(Date.now()) ? new Date().getHours() : null;
-  const out = { from: pf, to: pt, subtotal: 0, bills: 0, dishes: 0, partial: cut };
+  const out = { from: pf, to: pt, subtotal: 0, bills: 0, dishes: 0, partial: cut, cook: emptyTimes(), sit: emptyTimes() };
   for (let k = pf; k <= pt; k = addDays(k, 1)) {
     const d = dayOf(k), last = k === pt;
     out.subtotal = r2(out.subtotal + (last && cut != null
       ? Object.entries(d.byHour).reduce((s, [h, v]) => s + (relH(h) <= relH(cut) ? v : 0), 0) : d.subtotal));
     out.bills += d.bills; out.dishes += d.dishes;
+    mergeTimes(out.cook, d.cook); mergeTimes(out.sit, d.sit);
   }
+  out.cook = { n: out.cook.n, avg: avgMin(out.cook) }; out.sit = { n: out.sit.n, avg: avgMin(out.sit) };
   return out;
 }
 
@@ -815,6 +851,7 @@ function buildReport(from, to) {
     for (const c in d.cats) sum.cats[c] = r2((sum.cats[c] || 0) + d.cats[c]);
     sum.cancelled.qty += d.cancelled.qty; sum.cancelled.amount = r2(sum.cancelled.amount + d.cancelled.amount);
     sum.voids.bills += d.voids?.bills || 0; sum.voids.amount = r2(sum.voids.amount + (d.voids?.amount || 0));
+    mergeTimes(sum.cook, d.cook); mergeTimes(sum.sit, d.sit);
     for (const n in d.staff || {}) {
       const a = d.staff[n], s = staffRow(sum, n);
       for (const f of ['dishes', 'cancels', 'voids', 'bills']) s[f] += a[f] || 0;
@@ -892,7 +929,28 @@ function cleanLine(l, old = {}) {
     token: l.token === null ? '' : String(l.token || '').trim().slice(0, 600) || old.token || '',
     // แจ้งเตือนทันที (ไม่ระบุ = เปิด)
     alerts: Object.fromEntries(LINE_ALERTS.map(k => [k, (l.alerts || old.alerts || {})[k] !== false])),
+    // สรุปรายสัปดาห์ (จ.–อา. ส่งคืนวันอาทิตย์) / รายเดือน (ส่งคืนวันสุดท้ายของเดือน) ตามเวลาส่งเดียวกัน
+    // เพิ่งเปิด → จำว่าส่งช่วงที่จบไปแล้วแล้ว จะได้ไม่ส่งของเก่าทันที (กด "ส่งทดสอบ" ดูได้)
+    weekly: !!l.weekly, monthly: !!l.monthly,
+    lastWeek: l.weekly && !old.weekly ? lastPeriod('week').to : old.lastWeek || '',
+    lastMonth: l.monthly && !old.monthly ? lastPeriod('month').to : old.lastMonth || '',
     lastSent: old.lastSent || '', lastErr: old.lastErr || '', alertErr: old.alertErr || '' };
+}
+// ช่วงล่าสุดที่จบไปแล้ว (นับตามวันขาย) · สัปดาห์ = จันทร์–อาทิตย์ · ถึงเวลาส่งของวันอาทิตย์/วันสิ้นเดือนแล้ว = นับช่วงนั้นด้วย
+function lastPeriod(kind, k = dayKey(Date.now()), passed = lineTimePassed()) {
+  if (kind === 'week') {
+    const dow = new Date(k + 'T00:00:00').getDay();
+    const to = dow === 0 && passed ? k : addDays(k, -(dow || 7));
+    return { from: addDays(to, -6), to };
+  }
+  const lastDay = addDays(k, 1).endsWith('-01');
+  const to = lastDay && passed ? k : addDays(k.slice(0, 8) + '01', -1);
+  return { from: to.slice(0, 8) + '01', to };
+}
+// ถึงเวลาส่งของวันขายนี้หรือยัง (เทียบตามลำดับในวันขาย: ตัดรอบตี 5 ส่ง 01:00 = หลังปิดร้านคืนนั้น)
+function lineTimePassed(now = new Date()) {
+  const rel = (h, m) => relH(h) * 60 + m, [sh, sm] = String(data.settings.line?.time || '23:00').split(':').map(Number);
+  return rel(now.getHours(), now.getMinutes()) >= rel(sh, sm);
 }
 function lineText(k) {
   const d = dayOf(k), dt = new Date(k + 'T00:00:00'), fmt = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -910,6 +968,8 @@ function lineText(k) {
     if (best) L.push('', `⏰ ช่วงขายดี ${best[0]}:00–${best[0]}:59 · ${fmt(best[1])} ฿`);
     const top = Object.values(d.items).sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 5);
     if (top.length) L.push('', '🏆 ขายดี', ...top.map((it, i) => `${i + 1}. ${it.name} × ${it.qty}`));
+    const tl = timeLines(d);
+    if (tl.length) L.push('', ...tl);
   }
   if (d.cancelled.qty) L.push('', `❌ ยกเลิก ${d.cancelled.qty} จาน (${fmt(d.cancelled.amount)} ฿)${d.voids?.bills ? ` · ยกเลิกทั้งโต๊ะ ${d.voids.bills} โต๊ะ` : ''}`);
   if (k === dayKey(Date.now())) {
@@ -921,6 +981,66 @@ function lineText(k) {
     }
   }
   return L.join('\n');
+}
+// เวลาครัว / เวลานั่ง (ใช้ทั้งสรุปรายวัน รายสัปดาห์ รายเดือน)
+function timeLines(d) {
+  const L = [], c = d.cook, st = d.sit;
+  if (c?.n) {
+    const slow = c.b[3] + c.b[4];
+    L.push(`👨‍🍳 ครัวเฉลี่ย ${avgMin(c)} นาที/จาน · ภายใน 15 นาที ${Math.round((c.b[0] + c.b[1]) / c.n * 100)}%${slow ? ` · เกิน 20 นาที ${slow} จาน` : ''}`);
+  }
+  if (st?.n) L.push(`🪑 ลูกค้านั่งเฉลี่ย ${avgMin(st)} นาที/โต๊ะ (${st.n} โต๊ะ)`);
+  return L;
+}
+// สรุปรายสัปดาห์ / รายเดือน · เทียบสัปดาห์ก่อน / เดือนก่อน (ทั้งเดือน)
+function lineRangeText(kind, from, to) {
+  const fmt = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const dt = k => new Date(k + 'T00:00:00'), DOW = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+  const short = k => `${DOW[dt(k).getDay()]} ${dt(k).getDate()} ${TH_MON[dt(k).getMonth()]}`;
+  const r = buildReport(from, to), d = r.summary, nDays = r.days.length;
+  const shop = data.settings.shopName || '';
+  const L = kind === 'week'
+    ? [`📊 สรุปยอดขายรายสัปดาห์ ${shop}`.trim(), `${short(from)} – ${short(to)} ${dt(to).getFullYear() + 543}`, '']
+    : [`📊 สรุปยอดขายประจำเดือน ${shop}`.trim(), `${TH_MON[dt(from).getMonth()]} ${dt(from).getFullYear() + 543} (${nDays} วัน)`, ''];
+  if (!d.bills) { L.push(kind === 'week' ? 'สัปดาห์นี้ไม่มีบิลที่ปิด' : 'เดือนนี้ไม่มีบิลที่ปิด'); return L.join('\n'); }
+  // ช่วงก่อนหน้า: สัปดาห์ก่อน 7 วัน · เดือนก่อนทั้งเดือน
+  const pt = addDays(from, -1), pf = kind === 'week' ? addDays(from, -7) : pt.slice(0, 8) + '01';
+  let prev = 0; for (let k = pf; k <= pt; k = addDays(k, 1)) prev = r2(prev + dayOf(k).subtotal);
+  L.push(`💰 ยอดขาย ${fmt(d.subtotal)} ฿`);
+  if (prev) {
+    const pct = Math.round((d.subtotal - prev) / prev * 100);
+    L.push(`${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct)}% จาก${kind === 'week' ? 'สัปดาห์ก่อน' : 'เดือน ' + TH_MON[dt(pf).getMonth()]} (${fmt(prev)} ฿)`);
+  }
+  const open = r.days.filter(x => x.bills);
+  L.push(`🧾 ${d.bills} บิล · เฉลี่ย ${fmt(Math.round(d.subtotal / d.bills))} ฿/บิล · ${d.dishes} จาน`);
+  L.push(`📅 เปิดขาย ${open.length} วัน · เฉลี่ยวันละ ${fmt(Math.round(d.subtotal / open.length))} ฿`);
+  if (d.fee) L.push(`รับจริง ${fmt(d.total)} ฿ (รวมค่าธรรมเนียมบัตร ${fmt(d.fee)} ฿)`);
+  if (open.length > 1) {
+    const by = [...open].sort((a, b) => b.subtotal - a.subtotal), hi = by[0], lo = by[by.length - 1];
+    L.push(`🔝 ขายดีสุด ${short(hi.date)} ${fmt(hi.subtotal)} ฿`, `🔻 ขายน้อยสุด ${short(lo.date)} ${fmt(lo.subtotal)} ฿`);
+  }
+  // วันในสัปดาห์ที่ขายดี (รายเดือน: เฉลี่ยต่อวัน)
+  if (kind === 'month') {
+    const w = Array.from({ length: 7 }, () => ({ s: 0, n: 0 }));
+    for (const x of open) { const a = w[dt(x.date).getDay()]; a.s += x.subtotal; a.n++; }
+    const best = w.map((a, i) => ({ i, avg: a.n ? a.s / a.n : 0 })).sort((a, b) => b.avg - a.avg)[0];
+    if (best.avg) L.push(`📆 วัน${TH_DAY[best.i]}ขายดีที่สุด เฉลี่ย ${fmt(Math.round(best.avg))} ฿/วัน`);
+  }
+  L.push('', 'ช่องทางชำระ');
+  for (const m of ['cash', 'transfer', 'card']) if (d.billsByMethod[m]) L.push(`• ${PAY_TH[m]} ${fmt(d.byMethod[m])} ฿ (${d.billsByMethod[m]} บิล)`);
+  const best = Object.entries(d.byHour).sort((a, b) => b[1] - a[1])[0];
+  if (best) L.push('', `⏰ ช่วงขายดี ${best[0]}:00–${best[0]}:59 (รวม ${fmt(best[1])} ฿)`);
+  const top = d.items_list.sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 10);
+  if (top.length) L.push('', '🏆 ขายดี', ...top.map((it, i) => `${i + 1}. ${it.name} × ${it.qty}`));
+  const tl = timeLines(d);
+  if (tl.length) L.push('', ...tl);
+  if (d.cancelled.qty) L.push('', `❌ ยกเลิก ${d.cancelled.qty} จาน (${fmt(d.cancelled.amount)} ฿)${d.voids?.bills ? ` · ยกเลิกทั้งโต๊ะ ${d.voids.bills} โต๊ะ` : ''}`);
+  return L.join('\n');
+}
+// ข้อความตามชนิด: day (วันนี้) · week (สัปดาห์ล่าสุดที่จบแล้ว) · month (เดือนล่าสุดที่จบแล้ว)
+function lineTextOf(kind, k = dayKey(Date.now())) {
+  if (kind === 'week' || kind === 'month') { const p = lastPeriod(kind, k, true); return lineRangeText(kind, p.from, p.to); }
+  return lineText(k);
 }
 function linePost(token, to, text) {
   const body = JSON.stringify(to ? { to, messages: [{ type: 'text', text }] } : { messages: [{ type: 'text', text }] });
@@ -939,10 +1059,10 @@ function linePost(token, to, text) {
     req.end(body);
   });
 }
-async function sendLine(k) {
+async function sendLine(k, kind = 'day', period) {
   const L = data.settings.line || {};
   if (!L.token) throw new Error('ยังไม่ได้ใส่ Channel access token');
-  await linePost(L.token, L.to, lineText(k));
+  await linePost(L.token, L.to, period ? lineRangeText(kind, period.from, period.to) : lineTextOf(kind, k));
 }
 // ---------- แจ้งเตือนทันที ----------
 // kind: printer = เครื่องพิมพ์พิมพ์ไม่ออก/กลับมาได้ · standby = เครื่องสำรองหลุด/กลับมา · takeover = เครื่องสำรองรับงานแทน · void = ยกเลิกทั้งโต๊ะ
@@ -980,15 +1100,23 @@ setInterval(() => {
 // ส่งอัตโนมัติวันละครั้งตามเวลาที่ตั้ง (เฉพาะเครื่องหลัก · เครื่องหลักปิดอยู่ตอนถึงเวลา → ส่งตอนเปิดในวันเดียวกัน)
 // ส่งไม่สำเร็จ → ลองใหม่ทุก 10 นาที
 let lineRetryAt = 0, lineBusy = false;
+// รายสัปดาห์/รายเดือน: ส่งต่อจากสรุปของวันอาทิตย์/วันสิ้นเดือน · เครื่องหลักปิดอยู่คืนนั้น → ส่งคืนถัดไปตามเวลาเดิม
 setInterval(async () => {
-  const L = data.settings.line, now = new Date(), k = dayKey(now);
-  // เทียบเวลาตามลำดับในวันขาย: ตัดรอบตี 5 ส่ง 01:00 = ส่งหลังปิดร้านคืนนั้น (ไม่ใช่ตอนตี 5 ของวันใหม่)
-  const rel = (h, m) => relH(h) * 60 + m, [sh, sm] = String(L?.time || '23:00').split(':').map(Number);
-  if (!L?.on || !L.token || role.role !== 'main' || lineBusy || rel(now.getHours(), now.getMinutes()) < rel(sh, sm)
-    || L.lastSent === k || Date.now() < lineRetryAt) return;
+  const L = data.settings.line, k = dayKey(Date.now());
+  if (!L?.token || !(L.on || L.weekly || L.monthly) || role.role !== 'main' || lineBusy || !lineTimePassed() || Date.now() < lineRetryAt) return;
+  const jobs = [];
+  if (L.on && L.lastSent !== k) jobs.push({ kind: 'day', mark: () => (L.lastSent = k) });
+  for (const [kind, key] of [['week', 'lastWeek'], ['month', 'lastMonth']]) {
+    if (!L[kind === 'week' ? 'weekly' : 'monthly']) continue;
+    const p = lastPeriod(kind, k, true);
+    if (L[key] !== p.to) jobs.push({ kind, period: p, mark: () => (L[key] = p.to) });
+  }
+  if (!jobs.length) return;
   lineBusy = true;
-  try { await sendLine(k); L.lastSent = k; L.lastErr = ''; console.log('ส่งสรุปยอดเข้า LINE แล้ว'); }
-  catch (e) { L.lastErr = e.message; lineRetryAt = Date.now() + 10 * 60000; console.log('ส่ง LINE ไม่สำเร็จ: ' + e.message); }
+  try {
+    for (const j of jobs) { await sendLine(k, j.kind, j.period); j.mark(); console.log(`ส่งสรุปยอด (${j.kind}) เข้า LINE แล้ว`); }
+    L.lastErr = '';
+  } catch (e) { L.lastErr = e.message; lineRetryAt = Date.now() + 10 * 60000; console.log('ส่ง LINE ไม่สำเร็จ: ' + e.message); }
   finally { lineBusy = false; save(); broadcast(); }
 }, 30000);
 
@@ -1264,15 +1392,16 @@ const routes = {
   },
 
   // สรุปยอดเข้า LINE: ดูข้อความ / ส่งทันที (ใช้ค่าที่บันทึกแล้ว)
-  'GET /api/line/preview': (b, q) => ({ text: lineText(/^\d{4}-\d{2}-\d{2}$/.test(q.get('date') || '') ? q.get('date') : dayKey(Date.now())) }),
+  // kind = day (วันนี้) | week (สัปดาห์ล่าสุดที่จบแล้ว) | month (เดือนล่าสุดที่จบแล้ว)
+  'GET /api/line/preview': (b, q) => ({ text: lineTextOf(q.get('kind'), /^\d{4}-\d{2}-\d{2}$/.test(q.get('date') || '') ? q.get('date') : dayKey(Date.now())) }),
   'POST /api/line/test-alert': async () => {
     const L = data.settings.line || {};
     if (!L.token) throw new Error('ยังไม่ได้ใส่ Channel access token');
     await linePost(L.token, L.to, `🔔 ทดสอบแจ้งเตือนจาก ${data.settings.shopName || 'ED POS'}\nถ้าเห็นข้อความนี้ แปลว่าการแจ้งเตือนทันทีใช้ได้แล้ว`);
   },
-  'POST /api/line/test': async () => {
+  'POST /api/line/test': async b => {
     const L = data.settings.line || (data.settings.line = cleanLine({}));
-    try { await sendLine(dayKey(Date.now())); L.lastErr = ''; } catch (e) { L.lastErr = e.message; throw e; }
+    try { await sendLine(dayKey(Date.now()), ['week', 'month'].includes(b.kind) ? b.kind : 'day'); L.lastErr = ''; } catch (e) { L.lastErr = e.message; throw e; }
   },
 
   // รายงานยอดขาย: /api/report?from=2026-10-01&to=2026-10-12 (ส่งพารามิเตอร์มาใน body ของ GET ไม่ได้ จึงอ่านจาก query)

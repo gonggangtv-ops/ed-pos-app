@@ -343,6 +343,15 @@
   .hbar:first-child { border-top: 0; }
   .hbar .track { grid-column: 1 / -1; height: 6px; background: var(--sunk); border-radius: 3px; overflow: hidden; }
   .hbar .track i { display: block; height: 100%; background: var(--jade); border-radius: 0 3px 3px 0; }
+  /* เวลาครัว / เวลานั่ง */
+  .tbig { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .tbig b { font-size: 32px; font-weight: 700; letter-spacing: -.3px; color: var(--jade); }
+  .tbig .delta { font-style: normal; font-weight: 700; font-size: 13.5px; } .tbig .delta.up { color: var(--jade); } .tbig .delta.down { color: var(--brick); }
+  .tsub { color: var(--muted); font-size: 14px; margin: 2px 0 10px; }
+  .tsub .warn { color: var(--brick); font-weight: 600; }
+  .t-h { margin: 16px 0 2px; font-size: 14px; font-weight: 600; color: var(--muted); }
+  .hbar.slow .track i { background: var(--brick); }
+  .hbar small { color: var(--muted); font-weight: 400; }
 
   table.t { width: 100%; border-collapse: collapse; font-size: 15px; }
   table.t th { text-align: left; font-weight: 500; color: var(--muted); font-size: 13.5px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
@@ -480,6 +489,17 @@
           <div class="seg" id="topSort" role="group" aria-label="เรียงตาม">
             <button data-s="qty" aria-pressed="true">ตามจำนวน</button><button data-s="amount">ตามยอดเงิน</button></div></div>
         <div id="topList"></div>
+      </div>
+
+      <div class="two">
+        <div class="panel">
+          <div class="phead"><h2>ครัวทำเร็วแค่ไหน</h2><span class="muted">สั่ง → จอครัวกดเสร็จ</span></div>
+          <div id="cookBox"></div>
+        </div>
+        <div class="panel">
+          <div class="phead"><h2>ลูกค้านั่งนานเท่าไหร่</h2><span class="muted">เปิดโต๊ะ → จ่ายเงิน</span></div>
+          <div id="sitBox"></div>
+        </div>
       </div>
 
       <div class="panel">
@@ -839,13 +859,15 @@
     <!-- ===== สรุปยอดเข้า LINE ===== -->
     <section id="sec-line" hidden>
       <h1>สรุปยอดเข้า LINE</h1>
-      <p class="lede">ส่งสรุปยอดขายของวันเข้า LINE ทุกวันตามเวลาที่ตั้ง ใช้ LINE Official Account ของร้าน (สมัครฟรี) เครื่องหลักต้องต่ออินเทอร์เน็ต</p>
+      <p class="lede">ส่งสรุปยอดขายเข้า LINE ทุกวัน ทุกสัปดาห์ หรือทุกเดือน ตามเวลาที่ตั้ง ใช้ LINE Official Account ของร้าน (สมัครฟรี) เครื่องหลักต้องต่ออินเทอร์เน็ต</p>
       <div class="two">
         <div class="panel" id="lnForm">
-          <div class="rowline"><div class="txt"><b>ส่งสรุปยอดอัตโนมัติ</b><span id="lnStatus"></span></div><label class="sw"><input type="checkbox" id="lnOn"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>สรุปยอดรายวัน</b><span id="lnStatus"></span></div><label class="sw"><input type="checkbox" id="lnOn"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>สรุปรายสัปดาห์</b><span>จันทร์–อาทิตย์ ส่งคืนวันอาทิตย์ เทียบสัปดาห์ก่อน <span id="lnWeekSt"></span></span></div><label class="sw"><input type="checkbox" id="lnWeekly"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>สรุปรายเดือน</b><span>ส่งคืนวันสุดท้ายของเดือน เทียบเดือนก่อน <span id="lnMonthSt"></span></span></div><label class="sw"><input type="checkbox" id="lnMonthly"><i></i></label></div>
           <div class="stack" style="margin-top:12px">
             <label class="field"><span>เวลาส่ง</span><input type="time" id="lnTime">
-              <small>ตั้งหลังปิดร้าน บิลที่ปิดหลังเวลานี้จะไม่อยู่ในข้อความของวันนั้น · ร้านเปิดเลยเที่ยงคืน ตั้ง <a href="#" data-go="shop">ตัดรอบวันขาย</a> ด้วย สรุปจะได้รวมยอดทั้งคืน</small></label>
+              <small>ใช้กับทั้งรายวัน รายสัปดาห์ และรายเดือน · ตั้งหลังปิดร้าน บิลที่ปิดหลังเวลานี้จะไม่อยู่ในข้อความของวันนั้น · ร้านเปิดเลยเที่ยงคืน ตั้ง <a href="#" data-go="shop">ตัดรอบวันขาย</a> ด้วย สรุปจะได้รวมยอดทั้งคืน</small></label>
             <label class="field"><span>Channel access token</span><input type="password" id="lnToken" autocomplete="off"></label>
             <label class="field"><span>ส่งถึง (User ID / Group ID)</span><input type="text" id="lnTo" placeholder="เว้นว่าง = ทุกคนที่เพิ่ม LINE OA เป็นเพื่อน" autocomplete="off">
               <small>อยากส่งถึงเจ้าของคนเดียว: ใส่ "Your user ID" จาก LINE Developers > Basic settings</small></label>
@@ -856,19 +878,21 @@
           <div class="rowline"><div class="txt"><b>เครื่องสำรองหลุด</b><span>ไม่ได้คัดลอกข้อมูลเกิน 2 นาที · แจ้งเมื่อกลับมาด้วย</span></div><label class="sw"><input type="checkbox" data-alert="standby"><i></i></label></div>
           <div class="rowline"><div class="txt"><b>เครื่องสำรองรับงานแทน</b><span>มีคนกด "ใช้เครื่องนี้เป็นเครื่องหลัก" (เครื่องหลักเดิมอาจดับ)</span></div><label class="sw"><input type="checkbox" data-alert="takeover"><i></i></label></div>
           <div class="rowline"><div class="txt"><b>ยกเลิกทั้งโต๊ะ</b><span>บอกโต๊ะ จำนวนจาน มูลค่า เหตุผล และใครเป็นคนยกเลิก</span></div><label class="sw"><input type="checkbox" data-alert="void"><i></i></label></div>
-          <div class="actions"><button class="btn" id="lnTestAlert">ทดสอบแจ้งเตือน</button><button class="btn" id="lnTest">ส่งสรุปยอดทดสอบ</button><button class="btn primary" id="lnSave">บันทึก</button></div>
+          <div class="actions"><button class="btn" id="lnTestAlert">ทดสอบแจ้งเตือน</button><button class="btn" id="lnTest">ส่งสรุปวันนี้ทดสอบ</button><button class="btn primary" id="lnSave">บันทึก</button></div>
           <h3 class="rc-h">วิธีตั้งค่า (ทำครั้งเดียว)</h3>
           <ol class="steps">
             <li>เข้า <b>manager.line.biz</b> สร้าง LINE Official Account ของร้าน (แพ็กเกจฟรีก็ได้)</li>
             <li>ในหน้าตั้งค่าของ LINE OA เลือก <b>Messaging API</b> แล้วกดเปิดใช้</li>
             <li>เข้า <b>developers.line.biz</b> เลือก channel ของร้าน > แท็บ <b>Messaging API</b> > <b>Channel access token</b> กด Issue แล้วคัดลอกมาวางด้านบน</li>
             <li>เจ้าของร้าน (และคนที่อยากได้รับ) สแกน QR ในแท็บเดียวกันเพื่อ<b>เพิ่ม LINE OA เป็นเพื่อน</b></li>
-            <li>กด <b>บันทึก</b> แล้ว <b>ส่งสรุปยอดทดสอบ</b> และ <b>ทดสอบแจ้งเตือน</b></li>
+            <li>กด <b>บันทึก</b> แล้ว <b>ส่งสรุปวันนี้ทดสอบ</b> และ <b>ทดสอบแจ้งเตือน</b></li>
           </ol>
           <p class="muted" style="margin:10px 0 0">แพ็กเกจฟรีมีโควตาข้อความต่อเดือน ส่งแบบ "ทุกคน" นับ 1 ข้อความต่อเพื่อน 1 คน ถ้าเพื่อนเยอะให้ใส่ User ID แทน</p>
         </div>
         <div class="panel">
-          <div class="phead"><h2>ตัวอย่างข้อความ (วันนี้)</h2><button class="btn sm" id="lnRefresh">โหลดใหม่</button></div>
+          <div class="phead"><h2>ตัวอย่างข้อความ</h2><button class="btn sm" id="lnRefresh">โหลดใหม่</button></div>
+          <div class="seg" id="lnKind" role="group" aria-label="ตัวอย่างของ" style="margin-bottom:10px">
+            <button data-k="day" aria-pressed="true">วันนี้</button><button data-k="week">สัปดาห์ล่าสุด</button><button data-k="month">เดือนล่าสุด</button></div>
           <pre class="lnprev" id="lnPrev">กำลังโหลด…</pre>
         </div>
       </div>
@@ -1265,7 +1289,60 @@ function renderSales() {
   const openSum = r.open.reduce((a, o) => a + o.amount, 0);
   $('#openLine').hidden = !(r.to === today && r.open.length);
   $('#openLine').textContent = `ตอนนี้ยังเปิดอยู่ ${r.open.length} โต๊ะ ยอดรอเก็บ ${baht(openSum)} ฿ ยังไม่นับรวมในยอดขาย`;
-  renderChart(); renderHeat(); renderPay(); renderCatBreak(); renderTop(); renderStaff(); renderSlow(); renderBills();
+  renderChart(); renderHeat(); renderPay(); renderCatBreak(); renderTop(); renderTimes(); renderStaff(); renderSlow(); renderBills();
+}
+
+// ---------- เวลาครัว (cook) / เวลานั่ง (sit) ----------
+// buckets: ครัว <10 10–15 15–20 20–30 30+ นาที · นั่ง <30 30–60 60–90 90–120 120+ นาที
+const T_LABEL = { cook: ['ไม่ถึง 10 นาที', '10–15 นาที', '15–20 นาที', '20–30 นาที', '30 นาทีขึ้นไป'],
+  sit: ['ไม่ถึง 30 นาที', '30 นาที–1 ชม.', '1–1.5 ชม.', '1.5–2 ชม.', '2 ชม. ขึ้นไป'] };
+const T_SLOW = { cook: 3, sit: 5 };   // ช่วงตั้งแต่ index นี้ = ช้า (แท่งสีแดง) · นั่งนานไม่ถือว่าผิด
+const mins = m => (m >= 60 ? `${Math.floor(m / 60)} ชม. ${Math.round(m % 60)} นาที` : `${Math.round(m)} นาที`);
+function renderTimes() {
+  const s = report.summary, pv = report.prev, single = report.from === report.to;
+  const pvName = single ? `${thDate(pv.from, { weekday: 'long' })}ที่แล้ว` : 'ช่วงก่อนหน้า';
+  for (const kind of ['cook', 'sit']) {
+    const t = s[kind], box = $('#' + kind + 'Box');
+    if (!t?.n) {
+      box.innerHTML = `<p class="muted">${kind === 'cook' ? 'ยังไม่มีข้อมูล · นับเฉพาะจานที่ขึ้นจอครัวและครัวกดเสร็จแล้ว' : 'ยังไม่มีข้อมูล · นับเฉพาะโต๊ะที่จ่ายเงินแล้ว (ไม่นับกลับบ้าน)'}</p>`;
+      continue;
+    }
+    const avg = t.sum / t.n, p = pv?.[kind];
+    // ครัว: เร็วขึ้น = ดี (สีเขียว) · นั่ง: แค่บอกว่าเปลี่ยนเท่าไหร่ ไม่ตัดสินว่าดี/ไม่ดี
+    let dl = '';
+    if (p?.avg) {
+      const d = Math.round(avg - p.avg);
+      dl = d === 0 ? `<small class="muted">เท่ากับ${pvName}</small>`
+        : `<small class="muted"><em class="delta ${kind === 'cook' ? (d < 0 ? 'up' : 'down') : ''}">${d < 0 ? '▼' : '▲'} ${Math.abs(d)} นาที</em> จาก${pvName} (${mins(p.avg)})</small>`;
+    }
+    const fast = kind === 'cook' ? Math.round((t.b[0] + t.b[1]) / t.n * 100) : null, slow = kind === 'cook' ? t.b[3] + t.b[4] : 0;
+    const maxB = Math.max(...t.b, 1);
+    // แยกตามชั่วโมง (เรียงตามวันขาย)
+    const hrs = Object.keys(t.byHour).map(Number).sort((a, b) => relHour(a) - relHour(b));
+    const hAvg = h => t.byHour[h].sum / t.byHour[h].n, maxH = Math.max(...hrs.map(hAvg), 1);
+    const slowH = kind === 'cook' ? 20 : Infinity;
+    let html = `<div class="tbig"><b>${mins(avg)}</b><span class="muted">เฉลี่ยต่อ${kind === 'cook' ? 'จาน' : 'โต๊ะ'}</span>${dl}</div>
+      <p class="tsub">${kind === 'cook' ? `จาก ${t.n.toLocaleString('th-TH')} จาน · เสร็จภายใน 15 นาที ${fast}%${slow ? ` · <span class="warn">เกิน 20 นาที ${slow} จาน</span>` : ''}`
+        : `จาก ${t.n.toLocaleString('th-TH')} โต๊ะ`}</p>
+      ${t.b.map((v, i) => `<div class="hbar ${i >= T_SLOW[kind] ? 'slow' : ''}"><span>${T_LABEL[kind][i]}</span>
+        <b>${v.toLocaleString('th-TH')} <small>${kind === 'cook' ? 'จาน' : 'โต๊ะ'} · ${Math.round(v / t.n * 100)}%</small></b>
+        <div class="track"><i style="width:${v / maxB * 100}%"></i></div></div>`).join('')}`;
+    if (hrs.length > 1) html += `<div class="t-h">แยกตามเวลาที่${kind === 'cook' ? 'สั่ง' : 'เปิดโต๊ะ'} (เฉลี่ย)</div>
+      ${hrs.map(h => `<div class="hbar ${hAvg(h) >= slowH ? 'slow' : ''}"><span>${h}:00–${h}:59</span>
+        <b>${mins(hAvg(h))} <small>· ${t.byHour[h].n} ${kind === 'cook' ? 'จาน' : 'โต๊ะ'}</small></b>
+        <div class="track"><i style="width:${hAvg(h) / maxH * 100}%"></i></div></div>`).join('')}`;
+    if (kind === 'cook') {
+      // เมนูที่รอนาน: สั่งอย่างน้อย 3 จาน · เรียงตามเวลาเฉลี่ย
+      const it = Object.entries(t.items || {}).map(([name, x]) => ({ name, n: x.n, avg: x.sum / x.n, max: x.max }))
+        .filter(x => x.n >= 3).sort((a, b) => b.avg - a.avg).slice(0, 8);
+      if (it.length) html += `<div class="t-h">เมนูที่รอนานที่สุด <small class="muted" style="font-weight:400">(สั่งตั้งแต่ 3 จาน)</small></div>
+        <table class="t"><thead><tr><th>เมนู</th><th class="r">จาน</th><th class="r">เฉลี่ย</th><th class="r">นานสุด</th></tr></thead><tbody>
+        ${it.map(x => `<tr><td>${esc(x.name)}</td><td class="r">${x.n}</td><td class="r" ${x.avg >= 20 ? 'style="color:var(--brick);font-weight:600"' : ''}>${mins(x.avg)}</td>
+          <td class="r muted">${mins(x.max)}</td></tr>`).join('')}</tbody></table>`;
+      html += '<p class="muted" style="margin:10px 0 0;font-size:13px">ไม่นับจานที่ครัวไม่ได้กดเสร็จ หรือนานเกิน 2 ชม. (น่าจะลืมกด) · ตัวเลขจะตรงเมื่อครัวกดเสร็จทันทีที่ทำเสร็จ</p>';
+    } else html += '<p class="muted" style="margin:10px 0 0;font-size:13px">ไม่นับกลับบ้าน และโต๊ะที่เปิดนานเกิน 6 ชม. (น่าจะลืมปิด)</p>';
+    box.innerHTML = html;
+  }
 }
 
 // ---------- พนักงาน: ใครสั่ง ใครยกเลิก ใครรับเงิน (เฉพาะบิลที่บันทึกชื่อ หลังเริ่มใช้รหัสรายคน) ----------
@@ -2541,11 +2618,24 @@ function loadLine() {
   $('#lnStatus').style.color = L.lastErr ? 'var(--brick)' : '';
   $$('[data-alert]').forEach(x => (x.checked = L.alerts?.[x.dataset.alert] !== false));
   $('#lnAlertErr').textContent = L.alertErr ? '· แจ้งเตือนล่าสุดส่งไม่สำเร็จ: ' + L.alertErr : '';
+  $('#lnWeekly').checked = !!L.weekly; $('#lnMonthly').checked = !!L.monthly;
+  // lastWeek = วันอาทิตย์ของสัปดาห์ที่ส่งล่าสุด · lastMonth = วันสุดท้ายของเดือนที่ส่งล่าสุด
+  $('#lnWeekSt').textContent = L.weekly && L.lastWeek ? `· ส่งถึงสัปดาห์ที่จบ ${thDate(L.lastWeek)}` : '';
+  $('#lnMonthSt').textContent = L.monthly && L.lastMonth ? `· ส่งถึงเดือน ${thDate(L.lastMonth, { month: 'short', year: 'numeric' })}` : '';
 }
+// ตัวอย่างข้อความ: day = วันนี้ · week / month = สัปดาห์/เดือนล่าสุดที่จบแล้ว (ปุ่มส่งทดสอบส่งแบบที่เลือกอยู่)
+let lnKind = 'day';
+const LN_KIND = { day: 'สรุปวันนี้', week: 'สรุปสัปดาห์ล่าสุด', month: 'สรุปเดือนล่าสุด' };
 async function loadLinePrev() {
-  try { $('#lnPrev').textContent = (await api('/api/line/preview')).text; } catch (err) { $('#lnPrev').textContent = err.message; }
+  try { $('#lnPrev').textContent = (await api('/api/line/preview?kind=' + lnKind)).text; } catch (err) { $('#lnPrev').textContent = err.message; }
 }
-const lineBody = () => ({ on: $('#lnOn').checked, time: $('#lnTime').value, to: $('#lnTo').value.trim(), token: $('#lnToken').value.trim(),
+$('#lnKind').addEventListener('click', e => {
+  const b = e.target.closest('[data-k]'); if (!b) return;
+  lnKind = b.dataset.k; $$('#lnKind button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  $('#lnTest').textContent = 'ส่ง' + LN_KIND[lnKind] + 'ทดสอบ'; loadLinePrev();
+});
+const lineBody = () => ({ on: $('#lnOn').checked, weekly: $('#lnWeekly').checked, monthly: $('#lnMonthly').checked,
+  time: $('#lnTime').value, to: $('#lnTo').value.trim(), token: $('#lnToken').value.trim(),
   alerts: Object.fromEntries($$('[data-alert]').map(x => [x.dataset.alert, x.checked])) });
 $('#lnTestAlert').onclick = async function () {
   try {
@@ -2559,7 +2649,7 @@ $('#lnForm').addEventListener('input', () => dirty.add('line'));
 $('#lnRefresh').onclick = loadLinePrev;
 $('#lnSave').onclick = async () => {
   try {
-    if (($('#lnOn').checked || $$('[data-alert]').some(x => x.checked)) && !S.settings.line?.hasToken && !$('#lnToken').value.trim()) return toast('ใส่ Channel access token ก่อน', true);
+    if (($('#lnOn').checked || $('#lnWeekly').checked || $('#lnMonthly').checked || $$('[data-alert]').some(x => x.checked)) && !S.settings.line?.hasToken && !$('#lnToken').value.trim()) return toast('ใส่ Channel access token ก่อน', true);
     await api('/api/settings', { line: lineBody() }); dirty.delete('line');
     Object.assign(S, await api('/api/state')); loadLine(); toast('บันทึกแล้ว');
   } catch (err) { toast(err.message, true); }
@@ -2568,10 +2658,10 @@ $('#lnTest').onclick = async function () {
   try {
     this.disabled = true; this.textContent = 'กำลังส่ง…';
     if (dirty.has('line')) { await api('/api/settings', { line: lineBody() }); dirty.delete('line'); }
-    await api('/api/line/test', {});
+    await api('/api/line/test', { kind: lnKind });
     toast('ส่งเข้า LINE แล้ว ลองเปิด LINE ดู');
   } catch (err) { toast(err.message, true); }
-  finally { this.disabled = false; this.textContent = 'ส่งทดสอบตอนนี้'; try { Object.assign(S, await api('/api/state')); loadLine(); } catch {} }
+  finally { this.disabled = false; this.textContent = 'ส่ง' + LN_KIND[lnKind] + 'ทดสอบ'; try { Object.assign(S, await api('/api/state')); loadLine(); } catch {} }
 };
 
 // ================= หน้าสั่งอาหาร (settings.orderUi) =================
