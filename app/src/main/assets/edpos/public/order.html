@@ -813,7 +813,7 @@ function addItem(menuId, editIdx) {
   fixGrid(-1);
   // ป้ายราคาบนปุ่ม: กลุ่มในตาราง = ราคาเต็มถ้าเลือกตัวนี้อย่างเดียว (ตามตัวเลือกอื่นที่เลือกอยู่) · กลุ่มอื่น = +บวกราคา
   const tagOf = (g, c) => {
-    if (!inGrid(g)) return c.add ? `<small>+${baht(c.add)}</small>` : '';
+    if (!inGrid(g)) { const a = addOf(c, pr.thai); return a ? `<small>+${baht(a)}</small>` : ''; }
     const p = priceNow({ [g.name]: [c.name] });
     return `<small>${p == null ? '—' : baht(p)}</small>`;
   };
@@ -836,16 +836,16 @@ function addItem(menuId, editIdx) {
     <input id="note" placeholder="หมายเหตุอื่นๆ" value="${esc(pre.free)}">`}
     <div class="btns" style="margin-top:14px"><button id="cancel">ยกเลิก</button><button class="primary" id="ok">เพิ่ม</button></div>`);
   const $ = s => bg.querySelector(s);
-  const unit = () => (grid ? priceNow() ?? NaN : pr.thai ? Number(m.priceTh) : m.price)
-    + groups.reduce((s, g, k) => s + (inGrid(g) ? 0 : g.choices.filter(c => sel[k].has(c.name)).reduce((a, c) => a + c.add, 0)), 0);
+  const unit = () => (grid ? priceNow() ?? NaN : pr.thai && m.priceTh != null && m.priceTh !== '' ? Number(m.priceTh) : m.price)
+    + groups.reduce((s, g, k) => s + (inGrid(g) ? 0 : g.choices.filter(c => sel[k].has(c.name)).reduce((a, c) => a + addOf(c, pr.thai), 0)), 0);
   const refresh = () => {
     $('#q').textContent = qty;
     const missing = groups.find((g, k) => g.name !== skipNow() && (g.required || inGrid(g)) && !sel[k].size);
     const none = !missing && Number.isNaN(unit());
     $('#ok').disabled = !!missing || none;
     $('#ok').textContent = missing ? `เลือก${missing.name}ก่อน` : none ? (pr.thai ? 'ไม่มีราคาคนไทย' : 'แบบนี้ไม่มีขาย') : `${old ? 'บันทึก' : 'เพิ่ม'} · ${baht(r2(unit() * qty))} ฿`;
-    // ราคาบนปุ่มของกลุ่มในตารางเปลี่ยนตามตัวเลือกอื่น
-    if (grid) groups.forEach((g, k) => { if (inGrid(g)) bg.querySelectorAll(`[data-g="${k}"] button`).forEach(b => {
+    // ราคาบนปุ่มเปลี่ยนตามตัวเลือกอื่น (กลุ่มในตาราง) และตามราคาปกติ/คนไทย (บวกราคา)
+    groups.forEach((g, k) => { bg.querySelectorAll(`[data-g="${k}"] button`).forEach(b => {
       const c = g.choices.find(x => x.name === b.dataset.c); b.innerHTML = esc(c.name) + tagOf(g, c); }); });
   };
   bg.querySelectorAll('[data-g]').forEach(box => {

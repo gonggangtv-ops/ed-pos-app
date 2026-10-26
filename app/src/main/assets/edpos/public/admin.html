@@ -178,13 +178,22 @@
   .ghead { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px; border-bottom: 1px solid var(--line); }
   .ghead input { flex: 1; min-width: 140px; font-weight: 600; }
   .choices { padding: 8px 12px 12px; display: grid; gap: 6px; }
-  .choice { display: grid; grid-template-columns: minmax(0, 1fr) 110px 132px 34px; gap: 8px; align-items: center; }
+  .choice { display: grid; grid-template-columns: minmax(0, 1fr) 96px 96px 132px 34px; gap: 8px; align-items: center; }
   .choice select { padding: 8px 6px; font-size: 14px; min-width: 0; }
   .choice select.on { border-color: var(--ink); font-weight: 600; }
-  @media (max-width: 560px) { .choice, .chead { grid-template-columns: minmax(0, 1fr) 84px 96px 30px !important; } }
+  /* จอแคบ: ชื่อตัวเลือกเต็มบรรทัด ราคา/คนไทย/พิมพ์แยกอยู่บรรทัดล่าง */
+  @media (max-width: 560px) {
+    .choice, .chead { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr) 28px !important; }
+    .choice > input[type=text] { grid-column: 1 / -1; }
+    .chead span:first-child { display: none; }
+    .choice { padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+    .choice .money input { padding-left: 8px; padding-right: 24px; }
+    .choice .money::after { right: 8px; }
+    .choice .money input::-webkit-inner-spin-button, .choice .money input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  }
   .choice .x { border: 0; background: none; cursor: pointer; color: var(--faint); font-size: 18px; padding: 4px 8px; border-radius: 6px; }
   .choice .x:hover { color: var(--brick); background: var(--brick-soft); }
-  .chead { display: grid; grid-template-columns: minmax(0, 1fr) 110px 132px 34px; gap: 8px; font-size: 13px; color: var(--faint); padding: 0 2px; }
+  .chead { display: grid; grid-template-columns: minmax(0, 1fr) 96px 96px 132px 34px; gap: 8px; font-size: 13px; color: var(--faint); padding: 0 2px; }
   .gtools { display: flex; gap: 4px; margin-left: auto; }
 
   /* ตัวอย่างหน้าจอพนักงาน */
@@ -1487,7 +1496,9 @@ $('#csv').onclick = () => {
 // ---------- ราคา ----------
 const priceRange = m => menuPriceRange(m);   // รวมตารางราคา (common.js)
 const rangeText = (m, thai) => { const [lo, hi] = menuPriceRange(m, thai); return lo === hi ? baht(lo) + ' ฿' : `${baht(lo)}–${baht(hi)} ฿`; };
-const groupSummary = m => groupsOf(m).map(g => g.name + ': ' + g.choices.map(c => c.name + (c.add ? ' +' + baht(c.add) : '')).join(', ')).join(' / ');
+// ป้ายราคาตัวเลือก เช่น "ไข่ดาว (ไทย +10)" · "ไข่เจียว +10"
+const addLabel = c => (Number(c.add) ? ' +' + baht(c.add) : '') + (hasAddTh(c) && Number(c.addTh) !== Number(c.add) ? ` (ไทย +${baht(c.addTh)})` : '');
+const groupSummary = m => groupsOf(m).map(g => g.name + ': ' + g.choices.map(c => c.name + addLabel(c)).join(', ')).join(' / ');
 
 // ---------- รายการเมนู ----------
 function cats() { const c = [...(S.categories || [])]; S.menu.forEach(m => c.includes(m.category) || c.push(m.category)); return c; }
@@ -1655,11 +1666,12 @@ function renderEditor() {
             </div>
           </div>
           <div class="choices">
-            <div class="chead"><span>ตัวเลือก</span><span>บวกราคา</span><span title="เลือกตัวเลือกนี้แล้วพิมพ์ใบแยกไปเครื่องนี้ด้วย">พิมพ์แยกที่</span><span></span></div>
+            <div class="chead"><span>ตัวเลือก</span><span>บวกราคา</span><span title="บวกราคาเมื่อสั่งราคาคนไทย · ว่าง = เท่าบวกราคาปกติ">คนไทย</span><span title="เลือกตัวเลือกนี้แล้วพิมพ์ใบแยกไปเครื่องนี้ด้วย">พิมพ์แยกที่</span><span></span></div>
             ${g.choices.map((c, j) => `
               <div class="choice">
                 <input type="text" data-g="${k}" data-c="${j}" data-cf="name" value="${esc(c.name)}" placeholder="เช่น หมูกรอบ" aria-label="ชื่อตัวเลือก">
                 <div class="money"><input type="number" data-g="${k}" data-c="${j}" data-cf="add" value="${c.add || 0}" step="1" inputmode="decimal" aria-label="บวกราคา"></div>
+                <div class="money"><input type="number" data-g="${k}" data-c="${j}" data-cf="addTh" value="${esc(c.addTh ?? '')}" min="0" step="1" inputmode="decimal" placeholder="—" aria-label="บวกราคาคนไทย" title="ว่าง = เท่าบวกราคาปกติ"></div>
                 ${splitSel(`data-g="${k}" data-c="${j}" data-cf="printers"`, c)}
                 <button class="x" data-cdel="${k}:${j}" aria-label="ลบตัวเลือก">×</button>
               </div>`).join('')}
@@ -1756,7 +1768,7 @@ function renderPreview() {
     <div class="pvbtn ${d.available === false ? 'out' : ''}"><b>${esc(d.name || 'ชื่อเมนู')}</b>
       <span>${d.available === false ? 'หมด' : baht(Number(d.price) || 0) + ' ฿' + (d.groups.length ? ' · มีตัวเลือก' : '')}</span></div>
     ${groupsOf(d).map(g => `<div class="pg ${g.alert ? 'al' : ''}">${g.alert ? '⚠ ' : ''}${esc(g.name || 'ตัวเลือก')} <small class="${g.required ? 'req' : ''}">${g.required ? 'ต้องเลือก' : 'ไม่บังคับ'}${g.type === 'multi' ? ' · หลายอย่าง' : ''}</small></div>
-      <div class="pc">${g.choices.filter(c => c.name).map((c, j) => `<span class="${g.required && g.type !== 'multi' && j === 0 ? 'on' : ''}">${esc(c.name)}${Number(c.add) ? ' +' + baht(c.add) : ''}</span>`).join('') || '<span>—</span>'}</div>`).join('')}
+      <div class="pc">${g.choices.filter(c => c.name).map((c, j) => `<span class="${g.required && g.type !== 'multi' && j === 0 ? 'on' : ''}">${esc(c.name + addLabel(c))}</span>`).join('') || '<span>—</span>'}</div>`).join('')}
     <div class="range"><span>ราคาขาย</span><b>${rangeText(d)}</b></div>
     ${hasThaiPrice(d) ? `<div class="range" style="border-top:0;margin-top:0;padding-top:4px"><span>ราคาคนไทย</span><b>${rangeText(d, true)}</b></div>` : ''}`;
 }
@@ -1886,7 +1898,7 @@ function linkedGroup(g, k) {
   if (!o) return '';
   return `<div class="linked ${o.alert ? 'galert' : ''}">
     <div class="ltxt"><b>${o.alert ? '⚠ ' : ''}${esc(o.name)} <span class="tag set">ชุดสำเร็จรูป</span></b>
-      <span>${setMeta(o)} · ${esc(o.choices.map(c => c.name + (c.add ? ' +' + baht(c.add) : '')).join(', '))}</span></div>
+      <span>${setMeta(o)} · ${esc(o.choices.map(c => c.name + addLabel(c)).join(', '))}</span></div>
     <div class="gtools">
       <button class="btn ghost sm" data-gmove="${k}" data-dir="-1" ${k === 0 ? 'disabled' : ''} aria-label="เลื่อนขึ้น">▲</button>
       <button class="btn ghost sm" data-gmove="${k}" data-dir="1" ${k === draft.groups.length - 1 ? 'disabled' : ''} aria-label="เลื่อนลง">▼</button>
@@ -1916,7 +1928,7 @@ function renderSets() {
     return `<div class="setcard" data-set="${o.id}">
       <div><b>${esc(o.name)}</b><div class="meta"><span class="tag">${setMeta(o)}</span>${o.alert ? '<span class="tag al">เตือนครัวสีแดง</span>' : ''}</div></div>
       <span class="uses">ใช้กับ ${n} เมนู</span>
-      <div class="ch">${esc(o.choices.map(c => c.name + (c.add ? ' +' + baht(c.add) : '')).join(', '))}</div>
+      <div class="ch">${esc(o.choices.map(c => c.name + addLabel(c)).join(', '))}</div>
     </div>`; }).join('')}</div>`
     : '<div class="empty">ยังไม่มีชุดตัวเลือก กด “สร้างชุดตัวเลือก” เช่น ความเผ็ด หรือ แพ้อาหาร</div>';
   const qn = S.settings.quickNotes || [];
@@ -1978,10 +1990,11 @@ function renderSetEditor() {
     </div>
     <div class="sec"><h3>ตัวเลือก</h3>
       <div class="choices" style="padding:0">
-        <div class="chead"><span>ตัวเลือก</span><span>บวกราคา</span><span title="เลือกตัวเลือกนี้แล้วพิมพ์ใบแยกไปเครื่องนี้ด้วย">พิมพ์แยกที่</span><span></span></div>
+        <div class="chead"><span>ตัวเลือก</span><span>บวกราคา</span><span title="บวกราคาเมื่อสั่งราคาคนไทย · ว่าง = เท่าบวกราคาปกติ">คนไทย</span><span title="เลือกตัวเลือกนี้แล้วพิมพ์ใบแยกไปเครื่องนี้ด้วย">พิมพ์แยกที่</span><span></span></div>
         ${d.choices.map((c, j) => `<div class="choice">
           <input type="text" data-sc="${j}" data-scf="name" value="${esc(c.name)}" placeholder="เช่น เผ็ดน้อย" aria-label="ชื่อตัวเลือก">
           <div class="money"><input type="number" data-sc="${j}" data-scf="add" value="${c.add || 0}" step="1" inputmode="decimal" aria-label="บวกราคา"></div>
+          <div class="money"><input type="number" data-sc="${j}" data-scf="addTh" value="${esc(c.addTh ?? '')}" min="0" step="1" inputmode="decimal" placeholder="—" aria-label="บวกราคาคนไทย" title="ว่าง = เท่าบวกราคาปกติ"></div>
           ${splitSel(`data-sc="${j}" data-scf="printers"`, c)}
           <button class="x" data-scdel="${j}" aria-label="ลบตัวเลือก">×</button></div>`).join('')}
         <div><button class="btn sm" id="scAdd">+ เพิ่มตัวเลือก</button></div>

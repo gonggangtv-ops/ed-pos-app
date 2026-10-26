@@ -337,7 +337,10 @@ function cleanGroup(g) {
     // printers = พิมพ์ใบแยกที่เครื่องนี้ด้วยเมื่อเลือกตัวเลือกนี้ (เช่น ไข่ดาว → หน้าร้าน) · [] = ไม่แยก
     choices: (g.choices || []).map(c => {
       const printers = pickIds(c.printers, data.settings.printers || []);
-      return { name: String(c.name || '').trim(), add: r2(Number(c.add) || 0), ...(printers.length ? { printers } : {}) };
+      // addTh = บวกราคาเมื่อสั่งราคาคนไทย (เช่น ไข่ดาว ฝรั่งฟรี คนไทย +10) · ไม่ใส่ = บวกเท่าราคาปกติ
+      const th = c.addTh === '' || c.addTh == null ? NaN : Number(c.addTh);
+      return { name: String(c.name || '').trim(), add: r2(Number(c.add) || 0), ...(th >= 0 ? { addTh: r2(th) } : {}),
+        ...(printers.length ? { printers } : {}) };
     }).filter(c => c.name),
   };
 }
@@ -406,7 +409,7 @@ function cleanGrid(grid, groups) {
 }
 
 // ตรวจตัวเลือกที่ลูกค้าเลือก แล้วคิดราคา
-// thai = ใช้ราคาคนไทย (เฉพาะเมนูที่ตั้งราคาคนไทยไว้ · ตัวเลือกที่บวกราคายังบวกเท่าเดิม)
+// thai = ใช้ราคาคนไทย (เฉพาะเมนูที่ตั้งราคาคนไทยไว้ · ตัวเลือกบวกตาม addTh ถ้าตั้งไว้ ไม่งั้นบวกเท่าราคาปกติ)
 function resolveChoices(m, picked, thai = false) {
   // picked: [{g: ชื่อกลุ่ม, c: ชื่อตัวเลือก}] · รองรับแบบเก่า: string ชื่อตัวเลือกเดียว
   const groups = groupsOf(m);
@@ -424,7 +427,7 @@ function resolveChoices(m, picked, thai = false) {
     if ((g.required || inGrid) && !sel.length) throw new Error(`${m.name}: ต้องเลือก${g.name}`);
     if (g.type === 'single' && sel.length > 1) throw new Error(`${m.name}: ${g.name} เลือกได้อย่างเดียว`);
     for (const c of sel) {
-      names.push(c.name); (g.alert ? alerts : opts).push(c.name); if (!inGrid) add += c.add;
+      names.push(c.name); (g.alert ? alerts : opts).push(c.name); if (!inGrid) add += addOf(c, thai);
       if (c.printers?.length) split.push({ name: c.name, printers: [...c.printers] });
     }
     if (inGrid) key[g.name] = sel.map(c => c.name);
@@ -457,7 +460,10 @@ function resolveChoices(m, picked, thai = false) {
   }
   return { names, add, parts, opts, alerts, base, split };
 }
-const hasThaiPrice = m => m.priceTh != null || !!(m.grid?.pricesTh && Object.keys(m.grid.pricesTh).length);
+const addOf = (c, thai) => (thai && c.addTh != null ? c.addTh : c.add);
+// มีราคาคนไทย = ตั้งราคาเมนู/ตารางราคาไทย หรือมีตัวเลือกที่บวกราคาคนไทยต่างจากปกติ
+const hasThaiPrice = m => m.priceTh != null || !!(m.grid?.pricesTh && Object.keys(m.grid.pricesTh).length)
+  || groupsOf(m).some(g => g.choices.some(c => c.addTh != null));
 function isNoKdsCategory(c) { return /เครื่องดื่ม|ของหวาน|น้ำ|ขนม/.test(c || ''); }
 
 // ---------- เครื่องพิมพ์ / จอครัว ----------

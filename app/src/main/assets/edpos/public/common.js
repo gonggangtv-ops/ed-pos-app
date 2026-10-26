@@ -34,7 +34,11 @@ function gridPriceAll(grid, selOf, thai = false) {
 // ตัวเลือกนี้มีขายอย่างน้อยหนึ่งช่องในตารางไหม
 const gridHas = (grid, gname, cname) => { const i = grid.groups.indexOf(gname); return i < 0 || Object.keys(grid.prices).some(k => k.split('|')[i] === cname); };
 // เมนูนี้ตั้งราคาคนไทยไว้ไหม
-const hasThaiPrice = m => (m?.priceTh != null && m.priceTh !== '') || !!(gridOf(m) && Object.keys(m.grid.pricesTh || {}).length);
+// บวกราคาของตัวเลือก · คนไทยใช้ addTh ถ้าตั้งไว้ (เช่น ไข่ดาว ฝรั่งฟรี คนไทย +10)
+const hasAddTh = c => c?.addTh != null && c.addTh !== '';
+const addOf = (c, thai) => Number(thai && hasAddTh(c) ? c.addTh : c.add) || 0;
+const hasThaiPrice = m => (m?.priceTh != null && m.priceTh !== '') || !!(gridOf(m) && Object.keys(m.grid.pricesTh || {}).length)
+  || groupsOf(m).some(g => g.choices.some(hasAddTh));
 // ราคาต่ำสุด–สูงสุดของเมนู (รวมตัวเลือกที่บวกราคา) · thai = ราคาคนไทย
 function menuPriceRange(m, thai = false) {
   const grid = gridOf(m);
@@ -44,7 +48,7 @@ function menuPriceRange(m, thai = false) {
   let lo = grid ? Math.min(...gp) : one, hi = grid ? Math.max(...gp) : lo;
   for (const g of groupsOf(m)) {
     if (grid?.groups.includes(g.name)) continue;
-    const adds = g.choices.map(c => Number(c.add) || 0);
+    const adds = g.choices.map(c => addOf(c, thai));
     if (!adds.length) continue;
     if (g.type === 'single') { if (g.required) lo += Math.min(...adds); hi += Math.max(...adds); }
     else hi += adds.filter(a => a > 0).reduce((a, b) => a + b, 0);
