@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ยอดขาย · ED POS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ui.css">
+<style>
+  /* หน้ายอดขาย: แถบบนแทนเมนูด้านข้าง · แท็บแยกหัวข้อ */
+  .topbar { background: var(--ink); color: #DDE5E0; display: flex; align-items: center; gap: 6px 16px; padding: 10px 20px; position: sticky; top: 0; z-index: 30; flex-wrap: wrap; }
+  .topbar .ttl { color: #fff; font-size: 17px; font-weight: 700; margin-right: auto; }
+  .topbar .ttl small { color: #93A39A; font-weight: 400; font-size: 13px; margin-left: 6px; }
+  .topbar a { color: #B9C7BF; text-decoration: none; font-size: 14px; white-space: nowrap; }
+  .topbar a:hover { color: #fff; }
+  main { margin: 0 auto; }
+  .tabs { display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--line); margin: 0 0 18px; position: sticky; top: 50px; background: var(--bg); z-index: 20; scrollbar-width: none; }
+  .tabs button { all: unset; cursor: pointer; padding: 11px 14px 9px; font-size: 15px; color: var(--muted); border-bottom: 3px solid transparent; white-space: nowrap; }
+  .tabs button:hover { color: var(--ink); }
+  .tabs button[aria-selected="true"] { color: var(--ink); font-weight: 600; border-color: var(--jade); }
+  .tabs button:focus-visible { outline: 2px solid var(--jade); outline-offset: -2px; }
+  .pane[hidden] { display: none !important; }
+  .note { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
+  .delta2 { font-weight: 700; font-style: normal; } .delta2.up { color: var(--jade); } .delta2.down { color: var(--brick); }
+  /* ตัวเลขหลักแบบการ์ดเล็ก (โต๊ะ/ระบบ) */
+  .mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-bottom: 18px; }
+  .mini > div { background: var(--surface); padding: 14px 16px; }
+  .mini span { display: block; color: var(--muted); font-size: 13.5px; }
+  .mini b { display: block; font-size: 24px; font-weight: 700; margin-top: 2px; }
+  .mini small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  /* สถานะอุปกรณ์: ไอคอน + ข้อความเสมอ (ไม่ใช้สีอย่างเดียว) */
+  .srow { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+  .srow:first-child { border-top: 0; }
+  .srow .ic { font-size: 18px; line-height: 1.3; text-align: center; }
+  .srow b { display: block; font-weight: 600; }
+  .srow span { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+  .srow .st { font-size: 14px; font-weight: 600; white-space: nowrap; }
+  .srow .st.ok { color: var(--jade); } .srow .st.bad { color: var(--brick); } .srow .st.na { color: var(--faint); font-weight: 500; }
+  .evt td:first-child { white-space: nowrap; color: var(--muted); }
+  .evt .bad { color: var(--brick); } .evt .ok { color: var(--jade); }
+  .pareto { background: var(--jade-soft); border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; font-size: 15px; }
+  @media (max-width: 860px) { .tabs { top: 84px; } .topbar { padding: 10px 16px; } }
+</style>
+<script src="app-bridge.js"></script>
+</head>
+<body data-pin="admin">
+<header class="topbar">
+  <span class="ttl" id="shopTitle">ยอดขาย</span>
+  <a href="admin.html">⚙ หลังร้าน</a>
+  <a href="order.html">หน้าสั่งอาหาร</a>
+  <a href="#" id="lockBtn">🔒 ล็อก</a>
+</header>
+<main>
+  <div class="shead">
+    <h1>ยอดขาย</h1>
+    <div class="seg" id="range" role="group" aria-label="ช่วงเวลา">
+      <button data-r="today" aria-pressed="true">วันนี้</button>
+      <button data-r="yesterday">เมื่อวาน</button>
+      <button data-r="7">7 วัน</button>
+      <button data-r="30">30 วัน</button>
+      <button data-r="month">เดือนนี้</button>
+      <button data-r="custom">เลือกวัน</button>
+    </div>
+  </div>
+  <div class="custom" id="customBox" hidden>
+    <label class="field"><span>ตั้งแต่</span><input type="date" id="dFrom"></label>
+    <label class="field"><span>ถึง</span><input type="date" id="dTo"></label>
+    <button class="btn primary" id="dGo">ดูยอด</button>
+  </div>
+  <p class="lede" id="rangeLabel"></p>
+
+  <nav class="tabs" id="tabs" role="tablist" aria-label="หัวข้อ">
+    <button role="tab" data-t="overview" aria-selected="true">ภาพรวม</button>
+    <button role="tab" data-t="menu">เมนู</button>
+    <button role="tab" data-t="tables">โต๊ะ</button>
+    <button role="tab" data-t="kitchen">ครัว</button>
+    <button role="tab" data-t="staff">พนักงาน</button>
+    <button role="tab" data-t="system">ระบบ</button>
+    <button role="tab" data-t="bills">บิล</button>
+  </nav>
+
+  <!-- ===== ภาพรวม ===== -->
+  <section class="pane" data-p="overview">
+    <div class="kpis" id="kpis"></div>
+    <p class="openline" id="openLine" hidden></p>
+    <div class="panel">
+      <div class="phead"><h2 id="chartTitle">ยอดขาย</h2><span class="muted" id="chartNote"></span></div>
+      <div class="chart" id="chart"></div>
+    </div>
+    <div class="panel" id="heatPanel" hidden>
+      <div class="phead"><h2>ช่วงเวลาขายดี</h2><span class="muted" id="heatNote"></span></div>
+      <div class="heatwrap" id="heat"></div>
+    </div>
+    <div class="two">
+      <div class="panel"><div class="phead"><h2>วิธีชำระเงิน</h2></div><div id="payBreak"></div></div>
+      <div class="panel"><div class="phead"><h2>ตามหมวด</h2></div><div id="catBreak"></div></div>
+    </div>
+  </section>
+
+  <!-- ===== เมนู ===== -->
+  <section class="pane" data-p="menu" hidden>
+    <div class="panel">
+      <div class="phead"><h2>เมนูขายดี</h2>
+        <div class="seg" id="topSort" role="group" aria-label="เรียงตาม">
+          <button data-s="qty" aria-pressed="true">ตามจำนวน</button><button data-s="amount">ตามยอดเงิน</button></div></div>
+      <div id="topList"></div>
+    </div>
+    <div class="two">
+      <div class="panel"><div class="phead"><h2>ขายเพิ่มขึ้น</h2><span class="muted" id="upNote"></span></div><div id="upList"></div></div>
+      <div class="panel"><div class="phead"><h2>ขายลดลง</h2><span class="muted" id="downNote"></span></div><div id="downList"></div></div>
+    </div>
+    <div class="panel">
+      <div class="phead"><h2>ตัวเลือกที่บวกราคา</h2><span class="muted">เช่น ไข่ดาว เพิ่มกุ้ง</span></div>
+      <div id="addonList"></div>
+    </div>
+    <div class="panel">
+      <div class="phead"><h2>เมนูที่ขายไม่ออก</h2><span class="muted" id="slowNote"></span></div>
+      <div id="slowList"></div>
+    </div>
+  </section>
+
+  <!-- ===== โต๊ะ ===== -->
+  <section class="pane" data-p="tables" hidden>
+    <div class="mini" id="tblKpi"></div>
+    <div class="panel">
+      <div class="phead"><h2>โต๊ะเต็มแค่ไหนในแต่ละชั่วโมง</h2><span class="muted" id="occNote"></span></div>
+      <div id="occList"></div>
+    </div>
+    <div class="panel">
+      <div class="phead"><h2>ลูกค้านั่งนานเท่าไหร่</h2><span class="muted">เปิดโต๊ะ → จ่ายเงิน</span></div>
+      <div id="sitBox"></div>
+    </div>
+    <div class="panel">
+      <div class="phead"><h2>รายโต๊ะ</h2><span class="muted" id="tblNote"></span></div>
+      <div id="tblList"></div>
+    </div>
+  </section>
+
+  <!-- ===== ครัว ===== -->
+  <section class="pane" data-p="kitchen" hidden>
+    <div class="panel">
+      <div class="phead"><h2>ครัวทำเร็วแค่ไหน</h2><span class="muted">สั่ง → จอครัวกดเสร็จ</span></div>
+      <div id="cookBox"></div>
+    </div>
+  </section>
+
+  <!-- ===== พนักงาน ===== -->
+  <section class="pane" data-p="staff" hidden>
+    <div class="panel">
+      <div class="phead"><h2>พนักงาน</h2><span class="muted" id="staffNote"></span></div>
+      <div id="staffList"></div>
+    </div>
+  </section>
+
+  <!-- ===== ระบบ ===== -->
+  <section class="pane" data-p="system" hidden>
+    <div class="panel">
+      <div class="phead"><h2>สถานะตอนนี้</h2><button class="btn sm" id="hRefresh">โหลดใหม่</button></div>
+      <div id="hNow"></div>
+    </div>
+    <div class="mini" id="hKpi"></div>
+    <div class="panel">
+      <div class="phead"><h2>เครื่องพิมพ์</h2><span class="muted">พิมพ์สำเร็จในช่วงนี้</span></div>
+      <div id="hPrn"></div>
+    </div>
+    <div class="panel">
+      <div class="phead"><h2>เหตุการณ์</h2><span class="muted" id="hEvtNote"></span></div>
+      <div id="hEvt"></div>
+    </div>
+  </section>
+
+  <!-- ===== บิล ===== -->
+  <section class="pane" data-p="bills" hidden>
+    <div class="panel">
+      <div class="phead"><h2>รายการบิล</h2><span class="muted" id="billNote"></span></div>
+      <div id="billList"></div>
+    </div>
+    <div class="actions" style="justify-content:flex-start">
+      <button class="btn" id="csv">ดาวน์โหลดเป็นไฟล์ Excel (CSV)</button>
+    </div>
+  </section>
+</main>
+
+<script src="common.js"></script>
+<script src="failover.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+function cats() { const c = [...(S.categories || [])]; S.menu.forEach(m => c.includes(m.category) || c.push(m.category)); return c; }
+$('#lockBtn').onclick = e => { e.preventDefault(); PIN.lock(); };
+
+// ---------- แท็บ (จำแท็บล่าสุดใน #hash เปิดลิงก์ sales.html#tables ได้ตรงแท็บ) ----------
+const TABS = ['overview', 'menu', 'tables', 'kitchen', 'staff', 'system', 'bills'];
+let tab = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
+function showTab(t, push = true) {
+  tab = t;
+  $$('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.t === t));
+  $$('.pane').forEach(p => (p.hidden = p.dataset.p !== t));
+  if (push) history.replaceState(null, '', '#' + t);
+  if (t === 'overview' && report) renderChart();   // กราฟวัดความกว้างใหม่ตอนแท็บกลับมาแสดง
+}
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) showTab(b.dataset.t); });
+
+// ================= ยอดขาย =================
+const PAY_COLOR = { cash: '#0F8A6C', transfer: '#B8770F', card: '#4460C0' };   // ผ่านการตรวจสีสำหรับคนตาบอดสีแล้ว
+let range = 'today', report = null, health = null, topSort = 'qty', showAllTop = false, showAllBills = false;
+const openTop = new Set();
+
+function rangeDates() {
+  const today = bizDay();   // วันขาย (ตัดรอบตามที่ตั้ง)
+  const back = n => bizDay(n);
+  switch (range) {
+    case 'yesterday': return [back(1), back(1)];
+    case '7': return [back(6), today];
+    case '30': return [back(29), today];
+    case 'month': return [today.slice(0, 8) + '01', today];
+    case 'custom': return [$('#dFrom').value || today, $('#dTo').value || today];
+    default: return [today, today];
+  }
+}
+let loading = 0;
+async function loadReport() {
+  const [from, to] = rangeDates();
+  const n = ++loading;
+  try {
+    const [r, h] = await Promise.all([api(`/api/report?from=${from}&to=${to}`), api(`/api/health?from=${from}&to=${to}`).catch(() => null)]);
+    if (n !== loading) return;          // มีคำขอใหม่กว่าแล้ว
+    report = r; health = h; renderSales();
+  } catch (err) { toast(err.message, true); }
+}
+$('#range').addEventListener('click', e => {
+  const b = e.target.closest('[data-r]'); if (!b) return;
+  range = b.dataset.r;
+  $$('#range button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  $('#customBox').hidden = range !== 'custom';
+  if (range === 'custom') {
+    if (!$('#dFrom').value) { const [f, t] = report ? [report.from, report.to] : rangeDates(); $('#dFrom').value = f; $('#dTo').value = t; }
+    $('#dTo').max = $('#dFrom').max = ymd(new Date());
+    return;
+  }
+  showAllBills = showAllTop = false; loadReport();
+});
+$('#dGo').onclick = () => { showAllBills = showAllTop = false; loadReport(); };
+$('#topSort').addEventListener('click', e => {
+  const b = e.target.closest('[data-s]'); if (!b) return;
+  topSort = b.dataset.s; $$('#topSort button').forEach(x => x.setAttribute('aria-pressed', x === b)); renderTop();
+});
+
+function renderSales() {
+  const r = report, s = r.summary, single = r.from === r.to;
+  const nDays = r.days.length;
+  $('#rangeLabel').textContent = single
+    ? thDate(r.from, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    : `${thDate(r.from)} – ${thDate(r.to)} · ${nDays} วัน`;
+  const avg = s.bills ? r2(s.subtotal / s.bills) : 0;
+  // เทียบช่วงก่อนหน้า: วันเดียว = วันเดียวกันสัปดาห์ก่อน · หลายวัน = ช่วงยาวเท่ากันก่อนหน้า (ดูวันนี้ = ถึงชั่วโมงเดียวกัน)
+  const pv = r.prev, pvName = single ? `${thDate(pv.from, { weekday: 'long' })}ที่แล้ว` : `ช่วง ${nDays} วันก่อนหน้า`;
+  const delta = (a, b, unit = '') => {
+    if (!b) return '';
+    const p = Math.round((a - b) / b * 100);
+    return `<small><em class="delta ${p >= 0 ? 'up' : 'down'}">${p >= 0 ? '▲' : '▼'} ${Math.abs(p)}%</em> จาก${pvName} (${unit ? baht(b) + ' ' + unit : b.toLocaleString('th-TH')}${pv.partial != null ? ` ถึง ${pv.partial}:59` : ''})</small>`;
+  };
+  const pvAvg = pv.bills ? r2(pv.subtotal / pv.bills) : 0;
+  $('#kpis').innerHTML = `
+    <div class="kpi main"><span>ยอดขาย</span><b>${baht(s.subtotal)} ฿</b>
+      <small>${s.fee ? `รับจริง ${baht(s.total)} ฿ รวมค่าธรรมเนียมบัตร ${baht(s.fee)} ฿` : single ? 'ยอดอาหารจากบิลที่ปิดแล้ว' : `เฉลี่ยวันละ ${baht(r2(s.subtotal / nDays))} ฿`}</small>
+      ${delta(s.subtotal, pv.subtotal, '฿')}</div>
+    <div class="kpi"><span>บิล</span><b>${s.bills.toLocaleString('th-TH')}</b>${pv.partial == null ? delta(s.bills, pv.bills) : ''}</div>
+    <div class="kpi"><span>เฉลี่ยต่อบิล</span><b>${baht(avg)} ฿</b>${pv.partial == null ? delta(avg, pvAvg, '฿') : ''}</div>
+    <div class="kpi"><span>จานที่ขาย</span><b>${s.dishes.toLocaleString('th-TH')}</b>
+      ${s.cancelled.qty ? `<small>ยกเลิก ${s.cancelled.qty} จาน (${baht(s.cancelled.amount)} ฿)${s.voids?.bills ? ` · ยกเลิกทั้งโต๊ะ ${s.voids.bills} โต๊ะ` : ''}</small>` : ''}</div>`;
+  const today = bizDay();
+  const openSum = r.open.reduce((a, o) => a + o.amount, 0);
+  $('#openLine').hidden = !(r.to === today && r.open.length);
+  $('#openLine').textContent = `ตอนนี้ยังเปิดอยู่ ${r.open.length} โต๊ะ ยอดรอเก็บ ${baht(openSum)} ฿ ยังไม่นับรวมในยอดขาย`;
+  renderChart(); renderHeat(); renderPay(); renderCatBreak(); renderTop(); renderTimes(); renderStaff(); renderSlow(); renderBills();
+  renderMenuPerf(); renderTables(); renderHealth();
+}
+
+// ---------- เวลาครัว (cook) / เวลานั่ง (sit) ----------
+// buckets: ครัว <10 10–15 15–20 20–30 30+ นาที · นั่ง <30 30–60 60–90 90–120 120+ นาที
+const T_LABEL = { cook: ['ไม่ถึง 10 นาที', '10–15 นาที', '15–20 นาที', '20–30 นาที', '30 นาทีขึ้นไป'],
+  sit: ['ไม่ถึง 30 นาที', '30 นาที–1 ชม.', '1–1.5 ชม.', '1.5–2 ชม.', '2 ชม. ขึ้นไป'] };
+const T_SLOW = { cook: 3, sit: 5 };   // ช่วงตั้งแต่ index นี้ = ช้า (แท่งสีแดง) · นั่งนานไม่ถือว่าผิด
+const mins = m => (m >= 60 ? `${Math.floor(m / 60)} ชม. ${Math.round(m % 60)} นาที` : `${Math.round(m)} นาที`);
+function renderTimes() {
+  const s = report.summary, pv = report.prev, single = report.from === report.to;
+  const pvName = single ? `${thDate(pv.from, { weekday: 'long' })}ที่แล้ว` : 'ช่วงก่อนหน้า';
+  for (const kind of ['cook', 'sit']) {
+    const t = s[kind], box = $('#' + kind + 'Box');
+    if (!t?.n) {
+      box.innerHTML = `<p class="muted">${kind === 'cook' ? 'ยังไม่มีข้อมูล · นับเฉพาะจานที่ขึ้นจอครัวและครัวกดเสร็จแล้ว' : 'ยังไม่มีข้อมูล · นับเฉพาะโต๊ะที่จ่ายเงินแล้ว (ไม่นับกลับบ้าน)'}</p>`;
+      continue;
+    }
+    const avg = t.sum / t.n, p = pv?.[kind];
+    // ครัว: เร็วขึ้น = ดี (สีเขียว) · นั่ง: แค่บอกว่าเปลี่ยนเท่าไหร่ ไม่ตัดสินว่าดี/ไม่ดี
+    let dl = '';
+    if (p?.avg) {
+      const d = Math.round(avg - p.avg);
+      dl = d === 0 ? `<small class="muted">เท่ากับ${pvName}</small>`
+        : `<small class="muted"><em class="delta ${kind === 'cook' ? (d < 0 ? 'up' : 'down') : ''}">${d < 0 ? '▼' : '▲'} ${Math.abs(d)} นาที</em> จาก${pvName} (${mins(p.avg)})</small>`;
+    }
+    const fast = kind === 'cook' ? Math.round((t.b[0] + t.b[1]) / t.n * 100) : null, slow = kind === 'cook' ? t.b[3] + t.b[4] : 0;
+    const maxB = Math.max(...t.b, 1);
+    // แยกตามชั่วโมง (เรียงตามวันขาย)
+    const hrs = Object.keys(t.byHour).map(Number).sort((a, b) => relHour(a) - relHour(b));
+    const hAvg = h => t.byHour[h].sum / t.byHour[h].n, maxH = Math.max(...hrs.map(hAvg), 1);
+    const slowH = kind === 'cook' ? 20 : Infinity;
+    let html = `<div class="tbig"><b>${mins(avg)}</b><span class="muted">เฉลี่ยต่อ${kind === 'cook' ? 'จาน' : 'โต๊ะ'}</span>${dl}</div>
+      <p class="tsub">${kind === 'cook' ? `จาก ${t.n.toLocaleString('th-TH')} จาน · เสร็จภายใน 15 นาที ${fast}%${slow ? ` · <span class="warn">เกิน 20 นาที ${slow} จาน</span>` : ''}`
+        : `จาก ${t.n.toLocaleString('th-TH')} โต๊ะ`}</p>
+      ${t.b.map((v, i) => `<div class="hbar ${i >= T_SLOW[kind] ? 'slow' : ''}"><span>${T_LABEL[kind][i]}</span>
+        <b>${v.toLocaleString('th-TH')} <small>${kind === 'cook' ? 'จาน' : 'โต๊ะ'} · ${Math.round(v / t.n * 100)}%</small></b>
+        <div class="track"><i style="width:${v / maxB * 100}%"></i></div></div>`).join('')}`;
+    if (hrs.length > 1) html += `<div class="t-h">แยกตามเวลาที่${kind === 'cook' ? 'สั่ง' : 'เปิดโต๊ะ'} (เฉลี่ย)</div>
+      ${hrs.map(h => `<div class="hbar ${hAvg(h) >= slowH ? 'slow' : ''}"><span>${h}:00–${h}:59</span>
+        <b>${mins(hAvg(h))} <small>· ${t.byHour[h].n} ${kind === 'cook' ? 'จาน' : 'โต๊ะ'}</small></b>
+        <div class="track"><i style="width:${hAvg(h) / maxH * 100}%"></i></div></div>`).join('')}`;
+    if (kind === 'cook') {
+      // เมนูที่รอนาน: สั่งอย่างน้อย 3 จาน · เรียงตามเวลาเฉลี่ย
+      const it = Object.entries(t.items || {}).map(([name, x]) => ({ name, n: x.n, avg: x.sum / x.n, max: x.max }))
+        .filter(x => x.n >= 3).sort((a, b) => b.avg - a.avg).slice(0, 8);
+      if (it.length) html += `<div class="t-h">เมนูที่รอนานที่สุด <small class="muted" style="font-weight:400">(สั่งตั้งแต่ 3 จาน)</small></div>
+        <table class="t"><thead><tr><th>เมนู</th><th class="r">จาน</th><th class="r">เฉลี่ย</th><th class="r">นานสุด</th></tr></thead><tbody>
+        ${it.map(x => `<tr><td>${esc(x.name)}</td><td class="r">${x.n}</td><td class="r" ${x.avg >= 20 ? 'style="color:var(--brick);font-weight:600"' : ''}>${mins(x.avg)}</td>
+          <td class="r muted">${mins(x.max)}</td></tr>`).join('')}</tbody></table>`;
+      html += '<p class="muted" style="margin:10px 0 0;font-size:13px">ไม่นับจานที่ครัวไม่ได้กดเสร็จ หรือนานเกิน 2 ชม. (น่าจะลืมกด) · ตัวเลขจะตรงเมื่อครัวกดเสร็จทันทีที่ทำเสร็จ</p>';
+    } else html += '<p class="muted" style="margin:10px 0 0;font-size:13px">ไม่นับกลับบ้าน และโต๊ะที่เปิดนานเกิน 6 ชม. (น่าจะลืมปิด)</p>';
+    box.innerHTML = html;
+  }
+}
+
+// ---------- พนักงาน: ใครสั่ง ใครยกเลิก ใครรับเงิน (เฉพาะบิลที่บันทึกชื่อ หลังเริ่มใช้รหัสรายคน) ----------
+function renderStaff() {
+  const list = [...(report.summary.staff_list || [])].sort((a, b) => b.amount - a.amount || b.billAmt - a.billAmt);
+  $('#staffNote').textContent = list.length ? 'ตัวเลขสีแดง = ยกเลิก' : '';
+  $('#staffList').innerHTML = list.length ? `<table class="t"><thead><tr><th>พนักงาน</th><th class="r">สั่ง (จาน)</th><th class="r hide-sm">ยอดที่สั่ง</th>
+      <th class="r">ยกเลิกรายจาน</th><th class="r">ยกเลิกทั้งโต๊ะ</th><th class="r">รับเงิน</th></tr></thead><tbody>
+    ${list.map(s => `<tr><td><b>${esc(s.name)}</b></td><td class="r">${s.dishes}</td><td class="r hide-sm">${baht(s.amount)}</td>
+      <td class="r">${s.cancels ? `<span style="color:var(--brick)">${s.cancels} จาน</span><br><span class="muted">${baht(s.cancelAmt)} ฿</span>` : '<span class="muted">-</span>'}</td>
+      <td class="r">${s.voids ? `<span style="color:var(--brick)">${s.voids} โต๊ะ</span><br><span class="muted">${baht(s.voidAmt)} ฿</span>` : '<span class="muted">-</span>'}</td>
+      <td class="r">${s.bills ? `${s.bills} ครั้ง<br><span class="muted">${baht(s.billAmt)} ฿</span>` : '<span class="muted">-</span>'}</td></tr>`).join('')}</tbody></table>`
+    : '<p class="muted">ยังไม่มีข้อมูล · ตั้งพนักงานรายคนที่ หลังร้าน > รหัสผ่าน แล้วระบบจะเริ่มบันทึกว่าใครทำอะไร</p>';
+}
+
+// ---------- ช่วงเวลาขายดี: วันในสัปดาห์ × ชั่วโมง (ยอดเฉลี่ยต่อวัน) · ดูช่วง 7 วันขึ้นไป ----------
+const DOW_S = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'], DOW_L = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+function renderHeat() {
+  const h = report.heat;
+  $('#heatPanel').hidden = !h; if (!h) return;
+  const order = [1, 2, 3, 4, 5, 6, 0];   // เริ่มวันจันทร์
+  const avg = (w, x) => (h.days[w] ? (h.sums[w][x] || 0) / h.days[w] : 0);
+  const hrs = order.flatMap(w => Object.keys(h.sums[w]).map(Number));
+  if (!hrs.length) { $('#heat').innerHTML = '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>'; $('#heatNote').textContent = ''; return; }
+  // เรียงชั่วโมงตามวันขาย (ร้านเปิดเลยเที่ยงคืน: 22 23 00 01 ต่อกัน)
+  const H = []; for (let r = Math.min(relHour(10), ...hrs.map(relHour)); r <= Math.max(relHour(21), ...hrs.map(relHour)); r++) H.push((r + dayCut()) % 24);
+  let max = 0, best = null;
+  for (const w of order) for (const x of H) if (avg(w, x) > max) { max = avg(w, x); best = [w, x]; }
+  const lvl = v => (v <= 0 ? 0 : Math.max(1, Math.ceil(v / max * 5)));
+  $('#heatNote').textContent = `ขายดีสุด วัน${DOW_L[best[0]]} ${best[1]}:00–${best[1]}:59 · เฉลี่ย ${baht(r2(max))} ฿`;
+  $('#heat').innerHTML = `<div class="heat" style="--hc:${H.length}" role="img" aria-label="ยอดขายเฉลี่ยตามวันและชั่วโมง">
+      <span></span>${H.map(x => `<span class="hl">${x}</span>`).join('')}
+      ${order.map(w => `<span class="dl">${DOW_S[w]}</span>` + H.map(x => `<i data-l="${lvl(avg(w, x))}" data-w="${w}" data-x="${x}"></i>`).join('')).join('')}
+    </div><div class="tip" hidden></div>
+    <div class="hlegend"><span>น้อย</span>${[1, 2, 3, 4, 5].map(l => `<i data-l="${l}"></i>`).join('')}<span>มาก · ยอดเฉลี่ยต่อวัน (ช่องเทา = ไม่มีบิล)</span></div>`;
+  const tip = $('#heat .tip'), wrap = $('#heat');
+  wrap.querySelectorAll('.heat i').forEach(c => {
+    c.addEventListener('pointerenter', () => {
+      const w = +c.dataset.w, x = +c.dataset.x, a = wrap.getBoundingClientRect(), b = c.getBoundingClientRect();
+      tip.innerHTML = `วัน${DOW_L[w]} ${x}:00–${x}:59<b>${baht(r2(avg(w, x)))} ฿</b>เฉลี่ยจาก ${h.days[w]} วัน`;
+      tip.style.left = b.left - a.left + wrap.scrollLeft + b.width / 2 + 'px'; tip.style.top = b.top - a.top + 'px'; tip.hidden = false;
+    });
+    c.addEventListener('pointerleave', () => { tip.hidden = true; });
+  });
+}
+
+// ---------- เมนูที่ขายไม่ออก: เมนูที่เปิดขายแต่ไม่มีคนสั่งเลย + 10 เมนูที่ขายน้อยสุด · ดูช่วง 7 วันขึ้นไป ----------
+function renderSlow() {
+  const n = report.days.length, box = $('#slowList');
+  if (n < 7) { $('#slowNote').textContent = ''; box.innerHTML = '<p class="muted">เลือกช่วง 7 วัน หรือ 30 วัน เพื่อดูเมนูที่ขายไม่ออก (ดูวันเดียวยังสรุปไม่ได้)</p>'; return; }
+  const sold = new Map(report.summary.items_list.map(i => [i.name, i]));
+  const menu = S.menu.filter(m => m.available !== false);
+  const zero = menu.filter(m => !sold.has(m.name));
+  const low = menu.filter(m => sold.has(m.name)).sort((a, b) => sold.get(a.name).qty - sold.get(b.name).qty).slice(0, 10);
+  $('#slowNote').textContent = `จาก ${menu.length} เมนูที่เปิดขาย`;
+  const byCat = cats().map(c => [c, zero.filter(m => m.category === c)]).filter(([, l]) => l.length);
+  box.innerHTML = `<h4 style="margin:0 0 4px">ไม่มีคนสั่งเลย ${zero.length} เมนู</h4>
+    ${zero.length ? byCat.map(([c, l]) => `<div class="slowcat"><b>${esc(c)} (${l.length})</b><span>${l.map(m => esc(m.name)).join(' · ')}</span></div>`).join('')
+      : '<p class="muted">ทุกเมนูมีคนสั่ง 👍</p>'}
+    ${low.length ? `<h4 style="margin:18px 0 4px">ขายน้อยที่สุด</h4>
+    <table class="t"><thead><tr><th>เมนู</th><th class="hide-sm">หมวด</th><th class="r">จำนวน</th><th class="r">ยอดเงิน</th></tr></thead><tbody>
+    ${low.map(m => { const it = sold.get(m.name); return `<tr><td>${esc(m.name)}</td><td class="hide-sm muted">${esc(m.category)}</td>
+      <td class="r">${it.qty}</td><td class="r">${baht(it.amount)}</td></tr>`; }).join('')}</tbody></table>` : ''}
+    <p class="muted" style="margin:10px 0 0">เมนูที่เพิ่งเพิ่ม หรือเปลี่ยนชื่อในช่วงนี้ อาจขึ้นว่าไม่มีคนสั่ง</p>`;
+}
+
+// ---------- กราฟแท่ง (รายชั่วโมงถ้าดูวันเดียว / รายวันถ้าหลายวัน) ----------
+function chartData() {
+  const r = report;
+  if (r.from === r.to) {
+    const hrs = Object.keys(r.summary.byHour).map(Number);
+    // เรียงตามวันขาย: ร้านเปิดเลยเที่ยงคืน กราฟต่อ 22 23 00 01 ไม่กระโดดไปซ้ายสุด
+    const lo = Math.min(relHour(10), ...hrs.map(relHour)), hi = Math.max(relHour(21), ...hrs.map(relHour));
+    const out = [];
+    for (let x = lo; x <= hi; x++) { const h = (x + dayCut()) % 24; out.push({ label: String(h), tip: `${h}:00–${h}:59`, v: r.summary.byHour[h] || 0 }); }
+    return { kind: 'hour', rows: out };
+  }
+  return { kind: 'day', rows: r.days.map(d => ({ label: thDate(d.date, { day: 'numeric', month: 'numeric' }),
+    tip: thDate(d.date, { weekday: 'short', day: 'numeric', month: 'short' }), v: d.subtotal, bills: d.bills })) };
+}
+function niceMax(v) {
+  if (v <= 0) return 100;
+  const p = Math.pow(10, Math.floor(Math.log10(v))), f = v / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+}
+function renderChart() {
+  const { kind, rows } = chartData();
+  $('#chartTitle').textContent = kind === 'hour' ? 'ยอดขายรายชั่วโมง' : 'ยอดขายรายวัน';
+  const best = rows.reduce((a, b) => (b.v > a.v ? b : a), rows[0]);
+  $('#chartNote').textContent = best && best.v ? `${kind === 'hour' ? 'ช่วงขายดีสุด' : 'วันขายดีสุด'} ${best.tip} · ${baht(best.v)} ฿` : '';
+  const box = $('#chart'), W = Math.max(320, box.clientWidth || 700), H = 240, L = 54, B = 26, T = 10;
+  const tickStep = niceMax(Math.max(...rows.map(x => x.v)) / 4), max = tickStep * 4;   // แกนเป็นเลขกลมๆ เช่น 0 1k 2k 3k 4k
+  const band = (W - L) / rows.length, bw = Math.max(3, Math.min(44, band * 0.62));
+  const y = v => T + (H - T - B) * (1 - v / max);
+  const step = Math.ceil(rows.length / Math.floor((W - L) / 46));   // ไม่ให้ป้ายแกนชนกัน
+  const ticks = [0, .25, .5, .75, 1].map(f => max * f);
+  const short = v => v >= 1000 ? (v / 1000).toLocaleString('th-TH', { maximumFractionDigits: 1 }) + 'k' : String(v);
+  const bar = (x, v) => {
+    const top = y(v), h = H - B - top; if (h <= 0) return '';
+    const rr = Math.min(4, bw / 2, h);
+    return `M${x},${H - B}V${top + rr}Q${x},${top} ${x + rr},${top}H${x + bw - rr}Q${x + bw},${top} ${x + bw},${top + rr}V${H - B}Z`;
+  };
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${$('#chartTitle').textContent}">
+    <g class="grid">${ticks.map(t => `<line x1="${L}" x2="${W}" y1="${y(t)}" y2="${y(t)}"/><text x="${L - 8}" y="${y(t) + 4}" text-anchor="end">${short(t)}</text>`).join('')}</g>
+    <g class="xl">${rows.map((d, i) => i % step ? '' : `<text x="${L + band * i + band / 2}" y="${H - 6}" text-anchor="middle">${esc(d.label)}</text>`).join('')}</g>
+    ${rows.map((d, i) => { const x = L + band * i + (band - bw) / 2;
+      return `<g data-i="${i}"><rect class="hit" x="${L + band * i}" y="${T}" width="${band}" height="${H - B - T}"/><path class="bar" d="${bar(x, d.v)}"/></g>`; }).join('')}
+  </svg><div class="tip" hidden></div>`;
+  const tip = box.querySelector('.tip');
+  box.querySelectorAll('g[data-i]').forEach(g => {
+    g.addEventListener('pointerenter', () => {
+      const d = rows[+g.dataset.i], rect = box.getBoundingClientRect(), svg = box.querySelector('svg').getBoundingClientRect();
+      const sx = svg.width / W;
+      g.classList.add('on');
+      tip.innerHTML = `${esc(d.tip)}<b>${baht(d.v)} ฿</b>${d.bills != null ? `${d.bills} บิล` : ''}`;
+      tip.style.left = (L + band * (+g.dataset.i + .5)) * sx + 'px';
+      tip.style.top = Math.max(18, y(d.v) * sx) + 'px';
+      tip.hidden = false;
+    });
+    g.addEventListener('pointerleave', () => { g.classList.remove('on'); tip.hidden = true; });
+  });
+}
+let rsz; addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => report && tab === 'overview' && renderChart(), 150); });
+
+function renderPay() {
+  const s = report.summary, tot = Object.values(s.byMethod).reduce((a, b) => a + b, 0);
+  const keys = ['cash', 'transfer', 'card'].filter(k => s.byMethod[k] || s.billsByMethod[k]);
+  if (!tot) { $('#payBreak').innerHTML = '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>'; return; }
+  $('#payBreak').innerHTML = `
+    <div class="pstack" role="img" aria-label="สัดส่วนวิธีชำระเงิน">${keys.map(k => `<i style="flex:${s.byMethod[k]};background:${PAY_COLOR[k]}" title="${PAY_NAME[k]}"></i>`).join('')}</div>
+    ${keys.map(k => `<div class="legrow"><span class="sw2" style="background:${PAY_COLOR[k]}"></span>
+      <span>${PAY_NAME[k]} <span class="muted">· ${s.billsByMethod[k]} บิล</span></span>
+      <b>${baht(s.byMethod[k])} ฿</b><span class="muted">${Math.round(s.byMethod[k] / tot * 100)}%</span></div>`).join('')}
+    ${s.fee ? `<p class="feenote">ยอดบัตรรวมค่าธรรมเนียมที่เก็บจากลูกค้า ${baht(s.fee)} ฿</p>` : ''}`;
+}
+
+function renderCatBreak() {
+  const c = Object.entries(report.summary.cats).sort((a, b) => b[1] - a[1]);
+  const tot = c.reduce((a, [, v]) => a + v, 0), max = c[0]?.[1] || 1;
+  $('#catBreak').innerHTML = c.length ? c.map(([n, v]) => `<div class="hbar"><span>${esc(n)}</span>
+      <span><b>${baht(v)} ฿</b> <span class="muted">${Math.round(v / tot * 100)}%</span></span>
+      <span class="track"><i style="width:${v / max * 100}%"></i></span></div>`).join('')
+    : '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>';
+}
+
+function renderTop() {
+  if (!report) return;
+  const list = [...report.summary.items_list].sort((a, b) => b[topSort] - a[topSort] || b.qty - a.qty);
+  if (!list.length) { $('#topList').innerHTML = '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>'; return; }
+  const max = list[0][topSort] || 1, shown = showAllTop ? list : list.slice(0, 10);
+  $('#topList').innerHTML = `<table class="t"><thead><tr><th class="rank">#</th><th>เมนู</th><th class="hide-sm">หมวด</th>
+      <th class="r">จำนวน</th><th class="r">ยอดเงิน</th><th class="share hide-sm"></th></tr></thead><tbody>
+    ${shown.map((it, i) => {
+      const opts = Object.entries(it.opts || {}).sort((a, b) => b[1] - a[1]);
+      return `<tr class="top" data-n="${esc(it.name)}"><td class="rank">${i + 1}</td>
+        <td><b>${esc(it.name)}</b>${opts.length ? ` <span class="muted">${openTop.has(it.name) ? '▾' : '▸'} ${opts.length} แบบ</span>` : ''}</td>
+        <td class="hide-sm muted">${esc(it.category)}</td><td class="r">${it.qty.toLocaleString('th-TH')}</td>
+        <td class="r">${baht(it.amount)}</td><td class="share hide-sm"><i style="width:${it[topSort] / max * 100}%"></i></td></tr>
+        ${openTop.has(it.name) && opts.length ? `<tr class="opts"><td></td><td colspan="5">${opts.map(([o, q]) => `<span>${esc(o)} × ${q}</span>`).join('')}</td></tr>` : ''}`;
+    }).join('')}</tbody></table>
+    ${list.length > 10 ? `<button class="btn sm more" id="topMore">${showAllTop ? 'แสดง 10 อันดับ' : `ดูทั้งหมด ${list.length} เมนู`}</button>` : ''}`;
+}
+$('#topList').addEventListener('click', e => {
+  if (e.target.id === 'topMore') { showAllTop = !showAllTop; renderTop(); return; }
+  const tr = e.target.closest('tr.top'); if (!tr) return;
+  openTop.has(tr.dataset.n) ? openTop.delete(tr.dataset.n) : openTop.add(tr.dataset.n); renderTop();
+});
+
+function renderBills() {
+  const r = report, single = r.from === r.to;
+  $('#billNote').textContent = r.billsComplete ? `${r.bills.length} บิล` : 'บิลรายตัวเก็บย้อนหลัง 7 วัน วันที่เก่ากว่านั้นดูได้เป็นยอดรวม';
+  const when = t => new Date(t).toLocaleString('th-TH', single ? { hour: '2-digit', minute: '2-digit' } : { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  // โต๊ะที่ยกเลิกทั้งโต๊ะ (ไม่นับยอดขาย) แสดงแยกใต้ตารางบิล
+  const voids = (r.voids || []).filter(v => v.items);
+  let voidHtml = voids.length ? `<h4 style="margin:16px 0 6px">ยกเลิกทั้งโต๊ะ ${voids.length} โต๊ะ <span class="muted" style="font-weight:400">· ไม่นับเป็นยอดขาย</span></h4>
+    <table class="t"><thead><tr><th>เวลา</th><th>โต๊ะ</th><th>เหตุผล</th><th>โดย</th><th class="r hide-sm">จาน</th><th class="r">มูลค่า</th></tr></thead><tbody>
+    ${voids.map(v => `<tr><td>${when(v.at)}</td><td>${esc(tableName(v.table))}</td><td class="muted">${esc(v.reason || '-')}</td>
+      <td>${esc(v.by || '-')}${v.approvedBy ? `<br><span class="muted">อนุมัติ: ${esc(v.approvedBy)}</span>` : ''}</td>
+      <td class="r hide-sm">${v.items}</td><td class="r muted" style="text-decoration:line-through">${baht(v.amount)}</td></tr>`).join('')}
+    </tbody></table>` : '';
+  // ยกเลิกรายจาน (ไม่รวมโต๊ะที่ยกเลิกทั้งโต๊ะ)
+  const cc = r.cancels || [];
+  const cancelHtml = cc.length ? `<h4 style="margin:16px 0 6px">ยกเลิกรายจาน ${cc.length} รายการ <span class="muted" style="font-weight:400">· ไม่นับเป็นยอดขาย</span></h4>
+    <table class="t"><thead><tr><th>เวลา</th><th>โต๊ะ</th><th>รายการ</th><th>โดย</th><th class="r">มูลค่า</th></tr></thead><tbody>
+    ${cc.map(c => `<tr><td>${when(c.at)}</td><td>${esc(tableName(c.table))}</td><td>${esc(c.name)} x${c.qty}${c.cooking ? ' <span class="muted">(ครัวกำลังทำ)</span>' : ''}</td>
+      <td>${esc(c.by || '-')}</td><td class="r muted" style="text-decoration:line-through">${baht(c.amount)}</td></tr>`).join('')}
+    </tbody></table>` : '';
+  voidHtml += cancelHtml;
+  if (!r.bills.length) { $('#billList').innerHTML = '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>' + voidHtml; return; }
+  const shown = showAllBills ? r.bills : r.bills.slice(0, 20);
+  $('#billList').innerHTML = `<table class="t"><thead><tr><th>เวลา</th><th class="hide-sm">เลขที่</th><th>โต๊ะ</th><th>ชำระ</th>
+      <th class="r hide-sm">จาน</th><th class="r">ยอด</th><th></th></tr></thead><tbody>
+    ${shown.map(b => `<tr><td>${when(b.paidAt)}</td><td class="hide-sm muted">${esc(b.receiptNo || '')}</td><td>${esc(tableName(b.table))}${b.split ? ` <span class="muted">แยก ${b.split}</span>` : ''}</td>
+      <td><span class="pm"><i style="background:${PAY_COLOR[b.method] || PAY_COLOR.cash}"></i>${PAY_NAME[b.method] || 'เงินสด'}</span></td>
+      <td class="r hide-sm">${b.items}</td><td class="r"><b>${baht(b.total)}</b>${b.fee ? `<br><span class="muted">รวมค่าบัตร ${baht(b.fee)}</span>` : ''}</td>
+      <td class="r">${S.orders.some(o => o.id === b.id) ? `<button class="btn sm" data-reprint="${b.id}" data-pno="${b.payNo || ''}">พิมพ์ซ้ำ</button>` : ''}</td></tr>`).join('')}
+    </tbody></table>
+    ${r.bills.length > 20 ? `<button class="btn sm more" id="billMore">${showAllBills ? 'แสดง 20 บิลล่าสุด' : `ดูทั้งหมด ${r.bills.length} บิล`}</button>` : ''}${voidHtml}`;
+}
+$('#billList').addEventListener('click', async e => {
+  if (e.target.id === 'billMore') { showAllBills = !showAllBills; renderBills(); return; }
+  const b = e.target.closest('[data-reprint]'); if (!b) return;
+  const o = S.orders.find(x => x.id === b.dataset.reprint);
+  const p = b.dataset.pno ? o.payments?.find(x => x.no === Number(b.dataset.pno)) : null;
+  try { b.disabled = true; await printLines(receiptLines(o, p ? { payment: p } : { paid: true })); toast('พิมพ์ใบเสร็จซ้ำแล้ว'); }
+  catch (err) { toast(err.message, true); } finally { b.disabled = false; }
+});
+
+// ไฟล์ CSV เปิดใน Excel ได้ (ใส่ BOM ให้ภาษาไทยไม่เพี้ยน)
+$('#csv').onclick = () => {
+  if (!report) return;
+  const r = report, s = r.summary, q = v => `"${String(v).replace(/"/g, '""')}"`;
+  const lines = [
+    [q('ยอดขาย ' + r.from + ' ถึง ' + r.to)],
+    [], ['วันที่', 'บิล', 'ยอดอาหาร', 'รับจริง (รวมค่าบัตร)'].map(q),
+    ...r.days.map(d => [d.date, d.bills, d.subtotal, d.total]),
+    ['รวม', s.bills, s.subtotal, s.total],
+    [], ['วิธีชำระ', 'บิล', 'ยอด'].map(q),
+    ...['cash', 'transfer', 'card'].map(k => [q(PAY_NAME[k]), s.billsByMethod[k], s.byMethod[k]]),
+    [], ['เมนู', 'หมวด', 'จำนวน', 'ยอดเงิน'].map(q),
+    ...[...s.items_list].sort((a, b) => b.qty - a.qty).map(i => [q(i.name), q(i.category), i.qty, i.amount]),
+  ];
+  const blob = new Blob(['﻿' + lines.map(l => l.join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `ยอดขาย-${r.from}${r.from === r.to ? '' : '-ถึง-' + r.to}.csv` });
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+
+
+// ================= เมนู: ขายเพิ่มขึ้น/ลดลง · ตัวเลือกที่บวกราคา · เมนูหลักทำยอดกี่ % =================
+function renderMenuPerf() {
+  const s = report.summary, pv = report.prev?.items || {}, cur = s.items_list;
+  const pvName = report.from === report.to ? `${thDate(report.prev.from, { weekday: 'long' })}ที่แล้ว` : `${report.days.length} วันก่อนหน้า`;
+  const hasPrev = Object.keys(pv).length > 0;
+  // เทียบจำนวนจานกับช่วงก่อน (นับเฉพาะเมนูที่ขายตั้งแต่ 3 จานในช่วงใดช่วงหนึ่ง กันตัวเลขแกว่งจากจานเดียว)
+  const rows = [...new Set([...cur.map(i => i.name), ...Object.keys(pv)])].map(n => {
+    const a = cur.find(i => i.name === n)?.qty || 0, b = pv[n]?.qty || 0;
+    return { n, a, b, d: a - b };
+  }).filter(x => Math.max(x.a, x.b) >= 3 && x.d !== 0);
+  const tbl = (list, empty) => list.length ? `<table class="t"><thead><tr><th>เมนู</th><th class="r">ช่วงนี้</th><th class="r">ช่วงก่อน</th><th class="r">เปลี่ยน</th></tr></thead><tbody>
+    ${list.map(x => `<tr><td>${esc(x.n)}</td><td class="r">${x.a}</td><td class="r muted">${x.b}</td>
+      <td class="r"><em class="delta2 ${x.d > 0 ? 'up' : 'down'}">${x.d > 0 ? '▲' : '▼'} ${Math.abs(x.d)}</em>${x.b ? ` <span class="muted">(${x.d > 0 ? '+' : ''}${Math.round(x.d / x.b * 100)}%)</span>` : ''}</td></tr>`).join('')}</tbody></table>`
+    : `<p class="muted">${empty}</p>`;
+  $('#upNote').textContent = $('#downNote').textContent = hasPrev ? 'เทียบ ' + pvName : '';
+  $('#upList').innerHTML = hasPrev ? tbl(rows.filter(x => x.d > 0).sort((a, b) => b.d - a.d).slice(0, 8), 'ไม่มีเมนูที่ขายเพิ่มขึ้นชัดเจน') : '<p class="muted">ยังไม่มียอดช่วงก่อนหน้าให้เทียบ</p>';
+  $('#downList').innerHTML = hasPrev ? tbl(rows.filter(x => x.d < 0).sort((a, b) => a.d - b.d).slice(0, 8), 'ไม่มีเมนูที่ขายลดลงชัดเจน') : '<p class="muted">ยังไม่มียอดช่วงก่อนหน้าให้เทียบ</p>';
+
+  // ตัวเลือกที่บวกราคา
+  const ad = Object.entries(s.addons || {}).map(([n, x]) => ({ n, ...x })).sort((a, b) => b.qty - a.qty);
+  const adTot = ad.reduce((t, x) => t + x.amount, 0);
+  $('#addonList').innerHTML = ad.length ? `<p class="pareto">ตัวเลือกบวกราคาทำเงินเพิ่ม <b>${baht(r2(adTot))} ฿</b> · ${s.subtotal ? Math.round(adTot / s.subtotal * 1000) / 10 : 0}% ของยอดขาย</p>
+    <table class="t"><thead><tr><th>ตัวเลือก</th><th class="r">จำนวน</th><th class="r">ยอดที่บวก</th></tr></thead><tbody>
+    ${ad.map(x => `<tr><td>${esc(x.n)}</td><td class="r">${x.qty}</td><td class="r">${x.amount ? baht(x.amount) : '<span class="muted">ฟรี</span>'}</td></tr>`).join('')}</tbody></table>
+    <p class="note">นับจากกลุ่มตัวเลือกที่มีราคาบวก (ไม่นับเนื้อสัตว์/ขนาดในตารางราคา) · ยอดที่บวกคิดตามราคาตัวเลือกตอนนี้</p>`
+    : '<p class="muted">ยังไม่มีการสั่งตัวเลือกที่บวกราคาในช่วงนี้</p>';
+}
+
+// ================= โต๊ะ =================
+let showAllTables = false;
+function renderTables() {
+  const s = report.summary, T = s.tables || {}, names = layoutTables();
+  const openDays = report.days.filter(d => d.bills).length || 1;
+  const dine = Object.values(T).reduce((a, t) => ({ bills: a.bills + t.bills, amount: a.amount + t.amount }), { bills: 0, amount: 0 });
+  const nT = names.length || Object.keys(T).length || 1, ta = s.ta || { bills: 0, amount: 0 };
+  const sit = s.sit?.n ? s.sit.sum / s.sit.n : null;
+  $('#tblKpi').innerHTML = `
+    <div><span>โต๊ะหมุนเฉลี่ย</span><b>${(dine.bills / nT / openDays).toFixed(1)} รอบ</b><small>ต่อโต๊ะต่อวัน · ${nT} โต๊ะ${names.length ? '' : ' (นับจากโต๊ะที่มีบิล)'}</small></div>
+    <div><span>ยอดต่อโต๊ะต่อวัน</span><b>${baht(Math.round(dine.amount / nT / openDays))} ฿</b><small>ทานที่ร้าน ${baht(r2(dine.amount))} ฿ · ${dine.bills} บิล</small></div>
+    <div><span>นั่งเฉลี่ย</span><b>${sit == null ? '–' : mins(sit)}</b><small>${s.sit?.n || 0} โต๊ะที่จ่ายแล้ว</small></div>
+    <div><span>กลับบ้าน</span><b>${baht(r2(ta.amount))} ฿</b><small>${ta.bills} บิล · ${s.subtotal ? Math.round(ta.amount / s.subtotal * 100) : 0}% ของยอดขาย</small></div>`;
+  // โต๊ะเต็มแค่ไหน: นาทีที่มีโต๊ะนั่ง ÷ 60 ÷ จำนวนวัน = เฉลี่ยกี่โต๊ะนั่งอยู่ในชั่วโมงนั้น
+  const occ = s.occ || {}, hrs = Object.keys(occ).map(Number).sort((a, b) => relHour(a) - relHour(b));
+  const avgT = h => occ[h] / 60 / openDays;
+  $('#occNote').textContent = hrs.length ? `เฉลี่ยจาก ${openDays} วัน` : '';
+  $('#occList').innerHTML = hrs.length ? hrs.map(h => { const v = avgT(h), p = Math.min(100, Math.round(v / nT * 100));
+    return `<div class="hbar"><span>${h}:00–${h}:59${p >= 80 ? ' <small>· เกือบเต็ม</small>' : ''}</span>
+      <b>${v.toFixed(1)} โต๊ะ <small>· ${p}%</small></b><div class="track"><i style="width:${p}%"></i></div></div>`; }).join('')
+      + '<p class="note">% = จำนวนโต๊ะที่มีลูกค้านั่งเฉลี่ย เทียบกับโต๊ะทั้งหมดในผังร้าน · ช่วงที่เต็มบ่อยคือช่วงที่ควรเร่งเสิร์ฟและเก็บโต๊ะ</p>'
+    : '<p class="muted">ยังไม่มีข้อมูล · นับจากโต๊ะที่จ่ายเงินแล้ว (ไม่นับกลับบ้าน)</p>';
+  // รายโต๊ะ: ยอด · บิล · นั่งเฉลี่ย · ยอดต่อชั่วโมงที่นั่ง
+  const list = Object.entries(T).map(([name, t]) => ({ ...t, name, avg: t.n ? t.sum / t.n : null, perH: t.sum ? t.amount / (t.sum / 60) : null }))
+    .sort((a, b) => b.amount - a.amount);
+  const idle = names.filter(n => !T[n]);
+  $('#tblNote').textContent = list.length ? `${list.length} โต๊ะที่มีบิล` : '';
+  const shown = showAllTables ? list : list.slice(0, 15);
+  $('#tblList').innerHTML = list.length ? `<table class="t"><thead><tr><th>โต๊ะ</th><th class="r">บิล</th><th class="r">ยอด</th>
+      <th class="r hide-sm">เฉลี่ย/บิล</th><th class="r">นั่งเฉลี่ย</th><th class="r hide-sm">ยอด/ชม.</th></tr></thead><tbody>
+    ${shown.map(t => `<tr><td><b>${esc(t.name)}</b></td><td class="r">${t.bills}</td><td class="r">${baht(t.amount)}</td>
+      <td class="r hide-sm">${baht(Math.round(t.amount / t.bills))}</td><td class="r">${t.avg == null ? '–' : mins(t.avg)}</td>
+      <td class="r hide-sm">${t.perH == null ? '–' : baht(Math.round(t.perH))}</td></tr>`).join('')}</tbody></table>
+    ${list.length > 15 ? `<button class="btn sm more" id="tblMore">${showAllTables ? 'แสดง 15 โต๊ะแรก' : `ดูทั้งหมด ${list.length} โต๊ะ`}</button>` : ''}
+    ${idle.length ? `<p class="note"><b>ไม่มีบิลในช่วงนี้ ${idle.length} โต๊ะ:</b> ${idle.map(esc).join(' · ')}</p>` : ''}
+    <p class="note">ยอด/ชม. = ยอดของโต๊ะ ÷ ชั่วโมงที่ลูกค้านั่ง · โต๊ะที่ย้าย/รวมโต๊ะ นับที่โต๊ะสุดท้ายตอนจ่ายเงิน</p>`
+    : '<p class="muted">ยังไม่มีบิลทานที่ร้านในช่วงนี้</p>';
+}
+$('#tblList').addEventListener('click', e => { if (e.target.id === 'tblMore') { showAllTables = !showAllTables; renderTables(); } });
+
+// ================= ระบบ / อุปกรณ์ =================
+const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'เมื่อสักครู่' : m < 60 ? `${m} นาทีที่แล้ว` : m < 1440 ? `${Math.floor(m / 60)} ชม. ที่แล้ว` : `${Math.floor(m / 1440)} วันที่แล้ว`; };
+const dur = ms => { const m = Math.round(ms / 60000); return m < 60 ? `${m} นาที` : m < 1440 ? `${Math.floor(m / 60)} ชม. ${m % 60} นาที` : `${Math.floor(m / 1440)} วัน ${Math.floor(m % 1440 / 60)} ชม.`; };
+function evText(e) {
+  const pn = id => printerName(id);
+  switch (e.k) {
+    case 'start': return e.down ? ['bad', `เซิร์ฟเวอร์กลับมาทำงาน หลังดับไป ${mins(e.down)}`] : ['', 'เซิร์ฟเวอร์เปิดใหม่ (ไม่ได้ดับนาน)'];
+    case 'printer': return e.ok ? ['ok', `เครื่องพิมพ์ ${pn(e.p)} กลับมาพิมพ์ได้`] : ['bad', `เครื่องพิมพ์ ${pn(e.p)} พิมพ์ไม่ออก · ${e.err || ''}`];
+    case 'standby': return e.ok ? ['ok', 'เครื่องสำรองกลับมาเชื่อม'] : ['bad', 'เครื่องสำรองหลุด (ไม่ได้คัดลอกข้อมูลเกิน 2 นาที)'];
+    case 'takeover': return ['bad', 'เครื่องนี้รับงานแทนเครื่องหลัก'];
+    case 'line': return ['bad', `ส่ง LINE ไม่สำเร็จ · ${e.err || ''}`];
+    case 'battery': return ['bad', `แบตเครื่องหลักต่ำ ${e.pct}% และไม่ได้ชาร์จ`];
+    case 'unplug': return ['bad', `ถอดสายชาร์จเครื่องหลัก (แบต ${e.pct}%)`];
+    case 'error': return ['bad', `โปรแกรมเจอข้อผิดพลาด · ${e.msg || ''}`];
+    default: return ['', e.k];
+  }
+}
+function renderHealth() {
+  const h = health;
+  if (!h) { $('#hNow').innerHTML = '<p class="muted">อ่านสถานะระบบไม่ได้ (เซิร์ฟเวอร์รุ่นเก่า?)</p>'; ['#hKpi', '#hPrn', '#hEvt'].forEach(q => ($(q).innerHTML = '')); return; }
+  const n = h.now, row = (ic, title, sub, st, cls) => `<div class="srow"><span class="ic" aria-hidden="true">${ic}</span>
+    <div><b>${title}</b><span>${sub}</span></div><span class="st ${cls}">${st}</span></div>`;
+  let html = row('🖥', `เซิร์ฟเวอร์ (${n.role === 'main' ? 'เครื่องหลัก' : 'เครื่องสำรอง'})`, `ทำงานต่อเนื่องมา ${dur(n.uptime)}`, '✓ ทำงาน', 'ok');
+  const b = n.bat;
+  html += !b ? row('🔋', 'แบตเครื่องนี้', 'ยังไม่มีข้อมูล · ต้องรันเซิร์ฟเวอร์ในแอป MAMA POS ที่เปิดตัวเฝ้าเซิร์ฟเวอร์', '–', 'na')
+    : row(b.chg ? '🔌' : '🔋', `แบตเครื่องนี้ ${b.pct}%`, `${b.chg ? 'กำลังชาร์จ' : 'ไม่ได้เสียบชาร์จ'} · อัปเดต ${ago(b.at)}`,
+        !b.chg && b.pct < 30 ? '⚠ แบตต่ำ' : !b.chg ? '⚠ ไม่ได้ชาร์จ' : '✓ ปกติ', !b.chg ? 'bad' : 'ok');
+  if (n.role === 'main') html += !n.standby ? row('📱', 'เครื่องสำรอง', 'ยังไม่มีเครื่องสำรองเชื่อมมา (ตั้งได้ที่ หลังร้าน › เครื่องสำรอง)', '–', 'na')
+    : Date.now() - n.standby.seen > 120000 ? row('📱', 'เครื่องสำรอง', `${n.standby.ip || ''} · คัดลอกข้อมูลล่าสุด ${ago(n.standby.seen)}`, '⚠ หลุด', 'bad')
+    : row('📱', 'เครื่องสำรอง', `${n.standby.ip || ''} · คัดลอกข้อมูลล่าสุด ${ago(n.standby.seen)}`, '✓ เชื่อมอยู่', 'ok');
+  else html += row('📱', 'เครื่องหลัก', n.standby.err ? n.standby.err : `คัดลอกข้อมูลล่าสุด ${n.standby.lastSync ? ago(n.standby.lastSync) : '–'}`, n.standby.err ? '⚠ ติดต่อไม่ได้' : '✓ เชื่อมอยู่', n.standby.err ? 'bad' : 'ok');
+  for (const p of n.printers) html += row('🖨', `เครื่องพิมพ์ ${esc(p.name)}`, p.down ? esc(p.lastErr) : p.lastAt ? `${esc(p.ip)} · พิมพ์ล่าสุด ${ago(p.lastAt)}` : `${esc(p.ip)} · ยังไม่ได้พิมพ์ตั้งแต่เปิดเซิร์ฟเวอร์`,
+    p.down ? '⚠ พิมพ์ไม่ออก' : p.lastAt ? '✓ ปกติ' : '–', p.down ? 'bad' : p.lastAt ? 'ok' : 'na');
+  if (S.settings.line?.hasToken) html += row('💬', 'LINE', n.line ? esc(n.line) : 'ส่งข้อความได้ปกติ', n.line ? '⚠ ส่งไม่สำเร็จ' : '✓ ปกติ', n.line ? 'bad' : 'ok');
+  $('#hNow').innerHTML = html;
+  // ตัวเลขของช่วงที่เลือก
+  const pr = Object.values(h.printers), ok = pr.reduce((a, x) => a + x.ok, 0), fail = pr.reduce((a, x) => a + x.fail, 0);
+  $('#hKpi').innerHTML = `
+    <div><span>เซิร์ฟเวอร์เปิดใหม่</span><b>${h.starts} ครั้ง</b><small>${h.downMin ? `ดับรวม ${mins(h.downMin)}` : 'ไม่มีช่วงที่ดับนาน'}</small></div>
+    <div><span>พิมพ์สำเร็จ</span><b>${ok + fail ? Math.round(ok / (ok + fail) * 1000) / 10 + '%' : '–'}</b><small>${ok + fail ? `${ok} ใบ · ไม่สำเร็จ ${fail} ครั้ง` : 'ยังไม่มีการพิมพ์ที่บันทึกไว้'}</small></div>
+    <div><span>เครื่องสำรองหลุด</span><b>${h.standbyLost} ครั้ง</b><small>${h.errors ? `โปรแกรมผิดพลาด ${h.errors} ครั้ง` : 'ไม่มีข้อผิดพลาดของโปรแกรม'}</small></div>
+    <div><span>แบตต่ำสุด</span><b>${h.batMin == null ? '–' : h.batMin + '%'}</b><small>เครื่องที่รันเซิร์ฟเวอร์</small></div>`;
+  const ids = [...new Set([...n.printers.map(p => p.id), ...Object.keys(h.printers)])];
+  $('#hPrn').innerHTML = ids.length ? ids.map(id => { const x = h.printers[id] || { ok: 0, fail: 0 }, t = x.ok + x.fail, p = !t ? 0 : x.fail ? Math.floor(x.ok / t * 1000) / 10 : 100;
+    return `<div class="hbar ${t && p < 95 ? 'slow' : ''}"><span>${esc(printerName(id))}</span>
+      <b>${t ? p + '%' : '–'} <small>· ${x.ok} ใบ${x.fail ? ` · ไม่สำเร็จ ${x.fail}` : ''}</small></b><div class="track"><i style="width:${p}%"></i></div></div>`; }).join('')
+    + '<p class="note">นับทุกครั้งที่สั่งพิมพ์ (ใบสั่งครัว ใบเสร็จ ใบแจ้งยอด) · ไม่สำเร็จแล้วกดพิมพ์ซ้ำนับเป็นอีกครั้ง</p>'
+    : '<p class="muted">ยังไม่ได้ตั้งเครื่องพิมพ์</p>';
+  $('#hEvtNote').textContent = `เริ่มบันทึก ${new Date(h.since).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  $('#hEvt').innerHTML = h.events.length ? `<table class="t evt"><tbody>${h.events.map(e => { const [c, t] = evText(e);
+      return `<tr><td>${new Date(e.t).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+        <td class="${c}">${c === 'bad' ? '⚠ ' : c === 'ok' ? '✓ ' : '• '}${esc(t)}</td></tr>`; }).join('')}</tbody></table>`
+    : '<p class="muted">ไม่มีเหตุการณ์ในช่วงนี้ 👍</p>';
+}
+$('#hRefresh').onclick = async () => { try { health = await api(`/api/health?from=${report.from}&to=${report.to}`); renderHealth(); } catch (err) { toast(err.message, true); } };
+
+showTab(tab, false);
+
+// ยอดวันนี้อัปเดตเองเมื่อมีบิลปิดเพิ่ม (รอ 1.5 วินาที รวมหลายการเปลี่ยนแปลงเป็นครั้งเดียว)
+let reportTimer;
+live(() => {
+  $('#shopTitle').innerHTML = `${esc(S.settings.shopName || 'ยอดขาย')}<small>ยอดขาย</small>`;
+  if (!report || report.to === bizDay()) { clearTimeout(reportTimer); reportTimer = setTimeout(loadReport, report ? 1500 : 0); }
+});
+</script>
+</body>
+</html>

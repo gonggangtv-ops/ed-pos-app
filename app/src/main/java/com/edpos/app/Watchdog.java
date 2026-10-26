@@ -9,6 +9,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.BatteryManager;
 import android.os.SystemClock;
 
 import java.io.File;
@@ -63,7 +64,7 @@ public class Watchdog extends BroadcastReceiver {
 
     private static void check(Context c) {
         SharedPreferences p = prefs(c);
-        boolean ok = MainActivity.httpGet(MainActivity.LOCAL + "/api/role", 4000) != null;
+        boolean ok = MainActivity.httpGet(MainActivity.LOCAL + "/api/role" + battery(c), 4000) != null;
         int fails = p.getInt("wdFails", 0);
         if (ok) {
             if (fails > 0) {
@@ -93,6 +94,16 @@ public class Watchdog extends BroadcastReceiver {
             alert(c);
             schedule(c);
         }
+    }
+
+    /** แบตเครื่องนี้ส่งไปกับการเช็ก → หน้ายอดขาย > ระบบ เห็นแบตเครื่องหลัก และเตือนเมื่อถอดสายชาร์จ/แบตต่ำ */
+    private static String battery(Context c) {
+        try {
+            BatteryManager bm = c.getSystemService(BatteryManager.class);
+            int pct = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
+            if (pct < 0 || pct > 100) return "";
+            return "?bat=" + pct + "&chg=" + (bm.isCharging() ? 1 : 0);
+        } catch (Exception e) { return ""; }
     }
 
     /** แจ้งเตือนเสียงดัง: เซิร์ฟเวอร์ดับ แตะเพื่อเปิด (เปิดแอปแล้วเซิร์ฟเวอร์จะเปิดเอง) */

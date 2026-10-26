@@ -414,6 +414,9 @@ function itemLabelEn(i) {
 }
 const tableNameEn = t => (String(t).startsWith('TA') ? 'Take away ' + String(t).slice(2) : 'Table ' + t);
 const r2 = n => Math.round(n * 100) / 100;
+// วันที่: ymd(Date) → '2026-10-26' · thDate('2026-10-26') → '26 ต.ค. 2569'
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const thDate = (s, opt = { day: 'numeric', month: 'short', year: 'numeric' }) => new Date(s + 'T00:00:00').toLocaleDateString('th-TH', opt);
 // หมวดเรียงตามที่ตั้งในหน้าตั้งค่า (หมวดที่ไม่มีในรายการไปต่อท้าย)
 function orderedCategories() {
   const cats = [...(S.categories || [])];

@@ -227,9 +227,33 @@ function logError(kind, e) {
   console.error(line);
   try { if (fs.existsSync(ERR_LOG) && fs.statSync(ERR_LOG).size > 1e6) fs.renameSync(ERR_LOG, ERR_LOG + '.old'); fs.appendFileSync(ERR_LOG, line); } catch {}
 }
-process.on('uncaughtException', e => logError('uncaughtException', e));
+process.on('uncaughtException', e => { logError('uncaughtException', e); healthEvent('error', { msg: String(e?.message || e).slice(0, 200) }); });
 process.on('unhandledRejection', e => logError('unhandledRejection', e));
 const r2 = n => Math.round(n * 100) / 100;
+
+// ================= สุขภาพระบบ (หน้ายอดขาย > ระบบ) =================
+// health.json แยกจาก data.json (ไม่ซิงก์ไปเครื่องสำรอง ไม่ทำให้ไฟล์ข้อมูลร้านใหญ่) · แต่ละเครื่องเก็บของตัวเอง
+// alive = ชีพจรทุก 1 นาที → เปิดใหม่แล้วรู้ว่าดับไปนานแค่ไหน · events = เหตุการณ์ย้อนหลัง 120 วัน
+// prints = {วันขาย: {printerId: {ok, fail}}} · bat = แบตเครื่องหลักล่าสุด (แอปส่งมาทุก 2 นาที) · batDay = {วันขาย: {min, max}}
+const HEALTH_FILE = path.join(__dirname, 'health.json');
+let health = { events: [], prints: {}, batDay: {} };
+try { health = { ...health, ...JSON.parse(fs.readFileSync(HEALTH_FILE, 'utf8')) }; } catch {}
+let healthDirty = false;
+const BOOT = Date.now();
+function healthEvent(k, extra = {}) {
+  health.events.push({ t: Date.now(), k, ...extra });
+  const keep = Date.now() - 120 * 86400000;
+  if (health.events.length > 3000 || health.events[0]?.t < keep) health.events = health.events.filter(e => e.t >= keep).slice(-3000);
+  healthDirty = true;
+}
+function saveHealth() {
+  try { fs.writeFileSync(HEALTH_FILE + '.tmp', JSON.stringify(health)); fs.renameSync(HEALTH_FILE + '.tmp', HEALTH_FILE); healthDirty = false; } catch {}
+}
+// เปิดเซิร์ฟเวอร์: ชีพจรล่าสุดเก่ากว่า 3 นาที = ดับไปช่วงหนึ่ง (ปิดเครื่อง/แอปถูกปิด/ไฟดับ)
+healthEvent('start', health.alive && BOOT - health.alive > 180000 ? { down: Math.round((BOOT - health.alive) / 60000), since: health.alive } : {});
+health.alive = BOOT; saveHealth();
+setInterval(() => { health.alive = Date.now(); saveHealth(); }, 60000);
+setInterval(() => { if (healthDirty) saveHealth(); }, 10000);
 
 // ================= รหัส PIN 4 หลัก =================
 // staff = หน้าสั่งอาหาร · admin = หลังร้าน (รหัสเจ้าของร้านเข้าได้ทุกหน้า)
@@ -652,6 +676,49 @@ async function peerTick() {
 }
 setInterval(peerTick, 5000);
 
+function noteBattery(q, req) {
+  const pct = Number(q?.get('bat'));
+  if (!q?.has('bat') || !(pct >= 0 && pct <= 100)) return;
+  const ip = String(req.socket.remoteAddress || '');
+  if (!/^(::1|127\.|::ffff:127\.)/.test(ip)) return;   // รับเฉพาะจากแอปในเครื่องนี้
+  const chg = q.get('chg') === '1', prev = health.bat;
+  health.bat = { pct, chg, at: Date.now() };
+  const k = dayKey(Date.now()), d = (health.batDay[k] ||= { min: pct, max: pct });
+  d.min = Math.min(d.min, pct); d.max = Math.max(d.max, pct);
+  // แบตต่ำกว่า 20% และไม่ได้ชาร์จ → จดครั้งเดียวจนกว่าจะชาร์จ/แบตกลับมาเกิน 30%
+  if (pct < 20 && !chg && !health.batLow) { health.batLow = true; healthEvent('battery', { pct }); }
+  if (health.batLow && (chg || pct > 30)) health.batLow = false;
+  if (prev && prev.chg && !chg && Date.now() - prev.at < 600000) healthEvent('unplug', { pct });   // ถอดสายชาร์จ
+  healthDirty = true;
+}
+// สรุปสุขภาพระบบของช่วงวันขาย from–to
+function healthReport(from, to) {
+  const a = bizStart(from), z = bizStart(addDays(to, 1));
+  const ev = health.events.filter(e => e.t >= a && e.t < z);
+  const starts = ev.filter(e => e.k === 'start');
+  const prn = {};
+  for (let k = from; k <= to; k = addDays(k, 1)) for (const [id, c] of Object.entries(health.prints[k] || {})) {
+    const x = prn[id] || (prn[id] = { ok: 0, fail: 0 }); x.ok += c.ok; x.fail += c.fail;
+  }
+  let bmin = null;
+  for (let k = from; k <= to; k = addDays(k, 1)) if (health.batDay[k]) bmin = Math.min(bmin ?? 100, health.batDay[k].min);
+  const firstStart = health.events.find(e => e.k === 'start')?.t || BOOT;
+  return {
+    from, to, since: firstStart,   // เริ่มเก็บข้อมูลเมื่อ (ก่อนหน้านี้ไม่มีบันทึก)
+    now: {
+      uptime: Date.now() - BOOT, role: role.role, bat: health.bat || null,
+      standby: role.role === 'main' ? (repl.standbySeen ? { seen: repl.standbySeen, ip: repl.standbyIp } : null) : { lastSync: repl.lastSync, err: repl.syncErr || '' },
+      printers: (data.settings.printers || []).map(p => ({ id: p.id, name: p.name, ip: p.ip || '', down: !!prnState[p.id]?.down,
+        lastErr: prnState[p.id]?.lastErr || '', lastAt: prnState[p.id]?.lastAt || 0 })),
+      line: data.settings.line?.lastErr || data.settings.line?.alertErr || '',
+    },
+    starts: starts.length, downMin: starts.reduce((s, e) => s + (e.down || 0), 0),
+    printers: prn, batMin: bmin,
+    standbyLost: ev.filter(e => e.k === 'standby' && !e.ok).length,
+    errors: ev.filter(e => e.k === 'error').length,
+    events: ev.slice(-200).reverse(),
+  };
+}
 function roleInfo() {
   return { role: role.role, epoch: data.epoch, rev: data.rev || 0, peer: peerUrl(), me: myUrls().slice(0, -2),
     nodes: data.settings.nodes || {}, lastSync: repl.lastSync, syncErr: repl.syncErr,
@@ -692,7 +759,40 @@ function emptyDay(date) {
   return { date, bills: 0, subtotal: 0, fee: 0, total: 0,
     byMethod: { cash: 0, transfer: 0, card: 0 }, billsByMethod: { cash: 0, transfer: 0, card: 0 },
     byHour: {}, items: {}, cats: {}, cancelled: { qty: 0, amount: 0 }, dishes: 0, voids: { bills: 0, amount: 0 }, staff: {},
-    cook: emptyTimes(), sit: emptyTimes() };
+    cook: emptyTimes(), sit: emptyTimes(), tables: {}, occ: {}, ta: { bills: 0, amount: 0 }, addons: {} };
+}
+// ---------- โต๊ะ: ยอด/เวลานั่งรายโต๊ะ · occ = นาทีที่มีโต๊ะนั่งอยู่ในแต่ละชั่วโมง (รวมทุกโต๊ะ) ----------
+function addTable(day, o, subtotal) {
+  if (String(o.table).startsWith('TA')) {
+    if (!day.ta) day.ta = { bills: 0, amount: 0 };
+    day.ta.bills++; day.ta.amount = r2(day.ta.amount + subtotal); return;
+  }
+  if (!day.tables) day.tables = {};
+  const t = day.tables[o.table] || (day.tables[o.table] = { bills: 0, amount: 0, n: 0, sum: 0 });
+  t.bills++; t.amount = r2(t.amount + subtotal);
+  const min = o.createdAt && o.paidAt ? (o.paidAt - o.createdAt) / 60000 : -1;
+  if (!(min >= 0) || min > TIME_MAX.sit) return;
+  t.n++; t.sum = r2(t.sum + min);
+  if (!day.occ) day.occ = {};
+  // แบ่งเวลานั่งลงแต่ละชั่วโมง เช่น 18:40–19:30 → 18 = 20 นาที, 19 = 30 นาที
+  for (let a = o.createdAt; a < o.paidAt;) {
+    const d = new Date(a), next = new Date(d); next.setMinutes(60, 0, 0);
+    const b = Math.min(o.paidAt, next.getTime()), h = d.getHours();
+    day.occ[h] = r2((day.occ[h] || 0) + (b - a) / 60000); a = b;
+  }
+}
+// ---------- ตัวเลือกที่บวกราคา (เช่น ไข่ดาว เพิ่มกุ้ง): นับจากกลุ่มที่มีตัวเลือกบวกราคา (ไม่นับตารางราคา/เตือนครัว) ----------
+function addAddons(day, i) {
+  const m = data.menu.find(x => x.id === i.menuId), picked = i.opts || [];
+  if (!m || !picked.length) return;
+  for (const g of groupsOf(m)) {
+    if (g.alert || m.grid?.groups?.includes(g.name) || !g.choices.some(c => c.add > 0 || c.addTh > 0)) continue;
+    for (const c of g.choices) if (picked.includes(c.name)) {
+      if (!day.addons) day.addons = {};
+      const a = day.addons[c.name] || (day.addons[c.name] = { qty: 0, amount: 0 });
+      a.qty += i.qty; a.amount = r2(a.amount + addOf(c, !!i.thai) * i.qty);
+    }
+  }
 }
 // ---------- เวลา: ครัวทำนานแค่ไหน (cook) · ลูกค้านั่งนานแค่ไหน (sit) ----------
 // เก็บเป็นนาที: n = จำนวน · sum = รวมนาที · b = จำนวนในแต่ละช่วงเวลา (TIME_B) · byHour = แยกตามชั่วโมงที่เริ่ม
@@ -762,6 +862,7 @@ function addBill(day, o, its) {
   }
   // ลูกค้านั่งนานแค่ไหน: เปิดโต๊ะ → จ่ายครบ (ไม่นับกลับบ้าน TA)
   if (!String(o.table).startsWith('TA')) addTime(day, 'sit', o.createdAt, o.paidAt);
+  addTable(day, o, subtotal);
   for (const i of its) {
     const amt = r2(i.price * i.qty);
     if (i.by) { const r = staffRow(day, i.by); r.dishes += i.qty; r.amount = r2(r.amount + amt); }
@@ -777,6 +878,7 @@ function addBill(day, o, its) {
     day.dishes += i.qty;
     // ครัวทำนานแค่ไหน: สั่ง → จอครัวกดเสร็จ (เฉพาะจานที่ขึ้นจอครัว)
     if (i.status === 'done' && onScreen(i)) addTime(day, 'cook', i.createdAt, i.doneAt, i.name);
+    addAddons(day, i);
   }
 }
 function summarizeLive(date) {
@@ -817,13 +919,14 @@ const addDays = (k, n) => { const d = new Date(k + 'T00:00:00'); d.setDate(d.get
 function prevPeriod(from, n, to) {
   const pf = n === 1 ? addDays(from, -7) : addDays(from, -n), pt = n === 1 ? pf : addDays(from, -1);
   const cut = to === dayKey(Date.now()) ? new Date().getHours() : null;
-  const out = { from: pf, to: pt, subtotal: 0, bills: 0, dishes: 0, partial: cut, cook: emptyTimes(), sit: emptyTimes() };
+  const out = { from: pf, to: pt, subtotal: 0, bills: 0, dishes: 0, partial: cut, cook: emptyTimes(), sit: emptyTimes(), items: {} };
   for (let k = pf; k <= pt; k = addDays(k, 1)) {
     const d = dayOf(k), last = k === pt;
     out.subtotal = r2(out.subtotal + (last && cut != null
       ? Object.entries(d.byHour).reduce((s, [h, v]) => s + (relH(h) <= relH(cut) ? v : 0), 0) : d.subtotal));
     out.bills += d.bills; out.dishes += d.dishes;
     mergeTimes(out.cook, d.cook); mergeTimes(out.sit, d.sit);
+    for (const n in d.items) { const a = out.items[n] || (out.items[n] = { qty: 0, amount: 0 }); a.qty += d.items[n].qty; a.amount = r2(a.amount + d.items[n].amount); }
   }
   out.cook = { n: out.cook.n, avg: avgMin(out.cook) }; out.sit = { n: out.sit.n, avg: avgMin(out.sit) };
   return out;
@@ -852,6 +955,13 @@ function buildReport(from, to) {
     sum.cancelled.qty += d.cancelled.qty; sum.cancelled.amount = r2(sum.cancelled.amount + d.cancelled.amount);
     sum.voids.bills += d.voids?.bills || 0; sum.voids.amount = r2(sum.voids.amount + (d.voids?.amount || 0));
     mergeTimes(sum.cook, d.cook); mergeTimes(sum.sit, d.sit);
+    for (const t in d.tables || {}) {
+      const a = sum.tables[t] || (sum.tables[t] = { bills: 0, amount: 0, n: 0, sum: 0 }), x = d.tables[t];
+      a.bills += x.bills; a.amount = r2(a.amount + x.amount); a.n += x.n; a.sum = r2(a.sum + x.sum);
+    }
+    for (const h in d.occ || {}) sum.occ[h] = r2((sum.occ[h] || 0) + d.occ[h]);
+    if (d.ta) { sum.ta.bills += d.ta.bills; sum.ta.amount = r2(sum.ta.amount + d.ta.amount); }
+    for (const n in d.addons || {}) { const a = sum.addons[n] || (sum.addons[n] = { qty: 0, amount: 0 }); a.qty += d.addons[n].qty; a.amount = r2(a.amount + d.addons[n].amount); }
     for (const n in d.staff || {}) {
       const a = d.staff[n], s = staffRow(sum, n);
       for (const f of ['dishes', 'cancels', 'voids', 'bills']) s[f] += a[f] || 0;
@@ -1079,6 +1189,12 @@ function lineAlert(kind, text) {
 const prnState = {};
 function printerResult(id, err) {
   const st = prnState[id] || (prnState[id] = { down: false, at: 0 });
+  // นับพิมพ์สำเร็จ/ไม่สำเร็จรายวัน + เหตุการณ์ตอนเสีย/กลับมา
+  const pk = dayKey(Date.now()), pd = (health.prints[pk] ||= {}), pc = (pd[id] ||= { ok: 0, fail: 0 });
+  err ? pc.fail++ : pc.ok++; healthDirty = true;
+  if (err && !st.down) healthEvent('printer', { p: id, ok: false, err: String(err.message || err).slice(0, 160) });
+  else if (!err && st.down) healthEvent('printer', { p: id, ok: true });
+  st.lastErr = err ? String(err.message || err) : ''; st.lastAt = Date.now();
   const name = data.settings.printers.find(p => p.id === id)?.name || id;
   if (err && !st.down) {
     st.down = true;
@@ -1093,8 +1209,8 @@ const sbWatch = { alerted: false };
 setInterval(() => {
   if (role.role !== 'main' || !repl.standbySeen) return;
   const gone = Date.now() - repl.standbySeen > 120000;
-  if (gone && !sbWatch.alerted) { sbWatch.alerted = true; lineAlert('standby', `⚠ เครื่องสำรองหลุด ไม่ได้คัดลอกข้อมูลมา ${Math.round((Date.now() - repl.standbySeen) / 60000)} นาทีแล้ว\nถ้าเครื่องหลักพังตอนนี้ จะไม่มีเครื่องรับงานแทน · ตรวจว่าเครื่องสำรองเปิดอยู่และต่อ Wi-Fi`); }
-  if (!gone && sbWatch.alerted) { sbWatch.alerted = false; lineAlert('standby', '✅ เครื่องสำรองกลับมาเชื่อมแล้ว'); }
+  if (gone && !sbWatch.alerted) { sbWatch.alerted = true; healthEvent('standby', { ok: false }); lineAlert('standby', `⚠ เครื่องสำรองหลุด ไม่ได้คัดลอกข้อมูลมา ${Math.round((Date.now() - repl.standbySeen) / 60000)} นาทีแล้ว\nถ้าเครื่องหลักพังตอนนี้ จะไม่มีเครื่องรับงานแทน · ตรวจว่าเครื่องสำรองเปิดอยู่และต่อ Wi-Fi`); }
+  if (!gone && sbWatch.alerted) { sbWatch.alerted = false; healthEvent('standby', { ok: true }); lineAlert('standby', '✅ เครื่องสำรองกลับมาเชื่อมแล้ว'); }
 }, 30000);
 
 // ส่งอัตโนมัติวันละครั้งตามเวลาที่ตั้ง (เฉพาะเครื่องหลัก · เครื่องหลักปิดอยู่ตอนถึงเวลา → ส่งตอนเปิดในวันเดียวกัน)
@@ -1116,7 +1232,7 @@ setInterval(async () => {
   try {
     for (const j of jobs) { await sendLine(k, j.kind, j.period); j.mark(); console.log(`ส่งสรุปยอด (${j.kind}) เข้า LINE แล้ว`); }
     L.lastErr = '';
-  } catch (e) { L.lastErr = e.message; lineRetryAt = Date.now() + 10 * 60000; console.log('ส่ง LINE ไม่สำเร็จ: ' + e.message); }
+  } catch (e) { L.lastErr = e.message; lineRetryAt = Date.now() + 10 * 60000; healthEvent('line', { err: e.message }); console.log('ส่ง LINE ไม่สำเร็จ: ' + e.message); }
   finally { lineBusy = false; save(); broadcast(); }
 }, 30000);
 
@@ -1289,7 +1405,14 @@ const routes = {
   'POST /api/auth/logout-all': () => { data.auth.ver.staff = (data.auth.ver.staff || 1) + 1; },
 
   // ---------- เครื่องหลัก / เครื่องสำรอง ----------
-  'GET /api/role': () => roleInfo(),
+  // ตัวเฝ้าในแอป (เครื่องเดียวกัน) ส่งแบตมาด้วย: /api/role?bat=85&chg=1
+  'GET /api/role': (b, q, req) => { noteBattery(q, req); return roleInfo(); },
+  // สุขภาพระบบ: /api/health?from=&to= (เจ้าของร้าน)
+  'GET /api/health': (b, q) => {
+    const ok = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+    const to = ok(q.get('to')) ? q.get('to') : dayKey(Date.now()), from = ok(q.get('from')) ? q.get('from') : to;
+    return healthReport(from, to);
+  },
   'GET /api/sync': (b, q, req) => {
     if (role.role !== 'main') return { role: role.role };
     if (!syncKeyOk(req.headers['x-sync-key'])) {
@@ -1332,6 +1455,7 @@ const routes = {
     role = { role: 'main', peer: role.peer };   // จำเครื่องเก่าไว้ ถ้ากลับมาจะให้มันเป็นเครื่องสำรอง
     saveRole();
     console.log('เครื่องนี้เป็นเครื่องหลักแล้ว');
+    healthEvent('takeover', { peer: role.peer || '' });
     lineAlert('takeover', `🔁 เครื่องสำรองรับงานแทนเครื่องหลักแล้ว\nเครื่องหลักเดิม (${role.peer.replace(/^https?:\/\//, '') || '-'}) ติดต่อไม่ได้ ตรวจดูว่าดับหรือหลุด Wi-Fi\nตอนนี้ร้านใช้งานต่อได้ตามปกติ`);
     return { ok: true };
   },
