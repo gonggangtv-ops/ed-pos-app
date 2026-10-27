@@ -34,11 +34,14 @@
   #board>.empty{margin:auto}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
   .card header{flex-wrap:wrap}
+  .card{container-type:inline-size}
+  /* การ์ดแคบ (ขนาดเล็ก/จิ๋ว): ตัดคำว่า "โต๊ะ" เหลือแค่เลข หัวการ์ดจะได้อยู่บรรทัดเดียว */
+  @container (max-width:185px){.tw{display:none}}
   .card.urge{border-color:var(--late);box-shadow:0 0 0 1px var(--late),0 0 22px -6px var(--late)}
   .card header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel-2)}
-  .tbl{font-size:20px;font-weight:800}
+  .tbl{font-size:20px;font-weight:800;white-space:nowrap}
   .otype{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;padding:3px 7px;border-radius:7px;background:color-mix(in srgb,var(--info) 20%,transparent);color:var(--info)}
-  .age{margin-left:auto;font-size:16px;font-weight:800;padding:3px 9px;border-radius:8px}
+  .age{margin-left:auto;flex:none;font-size:13px;font-weight:700;padding:2px 7px;border-radius:7px;font-variant-numeric:tabular-nums}
   .age[data-s=fresh]{color:var(--fresh);background:color-mix(in srgb,var(--fresh) 15%,transparent)}
   .age[data-s=warn]{color:var(--warn);background:color-mix(in srgb,var(--warn) 15%,transparent)}
   .age[data-s=late]{color:var(--late);background:color-mix(in srgb,var(--late) 16%,transparent)}
@@ -412,8 +415,9 @@ function cardHtml(o){const a=ageInfo(o);const[tl,tc]=OTYPE[o.order_type]||['',''
     const pend=[...o.pending].sort((x,y)=>(x.at||0)-(y.at||0));let lastR=-1;
     const pendHtml=mergeSame(pend,d=>roundOf(rst,d.at||o.order_at)).map(d=>{const r=roundOf(rst,d.at||o.order_at),sep=lastR>=0&&r!==lastR?`<li class="rsep">➕ สั่งเพิ่ม ${hhmm(rst[r])}</li>`:'';lastR=r;return sep+dishLi(d,'pending');}).join('');
     const dishes=pendHtml+mergeSame(doneL,()=>0).map(d=>dishLi(d,'done')).join('')+cancL.map(d=>dishLi(d,'cancel')).join('');
-    return `<article class="card${o.is_urge?' urge':''}${o.unpaid?' unpaid':''}" data-oid="${esc(o.id)}" data-s="${a.sev}"><header><span class="tbl">${esc(head)}</span>
-      ${tl?`<span class="otype ${tc}">${tl}</span>`:''}<span class="age" data-s="${a.sev}">${a.label}</span></header>
+    const headHtml=o.table_num?`<span class="tw">โต๊ะ </span>${esc(o.table_num)}`:esc(head);
+    return `<article class="card${o.is_urge?' urge':''}${o.unpaid?' unpaid':''}" data-oid="${esc(o.id)}" data-s="${a.sev}"><header><span class="tbl">${headHtml}</span>
+      ${tl&&tc?`<span class="otype ${tc}">${tl}</span>`:''}<span class="age" data-s="${a.sev}">${a.label}</span></header>
       ${flags.length?`<div class="flags">${flags.join('')}</div>`:''}
       <ul class="dishes">${dishes}</ul><footer>${o.pending.some(d=>repeating(o,d))?`<button class="btn ack-all" data-ackall="${esc(o.id)}">🔇 ทราบแล้ว</button>`:''}<button class="btn done-all" data-all="${esc(o.id)}">เสร็จทั้งโต๊ะ</button></footer></article>`;
 }
