@@ -404,3 +404,21 @@
   .pick { display: flex; flex-wrap: wrap; gap: 6px; }
   .pick button { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit; color: var(--muted); }
   .pick button[aria-pressed="true"] { background: var(--jade); border-color: var(--jade); color: #fff; font-weight: 600; }
+
+  /* สรุป LINE > นับจำนวนที่ขาย */
+  .cntrow { display: grid; grid-template-columns: minmax(0, 1fr) 34px; gap: 6px; align-items: center; border-top: 1px solid var(--line); }
+  .cntrow .cntname { all: unset; cursor: pointer; padding: 10px 4px; display: block; min-width: 0; }
+  .cntrow .cntname:focus-visible { outline: 2px solid var(--jade); }
+  .cntrow .cntname b { display: block; }
+  .cntrow .cntname span { display: block; color: var(--muted); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cntrow.open { background: var(--sunk); border-radius: 10px 10px 0 0; }
+  .cntrow .x { border: 0; background: none; cursor: pointer; color: var(--faint); font-size: 18px; padding: 4px 8px; border-radius: 6px; }
+  .cntrow .x:hover { color: var(--brick); background: var(--brick-soft); }
+  .cnted { background: var(--sunk); border-radius: 0 0 10px 10px; padding: 4px 12px 12px; margin-bottom: 6px; }
+  .cnted input[type=search] { width: 100%; margin: 4px 0 8px; }
+  .cntlist { max-height: 340px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 6px 10px; }
+  .cntcat { padding: 6px 0; border-top: 1px solid var(--line); }
+  .cntcat:first-child { border-top: 0; }
+  .cntcat > b { display: block; font-size: 13.5px; color: var(--muted); margin-bottom: 2px; }
+  .cntcat label { display: inline-flex; align-items: center; gap: 6px; margin: 3px 14px 3px 0; font-size: 14.5px; cursor: pointer; }
+  .cntcat input { width: 18px; height: 18px; accent-color: var(--jade); }

@@ -393,6 +393,10 @@
           <div class="rowline"><div class="txt"><b>เครื่องสำรองหลุด</b><span>ไม่ได้คัดลอกข้อมูลเกิน 2 นาที · แจ้งเมื่อกลับมาด้วย</span></div><label class="sw"><input type="checkbox" data-alert="standby"><i></i></label></div>
           <div class="rowline"><div class="txt"><b>เครื่องสำรองรับงานแทน</b><span>มีคนกด "ใช้เครื่องนี้เป็นเครื่องหลัก" (เครื่องหลักเดิมอาจดับ)</span></div><label class="sw"><input type="checkbox" data-alert="takeover"><i></i></label></div>
           <div class="rowline"><div class="txt"><b>ยกเลิกทั้งโต๊ะ</b><span>บอกโต๊ะ จำนวนจาน มูลค่า เหตุผล และใครเป็นคนยกเลิก</span></div><label class="sw"><input type="checkbox" data-alert="void"><i></i></label></div>
+          <h3 class="rc-h">นับจำนวนที่ขาย</h3>
+          <p class="muted" style="margin:0 0 6px">ใส่ในสรุปทุกแบบ เช่น "กุ้งแม่น้ำ 12 ที่ (เผา 5 · นึ่ง 4)" · แตะรายการเพื่อเลือกว่านับเมนูไหนบ้าง</p>
+          <div id="lnCounts"></div>
+          <button class="btn sm" id="lnCntAdd" style="margin-top:8px">+ เพิ่มรายการ</button>
           <div class="actions"><button class="btn" id="lnTestAlert">ทดสอบแจ้งเตือน</button><button class="btn" id="lnTest">ส่งสรุปวันนี้ทดสอบ</button><button class="btn primary" id="lnSave">บันทึก</button></div>
           <h3 class="rc-h">วิธีตั้งค่า (ทำครั้งเดียว)</h3>
           <ol class="steps">
@@ -1778,6 +1782,7 @@ function loadLine() {
   $$('[data-alert]').forEach(x => (x.checked = L.alerts?.[x.dataset.alert] !== false));
   $('#lnAlertErr').textContent = L.alertErr ? '· แจ้งเตือนล่าสุดส่งไม่สำเร็จ: ' + L.alertErr : '';
   $('#lnWeekly').checked = !!L.weekly; $('#lnMonthly').checked = !!L.monthly;
+  loadCounts();
   // lastWeek = วันอาทิตย์ของสัปดาห์ที่ส่งล่าสุด · lastMonth = วันสุดท้ายของเดือนที่ส่งล่าสุด
   $('#lnWeekSt').textContent = L.weekly && L.lastWeek ? `· ส่งถึงสัปดาห์ที่จบ ${thDate(L.lastWeek)}` : '';
   $('#lnMonthSt').textContent = L.monthly && L.lastMonth ? `· ส่งถึงเดือน ${thDate(L.lastMonth, { month: 'short', year: 'numeric' })}` : '';
@@ -1793,7 +1798,62 @@ $('#lnKind').addEventListener('click', e => {
   lnKind = b.dataset.k; $$('#lnKind button').forEach(x => x.setAttribute('aria-pressed', x === b));
   $('#lnTest').textContent = 'ส่ง' + LN_KIND[lnKind] + 'ทดสอบ'; loadLinePrev();
 });
+// ---------- นับจำนวนที่ขาย: [{name, menus: [menuId], opts: [ชื่อตัวเลือก]}] ----------
+let lnCnt = [], lnCntOpen = -1;
+function loadCounts() { lnCnt = JSON.parse(JSON.stringify(S.settings.line?.counts || [])); lnCntOpen = -1; renderCounts(); }
+// ชื่อตัวเลือกทั้งหมด (ไม่รวมกลุ่มเตือนครัว) เช่น หมึก ทะเล ไข่ดาว
+const allChoiceNames = () => [...new Set(S.menu.flatMap(m => groupsOf(m).filter(g => !g.alert).flatMap(g => g.choices.map(c => c.name))))];
+function cntSummary(c) {
+  const ms = c.menus.map(id => S.menu.find(m => m.id === id)?.name).filter(Boolean);
+  if (!ms.length && !c.opts.length) return '<span style="color:var(--brick)">ยังไม่ได้เลือกเมนู · ไม่ขึ้นในสรุป</span>';
+  return esc(`${ms.length} เมนู${c.opts.length ? ' + ตัวเลือก ' + c.opts.join(', ') : ''}${ms.length ? ' · ' + ms.slice(0, 3).join(', ') + (ms.length > 3 ? ' …' : '') : ''}`);
+}
+function renderCounts() {
+  const cnt = lnCnt.map((c, i) => `<div class="cntrow${i === lnCntOpen ? ' open' : ''}">
+      <button type="button" class="cntname" data-cnt="${i}" aria-expanded="${i === lnCntOpen}"><b>${esc(c.name || '(ยังไม่มีชื่อ)')}</b><span>${cntSummary(c)}</span></button>
+      <button type="button" class="x" data-cntdel="${i}" aria-label="ลบ ${esc(c.name)}">×</button></div>
+    ${i === lnCntOpen ? cntEditor(c) : ''}`).join('');
+  $('#lnCounts').innerHTML = cnt || '<p class="muted">ยังไม่มีรายการ</p>';
+}
+function cntEditor(c) {
+  return `<div class="cnted">
+    <label class="field"><span>ชื่อที่แสดงใน LINE</span><input type="text" data-cntf="name" value="${esc(c.name)}" maxlength="30"></label>
+    <input type="search" data-cntq placeholder="ค้นหาเมนู/ตัวเลือก" aria-label="ค้นหาเมนู">
+    <div class="cntlist">${cats().map(cat => { const ms = S.menu.filter(m => m.category === cat); if (!ms.length) return '';
+      return `<div class="cntcat"><b>${esc(cat)}</b>${ms.map(m => `<label data-t="${esc(m.name)}"><input type="checkbox" data-cntm="${m.id}" ${c.menus.includes(m.id) ? 'checked' : ''}>${esc(m.name)}</label>`).join('')}</div>`; }).join('')}
+      <div class="cntcat"><b>ตัวเลือก <small class="muted">นับจานที่สั่งตัวเลือกนี้ เช่น ผัดที่เลือกเนื้อสัตว์ "หมึก"</small></b>
+        ${allChoiceNames().map(n => `<label data-t="${esc(n)}"><input type="checkbox" data-cnto="${esc(n)}" ${c.opts.includes(n) ? 'checked' : ''}>${esc(n)}</label>`).join('')}</div>
+    </div>
+    <div class="row" style="margin-top:10px"><button type="button" class="btn sm" data-cntdone>เสร็จ</button></div></div>`;
+}
+$('#lnCounts').addEventListener('click', e => {
+  const t = e.target.closest('[data-cnt],[data-cntdel],[data-cntdone]'); if (!t) return;
+  if (t.dataset.cnt != null) lnCntOpen = lnCntOpen === +t.dataset.cnt ? -1 : +t.dataset.cnt;
+  else if (t.dataset.cntdel != null) { if (!confirm(`ลบรายการ "${lnCnt[+t.dataset.cntdel].name}"?`)) return; lnCnt.splice(+t.dataset.cntdel, 1); lnCntOpen = -1; dirty.add('line'); }
+  else lnCntOpen = -1;
+  renderCounts();
+});
+$('#lnCounts').addEventListener('change', e => {
+  const c = lnCnt[lnCntOpen], t = e.target; if (!c) return;
+  const tog = (arr, v) => (t.checked ? (arr.includes(v) || arr.push(v)) : arr.splice(arr.indexOf(v), 1));
+  if (t.dataset.cntm) tog(c.menus, t.dataset.cntm);
+  else if (t.dataset.cnto) tog(c.opts, t.dataset.cnto);
+  else return;
+  dirty.add('line');
+  $('#lnCounts .cntrow.open .cntname span').innerHTML = cntSummary(c);
+});
+$('#lnCounts').addEventListener('input', e => {
+  const c = lnCnt[lnCntOpen], t = e.target; if (!c) return;
+  if (t.dataset.cntf === 'name') { c.name = t.value; dirty.add('line'); $('#lnCounts .cntrow.open .cntname b').textContent = t.value || '(ยังไม่มีชื่อ)'; }
+  if (t.hasAttribute('data-cntq')) {   // กรองรายการตามคำค้น
+    const q = t.value.trim();
+    $$('#lnCounts .cntlist label').forEach(l => (l.hidden = !!q && !l.dataset.t.includes(q)));
+    $$('#lnCounts .cntcat').forEach(g => (g.hidden = !!q && !g.querySelector('label:not([hidden])')));
+  }
+});
+$('#lnCntAdd').onclick = () => { lnCnt.push({ name: '', menus: [], opts: [] }); lnCntOpen = lnCnt.length - 1; dirty.add('line'); renderCounts(); $('#lnCounts [data-cntf="name"]')?.focus(); };
 const lineBody = () => ({ on: $('#lnOn').checked, weekly: $('#lnWeekly').checked, monthly: $('#lnMonthly').checked,
+  counts: lnCnt.filter(c => c.name.trim()),
   time: $('#lnTime').value, to: $('#lnTo').value.trim(), token: $('#lnToken').value.trim(),
   alerts: Object.fromEntries($$('[data-alert]').map(x => [x.dataset.alert, x.checked])) });
 $('#lnTestAlert').onclick = async function () {

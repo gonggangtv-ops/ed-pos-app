@@ -1066,10 +1066,57 @@ function cleanLine(l, old = {}) {
     // สรุปรายสัปดาห์ (จ.–อา. ส่งคืนวันอาทิตย์) / รายเดือน (ส่งคืนวันสุดท้ายของเดือน) ตามเวลาส่งเดียวกัน
     // เพิ่งเปิด → จำว่าส่งช่วงที่จบไปแล้วแล้ว จะได้ไม่ส่งของเก่าทันที (กด "ส่งทดสอบ" ดูได้)
     weekly: !!l.weekly, monthly: !!l.monthly,
+    counts: Array.isArray(l.counts) ? cleanCounts(l.counts) : old.counts,
     lastWeek: l.weekly && !old.weekly ? lastPeriod('week').to : old.lastWeek || '',
     lastMonth: l.monthly && !old.monthly ? lastPeriod('month').to : old.lastMonth || '',
     lastSent: old.lastSent || '', lastErr: old.lastErr || '', alertErr: old.alertErr || '' };
 }
+// ---------- นับจำนวนที่ขาย (เช่น กุ้งแม่น้ำ ปู หมึก) ใส่ในสรุป LINE ทุกแบบ ----------
+// counts = [{name, menus: [menuId], opts: [ชื่อตัวเลือก]}] · จานนับเข้ารายการถ้าเป็นเมนูที่เลือก หรือสั่งตัวเลือกที่เลือก (เช่น เนื้อสัตว์: หมึก)
+// ยังไม่เคยตั้ง → รายการเริ่มต้นจากชื่อเมนู (เจ้าของร้านแก้ได้ที่ หลังร้าน > สรุปยอดเข้า LINE)
+const COUNT_DEFAULT = ['กุ้งแม่น้ำ', 'เนื้อปู', 'ปู', 'ปลาทอด', 'ปลาเผา', 'หมึก', 'ข้าวเหนียวมะม่วง', 'น้ำมะม่วง'];
+function defaultCounts() {
+  const choices = new Set(data.menu.flatMap(m => groupsOf(m).filter(g => !g.alert).flatMap(g => g.choices.map(c => c.name))));
+  return COUNT_DEFAULT.map(name => ({ name,
+    menus: data.menu.filter(m => m.name.includes(name) && !(name === 'ปู' && m.name.includes('เนื้อปู'))).map(m => m.id),
+    opts: choices.has(name) ? [name] : [] }));
+}
+const lineCountsOf = () => (Array.isArray(data.settings.line?.counts) ? data.settings.line.counts : defaultCounts());
+function cleanCounts(arr) {
+  return arr.slice(0, 20).map(c => ({ name: String(c.name || '').trim().slice(0, 30),
+    menus: [...new Set((Array.isArray(c.menus) ? c.menus : []).filter(id => data.menu.some(m => m.id === id)))],
+    opts: [...new Set((Array.isArray(c.opts) ? c.opts : []).map(x => String(x).trim()).filter(Boolean))].slice(0, 20) })).filter(c => c.name);
+}
+// นับจากสรุปรายวัน (บิลที่ปิดแล้ว ตรงกับยอดขาย) · ตัวเลือกดูจากข้อความตัวเลือกของจาน ("ทะเล เผ็ดน้อย")
+function countSold(from, to) {
+  const list = lineCountsOf().filter(c => c.menus.length || c.opts.length);
+  const out = list.map(c => ({ name: c.name, qty: 0, by: {} }));
+  for (let k = from; k <= to; k = addDays(k, 1)) {
+    const d = dayOf(k);
+    list.forEach((c, i) => {
+      const names = new Set(c.menus.map(id => data.menu.find(m => m.id === id)?.name).filter(Boolean));
+      for (const [n, it] of Object.entries(d.items)) {
+        let q = 0;
+        if (names.has(n)) q = it.qty;
+        else if (c.opts.length) for (const [o, oq] of Object.entries(it.opts || {})) if (o.split(' ').some(x => c.opts.includes(x))) q += oq;
+        if (q) { out[i].qty += q; out[i].by[n] = (out[i].by[n] || 0) + q; }
+      }
+    });
+  }
+  return out;
+}
+// บรรทัดในข้อความ LINE: • กุ้งแม่น้ำ 12 ที่ (เผา 5 · นึ่ง 4 · ทอดกระเทียม 3)
+function countLines(from, to) {
+  const rows = countSold(from, to);
+  if (!rows.length) return [];
+  return ['📋 จำนวนที่ขาย', ...rows.map(r => {
+    const by = Object.entries(r.by).sort((a, b) => b[1] - a[1]);
+    const short = n => n.replace(r.name, '').trim() || n;   // "กุ้งแม่น้ำเผา" → "เผา"
+    const detail = by.length > 1 ? ` (${by.slice(0, 4).map(([n, q]) => `${short(n)} ${q}`).join(' · ')}${by.length > 4 ? ' …' : ''})` : '';
+    return `• ${r.name} ${r.qty} ที่${detail}`;
+  })];
+}
+
 // ช่วงล่าสุดที่จบไปแล้ว (นับตามวันขาย) · สัปดาห์ = จันทร์–อาทิตย์ · ถึงเวลาส่งของวันอาทิตย์/วันสิ้นเดือนแล้ว = นับช่วงนั้นด้วย
 function lastPeriod(kind, k = dayKey(Date.now()), passed = lineTimePassed()) {
   if (kind === 'week') {
@@ -1102,6 +1149,8 @@ function lineText(k) {
     if (best) L.push('', `⏰ ช่วงขายดี ${best[0]}:00–${best[0]}:59 · ${fmt(best[1])} ฿`);
     const top = Object.values(d.items).sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 5);
     if (top.length) L.push('', '🏆 ขายดี', ...top.map((it, i) => `${i + 1}. ${it.name} × ${it.qty}`));
+    const cl = countLines(k, k);
+    if (cl.length) L.push('', ...cl);
     const tl = timeLines(d);
     if (tl.length) L.push('', ...tl);
   }
@@ -1166,6 +1215,8 @@ function lineRangeText(kind, from, to) {
   if (best) L.push('', `⏰ ช่วงขายดี ${best[0]}:00–${best[0]}:59 (รวม ${fmt(best[1])} ฿)`);
   const top = d.items_list.sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 10);
   if (top.length) L.push('', '🏆 ขายดี', ...top.map((it, i) => `${i + 1}. ${it.name} × ${it.qty}`));
+  const cl = countLines(from, to);
+  if (cl.length) L.push('', ...cl);
   const tl = timeLines(d);
   if (tl.length) L.push('', ...tl);
   if (d.cancelled.qty) L.push('', `❌ ยกเลิก ${d.cancelled.qty} จาน (${fmt(d.cancelled.amount)} ฿)${d.voids?.bills ? ` · ยกเลิกทั้งโต๊ะ ${d.voids.bills} โต๊ะ` : ''}`);
@@ -1587,7 +1638,7 @@ const routes = {
     const rc = data.settings.receipt, imgs = rc.images || {};
     const settings = { ...data.settings, receipt: { ...rc, images: undefined, has: { logo: !!imgs.logo, footer: !!imgs.footer }, imgV: rc.imgV || 0 },
       // โทเค็น LINE ไม่ส่งออกไปหน้าเว็บ (หน้าสั่งอาหารก็อ่าน /api/state ได้)
-      line: data.settings.line ? { ...data.settings.line, token: undefined, hasToken: !!data.settings.line.token } : undefined };
+      line: { ...(data.settings.line || {}), token: undefined, hasToken: !!data.settings.line?.token, counts: lineCountsOf() } };
     return { rev: data.rev || 0, settings, menu: data.menu, categories: data.categories, optionSets: data.optionSets, orders,
              items: data.items.filter(i => ids.has(i.orderId)), events: data.events, now: Date.now() };
   },
