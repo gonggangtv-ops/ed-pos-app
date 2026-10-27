@@ -176,6 +176,26 @@
   #nagBar{position:fixed;left:0;right:0;bottom:0;z-index:55;background:var(--accent);color:#1a1100;font-weight:800;text-align:center;padding:14px;font-size:18px;animation:nagpulse 1s infinite;cursor:pointer}
   @keyframes nagpulse{50%{filter:brightness(1.25)}}
   button.undo{margin-top:6px;font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--panel-2);color:var(--fg);border-radius:8px;padding:5px 10px;cursor:pointer}
+  /* เรียงแน่น: การ์ดสูงตามจำนวนจาน เรียงเป็นคอลัมน์เต็มจอ เลื่อนลง */
+  :root[data-lay=pack] #board{display:block;overflow-x:hidden;overflow-y:auto;scroll-snap-type:none}
+  :root[data-lay=pack] #board .pack{column-width:var(--colw,215px);column-gap:12px}
+  :root[data-lay=pack] #board .card{width:auto;max-height:none;break-inside:avoid;margin:0 0 12px}
+  :root[data-lay=pack] #board ul.dishes{overflow:visible}
+  :root[data-lay=pack] #board .card footer{padding:8px 10px}:root[data-lay=pack] #board .card footer .btn{padding:7px}
+  /* ป้าย "รวม N" ท้ายชื่อเมนู = เมนูนี้มีหลายโต๊ะ ทำรวมได้ */
+  .bb{display:inline-block;margin-left:6px;font-size:.7em;font-weight:700;padding:1px 7px;border-radius:20px;background:color-mix(in srgb,var(--batch) 24%,transparent);color:var(--batch);vertical-align:2px;white-space:nowrap}
+  /* แผงทำรวมชิดขวา (จอกว้าง) */
+  :root[data-dock="1"] .pop{top:var(--barh,64px)!important;right:0!important;bottom:0!important;left:auto!important;width:var(--popw,300px)!important;height:auto!important;max-height:none!important;border-radius:0;border-width:0 0 0 2px;box-shadow:none}
+  :root[data-dock="1"] .pophandle,:root[data-dock="1"] #popReset{display:none}
+  :root[data-dock="1"] .pophead{cursor:default}
+  :root[data-dock="1"][data-popon="1"] main{margin-right:var(--popw,300px)}
+  .poprow .pt{flex-wrap:wrap}.poprow .pq{font-size:24px}.poprow .pn{font-size:17px;flex:1}
+  .poprow .pnn{font-size:12px;color:var(--muted);font-weight:600}
+  .poprow .pv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:baseline;margin-top:5px;padding-top:5px;border-top:1px dashed var(--line)}
+  .poprow .pv b{font-size:15px;color:var(--fg)}.poprow .pv span,.poprow .pt2{font-size:13px;color:var(--muted)}
+  .poprow .pt2{margin-top:4px}.poprow i{font-style:normal;color:var(--accent);font-weight:700}
+  .pophint{font-size:12px;color:var(--faint);text-align:center;padding:6px 0 2px}
+  .morechip{position:fixed;left:16px;bottom:16px;z-index:35;font:inherit;font-size:14px;font-weight:700;padding:10px 16px;border-radius:24px;border:1px solid var(--accent);background:var(--panel);color:var(--accent);box-shadow:0 8px 24px -8px #000c;cursor:pointer}
 </style><script src="app-bridge.js"></script>
 </head><body>
 <div id="linkBar" hidden></div>
@@ -229,7 +249,7 @@
     <label class="vrow"><span>สั่งเพิ่มหลังเว้นไป นับเวลาใหม่</span><select class="sel" data-vk="gap"><option value="0">ไม่นับใหม่</option><option value="5">เว้นเกิน 5 นาที</option><option value="10">เว้นเกิน 10 นาที</option><option value="15">เว้นเกิน 15 นาที</option><option value="20">เว้นเกิน 20 นาที</option><option value="30">เว้นเกิน 30 นาที</option></select></label>
     <p class="vhint">นับใหม่เมื่อจานรอบก่อนทำเสร็จหมดแล้ว · ถ้ารอบก่อนยังมีจานค้าง เวลาจะนับต่อจากจานที่รอนานสุด ครัวจะได้ไม่ลืมจานเก่า</p>
     <div class="sublabel" style="margin-top:8px">การจัดวาง</div>
-    <div class="vrow"><span>การ์ดโต๊ะ</span><div class="seg" data-vk="lay"><button class="btn" data-v="row">แถวเดียว เลื่อนข้าง</button><button class="btn" data-v="grid">หลายแถว เลื่อนลง</button></div></div>
+    <div class="vrow"><span>การ์ดโต๊ะ</span><div class="seg" data-vk="lay"><button class="btn" data-v="pack">เรียงแน่น เต็มจอ (แนะนำ)</button><button class="btn" data-v="row">แถวเดียว เลื่อนข้าง</button><button class="btn" data-v="grid">หลายแถว เลื่อนลง</button></div></div>
     <div class="vrow"><span>เรียงโต๊ะ</span><div class="seg" data-vk="sort"><button class="btn" data-v="old">รอนานสุดก่อน</button><button class="btn" data-v="new">ใหม่สุดก่อน</button></div></div>
     <div class="vrow" style="justify-content:flex-end"><button class="btn" id="viewReset">คืนค่าเริ่มต้น</button></div>
   </div>
@@ -238,10 +258,10 @@
   <div class="sheet">
     <div class="sheethead"><b>🔔 ตั้งค่าเสียง</b><button class="btn" id="ttsClose">เสร็จ</button></div>
     <p class="hint">เมื่อมีออเดอร์ใหม่ เมนูถูกเพิ่ม หรือโต๊ะถูกเร่ง จอจะอ่านออกเสียงให้ เสียงจะออกที่ลำโพงที่ต่อกับเครื่องนี้ (เช่น ลำโพงบลูทูธ) เมนูที่ซ่อนไว้จะไม่ถูกอ่าน</p>
-    <div class="sublabel">🍳 รวมกลุ่มเมนูให้ทำรวม</div>
-    <p class="hint" style="margin:0 0 8px">ใส่คำที่เมนูเหล่านั้นมีเหมือนกัน เช่น “ผัดผงกะหรี่” — เมนูไหนที่ชื่อ/สเปก/ตัวเลือกมีคำนี้ จะถูกรวมเป็นกลุ่มเดียวในป๊อปอัพทำรวม (แม้ชื่อเมนูจะต่างกัน เช่น “ปู” กับ “ผัดผงกะหรี่”)</p>
-    <div class="trow" style="gap:8px"><input id="ruleName" class="sel" style="flex:1;min-width:0;margin-left:0" placeholder="คำที่ใช้รวมกลุ่ม เช่น ผัดผงกะหรี่" autocomplete="off"><button class="btn" id="ruleAdd">+ เพิ่ม</button></div>
-    <div id="ruleList" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 14px"></div>
+    <div class="sublabel">🍚 เมนูที่ไม่ต้องทำรวม</div>
+    <p class="hint" style="margin:0 0 8px">เมนูที่ตักเสิร์ฟได้เลย เช่น ข้าวสวย จะไม่ขึ้นในแผง “ทำรวม” และไม่ขึ้นป้ายรวมในการ์ด · ใส่ชื่อหรือคำในชื่อเมนู</p>
+    <div class="trow" style="gap:8px"><input id="nobName" class="sel" style="flex:1;min-width:0;margin-left:0" placeholder="เช่น ข้าวสวย ข้าวเหนียว" autocomplete="off"><button class="btn" id="nobAdd">+ เพิ่ม</button></div>
+    <div id="nobList" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 14px"></div>
     <div class="sublabel">🔔 เสียงเตือนตอนออเดอร์เข้า (ดังแยกจากเสียงพูด)</div>
     <div class="trows">
       <label class="trow"><span>เสียงออเดอร์ใหม่</span><select id="sndType" class="sel"><option value="bell">กริ่งดัง (แนะนำ)</option><option value="alarm">นาฬิกาปลุก (เร็ว ถี่)</option><option value="digital">บี๊บดิจิทัล</option><option value="ting">กระดิ่งเคาน์เตอร์ ติ๊ง!</option><option value="dingdong">ออดประตู ติ๊งต่อง</option><option value="chime">ติ๊งหน่อง</option><option value="siren">ไซเรน</option><option value="horn">แตร</option></select></label>
@@ -274,11 +294,12 @@
   </div>
 </div>
 <div class="pop" id="batchPop" hidden>
-  <div class="pophead" id="popDrag"><b>🍳 ทำรวม <span id="popCount">0</span></b><span class="popbtns"><button class="popx" id="popReset" title="คืนตำแหน่งและขนาด">⟲</button><button class="popx" id="popHide" title="ซ่อน">✕</button></span></div>
+  <div class="pophead" id="popDrag"><b>🍳 ทำรวม <span id="popCount">0</span> เมนู</b><span class="popbtns"><button class="popx" id="popReset" title="คืนตำแหน่งและขนาด">⟲</button><button class="popx" id="popHide" title="ซ่อน">✕</button></span></div>
   <div class="popbody" id="popBody"></div>
   <div class="pophandle" id="popResize" title="ลากเพื่อปรับขนาด"></div>
 </div>
 <button class="popfab" id="popShow" hidden>🍳 ทำรวม <span id="fabCount">0</span></button>
+<button class="morechip" id="moreChip" hidden></button>
 <div class="toasts" id="toasts"></div>
 <div id="nagBar" hidden>🔔 มีออเดอร์ใหม่ — แตะหน้าจอเพื่อหยุดเสียง</div>
 <script src="kiosk.js"></script>
@@ -321,19 +342,16 @@ function markDone(o,d){if(!d||d.status==='completed')return;o.pending=o.pending.
   DONEDISH.set(d.id,{oid:o.id,dish:{...d,status:'completed'}});
   post('/api/dish/complete',{order_id:o.id,dishes_id:d.id,status:'completed'});}
 const ADDED=new Set();   // dishes added to a table after it first appeared — highlighted until done
-// ---- batch grouping: same menu = same group. Keyword rules merge dishes whose name/spec/options contain the keyword ----
+// ---- ทำรวม: เมนูชื่อเดียวกัน = กลุ่มเดียวกัน (ตั้งชื่อเมนูไว้แล้วในหลังร้าน จึงไม่ต้องมีกฎรวมกลุ่ม) ----
 const nz=s=>String(s==null?'':s).replace(/\s+/g,'');
-let RULES=[];try{RULES=JSON.parse(localStorage.getItem('kds_rules')||'[]');}catch(e){}if(!Array.isArray(RULES))RULES=[];
-const saveRules=()=>{try{localStorage.setItem('kds_rules',JSON.stringify(RULES));}catch(e){}};
-const fullText=d=>nz([d.name,d.spec,...(d.extra_option||[])].join(''));
-const ruleOf=d=>{const f=fullText(d);return RULES.find(k=>nz(k)&&f.includes(nz(k)))||null;};
-const bkey=d=>{const k=ruleOf(d);return k?'rule:'+k:d.name;};
-const groupName=d=>ruleOf(d)||d.name;
-// what differs between the dishes of one group (the meat etc.), with the group keyword taken out
-const variantOf=d=>{const k=ruleOf(d);
-  if(!k)return[d.spec,...(d.extra_option||[])].filter(Boolean).join(' ');
-  const kz=nz(k);return[d.name,d.spec,...(d.extra_option||[])].filter(Boolean)
-    .map(x=>nz(x)===kz?'':String(x).split(k).join(' ').trim()).filter(Boolean).join(' ');};
+// เมนูที่ไม่ต้องทำรวม (ตักเสิร์ฟได้เลย) · เก็บในเครื่องนี้ · ค่าเริ่มต้น ข้าวสวย
+let NOB=null;try{NOB=JSON.parse(localStorage.getItem('kds_nobatch')||'null');}catch(e){}if(!Array.isArray(NOB))NOB=['ข้าวสวย'];
+const saveNob=()=>{try{localStorage.setItem('kds_nobatch',JSON.stringify(NOB));}catch(e){}};
+const noBatch=d=>NOB.some(k=>nz(k)&&nz(d.name).includes(nz(k)));
+const bkey=d=>d.name;
+const groupName=d=>d.name;
+// สิ่งที่ต่างกันในกลุ่ม (เนื้อสัตว์ ขนาด ฯลฯ)
+const variantOf=d=>[d.spec,...(d.extra_option||[])].filter(Boolean).join(' ');
 // ---- รอบการสั่ง: จานที่สั่งห่างจากจานก่อนหน้าเกิน gap = รอบใหม่ ----
 const dishesOf=o=>[...o.pending,...(o.finished||[]),...[...DONEDISH.values()].filter(e=>e.oid===o.id).map(e=>e.dish)];
 function roundStarts(o,gap){const ts=dishesOf(o).map(d=>d.at||o.order_at).sort((a,b)=>a-b);
@@ -347,14 +365,16 @@ function ageInfo(o){const ms=Math.max(0,Date.now()-startOf(o)),m=Math.floor(ms/6
   return{label:(m<1?'0':m)+':'+String(s).padStart(2,'0'),sev:m>=(+VIEW.late||10)?'late':m>=(+VIEW.warn||5)?'warn':'fresh'};}
 function buildBatches(){const map=new Map();
   for(const o of ORDERS){const where=o.table_num?('โต๊ะ '+o.table_num):(o.pick_up_code?('รับ '+o.pick_up_code):(o.third_party_platform||'เดลิเวอรี'));
-    for(const d of o.pending){if(d.status!=='pending')continue;const k=bkey(d);
+    for(const d of o.pending){if(d.status!=='pending'||noBatch(d))continue;const k=bkey(d);
       if(!map.has(k))map.set(k,{key:k,name:groupName(d),spec:'',qty:0,sources:[]});
       const b=map.get(k);b.qty+=d.quantity;b.sources.push({where,qty:d.quantity,v:variantOf(d)});}}
   return[...map.values()].sort((a,b)=>(b.sources.length-a.sources.length)||(b.qty-a.qty));}
 
 function renderBoard(){
   const list=[...ORDERS].sort((a,b)=>VIEW.sort==='new'?startOf(b)-startOf(a):startOf(a)-startOf(b));
-  boardEl.innerHTML=list.map(cardHtml).join('')||'<div class="empty">ไม่มีออเดอร์ค้าง 🎉</div>';
+  // เรียงแน่น: ห่อการ์ดอีกชั้น คอลัมน์จะยาวลงล่างแล้วเลื่อนลงได้ (ไม่ล้นออกด้านข้าง)
+  const cards=list.map(cardHtml).join('');
+  boardEl.innerHTML=!cards?'<div class="empty">ไม่มีออเดอร์ค้าง 🎉</div>':VIEW.lay==='pack'?`<div class="pack">${cards}</div>`:cards;
 }
 // จานเหมือนกันเป๊ะ (ชื่อ สเปก ตัวเลือก หมายเหตุ) ในรอบเดียวกัน → บรรทัดเดียว จำนวนรวม · _ids = จานจริงทั้งหมดในบรรทัดนั้น
 function mergeSame(list,roundFn){if(!VIEW.merge)return list;const out=[],at=new Map();
@@ -375,12 +395,14 @@ function cardHtml(o){const a=ageInfo(o);const[tl,tc]=OTYPE[o.order_type]||['',''
       const opt=(d.extra_option||[]).length&&!ol?'<span class="opt">+ '+d.extra_option.map(esc).join(', ')+'</span>':'';
       const sub=[d.spec?esc(d.spec):'',opt,d.remark?'<span class="rmk">⚑ '+esc(d.remark)+'</span>':''].filter(Boolean).join(' · ');
       const multi=VIEW.multi&&st==='pending'&&d.quantity>1;
-      const others=st==='pending'&&o.id!=='_pv'?ORDERS.reduce((n,oo)=>n+(oo!==o?oo.pending.filter(x=>x.status==='pending'&&bkey(x)===bkey(d)).length:0),0):0;
+      // เมนูเดียวกันในโต๊ะอื่น → ป้าย "รวม N" ท้ายชื่อ (จำนวนทั้งบอร์ด) · เมนูที่ไม่ต้องทำรวมไม่ขึ้น
+      const others=st==='pending'&&o.id!=='_pv'&&!noBatch(d)?ORDERS.reduce((n,oo)=>n+(oo!==o?oo.pending.filter(x=>x.status==='pending'&&bkey(x)===bkey(d)).length:0),0):0;
+      const tot=others?ORDERS.reduce((n,oo)=>n+oo.pending.filter(x=>x.status==='pending'&&bkey(x)===bkey(d)).reduce((q,x)=>q+x.quantity,0),0):0;
       const nw=st==='pending'&&ids.some(x=>ADDED.has(x));
       const note=canc?`<div class="dsub tagc">${armed?'แตะอีกครั้งเพื่อซ่อน':'❌ ยกเลิก — แตะเพื่อรับทราบ'}</div>`:(done?`<div class="dsub tagc" style="color:var(--muted);font-weight:600">${armed?'แตะอีกครั้งเพื่อซ่อน':'เสร็จแล้ว · แตะ ✓ เพื่อย้อนกลับ'}</div>`:'');
       return `<li class="dish${done?' done':''}${canc?' cancel':''}${armed?' armed':''}${nw?' new':''}${multi?' multi':''}" data-st="${st}" data-o="${esc(o.id)}" data-d="${esc(d.id)}"><span class="qty">×${d.quantity}</span>
-        <span class="dmeta"><div class="dname">${esc(d.name)}${d.thai?'<span class="thb">คนไทย</span>':''}${nw?'<span class="nb">เพิ่มใหม่</span>':''}</div>${ol?`<div class="dopts">${d.extra_option.map(x=>'<div>+ '+esc(x)+'</div>').join('')}</div>`:''}${sub?`<div class="dsub">${sub}</div>`:''}
-        ${others?`<div class="dsub" style="color:var(--batch)">↔ อีก ${others} ที่สั่งเหมือนกัน</div>`:''}${note}${st==='pending'&&ids.some(x=>repeating(o,{...d,id:x}))?`<button class="ack" data-ack="${esc(d.id)}">🔇 ทราบแล้ว</button>`:''}</span>
+        <span class="dmeta"><div class="dname">${esc(d.name)}${others?`<span class="bb" title="ทั้งบอร์ดมีเมนูนี้ ${tot} ที่ ทำรวมได้">รวม ${tot}</span>`:''}${d.thai?'<span class="thb">คนไทย</span>':''}${nw?'<span class="nb">เพิ่มใหม่</span>':''}</div>${ol?`<div class="dopts">${d.extra_option.map(x=>'<div>+ '+esc(x)+'</div>').join('')}</div>`:''}${sub?`<div class="dsub">${sub}</div>`:''}
+        ${note}${st==='pending'&&ids.some(x=>repeating(o,{...d,id:x}))?`<button class="ack" data-ack="${esc(d.id)}">🔇 ทราบแล้ว</button>`:''}</span>
         <span class="check">${canc?'✕':'✓'}</span></li>`;};
     const doneIds=new Set(),doneL=[];
     [...[...DONEDISH.values()].filter(e=>e.oid===o.id).map(e=>e.dish),...(o.finished||[])].forEach(d=>{if(doneIds.has(d.id)||GONE.has(d.id))return;doneIds.add(d.id);doneL.push(d);});
@@ -549,11 +571,11 @@ document.getElementById('ttsRate').addEventListener('change',e=>{TTS.rate=+e.tar
 [['sndType','type'],['sndVol','vol'],['sndRep','rep'],['sndAdd','add'],['sndNag','nag']].forEach(([id,k])=>document.getElementById(id).addEventListener('change',e=>{SND[k]=e.target.value;saveSnd();}));
 document.getElementById('sndTest').addEventListener('click',()=>{const w=sound;sound=true;beep('order');sound=w;});
 document.getElementById('sndTestAdd').addEventListener('click',()=>{const w=sound;sound=true;if(SND.add==='off')toast('ปิดเสียงสั่งเพิ่มไว้','');beep('add');sound=w;});
-function renderRules(){document.getElementById('ruleList').innerHTML=RULES.map((k,i)=>`<span class="chip" style="cursor:pointer" data-rule="${i}" title="แตะเพื่อลบ">${esc(k)} ✕</span>`).join('')||'<span class="thint" style="margin:0;background:none;border:0;padding:0;color:var(--faint)">ยังไม่มีกลุ่ม — ตอนนี้รวมเฉพาะเมนูชื่อเหมือนกันเป๊ะ</span>';}
-function addRule(){const i=document.getElementById('ruleName'),v=i.value.trim();if(!v)return;if(!RULES.some(k=>nz(k)===nz(v)))RULES.push(v);saveRules();i.value='';renderRules();render();}
-document.getElementById('ruleAdd').addEventListener('click',addRule);
-document.getElementById('ruleName').addEventListener('keydown',e=>{if(e.key==='Enter')addRule();});
-document.getElementById('ruleList').addEventListener('click',e=>{const c=e.target.closest('[data-rule]');if(!c)return;RULES.splice(+c.dataset.rule,1);saveRules();renderRules();render();});
+function renderRules(){document.getElementById('nobList').innerHTML=NOB.map((k,i)=>`<span class="chip" style="cursor:pointer" data-nob="${i}" title="แตะเพื่อลบ">${esc(k)} ✕</span>`).join('')||'<span class="thint" style="margin:0;background:none;border:0;padding:0;color:var(--faint)">ไม่มี — ทุกเมนูที่หลายโต๊ะสั่งขึ้นในทำรวม</span>';}
+function addRule(){const i=document.getElementById('nobName'),v=i.value.trim();if(!v)return;if(!NOB.some(k=>nz(k)===nz(v)))NOB.push(v);saveNob();i.value='';renderRules();render();}
+document.getElementById('nobAdd').addEventListener('click',addRule);
+document.getElementById('nobName').addEventListener('keydown',e=>{if(e.key==='Enter')addRule();});
+document.getElementById('nobList').addEventListener('click',e=>{const c=e.target.closest('[data-nob]');if(!c)return;NOB.splice(+c.dataset.nob,1);saveNob();renderRules();render();});
 document.getElementById('ttsWait').addEventListener('change',e=>{TTS.wait=e.target.value;saveTts();});
 document.getElementById('ttsRepeat').addEventListener('change',e=>{TTS.repeat=e.target.value;saveTts();});
 document.getElementById('ttsEvery').addEventListener('change',e=>{TTS.every=e.target.value;saveTts();});
@@ -579,15 +601,42 @@ function renderPop(){
   const multi=buildBatches().filter(b=>b.sources.length>1);
   document.getElementById('popCount').textContent=multi.length;
   document.getElementById('fabCount').textContent=multi.length;
-  document.getElementById('popBody').innerHTML=multi.length?multi.map(b=>`<div class="poprow" data-bk="${esc(b.key)}" data-bn="${esc(b.name)}">
-    <div class="pt"><span class="pq">×${b.qty}</span><span class="pn">${esc(b.name)}</span></div>
-    ${(()=>{const m=new Map();b.sources.forEach(s=>{if(s.v)m.set(s.v,(m.get(s.v)||0)+s.qty);});return m.size>1||(m.size===1&&[...m.keys()][0])?`<div class="ps">${[...m].map(([v,q])=>esc(v)+' ×'+q).join(' · ')}</div>`:'';})()}
-    <div class="pc">${b.sources.map(s=>`<span class="ch">${esc(s.where)}${s.v?' · '+esc(s.v):''} ×${s.qty}</span>`).join('')}</div></div>`).join('')
+  // แต่ละเมนู: แยกตามตัวเลือก (ไก่ S ×2) แล้วตามด้วยโต๊ะ · ไม่มีตัวเลือก = บรรทัดเดียวบอกโต๊ะ
+  const tb=w=>esc(String(w).replace(/^โต๊ะ /,''));
+  const tables=list=>list.map(s=>tb(s.where)+(s.qty>1?` <i>×${s.qty}</i>`:'')).join(', ');
+  document.getElementById('popBody').innerHTML=multi.length?multi.map(b=>{
+    const m=new Map();b.sources.forEach(s=>{const k=s.v||'';if(!m.has(k))m.set(k,{q:0,src:[]});const x=m.get(k);x.q+=s.qty;x.src.push(s);});
+    const vs=[...m].sort((a,c)=>c[1].q-a[1].q);
+    const body=vs.length===1&&!vs[0][0]?`<div class="pt2">โต๊ะ ${tables(vs[0][1].src)}</div>`
+      :vs.map(([v,x])=>`<div class="pv"><b>${esc(v||'ธรรมดา')} ×${x.q}</b><span>โต๊ะ ${tables(x.src)}</span></div>`).join('');
+    return `<div class="poprow" data-bk="${esc(b.key)}" data-bn="${esc(b.name)}" title="แตะ = เสร็จทั้งชุด">
+      <div class="pt"><span class="pq">×${b.qty}</span><span class="pn">${esc(b.name)}</span><span class="pnn">${b.sources.length} โต๊ะ</span></div>${body}</div>`;}).join('')
+      +'<div class="pophint">แตะเมนู = ทำเสร็จทั้งชุด (ทุกโต๊ะ)</div>'
     :'<div class="popempty">ยังไม่มีเมนูที่หลายโต๊ะสั่งซ้ำกันตอนนี้</div>';
   const onBoard=view==='board';
   document.getElementById('batchPop').hidden=!(popOpen&&onBoard);
   document.getElementById('popShow').hidden=!(!popOpen&&onBoard);
+  document.documentElement.dataset.popon=popOpen&&onBoard?'1':'0';
+  layoutFix();
 }
+// ---- จอกว้าง: แผงทำรวมชิดขวา ไม่ทับการ์ด (บอร์ดหดให้) · จอแคบ: ลอยเหมือนเดิม ----
+function layoutFix(){const r=document.documentElement,bar=document.querySelector('.bar');
+  r.dataset.dock=innerWidth>=900?'1':'0';
+  if(bar)r.style.setProperty('--barh',Math.round(bar.getBoundingClientRect().bottom)+'px');
+  checkHidden();}
+addEventListener('resize',layoutFix);
+// ---- มีโต๊ะที่มองไม่เห็น (ล้นจอ) → ป้ายบอกจำนวน แตะเพื่อเลื่อนไปดู ----
+function checkHidden(){const chip=document.getElementById('moreChip');if(!chip)return;
+  if(view!=='board'){chip.hidden=true;return;}
+  // มองไม่เห็น = หัวการ์ด (ชื่อโต๊ะ) อยู่นอกจอ
+  const m=boardEl.getBoundingClientRect(),cards=[...boardEl.querySelectorAll('.card')],pos=c=>c.getBoundingClientRect();
+  const below=cards.filter(c=>{const r=pos(c);return r.top>m.bottom-50||r.left>m.right-60;});
+  const above=cards.filter(c=>{const r=pos(c);return r.top<m.top-10||r.right<m.left+60;});
+  const n=below.length+above.length;chip.hidden=!n;if(!n)return;
+  chip.textContent=below.length?`👀 ยังมีอีก ${n} โต๊ะ · แตะเพื่อเลื่อนดู`:`👀 ยังมีอีก ${n} โต๊ะด้านบน · แตะเพื่อกลับขึ้นบน`;
+  chip.onclick=()=>{if(below.length)boardEl.scrollBy({top:Math.max(200,m.height-120),left:VIEW.lay==='row'?m.width-120:0,behavior:'smooth'});
+    else boardEl.scrollTo({top:0,left:0,behavior:'smooth'});};}
+boardEl.addEventListener('scroll',()=>{clearTimeout(window._chT);window._chT=setTimeout(checkHidden,120);},{passive:true});
 // ---- popup: drag to move, drag corner to resize (position/size remembered) ----
 (function(){
   const pop=document.getElementById('batchPop'),head=document.getElementById('popDrag'),hnd=document.getElementById('popResize');
@@ -600,7 +649,7 @@ function renderPop(){
   const save=()=>{try{localStorage.setItem('kds_popgeo',JSON.stringify(geo));}catch(e){}};
   const cur=()=>{const r=pop.getBoundingClientRect();return{x:r.left,y:r.top,w:r.width,h:r.height};};
   function drag(el,onMove){el.addEventListener('pointerdown',e=>{
-      if(e.target.closest('button'))return;e.preventDefault();
+      if(e.target.closest('button')||document.documentElement.dataset.dock==='1')return;e.preventDefault();
       const start=cur(),sx=e.clientX,sy=e.clientY;el.setPointerCapture(e.pointerId);pop.classList.add('moving');
       const mv=ev=>{geo=clamp(onMove(start,ev.clientX-sx,ev.clientY-sy));apply();};
       const up=()=>{el.removeEventListener('pointermove',mv);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up);pop.classList.remove('moving');save();};
@@ -618,7 +667,7 @@ document.getElementById('popBody').addEventListener('click',e=>{const r=e.target
   for(const o of ORDERS)for(const d of [...o.pending])if(bkey(d)===r.dataset.bk&&d.status==='pending')markDone(o,d);
   render();toast('✅ ทำเสร็จทั้งชุด',r.dataset.bn);});
 
-function render(){renderBoard();renderPop();
+function render(){renderBoard();renderPop();requestAnimationFrame(checkHidden);
   document.getElementById('nOrders').textContent=ORDERS.length;
   document.getElementById('nDishes').textContent=ORDERS.reduce((n,o)=>n+o.pending.filter(d=>d.status==='pending').length,0);}
 
@@ -747,8 +796,10 @@ function nagTick(){if(!nag)return;const s=+SND.nag||0;if(!s||!sound){stopNag();r
 function toast(tt,td,ms){const el=document.createElement('div');el.className='toast';el.innerHTML=`<div class="tt">${esc(tt)}</div>${td?`<div class="td">${esc(td)}</div>`:''}`;document.getElementById('toasts').appendChild(el);setTimeout(()=>{el.style.opacity=0;el.style.transition='opacity .4s';setTimeout(()=>el.remove(),400);},ms||4500);}
 
 // ---- look & feel: theme, text size, weight ----
-const VIEW_DEF={merge:true,theme:'dark',fs:1,fw:'1',qs:'plain',qz:'1',qc:'accent',multi:false,ol:'0',rk:'text',warn:'5',late:'10',hc:false,gap:'10',lay:'row',sort:'old'};
+const VIEW_DEF={merge:true,theme:'dark',fs:1,fw:'1',qs:'plain',qz:'1',qc:'accent',multi:false,ol:'0',rk:'text',warn:'5',late:'10',hc:false,gap:'10',lay:'pack',sort:'old'};
 const VIEW=Object.assign({...VIEW_DEF},(()=>{try{return JSON.parse(localStorage.getItem('kds_view')||'{}');}catch(e){return {};}})());
+// อัปเดตรุ่นที่มี "เรียงแน่น": เปลี่ยนเป็นเรียงแน่นครั้งเดียว (ปรับกลับได้ที่ ปรับหน้าจอ)
+if(!VIEW.pk){VIEW.lay='pack';VIEW.pk=1;try{localStorage.setItem('kds_view',JSON.stringify(VIEW));}catch(e){}}
 const mqLight=window.matchMedia?matchMedia('(prefers-color-scheme: light)'):null;
 function applyView(){const r=document.documentElement;
   const th=VIEW.theme==='auto'?(mqLight&&mqLight.matches?'light':'dark'):VIEW.theme;
@@ -836,11 +887,11 @@ async function poll(){try{
       seen.add(o.id);o.pending.forEach(d=>seenDish.add(d.id));
       if(o.is_urge)urgeSeen.add(o.id);
       if(primed){
-        const hits=o.pending.filter(d=>prevKeys.has(bkey(d)));
+        const hits=o.pending.filter(d=>prevKeys.has(bkey(d))&&!noBatch(d));
         alertSound(o.is_urge?'urge':'order');
         if(hits.length){const hit=hits[0];
           const tot=next.reduce((n,oo)=>n+oo.pending.filter(x=>bkey(x)===bkey(hit)).reduce((s,x)=>s+x.quantity,0),0);
-          toast('🔔 เมนูซ้ำ — ทำรวมได้!',`${head} สั่ง “${groupName(hit)}” ด้วย · รวม ×${tot} → ดูป๊อปอัพ “ทำรวม”`);}
+          toast('🔔 เมนูซ้ำ — ทำรวมได้!',`${head} สั่ง “${groupName(hit)}” ด้วย · รวม ×${tot} → ดูแผง “ทำรวม”`);}
         else toast('🆕 ออเดอร์ใหม่',head||'');
         announce(o.is_urge?'ออเดอร์เร่ง':'',o,o.pending);
         if(TTS.batch)hits.filter(chosen).slice(0,2).forEach(h=>{
