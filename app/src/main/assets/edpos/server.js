@@ -759,7 +759,16 @@ function emptyDay(date) {
   return { date, bills: 0, subtotal: 0, fee: 0, total: 0,
     byMethod: { cash: 0, transfer: 0, card: 0 }, billsByMethod: { cash: 0, transfer: 0, card: 0 },
     byHour: {}, items: {}, cats: {}, cancelled: { qty: 0, amount: 0 }, dishes: 0, voids: { bills: 0, amount: 0 }, staff: {},
-    cook: emptyTimes(), sit: emptyTimes(), tables: {}, occ: {}, ta: { bills: 0, amount: 0 }, addons: {} };
+    cook: emptyTimes(), sit: emptyTimes(), tables: {}, occ: {}, ta: { bills: 0, amount: 0 }, addons: {},
+    billB: [0, 0, 0, 0, 0], billBAmt: [0, 0, 0, 0, 0], billsByHour: {}, kind: emptyKind() };
+}
+// ขนาดบิล: <100 · 100–199 · 200–499 · 500–999 · 1,000+ บาท
+const BILL_B = [100, 200, 500, 1000];
+// ประเภทการขาย (รายจาน): ทานที่ร้าน / กลับบ้าน / กลับต่างประเทศ · thai = จานที่สั่งราคาคนไทย (ซ้อนกับประเภทอื่นได้)
+const emptyKind = () => ({ dine: { qty: 0, amount: 0 }, ta: { qty: 0, amount: 0 }, abroad: { qty: 0, amount: 0 }, thai: { qty: 0, amount: 0 } });
+function addKind(day, k, qty, amt) {
+  if (!day.kind) day.kind = emptyKind();
+  const x = day.kind[k]; x.qty += qty; x.amount = r2(x.amount + amt);
 }
 // ---------- โต๊ะ: ยอด/เวลานั่งรายโต๊ะ · occ = นาทีที่มีโต๊ะนั่งอยู่ในแต่ละชั่วโมง (รวมทุกโต๊ะ) ----------
 function addTable(day, o, subtotal) {
@@ -859,6 +868,11 @@ function addBill(day, o, its) {
     day.bills++; day.byMethod[m] = r2(day.byMethod[m] + p.tot); day.billsByMethod[m]++;
     const h = new Date(p.at).getHours();
     day.byHour[h] = r2((day.byHour[h] || 0) + p.amt);
+    if (!day.billsByHour) day.billsByHour = {};
+    day.billsByHour[h] = (day.billsByHour[h] || 0) + 1;
+    if (!day.billB) { day.billB = [0, 0, 0, 0, 0]; day.billBAmt = [0, 0, 0, 0, 0]; }
+    const bi = BILL_B.filter(x => p.amt >= x).length;
+    day.billB[bi]++; day.billBAmt[bi] = r2(day.billBAmt[bi] + p.amt);
   }
   // ลูกค้านั่งนานแค่ไหน: เปิดโต๊ะ → จ่ายครบ (ไม่นับกลับบ้าน TA)
   if (!String(o.table).startsWith('TA')) addTime(day, 'sit', o.createdAt, o.paidAt);
@@ -879,6 +893,8 @@ function addBill(day, o, its) {
     // ครัวทำนานแค่ไหน: สั่ง → จอครัวกดเสร็จ (เฉพาะจานที่ขึ้นจอครัว)
     if (i.status === 'done' && onScreen(i)) addTime(day, 'cook', i.createdAt, i.doneAt, i.name);
     addAddons(day, i);
+    addKind(day, i.abroad ? 'abroad' : i.takeaway ? 'ta' : 'dine', i.qty, amt);
+    if (i.thai) addKind(day, 'thai', i.qty, amt);
   }
 }
 function summarizeLive(date) {
@@ -919,7 +935,7 @@ const addDays = (k, n) => { const d = new Date(k + 'T00:00:00'); d.setDate(d.get
 function prevPeriod(from, n, to) {
   const pf = n === 1 ? addDays(from, -7) : addDays(from, -n), pt = n === 1 ? pf : addDays(from, -1);
   const cut = to === dayKey(Date.now()) ? new Date().getHours() : null;
-  const out = { from: pf, to: pt, subtotal: 0, bills: 0, dishes: 0, partial: cut, cook: emptyTimes(), sit: emptyTimes(), items: {} };
+  const out = { from: pf, to: pt, subtotal: 0, bills: 0, dishes: 0, partial: cut, cook: emptyTimes(), sit: emptyTimes(), items: {}, cats: {}, byHour: {} };
   for (let k = pf; k <= pt; k = addDays(k, 1)) {
     const d = dayOf(k), last = k === pt;
     out.subtotal = r2(out.subtotal + (last && cut != null
@@ -927,6 +943,8 @@ function prevPeriod(from, n, to) {
     out.bills += d.bills; out.dishes += d.dishes;
     mergeTimes(out.cook, d.cook); mergeTimes(out.sit, d.sit);
     for (const n in d.items) { const a = out.items[n] || (out.items[n] = { qty: 0, amount: 0 }); a.qty += d.items[n].qty; a.amount = r2(a.amount + d.items[n].amount); }
+    for (const c in d.cats) out.cats[c] = r2((out.cats[c] || 0) + d.cats[c]);
+    for (const h in d.byHour) out.byHour[h] = r2((out.byHour[h] || 0) + d.byHour[h]);
   }
   out.cook = { n: out.cook.n, avg: avgMin(out.cook) }; out.sit = { n: out.sit.n, avg: avgMin(out.sit) };
   return out;
@@ -962,6 +980,9 @@ function buildReport(from, to) {
     for (const h in d.occ || {}) sum.occ[h] = r2((sum.occ[h] || 0) + d.occ[h]);
     if (d.ta) { sum.ta.bills += d.ta.bills; sum.ta.amount = r2(sum.ta.amount + d.ta.amount); }
     for (const n in d.addons || {}) { const a = sum.addons[n] || (sum.addons[n] = { qty: 0, amount: 0 }); a.qty += d.addons[n].qty; a.amount = r2(a.amount + d.addons[n].amount); }
+    (d.billB || []).forEach((v, i) => { sum.billB[i] += v; sum.billBAmt[i] = r2(sum.billBAmt[i] + d.billBAmt[i]); });
+    for (const h in d.billsByHour || {}) sum.billsByHour[h] = (sum.billsByHour[h] || 0) + d.billsByHour[h];
+    for (const k in d.kind || {}) { sum.kind[k].qty += d.kind[k].qty; sum.kind[k].amount = r2(sum.kind[k].amount + d.kind[k].amount); }
     for (const n in d.staff || {}) {
       const a = d.staff[n], s = staffRow(sum, n);
       for (const f of ['dishes', 'cancels', 'voids', 'bills']) s[f] += a[f] || 0;
@@ -993,7 +1014,10 @@ function buildReport(from, to) {
       .sort((a, b) => b.cancelledAt - a.cancelledAt)
       .map(i => ({ at: i.cancelledAt, table: data.orders.find(o => o.id === i.orderId)?.table || '', name: itemLabelSrv(i), qty: i.qty,
         amount: r2(i.price * i.qty), by: i.cancelledBy || '', cooking: !!i.kdsCancel })),
-    days: days.map(d => ({ date: d.date, bills: d.bills, subtotal: d.subtotal, total: d.total })),
+    // รายวัน: ใช้ทั้งกราฟและตารางรายวัน · kindOk = วันนี้เก็บประเภทการขายแล้ว (สรุปรายวันรุ่นเก่าไม่มี)
+    days: days.map(d => ({ date: d.date, bills: d.bills, subtotal: d.subtotal, total: d.total, fee: d.fee, dishes: d.dishes,
+      byMethod: d.byMethod, cancelled: d.cancelled.amount, voids: d.voids?.bills || 0, byHour: d.byHour,
+      wk: dayOf(addDays(d.date, -7)).subtotal })),   // wk = ยอดวันเดียวกันของสัปดาห์ก่อน
     prev: prevPeriod(from, days.length, to), heat,
     bills, billsComplete: from >= dayKey(detailFrom),
     // โต๊ะที่ยกเลิกทั้งโต๊ะ (รายตัว มีเฉพาะ 7 วันล่าสุด)

@@ -39,6 +39,21 @@
   .srow .st.ok { color: var(--jade); } .srow .st.bad { color: var(--brick); } .srow .st.na { color: var(--faint); font-weight: 500; }
   .evt td:first-child { white-space: nowrap; color: var(--muted); }
   .evt .bad { color: var(--brick); } .evt .ok { color: var(--jade); }
+  /* วิเคราะห์ยอดขาย */
+  .ins { list-style: none; margin: 4px 0 0; padding: 0; }
+  .ins li { display: grid; grid-template-columns: 24px 1fr; gap: 8px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.55; }
+  .ins li:first-child { border-top: 0; }
+  .ins li i { font-style: normal; text-align: center; }
+  .ins b.up { color: var(--jade); } .ins b.down { color: var(--brick); }
+  .tscroll { overflow-x: auto; margin: 0 -4px; }
+  table.t tr.best td { background: var(--jade-soft); }
+  table.t tr.worst td { background: var(--brick-soft); }
+  table.t tr.off td { color: var(--faint); }
+  table.t tfoot td { font-weight: 700; border-top: 2px solid var(--line); border-bottom: 0; }
+  table.t .bar { display: block; height: 5px; border-radius: 3px; background: var(--jade); margin-top: 4px; min-width: 2px; }
+  .legend2 { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .legend2 span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .legend2 .lb::before { background: var(--jade-soft); border: 1px solid var(--jade); } .legend2 .lw::before { background: var(--brick-soft); border: 1px solid var(--brick); }
   .pareto { background: var(--jade-soft); border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; font-size: 15px; }
   @media (max-width: 860px) { .tabs { top: 84px; } .topbar { padding: 10px 16px; } }
 </style>
@@ -84,17 +99,37 @@
   <section class="pane" data-p="overview">
     <div class="kpis" id="kpis"></div>
     <p class="openline" id="openLine" hidden></p>
+    <div class="panel" id="insPanel">
+      <div class="phead"><h2>วิเคราะห์ยอดขาย</h2><span class="muted" id="insNote"></span></div>
+      <ul class="ins" id="insights"></ul>
+    </div>
     <div class="panel">
       <div class="phead"><h2 id="chartTitle">ยอดขาย</h2><span class="muted" id="chartNote"></span></div>
       <div class="chart" id="chart"></div>
+    </div>
+    <div class="panel" id="dayPanel" hidden>
+      <div class="phead"><h2>ยอดรายวัน</h2><span class="muted" id="dayNote"></span></div>
+      <div class="tscroll" id="dayTable"></div>
+    </div>
+    <div class="panel">
+      <div class="phead"><h2 id="hourTitle">ยอดรายชั่วโมง</h2><span class="muted" id="hourNote"></span></div>
+      <div class="tscroll" id="hourTable"></div>
     </div>
     <div class="panel" id="heatPanel" hidden>
       <div class="phead"><h2>ช่วงเวลาขายดี</h2><span class="muted" id="heatNote"></span></div>
       <div class="heatwrap" id="heat"></div>
     </div>
+    <div class="panel" id="dowPanel" hidden>
+      <div class="phead"><h2>วันในสัปดาห์</h2><span class="muted" id="dowNote"></span></div>
+      <div class="tscroll" id="dowTable"></div>
+    </div>
     <div class="two">
       <div class="panel"><div class="phead"><h2>วิธีชำระเงิน</h2></div><div id="payBreak"></div></div>
-      <div class="panel"><div class="phead"><h2>ตามหมวด</h2></div><div id="catBreak"></div></div>
+      <div class="panel"><div class="phead"><h2>ตามหมวด</h2><span class="muted" id="catNote"></span></div><div id="catBreak"></div></div>
+    </div>
+    <div class="two">
+      <div class="panel"><div class="phead"><h2>ขนาดบิล</h2><span class="muted" id="billBNote"></span></div><div id="billBBox"></div></div>
+      <div class="panel"><div class="phead"><h2>ประเภทการขาย</h2></div><div id="kindBox"></div></div>
     </div>
   </section>
 
@@ -275,7 +310,7 @@ function renderSales() {
   $('#openLine').hidden = !(r.to === today && r.open.length);
   $('#openLine').textContent = `ตอนนี้ยังเปิดอยู่ ${r.open.length} โต๊ะ ยอดรอเก็บ ${baht(openSum)} ฿ ยังไม่นับรวมในยอดขาย`;
   renderChart(); renderHeat(); renderPay(); renderCatBreak(); renderTop(); renderTimes(); renderStaff(); renderSlow(); renderBills();
-  renderMenuPerf(); renderTables(); renderHealth();
+  renderMenuPerf(); renderTables(); renderHealth(); renderAnalysis();
 }
 
 // ---------- เวลาครัว (cook) / เวลานั่ง (sit) ----------
@@ -467,10 +502,14 @@ function renderPay() {
 
 function renderCatBreak() {
   const c = Object.entries(report.summary.cats).sort((a, b) => b[1] - a[1]);
-  const tot = c.reduce((a, [, v]) => a + v, 0), max = c[0]?.[1] || 1;
-  $('#catBreak').innerHTML = c.length ? c.map(([n, v]) => `<div class="hbar"><span>${esc(n)}</span>
-      <span><b>${baht(v)} ฿</b> <span class="muted">${Math.round(v / tot * 100)}%</span></span>
-      <span class="track"><i style="width:${v / max * 100}%"></i></span></div>`).join('')
+  const tot = c.reduce((a, [, v]) => a + v, 0), max = c[0]?.[1] || 1, pc = report.prev?.cats || {};
+  const hasPrev = Object.keys(pc).length > 0 && (report.prev.partial == null || report.from !== report.to);   // วันนี้ยังไม่ปิดร้าน → ไม่เทียบรายหมวด
+  $('#catNote').textContent = hasPrev ? 'เทียบช่วงก่อนหน้า' : '';
+  const dl = v => { if (!hasPrev) return ''; const p = pc[v[0]] || 0, d = v[1] - p;
+    return !p ? ' <small class="muted">ใหม่</small>' : ` <em class="delta2 ${d >= 0 ? 'up' : 'down'}">${d >= 0 ? '▲' : '▼'}${Math.abs(Math.round(d / p * 100))}%</em>`; };
+  $('#catBreak').innerHTML = c.length ? c.map(x => `<div class="hbar"><span>${esc(x[0])}</span>
+      <span><b>${baht(x[1])} ฿</b> <span class="muted">${Math.round(x[1] / tot * 100)}%</span>${dl(x)}</span>
+      <span class="track"><i style="width:${x[1] / max * 100}%"></i></span></div>`).join('')
     : '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>';
 }
 
@@ -556,6 +595,160 @@ $('#csv').onclick = () => {
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 
+
+// ================= วิเคราะห์ยอดขาย (แท็บภาพรวม) =================
+const pctOf = (a, b) => (b ? Math.round((a - b) / b * 100) : null);
+const dTag = p => (p == null ? '' : `<b class="${p >= 0 ? 'up' : 'down'}">${p >= 0 ? '▲' : '▼'} ${Math.abs(p)}%</b>`);
+const dEm = p => (p == null ? '<span class="muted">–</span>' : `<em class="delta2 ${p >= 0 ? 'up' : 'down'}">${p >= 0 ? '▲' : '▼'}${Math.abs(p)}%</em>`);
+const shortDay = k => `${DOW_S[new Date(k + 'T00:00:00').getDay()]} ${thDate(k, { day: 'numeric', month: 'short' })}`;   // อ. 27 ต.ค.
+const BILL_LBL = ['ต่ำกว่า 100 ฿', '100–199 ฿', '200–499 ฿', '500–999 ฿', '1,000 ฿ ขึ้นไป'];
+function renderAnalysis() {
+  const r = report, s = r.summary, open = r.days.filter(d => d.bills), single = r.from === r.to;
+  renderInsights(r, s, open, single); renderDayTable(r, open, single); renderHourTable(r, s, open, single);
+  renderDow(r, open); renderBillSize(s); renderKinds(s);
+}
+
+// ---------- ข้อสังเกตอัตโนมัติ: ยอดเปลี่ยนเพราะอะไร ช่วงไหนทำเงิน เมนูไหนแบกยอด ----------
+function renderInsights(r, s, open, single) {
+  const pv = r.prev, L = [];
+  if (!s.bills) { $('#insights').innerHTML = '<li><i>•</i><span class="muted">ยังไม่มีบิลในช่วงนี้</span></li>'; $('#insNote').textContent = ''; return; }
+  const pvName = single ? `${thDate(pv.from, { weekday: 'long' })}ที่แล้ว` : `ช่วง ${r.days.length} วันก่อนหน้า`;
+  // ดูวันนี้วันเดียว (ร้านยังไม่ปิด) เทียบได้แค่ยอดรวมถึงชั่วโมงนี้ · ดูหลายวันเทียบรายละเอียดได้ (วันสุดท้ายต่างกันนิดเดียว)
+  const full = pv.partial == null || !single;
+  $('#insNote').textContent = pv.subtotal ? 'เทียบ ' + pvName : '';
+  if (pv.subtotal) {
+    const p = pctOf(s.subtotal, pv.subtotal), d = r2(s.subtotal - pv.subtotal);
+    const why = full && pv.bills ? ` · จำนวนบิล ${dTag(pctOf(s.bills, pv.bills))} เฉลี่ยต่อบิล ${dTag(pctOf(s.subtotal / s.bills, pv.subtotal / pv.bills))}` : '';
+    L.push([p >= 0 ? '📈' : '📉', `ยอดขาย${d >= 0 ? 'เพิ่มขึ้น' : 'ลดลง'} ${baht(Math.abs(d))} ฿ ${dTag(p)} จาก${pvName}${why}`]);
+    if (full) {
+      // หมวดและเมนูที่ทำให้ยอดเปลี่ยนมากที่สุด
+      const pc = pv.cats || {}, cd = [...new Set([...Object.keys(s.cats), ...Object.keys(pc)])]
+        .map(c => [c, r2((s.cats[c] || 0) - (pc[c] || 0))]).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+      if (cd[0] && Math.abs(cd[0][1]) >= 1) L.push(['🗂', `หมวดที่ยอดเปลี่ยนมากที่สุด <b>${esc(cd[0][0])}</b> ${cd[0][1] >= 0 ? '+' : '−'}${baht(Math.abs(cd[0][1]))} ฿${cd[1] && Math.abs(cd[1][1]) >= 1 ? ` · รองลงมา ${esc(cd[1][0])} ${cd[1][1] >= 0 ? '+' : '−'}${baht(Math.abs(cd[1][1]))} ฿` : ''}`]);
+      const pi = pv.items || {}, md = s.items_list.map(i => [i.name, r2(i.amount - (pi[i.name]?.amount || 0))]);
+      for (const n in pi) if (!s.items_list.some(i => i.name === n)) md.push([n, -pi[n].amount]);
+      md.sort((a, b) => b[1] - a[1]);
+      if (md[0]?.[1] > 0) L.push(['⬆️', `เมนูที่ยอดเพิ่มมากที่สุด <b>${esc(md[0][0])}</b> +${baht(md[0][1])} ฿`]);
+      const dn = md[md.length - 1];
+      if (dn?.[1] < 0) L.push(['⬇️', `เมนูที่ยอดลดมากที่สุด <b>${esc(dn[0])}</b> −${baht(-dn[1])} ฿`]);
+    }
+  }
+  // ช่วง 3 ชั่วโมงที่ทำเงินมากที่สุด
+  const hrs = Object.keys(s.byHour).map(Number);
+  if (hrs.length >= 3) {
+    let best = null;
+    for (const h of hrs) { const v = [0, 1, 2].reduce((a, x) => a + (s.byHour[(h + x) % 24] || 0), 0); if (!best || v > best.v) best = { h, v }; }
+    L.push(['⏰', `ช่วง <b>${best.h}:00–${(best.h + 2) % 24}:59</b> ทำยอด ${Math.round(best.v / s.subtotal * 100)}% ของยอดขาย (${baht(r2(best.v))} ฿)`]);
+  }
+  if (open.length >= 2) {
+    const by = [...open].sort((a, b) => b.subtotal - a.subtotal), hi = by[0], lo = by[by.length - 1];
+    L.push(['📅', `วันขายดีที่สุด <b>${shortDay(hi.date)}</b> ${baht(hi.subtotal)} ฿ · น้อยที่สุด ${shortDay(lo.date)} ${baht(lo.subtotal)} ฿`]);
+    const closed = r.days.filter(d => !d.bills && d.date !== bizDay()).length;   // วันนี้ยังไม่มีบิล ไม่นับว่าปิดร้าน
+    if (closed) L.push(['🚪', `ไม่มีบิล ${closed} วัน · เฉลี่ยเฉพาะวันที่เปิดขาย ${baht(Math.round(s.subtotal / open.length))} ฿/วัน`]);
+  }
+  // เมนูที่แบกยอด (80% ของยอดมาจากกี่เมนู)
+  const items = [...s.items_list].sort((a, b) => b.amount - a.amount);
+  if (items.length >= 5) {
+    let acc = 0, n = 0; for (const i of items) { acc += i.amount; n++; if (acc >= s.subtotal * 0.8) break; }
+    L.push(['🏆', `<b>${n} เมนู</b> จาก ${items.length} เมนูที่ขายได้ ทำยอด 80% ของยอดขาย · อันดับ 1 <b>${esc(items[0].name)}</b> ${Math.round(items[0].amount / s.subtotal * 100)}%`]);
+  }
+  const k = s.kind, kt = k ? k.dine.amount + k.ta.amount + k.abroad.amount : 0;
+  if (kt) L.push(['🥡', `กลับบ้าน ${Math.round((k.ta.amount + k.abroad.amount) / kt * 100)}% ของยอด${k.thai.amount ? ` · สั่งราคาคนไทย ${Math.round(k.thai.amount / kt * 100)}% (${k.thai.qty} จาน)` : ''}`]);
+  const tot = Object.values(s.byMethod).reduce((a, b) => a + b, 0);
+  if (tot) L.push(['💵', `จ่ายเงินสด ${Math.round(s.byMethod.cash / tot * 100)}% · โอน/พร้อมเพย์ ${Math.round(s.byMethod.transfer / tot * 100)}%${s.byMethod.card ? ` · บัตร ${Math.round(s.byMethod.card / tot * 100)}%` : ''}`]);
+  const bb = s.billB || [];
+  if (bb.some(Boolean)) { const i = bb.indexOf(Math.max(...bb)); L.push(['🧾', `บิลส่วนใหญ่อยู่ช่วง <b>${BILL_LBL[i]}</b> (${Math.round(bb[i] / bb.reduce((a, b) => a + b, 0) * 100)}% ของบิล) · เฉลี่ย ${(s.dishes / s.bills).toFixed(1)} จานต่อบิล`]); }
+  if (s.cancelled.amount) L.push(['❌', `ยกเลิก ${s.cancelled.qty} จาน ${baht(s.cancelled.amount)} ฿ = ${(s.cancelled.amount / (s.subtotal + s.cancelled.amount) * 100).toFixed(1)}% ของมูลค่าที่สั่ง`]);
+  $('#insights').innerHTML = L.map(([i, t]) => `<li><i aria-hidden="true">${i}</i><span>${t}</span></li>`).join('');
+}
+
+// ---------- ตารางยอดรายวัน (ดูหลายวัน) ----------
+function renderDayTable(r, open, single) {
+  $('#dayPanel').hidden = single; if (single) return;
+  const max = Math.max(...r.days.map(d => d.subtotal), 1), today = bizDay();
+  const by = [...open].sort((a, b) => b.subtotal - a.subtotal), hi = by.length > 1 ? by[0].date : '', lo = by.length > 1 ? by[by.length - 1].date : '';
+  const card = r.days.some(d => d.byMethod?.card), sum = f => r.days.reduce((a, d) => a + (typeof f === 'function' ? f(d) : d[f] || 0), 0);
+  $('#dayNote').textContent = `${open.length} วันที่มีบิล · ▲▼ = เทียบวันเดียวกันของสัปดาห์ก่อน`;
+  const tb = sum('bills'), ts = r2(sum('subtotal'));
+  $('#dayTable').innerHTML = `<table class="t"><thead><tr><th>วันที่</th><th class="r">บิล</th><th class="r hide-sm">จาน</th><th class="r">ยอดขาย</th>
+      <th class="r hide-sm">เฉลี่ย/บิล</th><th class="r hide-sm">เงินสด</th><th class="r hide-sm">โอน</th>${card ? '<th class="r hide-sm">บัตร</th>' : ''}
+      <th class="r">สัปดาห์ก่อน</th><th class="r hide-sm">ยกเลิก</th></tr></thead><tbody>
+    ${[...r.days].reverse().map(d => `<tr class="${!d.bills ? 'off' : d.date === hi ? 'best' : d.date === lo ? 'worst' : ''}">
+      <td>${shortDay(d.date)}${d.date === today ? '<br><small class="muted">ยังไม่ปิดวัน</small>' : ''}</td>
+      <td class="r">${d.bills || '–'}</td><td class="r hide-sm">${d.dishes || '–'}</td>
+      <td class="r"><b>${d.bills ? baht(d.subtotal) : '–'}</b>${d.bills ? `<span class="bar" style="width:${d.subtotal / max * 100}%"></span>` : ''}</td>
+      <td class="r hide-sm">${d.bills ? baht(Math.round(d.subtotal / d.bills)) : '–'}</td>
+      <td class="r hide-sm">${d.byMethod?.cash ? baht(d.byMethod.cash) : '–'}</td><td class="r hide-sm">${d.byMethod?.transfer ? baht(d.byMethod.transfer) : '–'}</td>
+      ${card ? `<td class="r hide-sm">${d.byMethod?.card ? baht(d.byMethod.card) : '–'}</td>` : ''}
+      <td class="r">${d.bills && d.wk ? dEm(pctOf(d.subtotal, d.wk)) + `<br><small class="muted">${baht(d.wk)}</small>` : '<span class="muted">–</span>'}</td>
+      <td class="r hide-sm">${d.cancelled ? `<span style="color:var(--brick)">${baht(d.cancelled)}</span>` : '<span class="muted">–</span>'}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td>รวม</td><td class="r">${tb}</td><td class="r hide-sm">${sum('dishes')}</td><td class="r">${baht(ts)}</td>
+      <td class="r hide-sm">${tb ? baht(Math.round(ts / tb)) : '–'}</td><td class="r hide-sm">${baht(r2(sum(d => d.byMethod?.cash || 0)))}</td>
+      <td class="r hide-sm">${baht(r2(sum(d => d.byMethod?.transfer || 0)))}</td>${card ? `<td class="r hide-sm">${baht(r2(sum(d => d.byMethod?.card || 0)))}</td>` : ''}
+      <td></td><td class="r hide-sm">${sum('cancelled') ? baht(r2(sum('cancelled'))) : '–'}</td></tr></tfoot></table>
+    <div class="legend2"><span class="lb">ขายดีที่สุด</span><span class="lw">ขายน้อยที่สุด</span><span>เงินสด/โอน/บัตร รวมค่าธรรมเนียมบัตร</span></div>`;
+}
+
+// ---------- ตารางรายชั่วโมง (วันเดียว: เทียบสัปดาห์ก่อน · หลายวัน: เฉลี่ยต่อวัน) ----------
+function renderHourTable(r, s, open, single) {
+  const nd = single ? 1 : open.length || 1, ph = r.prev.byHour || {}, cmp = single && Object.keys(ph).length;
+  const hrs = [...new Set([...Object.keys(s.byHour), ...(cmp ? Object.keys(ph) : [])].map(Number))].sort((a, b) => relHour(a) - relHour(b));
+  $('#hourTitle').textContent = single ? 'ยอดรายชั่วโมง' : 'ยอดรายชั่วโมง (เฉลี่ยต่อวัน)';
+  $('#hourNote').textContent = cmp ? `เทียบ${thDate(r.prev.from, { weekday: 'long' })}ที่แล้ว` : single ? '' : `เฉลี่ยจาก ${nd} วันที่มีบิล`;
+  if (!hrs.length) { $('#hourTable').innerHTML = '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>'; return; }
+  const bh = s.billsByHour || {}, max = Math.max(...hrs.map(h => s.byHour[h] || 0), 1);
+  $('#hourTable').innerHTML = `<table class="t"><thead><tr><th>ชั่วโมง</th><th class="r">บิล</th><th class="r">ยอด</th><th class="r">% ของยอด</th>
+      <th class="r hide-sm">เฉลี่ย/บิล</th>${cmp ? '<th class="r">สัปดาห์ก่อน</th>' : ''}</tr></thead><tbody>
+    ${hrs.map(h => { const v = s.byHour[h] || 0, n = bh[h] || 0;
+      return `<tr><td>${h}:00–${h}:59</td><td class="r">${n ? (single ? n : (n / nd).toFixed(1)) : '–'}</td>
+        <td class="r"><b>${v ? baht(single ? v : Math.round(v / nd)) : '–'}</b>${v ? `<span class="bar" style="width:${v / max * 100}%"></span>` : ''}</td>
+        <td class="r">${s.subtotal ? Math.round(v / s.subtotal * 100) : 0}%</td><td class="r hide-sm">${n ? baht(Math.round(v / n)) : '–'}</td>
+        ${cmp ? `<td class="r">${ph[h] ? dEm(pctOf(v, ph[h])) + `<br><small class="muted">${baht(ph[h])}</small>` : '<span class="muted">–</span>'}</td>` : ''}</tr>`; }).join('')}
+    </tbody></table>`;
+}
+
+// ---------- วันในสัปดาห์ (ดู 7 วันขึ้นไป) ----------
+function renderDow(r, open) {
+  $('#dowPanel').hidden = r.days.length < 7; if (r.days.length < 7) return;
+  const W = Array.from({ length: 7 }, () => ({ n: 0, s: 0, b: 0, d: 0 }));
+  for (const d of open) { const w = W[new Date(d.date + 'T00:00:00').getDay()]; w.n++; w.s += d.subtotal; w.b += d.bills; w.d += d.dishes; }
+  const order = [1, 2, 3, 4, 5, 6, 0], avg = w => (w.n ? w.s / w.n : 0), act = order.filter(i => W[i].n);
+  const tot = W.reduce((a, w) => a + w.s, 0), max = Math.max(...W.map(avg), 1);
+  const hi = act.length > 1 ? act.reduce((a, b) => (avg(W[b]) > avg(W[a]) ? b : a)) : -1, lo = act.length > 1 ? act.reduce((a, b) => (avg(W[b]) < avg(W[a]) ? b : a)) : -1;
+  $('#dowNote').textContent = 'เฉลี่ยเฉพาะวันที่มีบิล';
+  $('#dowTable').innerHTML = `<table class="t"><thead><tr><th>วัน</th><th class="r hide-sm">จำนวนวัน</th><th class="r">ยอดเฉลี่ย/วัน</th>
+      <th class="r">บิล/วัน</th><th class="r hide-sm">เฉลี่ย/บิล</th><th class="r">% ของยอดรวม</th></tr></thead><tbody>
+    ${order.map(i => { const w = W[i]; return `<tr class="${!w.n ? 'off' : i === hi ? 'best' : i === lo ? 'worst' : ''}"><td>${DOW_L[i]}</td>
+      <td class="r hide-sm">${w.n}</td><td class="r"><b>${w.n ? baht(Math.round(avg(w))) : '–'}</b><span class="bar" style="width:${avg(w) / max * 100}%"></span></td>
+      <td class="r">${w.n ? (w.b / w.n).toFixed(1) : '–'}</td><td class="r hide-sm">${w.b ? baht(Math.round(w.s / w.b)) : '–'}</td>
+      <td class="r">${tot ? Math.round(w.s / tot * 100) : 0}%</td></tr>`; }).join('')}</tbody></table>
+    ${hi >= 0 ? `<p class="note">วัน${DOW_L[hi]}ขายได้เฉลี่ยมากกว่าวัน${DOW_L[lo]} ${(avg(W[hi]) / Math.max(avg(W[lo]), 1)).toFixed(1)} เท่า</p>` : ''}`;
+}
+
+// ---------- ขนาดบิล ----------
+function renderBillSize(s) {
+  const b = s.billB || [0, 0, 0, 0, 0], a = s.billBAmt || [0, 0, 0, 0, 0], n = b.reduce((x, y) => x + y, 0), at = a.reduce((x, y) => x + y, 0);
+  $('#billBNote').textContent = n ? `${n} บิล · เฉลี่ย ${(s.dishes / s.bills).toFixed(1)} จาน/บิล` : '';
+  if (!n) { $('#billBBox').innerHTML = '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>'; return; }
+  const max = Math.max(...b);
+  $('#billBBox').innerHTML = b.map((v, i) => `<div class="hbar"><span>${BILL_LBL[i]}</span>
+      <b>${v} <small>บิล · ${Math.round(v / n * 100)}% · ยอด ${at ? Math.round(a[i] / at * 100) : 0}%</small></b>
+      <div class="track"><i style="width:${v / max * 100}%"></i></div></div>`).join('')
+    + `<p class="note">ยอดอาหารของแต่ละบิล (แยกจ่ายนับแยกบิล)${n < s.bills ? ' · วันที่เก่ากว่ารุ่นนี้ยังไม่มีข้อมูลขนาดบิล' : ''}</p>`;
+}
+
+// ---------- ประเภทการขาย ----------
+function renderKinds(s) {
+  const k = s.kind, rows = [['dine', 'ทานที่ร้าน'], ['ta', 'กลับบ้าน'], ['abroad', 'กลับต่างประเทศ']];
+  const tot = k ? rows.reduce((a, [x]) => a + k[x].amount, 0) : 0;
+  if (!tot) { $('#kindBox').innerHTML = '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>'; return; }
+  const max = Math.max(...rows.map(([x]) => k[x].amount));
+  $('#kindBox').innerHTML = rows.filter(([x]) => k[x].qty).map(([x, l]) => `<div class="hbar"><span>${l}</span>
+      <b>${baht(k[x].amount)} ฿ <small>· ${k[x].qty} จาน · ${Math.round(k[x].amount / tot * 100)}%</small></b>
+      <div class="track"><i style="width:${k[x].amount / max * 100}%"></i></div></div>`).join('')
+    + (k.thai.qty ? `<p class="pareto" style="margin-top:12px">สั่งด้วย<b>ราคาคนไทย</b> ${k.thai.qty} จาน · ${baht(k.thai.amount)} ฿ · ${Math.round(k.thai.amount / tot * 100)}% ของยอด</p>` : '')
+    + `<p class="note">นับรายจาน: โต๊ะที่ห่อบางจานนับจานนั้นเป็นกลับบ้าน${tot < s.subtotal * 0.95 ? ' · วันที่เก่ากว่ารุ่นนี้ยังไม่มีข้อมูลประเภท' : ''}</p>`;
+}
 
 // ================= เมนู: ขายเพิ่มขึ้น/ลดลง · ตัวเลือกที่บวกราคา · เมนูหลักทำยอดกี่ % =================
 function renderMenuPerf() {
