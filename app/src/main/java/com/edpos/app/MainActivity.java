@@ -556,6 +556,13 @@ public class MainActivity extends Activity {
             } catch (Exception e) { return "{\"ok\":false}"; }
         }
 
+        /** หน้าเครื่องสำรองเปลี่ยน IP เครื่องหลักแล้ว → จำไว้ เปิดหน้าครั้งต่อไปไปที่เครื่องหลักใหม่ตรงๆ */
+        @JavascriptInterface
+        public void setMain(String addr) {
+            String m = normalize(addr);
+            if (!m.isEmpty() && "standby".equals(serverMode())) prefs.edit().putString("main", m).apply();
+        }
+
         /** ยืนยันรหัสเจ้าของร้านกับเซิร์ฟเวอร์ → "ok" | "bad:ข้อความ" | "offline" */
         @JavascriptInterface
         public String checkAdminPin(String pin) {
@@ -576,6 +583,8 @@ public class MainActivity extends Activity {
                 if (code == 200) return "ok";
                 InputStream es = c.getErrorStream();
                 String msg = es != null ? new JSONObject(readAll(es)).optString("error", "รหัสไม่ถูกต้อง") : "รหัสไม่ถูกต้อง";
+                // เซิร์ฟเวอร์ที่ยังไม่มีรหัส (เช่น เครื่องสำรองที่ยังไม่เคยคัดลอกข้อมูล) → ให้เข้าตั้งค่าแก้ IP ได้
+                if (msg.contains("ยังไม่ได้ตั้งรหัส")) return "ok";
                 return "bad:" + msg;
             } catch (Exception e) {
                 return "offline";

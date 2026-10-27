@@ -44,8 +44,17 @@
     <button type="submit" id="pairBtn">จับคู่</button>
     <p class="err" id="pairErr"></p>
   </form>
+  <form class="pair" id="peerBox" hidden>
+    <h2>เปลี่ยน IP เครื่องหลัก</h2>
+    <p>เครื่องหลักเปลี่ยน IP (เช่น เปลี่ยนเราเตอร์ / Wi-Fi) ใส่ IP ใหม่ที่นี่ · ดู IP ได้ที่หน้าตั้งค่าแอปของเครื่องหลัก</p>
+    <input type="text" id="peerIp" inputmode="decimal" autocomplete="off" placeholder="เช่น 192.168.1.50" aria-label="IP เครื่องหลัก" style="letter-spacing:1px;font-size:20px">
+    <input type="password" id="peerPin" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="รหัสเจ้าของร้าน" aria-label="รหัสเจ้าของร้าน" hidden>
+    <button type="submit" id="peerBtn">เชื่อมต่อเครื่องหลัก</button>
+    <p class="err" id="peerErr"></p>
+  </form>
   <button class="promote" id="promote" disabled>ใช้เครื่องนี้เป็นเครื่องหลัก</button>
   <p class="note" id="note"></p>
+  <p class="note"><a href="#" id="peerLink">เปลี่ยน IP เครื่องหลัก</a></p>
 </main>
 <script>
 const $ = s => document.querySelector(s);
@@ -62,8 +71,13 @@ async function tick() {
       <dl><dt>เครื่องหลัก</dt><dd>${info.peer.replace(/^https?:\/\//, '')}</dd>
         <dt>คัดลอกล่าสุด</dt><dd>${ago(info.lastSync)}</dd>
         <dt>โต๊ะที่เปิดอยู่</dt><dd>${info.openTables} โต๊ะ</dd></dl>`;
-    $('#promote').disabled = fresh || info.needPair;   // ยังไม่เคยได้ข้อมูลร้าน → รับงานแทนไม่ได้
+    const empty = info.hasData === false;   // ยังไม่เคยคัดลอกข้อมูลร้านเลย
+    $('#promote').disabled = fresh || info.needPair || empty;   // ยังไม่เคยได้ข้อมูลร้าน → รับงานแทนไม่ได้
+    // ติดต่อเครื่องหลักไม่ได้ → เปิดช่องเปลี่ยน IP ให้เลย (เครื่องหลักอาจเปลี่ยน IP)
+    if (!fresh && !info.needPair && !peerShown) showPeer();
+    $('#peerPin').hidden = empty;
     $('#note').innerHTML = info.needPair ? 'จับคู่กับเครื่องหลักก่อน เครื่องนี้ยังไม่มีข้อมูลร้าน จึงยังรับงานแทนไม่ได้'
+      : empty && !fresh ? 'เครื่องนี้ยังไม่เคยคัดลอกข้อมูลร้าน จึงรับงานแทนไม่ได้ · ถ้าเครื่องหลักยังเปิดอยู่ อาจเปลี่ยน IP ไป ใส่ IP ใหม่ด้านบน'
       : fresh
       ? 'เครื่องหลักยังทำงาน ปุ่มนี้จะกดได้เมื่อเครื่องหลักไม่ตอบเกิน 8 วินาที เพื่อไม่ให้ข้อมูลแยกเป็นสองชุด'
       : `กดปุ่มนี้แล้ว เครื่องนี้จะรับออเดอร์และพิมพ์แทนทันที โต๊ะที่เปิดอยู่ ${info.openTables} โต๊ะยังอยู่ครบ
@@ -82,6 +96,24 @@ $('#pair').onsubmit = async e => {
     $('#pin').value = ''; tick();
   } catch (err) { $('#pairErr').textContent = err.message; $('#pin').select(); }
   finally { $('#pairBtn').disabled = false; $('#pairBtn').textContent = 'จับคู่'; }
+};
+// ---------- เปลี่ยน IP เครื่องหลัก ----------
+let peerShown = false;
+function showPeer() { peerShown = true; $('#peerBox').hidden = false; }
+$('#peerLink').onclick = e => { e.preventDefault(); showPeer(); $('#peerIp').focus(); };
+$('#peerBox').onsubmit = async e => {
+  e.preventDefault();
+  $('#peerBtn').disabled = true; $('#peerBtn').textContent = 'กำลังเชื่อมต่อ…'; $('#peerErr').textContent = '';
+  try {
+    const r = await fetch('/api/standby/peer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ peer: $('#peerIp').value, pin: $('#peerPin').value }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    try { window.EdPosApp?.setMain?.(j.peer); } catch {}   // แอปจำ IP ใหม่ไว้เปิดหน้าครั้งต่อไป
+    $('#peerIp').value = $('#peerPin').value = ''; $('#peerBox').hidden = true; peerShown = true;
+    $('#peerErr').textContent = ''; tick();
+  } catch (err) { $('#peerErr').textContent = err.message; }
+  finally { $('#peerBtn').disabled = false; $('#peerBtn').textContent = 'เชื่อมต่อเครื่องหลัก'; }
 };
 $('#promote').onclick = async () => {
   if (!confirm('ให้เครื่องนี้รับงานแทนเครื่องหลัก?')) return;

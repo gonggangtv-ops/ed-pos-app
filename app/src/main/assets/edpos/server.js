@@ -723,7 +723,8 @@ function roleInfo() {
   return { role: role.role, epoch: data.epoch, rev: data.rev || 0, peer: peerUrl(), me: myUrls().slice(0, -2),
     nodes: data.settings.nodes || {}, lastSync: repl.lastSync, syncErr: repl.syncErr,
     standbySeen: repl.standbySeen, standbyIp: repl.standbyIp, peerRole: repl.peerRole, peerSeen: repl.peerSeen,
-    conflict: repl.conflict, now: Date.now(), tz: new Date().getTimezoneOffset(), needPair: repl.needPair, app: !!process.env.EDPOS_APP, startupWarn,
+    // hasData = มีข้อมูลร้านแล้ว (เคยคัดลอก/ตั้งรหัส)
+    conflict: repl.conflict, now: Date.now(), hasData: !!data.auth.admin, tz: new Date().getTimezoneOffset(), needPair: repl.needPair, app: !!process.env.EDPOS_APP, startupWarn,
     pairAsk: Date.now() - repl.pairAsk < 15000 ? repl.pairAskIp : '',
     openTables: data.orders.filter(o => o.status === 'open').length };
 }
@@ -1521,6 +1522,26 @@ const routes = {
     if (repl.needPair) throw new Error('จับคู่ไม่สำเร็จ ลองใหม่อีกครั้ง');
     return { ok: true };
   },
+  // เครื่องสำรอง: เปลี่ยนที่อยู่เครื่องหลัก (เครื่องหลักเปลี่ยน IP) · ต้องติดต่อได้และเป็นเครื่องหลักจริง
+  // มีข้อมูลร้านแล้ว → ต้องใส่รหัสเจ้าของร้าน · ยังไม่เคยคัดลอก (ไม่มีรหัส) → เปลี่ยนได้เลย แล้วไปจับคู่ต่อ
+  'POST /api/standby/peer': async (b, q, req) => {
+    if (role.role !== 'standby') throw new Error('เครื่องนี้ไม่ใช่เครื่องสำรอง');
+    if (data.auth.admin) {
+      const ip = clientIp(req); checkPinLimit(ip);
+      if (pinHash(String(b.pin ?? '')) !== data.auth.admin) pinFailed(ip);
+      pinFails.delete(ip);
+    }
+    const peer = normUrl(b.peer);
+    if (!peer) throw new Error('ใส่ IP เครื่องหลัก');
+    if (myUrls().includes(peer)) throw new Error('นี่คือ IP ของเครื่องสำรองนี้เอง ใส่ IP ของเครื่องหลัก');
+    let j;
+    try { j = await getJSON(`${peer}/api/role`); } catch { throw new Error(`ติดต่อ ${peer.replace(/^https?:\/\//, '')} ไม่ได้ · ตรวจ IP และว่าเครื่องหลักเปิดอยู่ ต่อ Wi-Fi เดียวกัน`); }
+    if (j.role !== 'main') throw new Error('เครื่องนี้ไม่ได้เป็นเครื่องหลัก');
+    role.peer = peer; saveRole();
+    repl.syncErr = ''; repl.lastSync = 0;
+    await syncTick();
+    return { ok: true, peer, needPair: repl.needPair };
+  },
   // ให้เครื่องสำรองรับงานแทน (ห้ามถ้ายังติดต่อเครื่องหลักได้ กันข้อมูลแยกเป็นสองชุด)
   'POST /api/promote': b => {
     if (role.role === 'main') return { ok: true, already: true };
@@ -2133,7 +2154,7 @@ const routes = {
 
 // ใช้ได้โดยไม่ต้องใส่รหัส: จอครัว (KDS) การสลับเครื่องสำรอง และหน้าใส่รหัสเอง
 const PUBLIC_ROUTES = new Set(['GET /api/auth', 'POST /api/auth/setup', 'POST /api/login', 'GET /api/auth/me',
-  'GET /api/role', 'GET /api/sync', 'POST /api/promote', 'POST /api/sync/key', 'POST /api/standby/pair',
+  'GET /api/role', 'GET /api/sync', 'POST /api/promote', 'POST /api/sync/key', 'POST /api/standby/pair', 'POST /api/standby/peer',
   'GET /api/orders', 'POST /api/dish/complete', 'POST /api/order/complete', 'POST /api/kds/clear', 'POST /api/events/clear']);
 // หน้าสั่งอาหาร (รหัสพนักงาน หรือรหัสเจ้าของร้าน)
 const STAFF_ROUTES = new Set(['GET /api/state', 'GET /api/rev', 'GET /api/history', 'POST /api/order', 'POST /api/item/status', 'POST /api/item/cancel',
@@ -2169,7 +2190,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
   // เครื่องสำรองอ่านได้อย่างเดียว
-  if (role.role === 'standby' && req.method === 'POST' && url.pathname !== '/api/promote' && url.pathname !== '/api/standby/pair') {
+  if (role.role === 'standby' && req.method === 'POST' && !['/api/promote', '/api/standby/pair', '/api/standby/peer'].includes(url.pathname)) {
     res.writeHead(409, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'เครื่องนี้เป็นเครื่องสำรอง ใช้งานที่เครื่องหลัก', standby: true }));
   }
