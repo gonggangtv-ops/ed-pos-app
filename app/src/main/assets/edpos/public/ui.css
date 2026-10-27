@@ -172,12 +172,13 @@
   .group { border: 1px solid var(--line); border-radius: 10px; margin-top: 12px; background: var(--sunk); }
   .ghead { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px; border-bottom: 1px solid var(--line); }
   .ghead input { flex: 1; min-width: 140px; font-weight: 600; }
-  .choices { padding: 8px 12px 12px; display: grid; gap: 6px; }
+  .choices { padding: 8px 12px 12px; display: grid; gap: 6px; container-type: inline-size; }
   .choice { display: grid; grid-template-columns: minmax(0, 1fr) 96px 96px 132px 34px; gap: 8px; align-items: center; }
   .choice select { padding: 8px 6px; font-size: 14px; min-width: 0; }
   .choice select.on { border-color: var(--ink); font-weight: 600; }
-  /* จอแคบ: ชื่อตัวเลือกเต็มบรรทัด ราคา/คนไทย/พิมพ์แยกอยู่บรรทัดล่าง */
-  @media (max-width: 560px) {
+  /* ช่องแคบ (มือถือ หรือหน้าต่างแก้เมนู): ชื่อตัวเลือกเต็มบรรทัด ราคา/คนไทย/พิมพ์แยกอยู่บรรทัดล่าง
+     ดูจากความกว้างของกล่องตัวเลือกเอง ไม่ใช่ความกว้างจอ (หน้าต่างแก้เมนูแคบกว่าจอ) */
+  @container (max-width: 620px) {
     .choice, .chead { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr) 28px !important; }
     .choice > input[type=text] { grid-column: 1 / -1; }
     .chead span:first-child { display: none; }

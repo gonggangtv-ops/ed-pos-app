@@ -1098,13 +1098,30 @@ function countSold(from, to) {
       const names = new Set(c.menus.map(id => data.menu.find(m => m.id === id)?.name).filter(Boolean));
       for (const [n, it] of Object.entries(d.items)) {
         let q = 0;
-        if (names.has(n)) q = it.qty;
+        if (names.has(n)) {
+          q = it.qty;
+          const g = soloGroup(n);   // เบียร์: แยกขวดเล็ก/ขวดใหญ่
+          if (g && Object.keys(it.opts || {}).length) {
+            let rest = it.qty;
+            for (const [o, oq] of Object.entries(it.opts)) { const k = n + ' ' + soloLabel(g, o); out[i].by[k] = (out[i].by[k] || 0) + oq; rest -= oq; }
+            if (rest > 0) out[i].by[n] = (out[i].by[n] || 0) + rest;
+            out[i].qty += q; out[i].sized = true; continue;
+          }
+        }
         else if (c.opts.length) for (const [o, oq] of Object.entries(it.opts || {})) if (o.split(' ').some(x => c.opts.includes(x))) q += oq;
         if (q) { out[i].qty += q; out[i].by[n] = (out[i].by[n] || 0) + q; }
       }
     });
   }
   return out;
+}
+// เมนูที่มีกลุ่มตัวเลือกกลุ่มเดียว (เช่น เบียร์ ขวด: เล็ก/ใหญ่) → แยกตามตัวเลือก ชื่ออ่านง่าย "ขวดเล็ก"
+function soloGroup(name) { const m = data.menu.find(x => x.name === name), gs = m ? groupsOf(m).filter(g => !g.alert) : []; return gs.length === 1 ? gs[0] : null; }
+const soloLabel = (g, o) => g.name + (/^[ก-๙]/.test(o) ? '' : ' ') + o;
+// "ช้าง × 5 (ขวดเล็ก 3 · ขวดใหญ่ 2)"
+function sizeTxt(it) {
+  const g = soloGroup(it.name), e = Object.entries(it.opts || {}).sort((a, b) => b[1] - a[1]);
+  return g && e.length ? ` (${e.map(([o, q]) => `${soloLabel(g, o)} ${q}`).join(' · ')})` : '';
 }
 // บรรทัดในข้อความ LINE: • กุ้งแม่น้ำ 12 ที่ (เผา 5 · นึ่ง 4 · ทอดกระเทียม 3)
 function countLines(from, to) {
@@ -1113,7 +1130,7 @@ function countLines(from, to) {
   return ['📋 จำนวนที่ขาย', ...rows.map(r => {
     const by = Object.entries(r.by).sort((a, b) => b[1] - a[1]);
     const short = n => n.replace(r.name, '').trim() || n;   // "กุ้งแม่น้ำเผา" → "เผา"
-    const detail = by.length > 1 ? ` (${by.slice(0, 4).map(([n, q]) => `${short(n)} ${q}`).join(' · ')}${by.length > 4 ? ' …' : ''})` : '';
+    const detail = by.length > 1 || r.sized ? ` (${by.slice(0, 6).map(([n, q]) => `${short(n)} ${q}`).join(' · ')}${by.length > 6 ? ' …' : ''})` : '';
     return `• ${r.name} ${r.qty} ที่${detail}`;
   })];
 }
@@ -1149,7 +1166,7 @@ function lineText(k) {
     const best = Object.entries(d.byHour).sort((a, b) => b[1] - a[1])[0];
     if (best) L.push('', `⏰ ช่วงขายดี ${best[0]}:00–${best[0]}:59 · ${fmt(best[1])} ฿`);
     const top = Object.values(d.items).sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 5);
-    if (top.length) L.push('', '🏆 ขายดี', ...top.map((it, i) => `${i + 1}. ${it.name} × ${it.qty}`));
+    if (top.length) L.push('', '🏆 ขายดี', ...top.map((it, i) => `${i + 1}. ${it.name} × ${it.qty}${sizeTxt(it)}`));
     const cl = countLines(k, k);
     if (cl.length) L.push('', ...cl);
     const tl = timeLines(d);
@@ -1215,7 +1232,7 @@ function lineRangeText(kind, from, to) {
   const best = Object.entries(d.byHour).sort((a, b) => b[1] - a[1])[0];
   if (best) L.push('', `⏰ ช่วงขายดี ${best[0]}:00–${best[0]}:59 (รวม ${fmt(best[1])} ฿)`);
   const top = d.items_list.sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 10);
-  if (top.length) L.push('', '🏆 ขายดี', ...top.map((it, i) => `${i + 1}. ${it.name} × ${it.qty}`));
+  if (top.length) L.push('', '🏆 ขายดี', ...top.map((it, i) => `${i + 1}. ${it.name} × ${it.qty}${sizeTxt(it)}`));
   const cl = countLines(from, to);
   if (cl.length) L.push('', ...cl);
   const tl = timeLines(d);
