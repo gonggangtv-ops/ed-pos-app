@@ -29,6 +29,9 @@
   .pair h2 { font-size: 18px; margin: 0 0 6px; } .pair p { color: var(--muted); font-size: 14.5px; margin: 0 0 14px; line-height: 1.6; }
   .pair input { font: inherit; width: 100%; padding: 14px; border: 1px solid var(--line); border-radius: 12px; font-size: 24px; text-align: center; letter-spacing: 8px; margin-bottom: 10px; }
   .pair button { background: var(--jade); color: #fff; }
+  .gobox { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; } .gobox[hidden] { display: none; }
+  .gobtn { flex: 1; min-width: 160px; text-align: center; background: var(--jade); color: #fff; text-decoration: none; font-weight: 600; font-size: 17px; padding: 15px; border-radius: 14px; }
+  .gobtn.alt { background: #fff; color: var(--jade); border: 1px solid var(--line); }
   .pair .err { color: var(--brick); font-size: 14.5px; min-height: 22px; margin: 8px 0 0; }
 </style>
 </head>
@@ -52,6 +55,8 @@
     <button type="submit" id="peerBtn">เชื่อมต่อเครื่องหลัก</button>
     <p class="err" id="peerErr"></p>
   </form>
+  <div id="goBox" class="gobox" hidden>
+    <a class="gobtn" id="goOrder" href="#">ไปหน้าสั่งอาหาร ›</a><a class="gobtn alt" id="goKds" href="#">จอครัว ›</a></div>
   <button class="promote" id="promote" disabled>ใช้เครื่องนี้เป็นเครื่องหลัก</button>
   <p class="note" id="note"></p>
   <p class="note"><a href="#" id="peerLink">เปลี่ยน IP เครื่องหลัก</a></p>
@@ -66,6 +71,9 @@ async function tick() {
     if (info.role === 'main') { location.href = '/'; return; }          // สลับแล้ว → ไปหน้าหลัก
     const fresh = info.lastSync && Date.now() - info.lastSync < 8000;
     $('#pair').hidden = !info.needPair;
+    // เครื่องหลักทำงาน → ปุ่มไปหน้าสั่งอาหาร/จอครัวของเครื่องหลัก
+    $('#goBox').hidden = !fresh;
+    if (fresh) { $('#goOrder').href = info.peer + '/order.html'; $('#goKds').href = info.peer + '/kds.html'; }
     $('#state').innerHTML = `
       <div class="big ${fresh ? 'ok' : info.needPair ? 'wait' : 'bad'}"><span class="dot"></span>${fresh ? 'เครื่องหลักทำงานปกติ' : info.needPair ? 'ยังไม่ได้จับคู่กับเครื่องหลัก' : 'ติดต่อเครื่องหลักไม่ได้'}</div>
       <dl><dt>เครื่องหลัก</dt><dd>${info.peer.replace(/^https?:\/\//, '')}</dd>
