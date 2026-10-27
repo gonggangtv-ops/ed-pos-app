@@ -1334,7 +1334,8 @@ const BACKUP_NAME = /^(data|before-restore)-[\w-]+\.json$/;
 // ---------- API ----------
 const routes = {
   // ---------- รหัส PIN ----------
-  'GET /api/auth': () => ({ setup: !data.auth.admin, staff: !!data.auth.staff, shopName: data.settings.shopName }),
+  // standby = เครื่องนี้เป็นเครื่องสำรอง (ยังไม่มีรหัส = ยังไม่ได้จับคู่ → หน้าเว็บพาไป standby.html)
+  'GET /api/auth': () => ({ setup: !data.auth.admin, staff: !!data.auth.staff, shopName: data.settings.shopName, standby: role.role === 'standby' }),
   // ตั้งรหัสเจ้าของร้านครั้งแรก (ทำได้ครั้งเดียว ตอนยังไม่มีรหัส)
   'POST /api/auth/setup': b => {
     if (data.auth.admin) throw new Error('ตั้งรหัสไปแล้ว ใส่รหัสเพื่อเข้าใช้งาน');
@@ -1448,6 +1449,8 @@ const routes = {
   // ให้เครื่องสำรองรับงานแทน (ห้ามถ้ายังติดต่อเครื่องหลักได้ กันข้อมูลแยกเป็นสองชุด)
   'POST /api/promote': b => {
     if (role.role === 'main') return { ok: true, already: true };
+    // ยังไม่เคยคัดลอกข้อมูลร้าน (ไม่มีรหัส/บิล) → รับงานแทนจะได้ร้านเปล่า
+    if (!data.auth.admin) throw new Error('เครื่องสำรองนี้ยังไม่เคยคัดลอกข้อมูลจากเครื่องหลัก รับงานแทนไม่ได้ · จับคู่ที่หน้าเครื่องสำรอง (standby.html) ก่อน');
     const ago = Date.now() - repl.lastSync;
     if (repl.lastSync && ago < 8000 && !b.force)
       throw new Error(`เครื่องหลักยังทำงานอยู่ (ซิงก์ล่าสุด ${Math.round(ago / 1000)} วินาทีที่แล้ว) ใช้เครื่องหลักต่อได้เลย`);

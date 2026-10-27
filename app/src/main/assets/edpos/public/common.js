@@ -133,6 +133,8 @@ const PIN = (() => {
     document.body.appendChild(box);
     let info = { setup: false };
     try { info = await (await fetch('/api/auth', { cache: 'no-store' })).json(); } catch {}
+    // เครื่องสำรองที่ยังไม่เคยคัดลอกข้อมูลจากเครื่องหลัก (ยังไม่มีรหัส) → ไปหน้าจับคู่ ไม่ใช่ตั้งรหัสใหม่
+    if (info.setup && info.standby) { location.replace('standby.html'); return; }
     const st = { pin: '', first: '', busy: false };
     const page = need === 'admin' ? 'หลังร้าน' : 'สั่งอาหาร';
     const draw = (msg = '', ok = false) => {
