@@ -267,12 +267,25 @@
     <div id="nobList" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 14px"></div>
     <div class="sublabel">🔔 เสียงเตือนตอนออเดอร์เข้า (ดังแยกจากเสียงพูด)</div>
     <div class="trows">
-      <label class="trow"><span>เสียงออเดอร์ใหม่</span><select id="sndType" class="sel"><option value="bell">กริ่งดัง (แนะนำ)</option><option value="alarm">นาฬิกาปลุก (เร็ว ถี่)</option><option value="digital">บี๊บดิจิทัล</option><option value="ting">กระดิ่งเคาน์เตอร์ ติ๊ง!</option><option value="dingdong">ออดประตู ติ๊งต่อง</option><option value="chime">ติ๊งหน่อง</option><option value="siren">ไซเรน</option><option value="horn">แตร</option></select></label>
+      <label class="trow"><span>เสียงออเดอร์ใหม่</span><select id="sndType" class="sel" data-sounds=""></select></label>
       <label class="trow"><span>ความดัง</span><select id="sndVol" class="sel"><option value="0.3">เบา</option><option value="0.5">กลาง</option><option value="0.8">ดัง</option><option value="1">ดังมาก</option><option value="1.8">ดังพิเศษ (บูสต์)</option><option value="3">ดังสุดๆ (เสียงอาจแตก)</option></select></label>
       <label class="trow"><span>จำนวนรอบ</span><select id="sndRep" class="sel"><option value="1">1 รอบ</option><option value="2">2 รอบ</option><option value="3">3 รอบ</option><option value="5">5 รอบ</option><option value="8">8 รอบ</option><option value="10">10 รอบ</option></select></label>
-      <label class="trow"><span>เสียงตอนโต๊ะสั่งเพิ่ม</span><select id="sndAdd" class="sel"><option value="same">เหมือนออเดอร์ใหม่</option><option value="bell">กริ่งดัง (แนะนำ)</option><option value="alarm">นาฬิกาปลุก (เร็ว ถี่)</option><option value="digital">บี๊บดิจิทัล</option><option value="ting">กระดิ่งเคาน์เตอร์ ติ๊ง!</option><option value="dingdong">ออดประตู ติ๊งต่อง</option><option value="chime">ติ๊งหน่อง</option><option value="siren">ไซเรน</option><option value="horn">แตร</option><option value="off">ไม่มีเสียง</option></select></label>
+      <label class="trow"><span>เสียงตอนโต๊ะสั่งเพิ่ม</span><select id="sndAdd" class="sel" data-sounds="same,off"></select></label>
       <label class="trow"><span>ดังซ้ำจนกว่าจะแตะจอ</span><select id="sndNag" class="sel"><option value="0">ไม่ซ้ำ</option><option value="15">ทุก 15 วินาที</option><option value="30">ทุก 30 วินาที</option><option value="60">ทุก 1 นาที</option><option value="120">ทุก 2 นาที</option></select></label>
       <div class="trow" style="cursor:default;flex-wrap:wrap"><span style="font-size:13px;color:var(--muted);flex:1 1 200px">ถ้ายังเบา ให้เร่งเสียงมีเดียของแท็บเล็ตหรือลำโพงบลูทูธให้สุดด้วย</span><button class="btn" id="sndTestAdd">▶ เสียงสั่งเพิ่ม</button><button class="btn on" id="sndTest">▶ ลองเสียง</button></div>
+    </div>
+    <div class="sublabel">⏰ เตือนโต๊ะรอนาน</div>
+    <div class="trows">
+      <label class="trow"><span>เตือนเมื่อรอเกิน</span><select id="waitMin" class="sel"><option value="0">ไม่เตือน</option>
+        <option value="5">5 นาที</option><option value="8">8 นาที</option><option value="10">10 นาที</option><option value="12">12 นาที</option><option value="15">15 นาที</option><option value="20">20 นาที</option><option value="25">25 นาที</option><option value="30">30 นาที</option><option value="40">40 นาที</option><option value="45">45 นาที</option><option value="60">60 นาที</option></select></label>
+      <label class="trow"><span>เตือนซ้ำโต๊ะเดิม</span><select id="waitEvery" class="sel"><option value="0">ครั้งเดียว ไม่ซ้ำ</option>
+        <option value="3">ทุก 3 นาที</option><option value="5">ทุก 5 นาที</option><option value="10">ทุก 10 นาที</option><option value="15">ทุก 15 นาที</option><option value="20">ทุก 20 นาที</option><option value="30">ทุก 30 นาที</option></select></label>
+      <label class="trow"><span>เว้นระหว่างการเตือน (ทุกโต๊ะรวมกัน)</span><select id="waitGap" class="sel"><option value="0">ไม่เว้น</option>
+        <option value="1">อย่างน้อย 1 นาที</option><option value="2">อย่างน้อย 2 นาที</option><option value="3">อย่างน้อย 3 นาที</option><option value="5">อย่างน้อย 5 นาที</option><option value="10">อย่างน้อย 10 นาที</option></select></label>
+      <label class="trow"><span>เสียงเตือน</span><select id="waitSnd" class="sel" data-sounds="off"></select></label>
+      <label class="trow"><span>ดังกี่รอบ</span><select id="waitRep" class="sel"><option value="1">1 รอบ</option><option value="2">2 รอบ</option><option value="3">3 รอบ</option></select></label>
+      <label class="trow"><input type="checkbox" id="waitSpeak"><span>อ่านออกเสียงด้วย (ต้องเปิดอ่านออกเสียง)</span></label>
+      <div class="trow" style="cursor:default;flex-wrap:wrap"><span style="font-size:13px;color:var(--muted);flex:1 1 200px">หลายโต๊ะรอนานพร้อมกัน จะรวมเป็นการเตือนครั้งเดียว เช่น “3 โต๊ะรอนาน: 11 · 12 · 15”</span><button class="btn" id="waitTest">▶ ลองเสียงเตือน</button></div>
     </div>
     <div class="sublabel">🔊 อ่านออกเสียง</div>
     <div class="trows">
@@ -282,8 +295,6 @@
       <label class="trow"><input type="checkbox" id="ttsBatch"><span>แจ้งเมื่อมีเมนูซ้ำที่ทำรวมได้</span></label>
       <label class="trow"><span>ความเร็วเสียง</span>
         <select id="ttsRate" class="sel"><option value="0.85">ช้า</option><option value="1">ปกติ</option><option value="1.2">เร็ว</option></select></label>
-      <label class="trow"><span>เตือนโต๊ะที่รอนาน</span>
-        <select id="ttsWait" class="sel"><option value="0">ไม่เตือน</option><option value="8">เกิน 8 นาที</option><option value="10">เกิน 10 นาที</option><option value="15">เกิน 15 นาที</option><option value="20">เกิน 20 นาที</option></select></label>
       <label class="trow"><span>พูดซ้ำ</span>
         <select id="ttsRepeat" class="sel"><option value="1">พูดครั้งเดียว</option><option value="2">พูด 2 รอบ</option><option value="3">พูด 3 รอบ</option><option value="5">พูด 5 รอบ</option><option value="u">ซ้ำจนกว่าจะกด “ทราบแล้ว” หรือเสร็จ</option></select></label>
       <label class="trow"><span>เว้นช่วงระหว่างรอบ</span>
@@ -562,7 +573,7 @@ ttsBtn.addEventListener('click',()=>{
 document.getElementById('ttsCfg').addEventListener('click',()=>{
   document.getElementById('ttsOpts').checked=TTS.opts;document.getElementById('ttsSpec').checked=TTS.spec;
   document.getElementById('ttsBatch').checked=TTS.batch;document.getElementById('ttsGroup').checked=TTS.group!==false;document.getElementById('ttsRate').value=String(TTS.rate);
-  renderTtsDishes();document.getElementById('ttsRepeat').value=String(TTS.repeat);document.getElementById('ttsEvery').value=String(TTS.every||'15');renderRules();document.getElementById('ttsWait').value=String(TTS.wait||'0');document.getElementById('sndType').value=SND.type;document.getElementById('sndVol').value=String(SND.vol);document.getElementById('sndRep').value=String(SND.rep);document.getElementById('sndAdd').value=String(SND.add);document.getElementById('sndNag').value=String(SND.nag);loadVoices();ttsModal.hidden=false;});
+  renderTtsDishes();document.getElementById('ttsRepeat').value=String(TTS.repeat);document.getElementById('ttsEvery').value=String(TTS.every||'15');renderRules();['min','every','gap','rep'].forEach(k=>document.getElementById('wait'+k[0].toUpperCase()+k.slice(1)).value=String(WAIT[k]));document.getElementById('waitSnd').value=WAIT.sound;document.getElementById('waitSpeak').checked=!!WAIT.speak;document.getElementById('sndType').value=SND.type;document.getElementById('sndVol').value=String(SND.vol);document.getElementById('sndRep').value=String(SND.rep);document.getElementById('sndAdd').value=String(SND.add);document.getElementById('sndNag').value=String(SND.nag);loadVoices();ttsModal.hidden=false;});
 function addTtsName(){const i=document.getElementById('ttsAddName'),n=i.value.trim();if(!n)return;
   const s=new Set(TTS.only||[]);s.add(n);TTS.only=[...s];saveTts();i.value='';renderTtsDishes();}
 document.getElementById('ttsAdd').addEventListener('click',addTtsName);
@@ -580,7 +591,9 @@ function addRule(){const i=document.getElementById('nobName'),v=i.value.trim();i
 document.getElementById('nobAdd').addEventListener('click',addRule);
 document.getElementById('nobName').addEventListener('keydown',e=>{if(e.key==='Enter')addRule();});
 document.getElementById('nobList').addEventListener('click',e=>{const c=e.target.closest('[data-nob]');if(!c)return;NOB.splice(+c.dataset.nob,1);saveNob();renderRules();render();});
-document.getElementById('ttsWait').addEventListener('change',e=>{TTS.wait=e.target.value;saveTts();});
+[['waitMin','min'],['waitEvery','every'],['waitGap','gap'],['waitSnd','sound'],['waitRep','rep']].forEach(([id,k])=>document.getElementById(id).addEventListener('change',e=>{WAIT[k]=e.target.value;saveWait();}));
+document.getElementById('waitSpeak').addEventListener('change',e=>{WAIT.speak=e.target.checked;saveWait();});
+document.getElementById('waitTest').addEventListener('click',()=>{if(WAIT.sound==='off')toast('ปิดเสียงเตือนรอนานไว้','');else playPat(WAIT.sound,+WAIT.rep||1);});
 document.getElementById('ttsRepeat').addEventListener('change',e=>{TTS.repeat=e.target.value;saveTts();});
 document.getElementById('ttsEvery').addEventListener('change',e=>{TTS.every=e.target.value;saveTts();});
 document.getElementById('ttsDishList').addEventListener('change',e=>{const cb=e.target;if(cb.type!=='checkbox')return;
@@ -781,7 +794,32 @@ const PATTERNS={
   ting:(t0)=>{for(let k=0;k<2;k++){tone(2350,t0+k*.55,1,'sine',1,0,true);tone(3520,t0+k*.55,.7,'sine',.4,0,true);tone(5900,t0+k*.55,.35,'sine',.15,0,true);}return 1.5;},
   dingdong:(t0)=>{tone(1318,t0,.7,'sine',1,0,true);tone(2636,t0,.5,'sine',.3,0,true);tone(1046,t0+.5,1,'sine',1,0,true);tone(2092,t0+.5,.7,'sine',.3,0,true);return 1.5;},
   horn:(t0)=>{for(let k=0;k<2;k++){tone(440,t0+k*.7,.55,'sawtooth',.55);tone(554,t0+k*.7,.55,'sawtooth',.4);tone(659,t0+k*.7,.55,'sawtooth',.35);}return 1.3;},
-  warn:(t0)=>{tone(1000,t0,.16,'square',.5);tone(1000,t0+.24,.16,'square',.5);return .5;}};
+  warn:(t0)=>{tone(1000,t0,.16,'square',.5);tone(1000,t0+.24,.16,'square',.5);return .5;},
+  // ---- เสียงเพิ่ม ----
+  xylo:(t0)=>{[1047,1175,1319,1568,1760,2093].forEach((f,i)=>{tone(f,t0+i*.11,.35,'triangle',.9,0,true);tone(f*2,t0+i*.11,.2,'sine',.2,0,true);});return 1.1;},
+  marimba:(t0)=>{[523,659,784,659,1047].forEach((f,i)=>{tone(f,t0+i*.16,.45,'sine',1,0,true);tone(f*4,t0+i*.16,.08,'sine',.25,0,true);});return 1.2;},
+  whistle:(t0)=>{tone(2500,t0,.18,'sine',.7,3100);tone(2500,t0+.25,.18,'sine',.7,3100);tone(2700,t0+.55,.6,'sine',.7,2900);return 1.25;},
+  pager:(t0)=>{for(let k=0;k<3;k++)for(let i=0;i<3;i++)tone(2900,t0+k*.42+i*.1,.07,'square',.5);return 1.3;},
+  gong:(t0)=>{tone(196,t0,1.8,'triangle',1,0,true);tone(392,t0,1.4,'sine',.5,0,true);tone(587,t0,1,'sine',.3,0,true);tone(830,t0,.7,'sine',.15,0,true);return 1.9;},
+  buzzer:(t0)=>{tone(180,t0,.75,'sawtooth',.7);tone(186,t0,.75,'square',.35);return .85;},
+  cuckoo:(t0)=>{for(let k=0;k<2;k++){tone(784,t0+k*.6,.22,'sine',.9,0,true);tone(622,t0+k*.6+.25,.3,'sine',.9,0,true);}return 1.25;},
+  police:(t0)=>{for(let i=0;i<6;i++)tone(i%2?770:960,t0+i*.22,.2,'square',.45);return 1.35;},
+  rise:(t0)=>{for(let k=0;k<3;k++)tone(600,t0+k*.38,.32,'sine',.8,1800);return 1.2;},
+  tri:(t0)=>{for(let i=0;i<3;i++)tone(1500,t0+i*.2,.1,'sine',.9);return .65;},
+  windchime:(t0)=>{[2093,2637,3136,2349,2794,3520].forEach((f,i)=>tone(f,t0+i*.13,.9,'sine',.45,0,true));return 1.6;},
+  phone:(t0)=>{for(let k=0;k<2;k++)for(let i=0;i<10;i++)tone(i%2?1250:1000,t0+k*.6+i*.045,.04,'square',.45);return 1.1;}};
+// รายการเสียง (ใช้สร้างตัวเลือกในทุกช่องเลือกเสียง) · same/off = ตัวเลือกพิเศษบางช่อง
+const SOUNDS=[['bell','กริ่งดัง (แนะนำ)'],['alarm','นาฬิกาปลุก (เร็ว ถี่)'],['digital','บี๊บดิจิทัล'],['ting','กระดิ่งเคาน์เตอร์ ติ๊ง!'],
+  ['dingdong','ออดประตู ติ๊งต่อง'],['chime','ติ๊งหน่อง'],['siren','ไซเรน'],['horn','แตร'],['warn','บี๊บสั้น 2 ครั้ง'],
+  ['xylo','ระนาดไล่เสียง'],['marimba','มาริมบา'],['whistle','นกหวีด'],['pager','เพจเจอร์'],['gong','ฆ้อง'],['buzzer','ออดเกมโชว์'],
+  ['cuckoo','นกกาเหว่า'],['police','หวอตำรวจ'],['rise','ไล่เสียงขึ้น'],['tri','ติ๊ด ติ๊ด ติ๊ด'],['windchime','กระดิ่งลม'],['phone','โทรศัพท์บ้าน']];
+const SND_EXTRA={same:'เหมือนออเดอร์ใหม่',off:'ไม่มีเสียง'};
+document.querySelectorAll('select[data-sounds]').forEach(sel=>{const ex=sel.dataset.sounds.split(',').filter(Boolean);
+  sel.innerHTML=[...ex.filter(k=>k==='same').map(k=>[k,SND_EXTRA[k]]),...SOUNDS,...ex.filter(k=>k==='off').map(k=>[k,SND_EXTRA[k]])]
+    .map(([v,l])=>`<option value="${v}">${l}</option>`).join('');});
+// เลือกเสียงในช่องไหนก็ได้ → ดังให้ฟังหนึ่งรอบ
+function playPat(pat,rep=1){const a=ac();if(!a||!PATTERNS[pat])return;let t=a.currentTime+.03;for(let i=0;i<rep;i++){t+=PATTERNS[pat](t)+.25;}soundUntil=Date.now()+(t-a.currentTime)*1000;}
+document.querySelectorAll('select[data-sounds]').forEach(sel=>sel.addEventListener('change',()=>playPat(sel.value,1)));
 // kind: 'order' (chosen sound x rounds) | 'urge' (siren x3) | 'add' (one chime) | undefined (short warning beep)
 function beep(kind){if(!sound)return;const a=ac();if(!a)return;
   let pat,rep;if(kind==='order'){pat=SND.type;rep=+SND.rep||2;}else if(kind==='urge'){pat='siren';rep=3;}
@@ -854,13 +892,26 @@ async function keepAwake(){try{if('wakeLock' in navigator&&document.visibilitySt
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!wl)keepAwake();});
 document.addEventListener('click',()=>{if(!wl)keepAwake();});
 keepAwake();
-// ---- long-wait warning ----
-const WARNED=new Map();
-function waitCheck(){const thr=+(TTS.wait||0);if(!thr||!primed)return;
+// ---- เตือนโต๊ะรอนาน ----
+// min = รอเกินกี่นาทีถึงเตือน · every = เตือนซ้ำโต๊ะเดิมทุกกี่นาที (0 = ครั้งเดียว) · gap = เว้นระหว่างการเตือนแต่ละครั้ง (ทุกโต๊ะรวมกัน)
+// หลายโต๊ะถึงเวลาพร้อมกัน → เตือนครั้งเดียวรวมทุกโต๊ะ
+const WAIT=Object.assign({min:String(TTS.wait||'15'),every:'10',gap:'2',sound:'warn',rep:'1',speak:true},(()=>{try{return JSON.parse(localStorage.getItem('kds_wait')||'{}');}catch(e){return {};}})());
+const saveWait=()=>{try{localStorage.setItem('kds_wait',JSON.stringify(WAIT));}catch(e){}};
+const WARNED=new Map();let lastWaitAt=0;
+function waitCheck(){const thr=+(WAIT.min||0);if(!thr||!primed)return;
+  if(Date.now()-lastWaitAt<(+WAIT.gap||0)*60000)return;
+  const every=+WAIT.every||0,due=[];
   for(const o of ORDERS){if(!o.order_at)continue;const t0=startOf(o),key=o.id+'@'+t0,m=Math.floor((Date.now()-t0)/60000);
-    if(m<thr)continue;const last=WARNED.get(key);if(last!=null&&m<last+5)continue;
-    WARNED.set(key,m);const head=o.table_num?('โต๊ะ '+o.table_num):(o.pick_up_code?('รับ '+o.pick_up_code):(o.third_party_platform||'ออเดอร์'));
-    beep();toast('⏰ รอนานแล้ว',head+' · '+m+' นาที',9000);speak(head+' รอนานแล้ว '+m+' นาที');break;}}
+    if(m<thr)continue;const last=WARNED.get(key);
+    if(last!=null&&(!every||m<last+every))continue;
+    due.push({o,key,m});}
+  if(!due.length)return;
+  due.forEach(d=>WARNED.set(d.key,d.m));lastWaitAt=Date.now();
+  const nm=o=>o.table_num?('โต๊ะ '+o.table_num):(o.pick_up_code?('รับ '+o.pick_up_code):(o.third_party_platform||'ออเดอร์'));
+  due.sort((a,b)=>b.m-a.m);
+  if(sound&&WAIT.sound!=='off')playPat(WAIT.sound,+WAIT.rep||1);
+  toast(due.length>1?`⏰ ${due.length} โต๊ะรอนาน`:'⏰ รอนานแล้ว',due.slice(0,6).map(d=>nm(d.o)+' · '+d.m+' นาที').join('  |  ')+(due.length>6?`  และอีก ${due.length-6} โต๊ะ`:''),9000);
+  if(WAIT.speak)speak(due.length>1?due.length+' โต๊ะรอนาน '+due.map(d=>nm(d.o)).join(' '):nm(due[0].o)+' รอนานแล้ว '+due[0].m+' นาที');}
 // screen picker: shown only when the shop has more than one kitchen screen
 let scrKey='';
 function showScreens(j){const sel=document.getElementById('scrSel'),list=j.screens||[];
