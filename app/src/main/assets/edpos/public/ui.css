@@ -422,3 +422,14 @@
   .cntcat > b { display: block; font-size: 13.5px; color: var(--muted); margin-bottom: 2px; }
   .cntcat label { display: inline-flex; align-items: center; gap: 6px; margin: 3px 14px 3px 0; font-size: 14.5px; cursor: pointer; }
   .cntcat input { width: 18px; height: 18px; accent-color: var(--jade); }
+
+  /* ชุดการพิมพ์ */
+  .pprow { display: grid; grid-template-columns: minmax(140px, 1fr) auto auto; gap: 8px 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+  .pprow:first-child { border-top: 0; }
+  .pprow.on .ppname b { color: var(--jade); }
+  .ppname { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .ppdays { display: flex; gap: 4px; flex-wrap: wrap; }
+  .ppdays .btn { padding: 5px 9px; min-width: 38px; }
+  .ppdays .btn[aria-pressed="true"] { background: var(--jade); border-color: var(--jade); color: #fff; font-weight: 600; }
+  .pptools { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  @media (max-width: 860px) { .pprow { grid-template-columns: 1fr; } .pptools { justify-content: flex-start; } }

@@ -212,6 +212,7 @@
       <button role="tab" aria-selected="false" data-view="done">เสร็จแล้ว <span class="count" id="doneCount">0</span></button>
     </div>
     <button class="btn" id="doneClear" hidden>🗑 ล้างข้อมูล</button>
+    <button class="btn" id="hideBtn" title="ซ่อนหมวดที่เลือกช่วงออเดอร์เยอะ (ตั้งหมวดที่ 🎨 ปรับหน้าจอ)">🍤 ซ่อนของทอด</button>
     <button class="btn" id="toolsBtn" title="ซ่อน/แสดงเมนูตั้งค่า">⚙ ตั้งค่า ▾</button>
     <span id="tools">
     <button class="btn" id="viewBtn" title="ตัวอักษร / ธีม">🎨 ปรับหน้าจอ</button>
@@ -251,6 +252,11 @@
     <label class="vrow"><span>หัวการ์ดทั้งแถบเปลี่ยนสีตามเวลา</span><input type="checkbox" data-vk="hc"></label>
     <label class="vrow"><span>สั่งเพิ่มหลังเว้นไป นับเวลาใหม่</span><select class="sel" data-vk="gap"><option value="0">ไม่นับใหม่</option><option value="5">เว้นเกิน 5 นาที</option><option value="10">เว้นเกิน 10 นาที</option><option value="15">เว้นเกิน 15 นาที</option><option value="20">เว้นเกิน 20 นาที</option><option value="30">เว้นเกิน 30 นาที</option></select></label>
     <p class="vhint">นับใหม่เมื่อจานรอบก่อนทำเสร็จหมดแล้ว · ถ้ารอบก่อนยังมีจานค้าง เวลาจะนับต่อจากจานที่รอนานสุด ครัวจะได้ไม่ลืมจานเก่า</p>
+    <div class="sublabel" style="margin-top:8px">🍤 ซ่อนหมวดช่วงยุ่ง</div>
+    <p class="vhint">กดปุ่ม “ซ่อน” บนแถบด้านบนเพื่อซ่อน/แสดง หรือให้ซ่อนเองตามเวลา · จานที่ซ่อนยังอยู่ในระบบ (ดูได้จากใบพิมพ์) และปุ่ม “เสร็จทั้งโต๊ะ” จะไม่ปิดจานที่ซ่อน</p>
+    <div id="hideCats" style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px"></div>
+    <label class="vrow"><span>ซ่อนอัตโนมัติตามเวลา</span><input type="checkbox" id="hideAuto"></label>
+    <div class="vrow"><span>ช่วงเวลา</span><span style="display:flex;gap:6px;align-items:center"><input type="time" id="hideFrom" class="sel"> ถึง <input type="time" id="hideTo" class="sel"></span></div>
     <div class="sublabel" style="margin-top:8px">การจัดวาง</div>
     <div class="vrow"><span>การ์ดโต๊ะ</span><div class="seg" data-vk="lay"><button class="btn" data-v="pack">เรียงแน่น เต็มจอ (แนะนำ)</button><button class="btn" data-v="row">แถวเดียว เลื่อนข้าง</button><button class="btn" data-v="grid">หลายแถว เลื่อนลง</button></div></div>
     <div class="vrow"><span>เรียงโต๊ะ</span><div class="seg" data-vk="sort"><button class="btn" data-v="old">รอนานสุดก่อน</button><button class="btn" data-v="new">ใหม่สุดก่อน</button></div></div>
@@ -325,7 +331,18 @@ const SKEY=k=>SCREEN&&SCREEN!=='main'?k+'_'+SCREEN:k;   // finished-tables histo
 const OTYPE={dine_in:['กินที่ร้าน',''],takeaway:['กลับบ้าน','takeaway'],delivery:['เดลิเวอรี','delivery'],
   self_pick_up:['รับเอง','takeaway'],'1':['กินที่ร้าน',''],'2':['กลับบ้าน','takeaway'],'3':['เดลิเวอรี','delivery']};
 let ORDERS=[], view='board', sound=true, seen=new Set();
-const HIDDEN=new Set(); let KNOWN=[];
+const HIDDEN=new Set(); let KNOWN=[], CATS=[];
+// ---- ซ่อนหมวดช่วงยุ่ง (เช่น ของทอด ให้คนทอดดูจากใบพิมพ์) · เก็บในเครื่องนี้ ----
+// on = กดซ่อนเอง · auto + from/to = ซ่อนเองตามช่วงเวลา · skip = กดเลิกซ่อนระหว่างช่วงอัตโนมัติ (ถึงเวลานี้)
+const HIDE=Object.assign({on:false,cats:null,auto:false,from:'18:00',to:'21:00',skip:0},(()=>{try{return JSON.parse(localStorage.getItem('kds_hide')||'{}');}catch(e){return {};}})());
+const saveHide=()=>{try{localStorage.setItem('kds_hide',JSON.stringify(HIDE));}catch(e){}};
+const hmin=t=>{const[h,m]=String(t||'0:0').split(':').map(Number);return(h||0)*60+(m||0);};
+function inAuto(now=new Date()){if(!HIDE.auto)return false;const n=now.getHours()*60+now.getMinutes(),a=hmin(HIDE.from),b=hmin(HIDE.to);
+  return a<=b?n>=a&&n<b:n>=a||n<b;}   // ข้ามเที่ยงคืนได้ เช่น 22:00–01:00
+function autoEnd(){const now=new Date(),e=new Date(now);const b=hmin(HIDE.to);e.setHours(Math.floor(b/60),b%60,0,0);if(e<=now)e.setDate(e.getDate()+1);return e.getTime();}
+const hideActive=()=>!!(HIDE.cats&&HIDE.cats.length)&&(HIDE.on||(inAuto()&&!(HIDE.skip>Date.now())));
+const isHid=d=>hideActive()&&HIDE.cats.includes(d.cat);
+const visPend=o=>o.pending.filter(d=>!isHid(d));
 const boardEl=document.getElementById('board'), doneEl=document.getElementById('done');
 const esc=s=>(s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const toMs=t=>{t=Number(t)||0;return t<1e12?t*1000:t;};
@@ -335,14 +352,14 @@ function normalize(raw){
     const pend=(o.pending_dishes||o.pending||[])
       .filter(d=>!HIDDEN.has(d.name)&&!DONEDISH.has(d.id))   // drop hidden menus (e.g. drinks) for this screen
       .map(d=>({
-      id:d.id, name:d.name, quantity:d.quantity||1, spec:d.spec||'', at:toMs(d.at)||0, thai:!!d.thai,
+      id:d.id, name:d.name, quantity:d.quantity||1, spec:d.spec||'', at:toMs(d.at)||0, thai:!!d.thai, cat:d.cat||'',
       extra_option:[...(d.extra_option||[]),...(d.extra_needing||[])], remark:d.remark||'', status:d.status||'pending'}));
     return {id:o.id, table_num:o.table_num||'', pick_up_code:o.pick_up_code||'',
       order_type:String(o.order_type||'dine_in'), third_party_platform:o.third_party_platform||'',
       is_urge:!!o.is_urge, unpaid:!!o.unpaid, is_add_dish:!!o.is_add_dish, is_need_cutlery:!!o.is_need_cutlery,
       order_at:toMs(o.order_at||o.create_at), is_cancel:!!o.is_cancel, pending:pend,
       cancelled:(o.cancelled_dishes||[]).map(d=>({id:d.id,name:d.name,quantity:d.quantity||1,spec:d.spec||'',extra_option:[...(d.extra_option||[]),...(d.extra_needing||[])],remark:d.remark||'',status:'cancelled'})),
-      finished:(o.completed_dishes||[]).filter(d=>!HIDDEN.has(d.name)).map(d=>({id:d.id,name:d.name,quantity:d.quantity||1,spec:d.spec||'',at:toMs(d.at)||0,thai:!!d.thai,extra_option:[...(d.extra_option||[]),...(d.extra_needing||[])],remark:d.remark||'',status:'completed'}))};
+      finished:(o.completed_dishes||[]).filter(d=>!HIDDEN.has(d.name)).map(d=>({id:d.id,name:d.name,cat:d.cat||'',quantity:d.quantity||1,spec:d.spec||'',at:toMs(d.at)||0,thai:!!d.thai,extra_option:[...(d.extra_option||[]),...(d.extra_needing||[])],remark:d.remark||'',status:'completed'}))};
   }).filter(o=>o.pending.length>0);   // hide cards whose every item was filtered out
 }
 // ---- finished / cancelled dishes stay at the bottom of their table; tap twice to hide ----
@@ -379,13 +396,13 @@ function ageInfo(o){const ms=Math.max(0,Date.now()-startOf(o)),m=Math.floor(ms/6
   return{label:(m<1?'0':m)+':'+String(s).padStart(2,'0'),sev:m>=(+VIEW.late||10)?'late':m>=(+VIEW.warn||5)?'warn':'fresh'};}
 function buildBatches(){const map=new Map();
   for(const o of ORDERS){const where=o.table_num?('โต๊ะ '+o.table_num):(o.pick_up_code?('รับ '+o.pick_up_code):(o.third_party_platform||'เดลิเวอรี'));
-    for(const d of o.pending){if(d.status!=='pending'||noBatch(d))continue;const k=bkey(d);
+    for(const d of o.pending){if(d.status!=='pending'||noBatch(d)||isHid(d))continue;const k=bkey(d);
       if(!map.has(k))map.set(k,{key:k,name:groupName(d),spec:'',qty:0,sources:[]});
       const b=map.get(k);b.qty+=d.quantity;b.sources.push({where,qty:d.quantity,v:variantOf(d)});}}
   return[...map.values()].sort((a,b)=>(b.sources.length-a.sources.length)||(b.qty-a.qty));}
 
 function renderBoard(){
-  const list=[...ORDERS].sort((a,b)=>VIEW.sort==='new'?startOf(b)-startOf(a):startOf(a)-startOf(b));
+  const list=[...ORDERS].filter(o=>!hideActive()||visPend(o).length).sort((a,b)=>VIEW.sort==='new'?startOf(b)-startOf(a):startOf(a)-startOf(b));
   // เรียงแน่น: ห่อการ์ดอีกชั้น คอลัมน์จะยาวลงล่างแล้วเลื่อนลงได้ (ไม่ล้นออกด้านข้าง)
   const cards=list.map(cardHtml).join('');
   boardEl.innerHTML=!cards?'<div class="empty">ไม่มีออเดอร์ค้าง 🎉</div>':VIEW.lay==='pack'?`<div class="pack">${cards}</div>`:cards;
@@ -410,7 +427,7 @@ function cardHtml(o){const a=ageInfo(o);const[tl,tc]=OTYPE[o.order_type]||['',''
       const sub=[d.spec?esc(d.spec):'',opt,d.remark?'<span class="rmk">⚑ '+esc(d.remark)+'</span>':''].filter(Boolean).join(' · ');
       const multi=VIEW.multi&&st==='pending'&&d.quantity>1;
       // เมนูเดียวกันในโต๊ะอื่น → ป้าย "รวม N" ท้ายชื่อ (จำนวนทั้งบอร์ด) · เมนูที่ไม่ต้องทำรวมไม่ขึ้น
-      const others=st==='pending'&&o.id!=='_pv'&&!noBatch(d)?ORDERS.reduce((n,oo)=>n+(oo!==o?oo.pending.filter(x=>x.status==='pending'&&bkey(x)===bkey(d)).length:0),0):0;
+      const others=st==='pending'&&o.id!=='_pv'&&!noBatch(d)?ORDERS.reduce((n,oo)=>n+(oo!==o?oo.pending.filter(x=>x.status==='pending'&&!isHid(x)&&bkey(x)===bkey(d)).length:0),0):0;
       const tot=others?ORDERS.reduce((n,oo)=>n+oo.pending.filter(x=>x.status==='pending'&&bkey(x)===bkey(d)).reduce((q,x)=>q+x.quantity,0),0):0;
       const nw=st==='pending'&&ids.some(x=>ADDED.has(x));
       const note=canc?`<div class="dsub tagc">${armed?'แตะอีกครั้งเพื่อซ่อน':'❌ ยกเลิก — แตะเพื่อรับทราบ'}</div>`:(done?`<div class="dsub tagc" style="color:var(--muted);font-weight:600">${armed?'แตะอีกครั้งเพื่อซ่อน':'เสร็จแล้ว · แตะ ✓ เพื่อย้อนกลับ'}</div>`:'');
@@ -419,11 +436,11 @@ function cardHtml(o){const a=ageInfo(o);const[tl,tc]=OTYPE[o.order_type]||['',''
         ${note}${st==='pending'&&ids.some(x=>repeating(o,{...d,id:x}))?`<button class="ack" data-ack="${esc(d.id)}">🔇 ทราบแล้ว</button>`:''}</span>
         <span class="check">${canc?'✕':'✓'}</span></li>`;};
     const doneIds=new Set(),doneL=[];
-    [...[...DONEDISH.values()].filter(e=>e.oid===o.id).map(e=>e.dish),...(o.finished||[])].forEach(d=>{if(doneIds.has(d.id)||GONE.has(d.id))return;doneIds.add(d.id);doneL.push(d);});
+    [...[...DONEDISH.values()].filter(e=>e.oid===o.id).map(e=>e.dish),...(o.finished||[])].forEach(d=>{if(doneIds.has(d.id)||GONE.has(d.id)||isHid(d))return;doneIds.add(d.id);doneL.push(d);});
     const cancL=[...(o.cancelled||[]),...[...CANCELD.values()].filter(e=>e.oid===o.id).map(e=>e.dish)].filter((d,i,a)=>!GONE.has(d.id)&&a.findIndex(x=>x.id===d.id)===i);
     // จานค้างเรียงตามเวลาสั่ง · คั่นด้วย "สั่งเพิ่ม hh:mm" เมื่อเป็นรอบใหม่ (ใช้ระยะนับเวลาใหม่ ถ้าไม่ตั้งใช้ 1 นาที)
     const rst=roundStarts(o,((+VIEW.gap||0)||1)*60000);
-    const pend=[...o.pending].sort((x,y)=>(x.at||0)-(y.at||0));let lastR=-1;
+    const pend=visPend(o).sort((x,y)=>(x.at||0)-(y.at||0));let lastR=-1;
     const pendHtml=mergeSame(pend,d=>roundOf(rst,d.at||o.order_at)).map(d=>{const r=roundOf(rst,d.at||o.order_at),sep=lastR>=0&&r!==lastR?`<li class="rsep">➕ สั่งเพิ่ม ${hhmm(rst[r])}</li>`:'';lastR=r;return sep+dishLi(d,'pending');}).join('');
     const dishes=pendHtml+mergeSame(doneL,()=>0).map(d=>dishLi(d,'done')).join('')+cancL.map(d=>dishLi(d,'cancel')).join('');
     const headHtml=o.table_num?`<span class="tw">โต๊ะ </span>${esc(o.table_num)}`:esc(head);
@@ -686,7 +703,8 @@ document.getElementById('popBody').addEventListener('click',e=>{const r=e.target
 
 function render(){renderBoard();renderPop();requestAnimationFrame(checkHidden);
   document.getElementById('nOrders').textContent=ORDERS.length;
-  document.getElementById('nDishes').textContent=ORDERS.reduce((n,o)=>n+o.pending.filter(d=>d.status==='pending').length,0);}
+  document.getElementById('nDishes').textContent=ORDERS.reduce((n,o)=>n+o.pending.filter(d=>d.status==='pending'&&!isHid(d)).length,0);
+  paintHide();}
 
 // actions → server → OrderPin
 async function postJ(url,body){try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return await r.json();}catch(e){return null;}}
@@ -705,7 +723,10 @@ boardEl.addEventListener('click',e=>{
     if(st==='pending'){for(const one of ids)markDone(o,o.pending.find(x=>x.id===one));render();return;}
     if(ARMED.has(id)){for(const one of ids){GONE.set(one,Date.now());DONEDISH.delete(one);CANCELD.delete(one);}saveGone();ARMED.delete(id);}else ARMED.add(id);
     render();return;}
-  const all=e.target.closest('[data-all]');if(all){post('/api/order/complete',{order_id:all.dataset.all,status:'completed',screen:SCREEN});
+  const all=e.target.closest('[data-all]');
+  if(all){const ho=ORDERS.find(x=>x.id===all.dataset.all);
+    if(ho&&ho.pending.some(d=>d.status==='pending'&&isHid(d))){visPend(ho).forEach(d=>markDone(ho,d));render();toast('✅ เสร็จเฉพาะจานที่เห็น','จานในหมวดที่ซ่อนยังค้างอยู่');return;}}
+  if(all){post('/api/order/complete',{order_id:all.dataset.all,status:'completed',screen:SCREEN});
     const fo=ORDERS.find(x=>x.id===all.dataset.all);if(fo)recordDone(fo);ORDERS=ORDERS.filter(x=>x.id!==all.dataset.all);render();}});
 doneEl.addEventListener('click',async e=>{const b=e.target.closest('[data-recall]');if(!b||b.disabled)return;
   const h=DONE.find(x=>x.id===b.dataset.recall);if(!h)return;
@@ -901,7 +922,7 @@ const WARNED=new Map();let lastWaitAt=0;
 function waitCheck(){const thr=+(WAIT.min||0);if(!thr||!primed)return;
   if(Date.now()-lastWaitAt<(+WAIT.gap||0)*60000)return;
   const every=+WAIT.every||0,due=[];
-  for(const o of ORDERS){if(!o.order_at)continue;const t0=startOf(o),key=o.id+'@'+t0,m=Math.floor((Date.now()-t0)/60000);
+  for(const o of ORDERS){if(!o.order_at||(hideActive()&&!visPend(o).length))continue;const t0=startOf(o),key=o.id+'@'+t0,m=Math.floor((Date.now()-t0)/60000);
     if(m<thr)continue;const last=WARNED.get(key);
     if(last!=null&&(!every||m<last+every))continue;
     due.push({o,key,m});}
@@ -931,6 +952,9 @@ async function poll(){try{
   const er=String(j.error||'');
   setLink(j.ok,er||'ติดต่อเซิร์ฟเวอร์ไม่ได้');
   KNOWN=j.knownDishes||[];
+  if(Array.isArray(j.categories)){CATS=j.categories;
+    if(!Array.isArray(HIDE.cats)){HIDE.cats=CATS.filter(c=>c.includes('ทอด'));saveHide();}   // ครั้งแรก: หมวดที่มีคำว่า "ทอด"
+  }
   const next=normalize(j.orders);
   // detect new orders / added dishes / urgent flags, and whether a new dish collides with one already pending
   const prevKeys=new Set();ORDERS.forEach(o=>o.pending.forEach(d=>d.status==='pending'&&prevKeys.add(bkey(d))));
@@ -941,14 +965,14 @@ async function poll(){try{
     if(isNew){
       seen.add(o.id);o.pending.forEach(d=>seenDish.add(d.id));
       if(o.is_urge)urgeSeen.add(o.id);
-      if(primed){
-        const hits=o.pending.filter(d=>prevKeys.has(bkey(d))&&!noBatch(d));
+      if(primed&&(!hideActive()||visPend(o).length)){   // ออเดอร์ที่มีแต่จานในหมวดที่ซ่อน → ไม่ดัง
+        const hits=visPend(o).filter(d=>prevKeys.has(bkey(d))&&!noBatch(d));
         alertSound(o.is_urge?'urge':'order');
         if(hits.length){const hit=hits[0];
           const tot=next.reduce((n,oo)=>n+oo.pending.filter(x=>bkey(x)===bkey(hit)).reduce((s,x)=>s+x.quantity,0),0);
           toast('🔔 เมนูซ้ำ — ทำรวมได้!',`${head} สั่ง “${groupName(hit)}” ด้วย · รวม ×${tot} → ดูแผง “ทำรวม”`);}
         else toast('🆕 ออเดอร์ใหม่',head||'');
-        announce(o.is_urge?'ออเดอร์เร่ง':'',o,o.pending);
+        announce(o.is_urge?'ออเดอร์เร่ง':'',o,visPend(o));
         if(TTS.batch)hits.filter(chosen).slice(0,2).forEach(h=>{
           const tot=next.reduce((n,oo)=>n+oo.pending.filter(x=>bkey(x)===bkey(h)).reduce((s,x)=>s+x.quantity,0),0);
           speak('เมนูซ้ำ '+groupName(h)+' รวมเป็น '+tot+' ที่ ทำรวมได้');});
@@ -956,7 +980,8 @@ async function poll(){try{
     }else{
       const added=o.pending.filter(d=>!seenDish.has(d.id));
       added.forEach(d=>{seenDish.add(d.id);if(primed)ADDED.add(d.id);});
-      if(primed&&added.length){alertSound('add');toast('➕ เพิ่มเมนู',head||'');announce('เพิ่มเมนู',o,added);}
+      const addedVis=added.filter(d=>!isHid(d));
+      if(primed&&addedVis.length){alertSound('add');toast('➕ เพิ่มเมนู',head||'');announce('เพิ่มเมนู',o,addedVis);}
       if(o.is_urge&&!urgeSeen.has(o.id)){urgeSeen.add(o.id);if(primed){alertSound('urge');announce('เร่ง',o,o.pending,true);}}
     }
   }
@@ -971,7 +996,27 @@ async function poll(){try{
   ORDERS=next;render();if(!ttsModal.hidden)renderTtsDishes(true);
 }catch(e){document.getElementById('dot').classList.add('off');setLink(false,'เซิร์ฟเวอร์ ED POS หยุดทำงาน — เปิดเครื่องที่รัน node server.js แล้วตรวจ Wi-Fi');}}
 
-function tick(){waitCheck();const d=new Date();document.getElementById('clock').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+// ---- ปุ่มซ่อนหมวด + ตั้งค่า ----
+function paintHide(){const b=document.getElementById('hideBtn');if(!b)return;const cats=HIDE.cats||[];
+  b.hidden=!cats.length;if(!cats.length)return;
+  const n=ORDERS.reduce((s,o)=>s+o.pending.filter(d=>d.status==='pending'&&cats.includes(d.cat)).length,0),act=hideActive();
+  const lab=cats.length===1?cats[0]:cats.length+' หมวด';
+  b.classList.toggle('on',act);b.textContent=act?`🙈 ซ่อน ${lab} อยู่${n?' · '+n+' จาน':''}`:`🍤 ซ่อน ${lab}`;}
+document.getElementById('hideBtn').addEventListener('click',()=>{
+  if(hideActive()){HIDE.on=false;if(inAuto())HIDE.skip=autoEnd();}   // ระหว่างช่วงอัตโนมัติ: แสดงจนจบช่วงนี้
+  else{HIDE.on=true;HIDE.skip=0;}
+  saveHide();render();});
+function renderHideCfg(){const box=document.getElementById('hideCats');if(!box)return;const cats=HIDE.cats||[];
+  box.innerHTML=CATS.length?CATS.map(c=>`<button class="btn${cats.includes(c)?' on':''}" data-hc="${esc(c)}">${esc(c)}</button>`).join('')
+    :'<span class="vhint" style="margin:0">ยังไม่มีรายการหมวด (รอเชื่อมต่อเซิร์ฟเวอร์)</span>';
+  document.getElementById('hideAuto').checked=!!HIDE.auto;document.getElementById('hideFrom').value=HIDE.from;document.getElementById('hideTo').value=HIDE.to;}
+document.getElementById('hideCats').addEventListener('click',e=>{const b=e.target.closest('[data-hc]');if(!b)return;
+  const c=b.dataset.hc,cats=HIDE.cats||(HIDE.cats=[]);cats.includes(c)?cats.splice(cats.indexOf(c),1):cats.push(c);saveHide();renderHideCfg();render();});
+document.getElementById('hideAuto').addEventListener('change',e=>{HIDE.auto=e.target.checked;HIDE.skip=0;saveHide();render();});
+['hideFrom','hideTo'].forEach(id=>document.getElementById(id).addEventListener('change',e=>{HIDE[id==='hideFrom'?'from':'to']=e.target.value||HIDE[id==='hideFrom'?'from':'to'];HIDE.skip=0;saveHide();render();}));
+document.getElementById('viewBtn').addEventListener('click',()=>setTimeout(renderHideCfg,0));
+let hideWas=null;
+function tick(){const ha=hideActive();if(hideWas!==null&&ha!==hideWas){render();toast(ha?'🙈 ซ่อน '+HIDE.cats.join(', '):'👀 แสดงทุกหมวดแล้ว',ha?'ตามช่วงเวลาที่ตั้ง':'');}hideWas=ha;waitCheck();const d=new Date();document.getElementById('clock').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
   document.querySelectorAll('#board .card[data-oid]').forEach(c=>{const o=ORDERS.find(x=>x.id===c.dataset.oid);if(!o)return;const a=ageInfo(o);c.dataset.s=a.sev;const el=c.querySelector('.age');if(el){el.textContent=a.label;el.dataset.s=a.sev;}});
   nagTick();}
 poll();setInterval(poll,2500);tick();setInterval(tick,1000);

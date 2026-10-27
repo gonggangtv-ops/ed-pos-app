@@ -131,6 +131,13 @@
     <section id="sec-printers" hidden>
       <h1>เครื่องพิมพ์</h1>
       <p class="lede">เพิ่มเครื่องพิมพ์ที่ต่อ LAN/Wi-Fi ได้ไม่จำกัด เช่น ครัว หน้าร้าน บาร์น้ำ แล้วเลือกว่าเมนูไหนออกเครื่องไหน (เมนูเดียวออกหลายเครื่องได้) ดู IP ได้จากใบทดสอบที่เครื่องพิมพ์พิมพ์เองตอนกดปุ่มค้าง และควรล็อก IP ไว้ในเราเตอร์</p>
+      <div class="panel" id="ppPanel">
+        <h2>ชุดการพิมพ์</h2>
+        <p>บันทึกการตั้งค่าด้านล่างเป็นชุด แล้วสลับได้ทันที หรือติ๊กวันให้สลับเองตอนเริ่มวันขาย เช่น วันจันทร์จัดร้านไม่เหมือนเดิม · เก็บ: เมนูไหนออกเครื่องไหน การแบ่งใบ จำนวนสำเนา เครื่องพิมพ์ใบเสร็จ และตัวเลือกที่พิมพ์แยก</p>
+        <div id="ppList"></div>
+        <div class="row" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><input type="text" id="ppName" maxlength="30" placeholder="ชื่อชุด เช่น ปกติ หรือ วันจันทร์" style="flex:1;min-width:180px">
+          <button class="btn" id="ppAdd">บันทึกค่าตอนนี้เป็นชุดใหม่</button></div>
+      </div>
       <div id="prnList"></div>
       <div class="actions" style="justify-content:flex-start;margin:0 0 18px"><button class="btn" id="prnAdd">+ เพิ่มเครื่องพิมพ์</button></div>
       <div class="panel">
@@ -1445,6 +1452,7 @@ function loadDevices(force) {
     $('#rcCopies').value = String(S.settings.receiptCopies || 1);
     renderPrinters();
   }
+  renderPresets();
   if (force || (!dirty.has('screens') && !busy('#sec-screens'))) {
     scr = JSON.parse(JSON.stringify(S.settings.kdsScreens || []));
     menuK = Object.fromEntries(S.menu.map(m => [m.id, new Set(m.screens || [])]));
@@ -1555,6 +1563,44 @@ async function savePrinters(quiet) {
   if (!quiet) toast('บันทึกเครื่องพิมพ์แล้ว');
 }
 $('#savePrinters').onclick = () => savePrinters().catch(err => toast(err.message, true));
+
+// ---------- ชุดการพิมพ์ ----------
+const PP_DAYS = [[1, 'จ.'], [2, 'อ.'], [3, 'พ.'], [4, 'พฤ.'], [5, 'ศ.'], [6, 'ส.'], [0, 'อา.']];
+function renderPresets() {
+  const list = S.settings.printPresets || [], act = S.settings.activePreset;
+  $('#ppList').innerHTML = list.length ? list.map(p => `<div class="pprow${p.id === act ? ' on' : ''}" data-pp="${esc(p.id)}">
+      <div class="ppname"><b>${esc(p.name)}</b>${p.id === act ? `<span class="tag set">ใช้อยู่</span>${S.settings.presetModified ? '<span class="tag" style="color:var(--brick)">แก้ไขแล้ว ยังไม่บันทึกลงชุด</span>' : ''}` : ''}</div>
+      <div class="ppdays" role="group" aria-label="สลับเป็นชุดนี้อัตโนมัติทุกวัน">${PP_DAYS.map(([d, l]) => `<button class="btn sm" data-ppday="${d}" aria-pressed="${(p.days || []).includes(d)}">${l}</button>`).join('')}</div>
+      <div class="pptools">${p.id === act ? '' : '<button class="btn sm primary" data-ppuse>ใช้ชุดนี้</button>'}
+        <button class="btn sm" data-ppsave>บันทึกทับด้วยค่าตอนนี้</button><button class="btn sm ghost danger" data-ppdel>ลบ</button></div></div>`).join('')
+    + '<p class="note" style="margin:8px 0 0">ติ๊กวัน = ตอนเริ่มวันขายของวันนั้น ระบบสลับเป็นชุดนี้ให้เอง (เริ่มตั้งแต่วันขายถัดไป) · วันที่ไม่ได้ติ๊ก ใช้ชุดเดิมต่อ</p>'
+    : '<p class="muted" style="margin:0">ยังไม่มีชุด · ตั้งเครื่องพิมพ์ด้านล่างให้เป็นแบบวันปกติ แล้วบันทึกเป็นชุด "ปกติ" จากนั้นปรับเป็นแบบวันจันทร์แล้วบันทึกเป็นอีกชุด</p>';
+}
+async function ppAfter(msg) { Object.assign(S, await api('/api/state')); loadDevices(true); if (msg) toast(msg); }
+async function ppSaveFirst() { if (dirty.has('printers')) await savePrinters(true); }
+$('#ppAdd').onclick = async () => {
+  try { const name = $('#ppName').value.trim(); if (!name) return toast('ตั้งชื่อชุดก่อน', true);
+    await ppSaveFirst(); await api('/api/presets/save', { name }); $('#ppName').value = ''; await ppAfter(`บันทึกชุด "${name}" แล้ว`); }
+  catch (err) { toast(err.message, true); }
+};
+$('#ppList').addEventListener('click', async e => {
+  const row = e.target.closest('[data-pp]'); if (!row) return;
+  const id = row.dataset.pp, p = (S.settings.printPresets || []).find(x => x.id === id); if (!p) return;
+  try {
+    const day = e.target.closest('[data-ppday]');
+    if (day) { const d = +day.dataset.ppday, days = new Set(p.days || []); days.has(d) ? days.delete(d) : days.add(d);
+      await api('/api/presets/days', { id, days: [...days] }); return ppAfter(); }
+    if (e.target.closest('[data-ppuse]')) {
+      if (dirty.has('printers') && !confirm('การแก้ไขเครื่องพิมพ์ที่ยังไม่ได้บันทึกจะหายไป ใช้ชุดนี้เลย?')) return;
+      dirty.delete('printers'); await api('/api/presets/apply', { id }); return ppAfter(`ใช้ชุด "${p.name}" แล้ว · ใบสั่งต่อจากนี้พิมพ์ตามชุดนี้`); }
+    if (e.target.closest('[data-ppsave]')) {
+      if (!confirm(`บันทึกการตั้งค่าเครื่องพิมพ์ตอนนี้ทับชุด "${p.name}"?`)) return;
+      await ppSaveFirst(); await api('/api/presets/save', { id }); return ppAfter(`บันทึกทับชุด "${p.name}" แล้ว`); }
+    if (e.target.closest('[data-ppdel]')) {
+      if (!confirm(`ลบชุด "${p.name}"? (การตั้งค่าเครื่องพิมพ์ตอนนี้ไม่เปลี่ยน)`)) return;
+      await api('/api/presets/delete', { id }); return ppAfter('ลบชุดแล้ว'); }
+  } catch (err) { toast(err.message, true); }
+});
 
 function renderScreens() {
   const base = location.origin + '/kds.html?screen=';

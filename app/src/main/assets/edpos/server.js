@@ -1312,6 +1312,59 @@ setInterval(async () => {
   finally { lineBusy = false; save(); broadcast(); }
 }, 30000);
 
+// ================= ชุดการพิมพ์ (preset) =================
+// เช่น "ปกติ" กับ "วันจันทร์" (จัดร้านไม่เหมือนเดิม) · สลับเองได้ หรือผูกกับวันในสัปดาห์ให้สลับตอนเริ่มวันขาย
+// settings.printPresets = [{id, name, days: [0–6], snap}] · activePreset = ชุดที่ใช้อยู่ · presetDay = วันขายที่สลับอัตโนมัติแล้ว
+// snap = เมนูไหนออกเครื่องไหน, การแบ่งใบ/จำนวนสำเนาของแต่ละเครื่อง, เครื่องพิมพ์ใบเสร็จ, ตัวเลือกที่พิมพ์แยก (ไม่เก็บ IP/ชื่อเครื่อง)
+function choiceRefs(fn) {
+  for (const s of data.optionSets || []) for (const c of s.choices || []) fn('s:' + s.id + '|' + c.name, c);
+  for (const m of data.menu) for (const g of m.groups || []) if (!g.ref) for (const c of g.choices || []) fn('m:' + m.id + '|' + g.name + '|' + c.name, c);
+}
+function snapPrint() {
+  const S = data.settings, choice = {}, choiceKeys = [];
+  choiceRefs((k, c) => { choiceKeys.push(k); if (c.printers?.length) choice[k] = [...c.printers]; });
+  return { printers: Object.fromEntries(S.printers.map(p => [p.id, { copies: p.copies || 1, slip: p.slip || '' }])),
+    receiptPrinter: S.receiptPrinter || '', receiptCopies: S.receiptCopies || 1, printTickets: S.printTickets !== false,
+    menu: Object.fromEntries(data.menu.map(m => [m.id, [...(m.printers || [])]])), choice, choiceKeys };
+}
+// เมนู/ตัวเลือกที่เพิ่มหลังบันทึกชุด → ไม่แตะ (คงค่าปัจจุบัน)
+function applyPrint(snap) {
+  const S = data.settings, P = new Set(S.printers.map(p => p.id)), ok = ids => [...new Set((ids || []).filter(id => P.has(id)))];
+  for (const p of S.printers) { const x = snap.printers?.[p.id]; if (x) { p.copies = x.copies; p.slip = x.slip; } }
+  if (P.has(snap.receiptPrinter)) S.receiptPrinter = snap.receiptPrinter;
+  if (snap.receiptCopies) S.receiptCopies = snap.receiptCopies;
+  if ('printTickets' in snap) S.printTickets = !!snap.printTickets;
+  for (const m of data.menu) if (snap.menu && m.id in snap.menu) m.printers = ok(snap.menu[m.id]);
+  const keys = new Set(snap.choiceKeys || []);
+  choiceRefs((k, c) => { if (!keys.has(k)) return; const v = ok(snap.choice?.[k]); if (v.length) c.printers = v; else delete c.printers; });
+}
+const presetOf = id => (data.settings.printPresets || []).find(p => p.id === id);
+// ชุดที่ใช้อยู่ถูกแก้หลังบันทึกไหม (หน้าเครื่องพิมพ์บอกให้กด "บันทึกทับ")
+function presetModified() {
+  const p = presetOf(data.settings.activePreset); if (!p) return false;
+  const a = snapPrint(), b = p.snap, sameIds = (x, y) => JSON.stringify([...(x || [])].sort()) === JSON.stringify([...(y || [])].sort());
+  if (a.receiptPrinter !== b.receiptPrinter || a.receiptCopies !== b.receiptCopies || a.printTickets !== b.printTickets) return true;
+  for (const [id, x] of Object.entries(a.printers)) if (b.printers?.[id] && (b.printers[id].copies !== x.copies || b.printers[id].slip !== x.slip)) return true;
+  for (const [id, ids] of Object.entries(a.menu)) if (b.menu && id in b.menu && !sameIds(ids, b.menu[id])) return true;
+  const keys = new Set(b.choiceKeys || []);
+  for (const k of keys) if (!sameIds(a.choice[k], b.choice?.[k])) return true;
+  return false;
+}
+// สลับอัตโนมัติตามวัน: ตอนเริ่มวันขายใหม่ ถ้ามีชุดที่ผูกกับวันนั้น → ใช้ชุดนั้น (เฉพาะเครื่องหลัก)
+setInterval(() => {
+  if (role.role !== 'main') return;
+  const S = data.settings, k = dayKey(Date.now());
+  if (S.presetDay === k) return;
+  S.presetDay = k;
+  const dow = new Date(k + 'T00:00:00').getDay(), p = (S.printPresets || []).find(x => (x.days || []).includes(dow));
+  if (p) {
+    applyPrint(p.snap); S.activePreset = p.id;
+    addEvent('preset', `สลับชุดการพิมพ์เป็น "${p.name}" อัตโนมัติ`);
+    console.log(`สลับชุดการพิมพ์เป็น "${p.name}" (วัน${TH_DAY[dow]})`);
+  }
+  save(); broadcast();
+}, 60000);
+
 function addEvent(type, text) {
   data.events.push({ id: newId('e'), type, text, at: Date.now() });
   if (data.events.length > 50) data.events = data.events.slice(-50);
@@ -1483,6 +1536,39 @@ const routes = {
 
   // ---------- เครื่องหลัก / เครื่องสำรอง ----------
   // ตัวเฝ้าในแอป (เครื่องเดียวกัน) ส่งแบตมาด้วย: /api/role?bat=85&chg=1
+  // ---------- ชุดการพิมพ์ ----------
+  // บันทึกค่าตอนนี้เป็นชุด (id = บันทึกทับชุดเดิม)
+  'POST /api/presets/save': b => {
+    const S = data.settings, list = S.printPresets || (S.printPresets = []);
+    let p = b.id ? presetOf(b.id) : null;
+    const name = String(b.name ?? p?.name ?? '').trim().slice(0, 30);
+    if (!name) throw new Error('ตั้งชื่อชุดก่อน เช่น ปกติ หรือ วันจันทร์');
+    if (!p) {
+      if (list.length >= 10) throw new Error('มีได้ไม่เกิน 10 ชุด');
+      let n = 1; while (list.some(x => x.id === 'pp' + n)) n++;
+      p = { id: 'pp' + n, name, days: [] }; list.push(p);
+    }
+    p.name = name; p.snap = snapPrint(); p.savedAt = Date.now();
+    S.activePreset = p.id;
+    return { id: p.id };
+  },
+  // ผูกวันในสัปดาห์ (0 = อาทิตย์) · วันหนึ่งผูกได้ชุดเดียว · เริ่มสลับอัตโนมัติตั้งแต่วันขายถัดไป
+  'POST /api/presets/days': b => {
+    const S = data.settings, p = presetOf(b.id); if (!p) throw new Error('ไม่พบชุดนี้');
+    const days = [...new Set((Array.isArray(b.days) ? b.days : []).map(Number).filter(d => d >= 0 && d <= 6))].sort();
+    for (const x of S.printPresets) if (x !== p) x.days = (x.days || []).filter(d => !days.includes(d));
+    p.days = days; S.presetDay = dayKey(Date.now());
+  },
+  'POST /api/presets/apply': (b, q, req) => {
+    const S = data.settings, p = presetOf(b.id); if (!p) throw new Error('ไม่พบชุดนี้');
+    applyPrint(p.snap); S.activePreset = p.id;
+    addEvent('preset', `ใช้ชุดการพิมพ์ "${p.name}" · ${whoOf(req).name}`);
+  },
+  'POST /api/presets/delete': b => {
+    const S = data.settings; S.printPresets = (S.printPresets || []).filter(p => p.id !== b.id);
+    if (S.activePreset === b.id) S.activePreset = '';
+  },
+
   'GET /api/role': (b, q, req) => { noteBattery(q, req); return roleInfo(); },
   // สุขภาพระบบ: /api/health?from=&to= (เจ้าของร้าน)
   'GET /api/health': (b, q) => {
@@ -1659,7 +1745,8 @@ const routes = {
     const rc = data.settings.receipt, imgs = rc.images || {};
     const settings = { ...data.settings, receipt: { ...rc, images: undefined, has: { logo: !!imgs.logo, footer: !!imgs.footer }, imgV: rc.imgV || 0 },
       // โทเค็น LINE ไม่ส่งออกไปหน้าเว็บ (หน้าสั่งอาหารก็อ่าน /api/state ได้)
-      line: { ...(data.settings.line || {}), token: undefined, hasToken: !!data.settings.line?.token, counts: lineCountsOf() } };
+      line: { ...(data.settings.line || {}), token: undefined, hasToken: !!data.settings.line?.token, counts: lineCountsOf() },
+      presetModified: presetModified() };
     return { rev: data.rev || 0, settings, menu: data.menu, categories: data.categories, optionSets: data.optionSets, orders,
              items: data.items.filter(i => ids.has(i.orderId)), events: data.events, now: Date.now() };
   },
@@ -2076,7 +2163,7 @@ const routes = {
       const its = data.items.filter(i => i.orderId === o.id && mine(i));
       const pend = its.filter(i => i.status === 'new');
       if (!pend.length) continue; // ทำครบทุกจาน → หลุดจากรายการ จอจะย้ายไปแท็บ "เสร็จแล้ว" เอง
-      const dish = i => ({ id: i.id, name: i.name, quantity: i.qty, spec: '', at: i.createdAt, thai: !!i.thai,   // thai = ราคาคนไทย   // at = เวลาที่สั่งจานนี้ (จอครัวใช้นับเวลาใหม่เมื่อสั่งเพิ่ม)
+      const dish = i => ({ id: i.id, name: i.name, quantity: i.qty, spec: '', at: i.createdAt, thai: !!i.thai, cat: catOf(i),   // cat = หมวด (จอครัวซ่อนหมวดได้ เช่น ของทอดช่วงยุ่ง)   // thai = ราคาคนไทย   // at = เวลาที่สั่งจานนี้ (จอครัวใช้นับเวลาใหม่เมื่อสั่งเพิ่ม)
         extra_option: i.opts || (i.option ? [i.option] : []),
         // จานที่ห่อกลับทั้งที่นั่งโต๊ะ → ขึ้นเป็นหมายเหตุสีแดง "กลับบ้าน" (ออเดอร์กลับบ้านทั้งบิลมีป้ายที่หัวการ์ดอยู่แล้ว)
         remark: [...(i.alerts || []).map(a => '⚠ ' + a),
@@ -2109,7 +2196,10 @@ const routes = {
       dishes: data.items.filter(i => i.kdsCancel && i.cancelledAt >= since).map(i => i.id),
     };
     const scr = data.settings.kdsScreens;
-    return { ok: true, orders, knownDishes, cancelled, screen: { id: screen, name: screen === 'all' ? 'ทุกจอ' : scr.find(k => k.id === screen)?.name },
+    // หมวดที่มีเมนูขึ้นจอนี้ (ให้จอครัวเลือกซ่อน) เรียงตามหลังร้าน
+    const myCats = new Set(data.menu.filter(m => (screen === 'all' ? m.screens?.length : m.screens?.includes(screen))).map(m => m.category));
+    const categories = [...data.categories.filter(c => myCats.has(c)), ...[...myCats].filter(c => !data.categories.includes(c))];
+    return { ok: true, orders, knownDishes, categories, cancelled, screen: { id: screen, name: screen === 'all' ? 'ทุกจอ' : scr.find(k => k.id === screen)?.name },
       screens: scr, shopName: data.settings.shopName };
   },
 
