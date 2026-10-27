@@ -73,6 +73,41 @@
   .shopsec li:first-child { border-top: 0; }
   .shopsec li small { display: block; color: var(--muted); font-size: 13.5px; }
   .pareto { background: var(--jade-soft); border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; font-size: 15px; }
+  /* พยากรณ์: ไม่ใช้ช่วงวันที่ด้านบน */
+  body[data-tab="forecast"] #range, body[data-tab="forecast"] #customBox, body[data-tab="forecast"] #rangeLabel { display: none !important; }
+  .fcweek { display: grid; gap: 6px; }
+  .fcd { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 112px minmax(0, 1fr) 170px; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 10px; border: 1px solid transparent; }
+  .fcd:hover { background: var(--sunk); }
+  .fcd[aria-pressed="true"] { background: var(--sunk); border-color: var(--line); }
+  .fcd:focus-visible { outline: 2px solid var(--jade); outline-offset: 1px; }
+  .fcd.off { cursor: default; color: var(--faint); }
+  .fcd .dl b { display: block; font-weight: 600; } .fcd .dl small { color: var(--muted); font-size: 13px; }
+  .fcd .v { text-align: right; } .fcd .v b { display: block; font-size: 17px; } .fcd .v small { font-size: 13px; color: var(--muted); }
+  .fcd.busy .v small { color: var(--amber); font-weight: 600; } .fcd.quiet .v small { color: var(--card); font-weight: 600; }
+  .track { position: relative; height: 22px; background: var(--sunk); border-radius: 6px; }
+  .fcd[aria-pressed="true"] .track { background: var(--surface); }
+  .track .rng { position: absolute; top: 0; bottom: 0; background: var(--jade-soft); border-radius: 6px; }
+  .track .bar { position: absolute; left: 0; top: 7px; height: 8px; border-radius: 4px; background: var(--jade); }
+  .fcd.busy .track .bar { background: var(--amber); } .fcd.quiet .track .bar { background: var(--card); }
+  .fcd.busy .track .rng { background: #F3E6C7; } .fcd.quiet .track .rng { background: var(--card-soft); }
+  .track .norm { position: absolute; top: -3px; bottom: -3px; border-left: 2px dashed var(--muted); }
+  .fclegend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+  .fclegend .k1::before { content: ""; display: inline-block; width: 18px; height: 8px; border-radius: 4px; background: var(--jade); margin-right: 6px; }
+  .fclegend .k2::before { content: ""; display: inline-block; width: 18px; height: 12px; border-radius: 3px; background: var(--jade-soft); margin-right: 6px; vertical-align: -2px; }
+  .fclegend .k3::before { content: ""; display: inline-block; height: 12px; border-left: 2px dashed var(--muted); margin-right: 6px; vertical-align: -2px; }
+  .verdict.busy { border-left: 6px solid var(--amber); } .verdict.quiet { border-left: 6px solid var(--card); } .verdict.normal { border-left: 6px solid var(--jade); }
+  .fcfacts { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; font-size: 15px; }
+  .fcfacts span b { font-weight: 700; }
+  .hbars td.hb { width: 55%; }
+  .hbars tr.pk td { background: #FBF4E4; }
+  .hbars .bar { display: block; height: 10px; border-radius: 3px; background: var(--jade); min-width: 2px; }
+  .hbars tr.pk .bar { background: var(--amber); }
+  details.acc summary { cursor: pointer; font-size: 15px; }
+  details.acc table { margin-top: 10px; }
+  @media (max-width: 620px) {
+    .fcd { grid-template-columns: 1fr auto; gap: 6px 10px; }
+    .fcd .track { grid-column: 1 / -1; grid-row: 2; }
+  }
   @media (max-width: 860px) { .tabs { top: 84px; } .topbar { padding: 10px 16px; } }
 </style>
 <script src="app-bridge.js"></script>
@@ -105,6 +140,7 @@
 
   <nav class="tabs" id="tabs" role="tablist" aria-label="หัวข้อ">
     <button role="tab" data-t="shop">สรุปร้าน</button>
+    <button role="tab" data-t="forecast">🔮 พยากรณ์</button>
     <button role="tab" data-t="overview" aria-selected="true">ภาพรวม</button>
     <button role="tab" data-t="menu">เมนู</button>
     <button role="tab" data-t="tables">โต๊ะ</button>
@@ -123,6 +159,24 @@
     </div>
     <div class="panel shopsec"><h2>💡 ข้อแนะนำ</h2><ul id="shopTodo"></ul></div>
     <p class="note" id="shopNote"></p>
+  </section>
+
+  <!-- ===== พยากรณ์: พรุ่งนี้ + เตรียมของ + 7 วันข้างหน้า (ไม่ขึ้นกับช่วงวันที่ด้านบน) ===== -->
+  <section class="pane" data-p="forecast" hidden>
+    <div class="verdict" id="fcTop"><h2>กำลังคำนวณ…</h2></div>
+    <div class="two">
+      <div class="panel"><h2>🧺 เตรียมของ</h2><div id="fcPrep"></div></div>
+      <div class="panel"><h2>🍽 เมนูที่น่าจะขายดี</h2><div id="fcItems"></div></div>
+    </div>
+    <div class="panel">
+      <h2>📅 7 วันข้างหน้า วันไหนยุ่ง/เงียบ</h2>
+      <p class="note" id="fcWeekSum" style="margin:0 0 12px"></p>
+      <div class="fcweek" id="fcWeek"></div>
+      <div class="fclegend"><span class="k1">ยอดที่คาด</span><span class="k2">ช่วงที่น่าจะเป็น</span><span class="k3">ยอดปกติ</span><span>🔥 ยุ่ง/ขายดีกว่าปกติ · 🧊 เงียบกว่าปกติ (ต่างจากปกติ <span id="fcBusyPct">15</span>% ขึ้นไป)</span></div>
+    </div>
+    <div class="panel"><h2>⏰ ยอดรายชั่วโมงที่คาด <small class="muted" id="fcHourDay" style="font-weight:400;font-size:14px"></small></h2><div id="fcHours"></div></div>
+    <div class="panel" id="fcAccBox"></div>
+    <p class="note">คิดจากยอดจริงของร้าน: วันเดียวกันของสัปดาห์ย้อนหลังสูงสุด 8 สัปดาห์ (สัปดาห์ล่าสุดสำคัญสุด) ปรับตามแนวโน้มช่วงหลัง · ไม่รู้วันหยุดนักขัตฤกษ์ เทศกาล ฝนตก หรือโต๊ะจอง ถ้ารู้ล่วงหน้าให้เผื่อเอง · "เผื่อ" = พอสำหรับวันที่ขายดีกว่าปกติ (ประมาณ 5 ใน 6 วัน) · กดวันในรายการ 7 วันเพื่อดูรายละเอียดของวันนั้น</p>
   </section>
 
   <!-- ===== ภาพรวม ===== -->
@@ -256,19 +310,22 @@ function cats() { const c = [...(S.categories || [])]; S.menu.forEach(m => c.inc
 $('#lockBtn').onclick = e => { e.preventDefault(); PIN.lock(); };
 
 // ---------- แท็บ (จำแท็บล่าสุดใน #hash เปิดลิงก์ sales.html#tables ได้ตรงแท็บ) ----------
-const TABS = ['shop', 'overview', 'menu', 'tables', 'kitchen', 'staff', 'system', 'bills'];
+const TABS = ['shop', 'forecast', 'overview', 'menu', 'tables', 'kitchen', 'staff', 'system', 'bills'];
 let tab = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'shop';
 function showTab(t, push = true) {
   tab = t;
   $$('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.t === t));
   $$('.pane').forEach(p => (p.hidden = p.dataset.p !== t));
   if (push) history.replaceState(null, '', '#' + t);
+  document.body.dataset.tab = t;
+  if (t === 'forecast' && (!fc || Date.now() - fcAt > 10 * 60000)) loadForecast();   // โหลดเมื่อเปิดแท็บ (เก่ากว่า 10 นาที → คำนวณใหม่)
   if (t === 'overview' && report) renderChart();   // กราฟวัดความกว้างใหม่ตอนแท็บกลับมาแสดง
 }
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) showTab(b.dataset.t); });
 
 // ================= ยอดขาย =================
 const PAY_COLOR = { cash: '#0F8A6C', transfer: '#B8770F', card: '#4460C0' };   // ผ่านการตรวจสีสำหรับคนตาบอดสีแล้ว
+let fc = null, fcAt = 0, fcSel = 0;
 let range = 'today', report = null, health = null, topSort = 'qty', showAllTop = false, showAllBills = false;
 const openTop = new Set();
 
@@ -810,6 +867,81 @@ function renderKinds(s) {
 
 // ================= สรุปร้าน: อ่านตัวเลขทั้งหมดแล้วสรุปเป็นข้อความ (จุดแข็ง / ควรระวัง / ข้อแนะนำ) =================
 // กติกาตรงไปตรงมา ไม่เดา: แต่ละข้อมาจากตัวเลขในรายงาน · ช่วงสั้น (วันเดียว) วิเคราะห์ได้น้อยกว่า
+// ================= พยากรณ์ =================
+const FC_TAG = { busy: ['🔥', 'ยุ่ง/ขายดีกว่าปกติ'], quiet: ['🧊', 'เงียบกว่าปกติ'], normal: ['➖', 'ใกล้เคียงปกติ'] };
+const FC_CONF = { high: 'สูง', mid: 'กลาง', low: 'ต่ำ' };
+async function loadForecast() {
+  try { fc = await api('/api/forecast'); fcAt = Date.now(); renderForecast(); }
+  catch (err) { $('#fcTop').innerHTML = `<h2>คำนวณไม่ได้</h2><p>${esc(err.message)}</p>`; }
+}
+const fcDayName = (d, i) => i === 0 ? `พรุ่งนี้ (วัน${DOW_L[d.dow]} ${thDate(d.date, { day: 'numeric', month: 'short' })})` : `วัน${DOW_L[d.dow]} ${thDate(d.date, { day: 'numeric', month: 'short' })}`;
+const sgn = n => (n >= 0 ? '+' : '−') + Math.abs(n);
+function renderForecast() {
+  const f = fc, N = f.normal;
+  $('#fcBusyPct').textContent = f.busyPct;
+  if (!N || f.days.every(d => d.none)) {
+    $('#fcTop').className = 'verdict'; $('#fcTop').innerHTML = '<h2>ข้อมูลยังไม่พอ</h2><p>ต้องมียอดขายอย่างน้อย 2–3 สัปดาห์ ถึงจะพยากรณ์ได้ ใช้ระบบไปเรื่อยๆ แล้วกลับมาดูใหม่</p>';
+    ['#fcPrep', '#fcItems', '#fcWeek', '#fcHours', '#fcAccBox'].forEach(q => ($(q).innerHTML = '')); $('#fcWeekSum').textContent = ''; return;
+  }
+  // ---------- 7 วัน ----------
+  const max = Math.max(...f.days.map(d => d.high || 0), N.sales) * 1.05, P = v => (v / max * 100).toFixed(1) + '%';
+  $('#fcWeek').innerHTML = f.days.map((d, i) => {
+    const dl = `<span class="dl"><b>${DOW_L[d.dow]}</b><small>${thDate(d.date, { day: 'numeric', month: 'short' })}${i === 0 ? ' · พรุ่งนี้' : ''}</small></span>`;
+    if (d.none || d.closed) return `<div class="fcd off">${dl}<span class="track"><i class="norm" style="left:${P(N.sales)}"></i></span><span class="v"><small>${d.closed ? '💤 ปกติร้านปิด' : 'ข้อมูลไม่พอ'}</small></span></div>`;
+    const [ic, tx] = FC_TAG[d.tag];
+    return `<button class="fcd ${d.tag}" data-i="${i}" aria-pressed="${i === fcSel}">${dl}
+      <span class="track" aria-hidden="true"><i class="rng" style="left:${P(d.low)};width:${P(d.high - d.low)}"></i><i class="bar" style="width:${P(d.sales)}"></i><i class="norm" style="left:${P(N.sales)}"></i></span>
+      <span class="v"><b>~${baht(d.sales)}</b><small>${ic} ${sgn(d.pct)}% · ${tx}</small></span></button>`;
+  }).join('');
+  const open = f.days.filter(d => !d.none && !d.closed), best = [...open].sort((a, b) => b.sales - a.sales)[0];
+  const busy = open.filter(d => d.tag === 'busy'), quiet = open.filter(d => d.tag === 'quiet');
+  $('#fcWeekSum').innerHTML = `ปกติขายวันละ ~<b>${baht(N.sales)}</b> (${N.dishes} จาน · เฉลี่ย 4 สัปดาห์ล่าสุด)`
+    + (busy.length ? ` · 🔥 วันยุ่ง <b>${busy.map(d => DOW_S[d.dow]).join(' ')}</b> เตรียมของ/คนเพิ่ม` : '')
+    + (quiet.length ? ` · 🧊 วันเงียบ <b>${quiet.map(d => DOW_S[d.dow]).join(' ')}</b> ลดของสด/ทำโปรได้` : '')
+    + (best ? ` · ขายดีสุด <b>วัน${DOW_L[best.dow]}</b>` : '')
+    + (Math.abs(f.trend) >= 3 ? ` · ช่วงนี้ขาย${f.trend > 0 ? 'ดีขึ้น' : 'ลดลง'} ${Math.abs(f.trend)}% (นับรวมในตัวเลขแล้ว)` : '');
+  if (f.days[fcSel]?.none || f.days[fcSel]?.closed) fcSel = f.days.findIndex(d => !d.none && !d.closed);
+  renderFcDay();
+  // ---------- ความแม่นย้อนหลัง ----------
+  const a = f.accuracy;
+  $('#fcAccBox').innerHTML = !a || a.mape == null ? '<h2>🎯 แม่นแค่ไหน</h2><p class="note" style="margin:0">ยังมีข้อมูลย้อนหลังไม่พอให้ทดสอบ</p>'
+    : `<details class="acc"><summary><b>🎯 แม่นแค่ไหน:</b> ลองพยากรณ์ ${a.n} วันที่ผ่านมา (ใช้แค่ข้อมูลก่อนวันนั้น) คลาดจากยอดจริงเฉลี่ย <b>±${a.mape}%</b> · ยอดจริงอยู่ในช่วงที่บอก ${a.inRange}% ของวัน</summary>
+      <div class="tscroll"><table class="t"><thead><tr><th>วัน</th><th class="num">คาด</th><th class="num">จริง</th><th class="num">คลาด</th></tr></thead><tbody>
+      ${a.days.slice().reverse().map(x => `<tr><td>${shortDay(x.date)}</td><td class="num">${baht(x.fc)}</td><td class="num">${baht(x.real)}</td><td class="num">${x.real >= x.low && x.real <= x.high ? '✓ ' : ''}${sgn(-x.err)}%</td></tr>`).join('')}
+      </tbody></table></div><p class="note">คลาด + = ขายได้มากกว่าที่คาด · ✓ = อยู่ในช่วงที่บอก</p></details>`;
+}
+function renderFcDay() {
+  const f = fc, d = f.days[fcSel], N = f.normal;
+  $$('#fcWeek .fcd[data-i]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.i === fcSel));
+  if (!d || d.none || d.closed) return;
+  const [ic, tx] = FC_TAG[d.tag];
+  $('#fcTop').className = 'verdict ' + d.tag;
+  $('#fcTop').innerHTML = `<h2>${esc(fcDayName(d, fcSel))} คาดว่าขาย ~${baht(d.sales)}</h2>
+    <p>น่าจะอยู่ระหว่าง <b>${baht(d.low)} – ${baht(d.high)}</b> · ${ic} ${tx} <b>${sgn(d.pct)}%</b> (ปกติ ${baht(N.sales)}/วัน)</p>
+    <div class="fcfacts"><span>🧾 ~<b>${d.bills}</b> บิล</span><span>🍽 ~<b>${d.dishes}</b> จาน${d.dpct ? ` (${sgn(d.dpct)}% จากปกติ)` : ''}</span>
+      ${d.peak?.v ? `<span>⏰ ช่วงยุ่ง <b>${d.peak.from}:00–${d.peak.to}:59</b> (~${d.peak.share}% ของยอด)</span>` : ''}
+      <span>🎯 ความแม่น <b>${FC_CONF[d.conf]}</b></span></div>
+    <p class="note">${d.basis === 'dow' ? `ดูจากวัน${DOW_L[d.dow]} ${d.n} สัปดาห์ก่อน: ${d.samples.slice(0, 4).map(x => `${shortDay(x.date)} ${baht(x.subtotal)}`).join(' · ')}${d.samples.length > 4 ? ' …' : ''}` : 'ข้อมูลวันนี้ของสัปดาห์ยังน้อย ใช้ค่าเฉลี่ยทุกวันใน 4 สัปดาห์ล่าสุดแทน'}</p>`;
+  // เตรียมของ: รายการที่ตั้งนับไว้ใน หลังร้าน > สรุปยอดเข้า LINE
+  const short = (p, n) => n.replace(p.name, '').trim() || n;
+  $('#fcPrep').innerHTML = d.prep.length ? `<div class="tscroll"><table class="t"><thead><tr><th>รายการ</th><th class="num">คาด</th><th class="num">เผื่อ</th></tr></thead><tbody>
+    ${d.prep.map(p => { const by = Object.entries(p.by).sort((a, b) => b[1] - a[1]);
+      return `<tr><td>${esc(p.name)}${by.length > 1 || p.sized ? `<div class="optl">${by.map(([n, q]) => `${esc(short(p, n))} <b>${q}</b>`).join(' · ')}</div>` : ''}</td><td class="num">~${p.qty}</td><td class="num"><b>${Math.max(p.hi, p.qty)}</b></td></tr>`; }).join('')}
+    </tbody></table></div><p class="note">แก้รายการได้ที่ <a href="admin.html#line">หลังร้าน › สรุปยอดเข้า LINE › จำนวนที่ขาย</a></p>`
+    : '<p class="note" style="margin:0">ยังไม่ได้ตั้งรายการนับ (เช่น กุ้งแม่น้ำ ปู หมึก) ตั้งได้ที่ <a href="admin.html#line">หลังร้าน › สรุปยอดเข้า LINE</a></p>';
+  $('#fcItems').innerHTML = d.items.length ? `<div class="tscroll"><table class="t"><thead><tr><th>เมนู</th><th class="num">คาด</th><th class="num">เผื่อ</th></tr></thead><tbody>
+    ${d.items.slice(0, 12).map(it => { const o = Object.entries(it.opts).sort((a, b) => b[1] - a[1]);
+      return `<tr><td>${esc(it.name)}${o.length ? `<div class="optl">${o.map(([x, q]) => `${esc(optLabel(it.name, x))} <b>${q}</b>`).join(' · ')}</div>` : ''}</td><td class="num">~${it.qty}</td><td class="num">${Math.max(it.hi, it.qty)}</td></tr>`; }).join('')}
+    </tbody></table></div>` : '<p class="note" style="margin:0">ยังไม่มีข้อมูล</p>';
+  // รายชั่วโมง (เรียงตามลำดับในวันขาย · ชั่วโมงในช่วงยุ่งไฮไลต์)
+  const cut = S.settings?.dayCutoff ?? 5, rel = h => (h - cut + 24) % 24;
+  const hs = Object.entries(d.hours).map(([h, v]) => [+h, v]).filter(([, v]) => v >= d.sales * 0.01).sort((a, b) => rel(a[0]) - rel(b[0]));
+  const hmax = Math.max(1, ...hs.map(x => x[1])), inPeak = h => d.peak && [0, 1, 2].some(i => (d.peak.from + i) % 24 === h);
+  $('#fcHourDay').textContent = '· ' + fcDayName(d, fcSel);
+  $('#fcHours').innerHTML = hs.length ? `<div class="tscroll"><table class="t hbars"><tbody>${hs.map(([h, v]) => `<tr class="${inPeak(h) ? 'pk' : ''}"><td>${h}:00–${h}:59</td><td class="hb"><i class="bar" style="width:${(v / hmax * 100).toFixed(1)}%"></i></td><td class="num">~${baht(v)}</td></tr>`).join('')}</tbody></table></div>` : '';
+}
+$('#fcWeek').addEventListener('click', e => { const b = e.target.closest('.fcd[data-i]'); if (!b) return; fcSel = +b.dataset.i; renderFcDay(); });
+
 function renderShop() {
   const r = report, s = r.summary, pv = r.prev || {}, single = r.from === r.to;
   const open = r.days.filter(d => d.bills), nOpen = open.length || 1;

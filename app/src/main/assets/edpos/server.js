@@ -1067,6 +1067,8 @@ function cleanLine(l, old = {}) {
     // สรุปรายสัปดาห์ (จ.–อา. ส่งคืนวันอาทิตย์) / รายเดือน (ส่งคืนวันสุดท้ายของเดือน) ตามเวลาส่งเดียวกัน
     // เพิ่งเปิด → จำว่าส่งช่วงที่จบไปแล้วแล้ว จะได้ไม่ส่งของเก่าทันที (กด "ส่งทดสอบ" ดูได้)
     weekly: !!l.weekly, monthly: !!l.monthly,
+    // พยากรณ์พรุ่งนี้ + เตรียมของ (ท้ายสรุปรายวัน) / 7 วันถัดไป (ท้ายสรุปรายสัปดาห์) · ไม่ระบุ = ใช้ค่าเดิม (เริ่มต้นเปิด)
+    forecast: l.forecast === undefined ? old.forecast !== false : !!l.forecast,
     counts: Array.isArray(l.counts) ? cleanCounts(l.counts) : old.counts,
     lastWeek: l.weekly && !old.weekly ? lastPeriod('week').to : old.lastWeek || '',
     lastMonth: l.monthly && !old.monthly ? lastPeriod('month').to : old.lastMonth || '',
@@ -1089,11 +1091,11 @@ function cleanCounts(arr) {
     opts: [...new Set((Array.isArray(c.opts) ? c.opts : []).map(x => String(x).trim()).filter(Boolean))].slice(0, 20) })).filter(c => c.name);
 }
 // นับจากสรุปรายวัน (บิลที่ปิดแล้ว ตรงกับยอดขาย) · ตัวเลือกดูจากข้อความตัวเลือกของจาน ("ทะเล เผ็ดน้อย")
-function countSold(from, to) {
+function countSold(from, to, day = dayOf) {
   const list = lineCountsOf().filter(c => c.menus.length || c.opts.length);
   const out = list.map(c => ({ name: c.name, qty: 0, by: {} }));
   for (let k = from; k <= to; k = addDays(k, 1)) {
-    const d = dayOf(k);
+    const d = day(k);
     list.forEach((c, i) => {
       const names = new Set(c.menus.map(id => data.menu.find(m => m.id === id)?.name).filter(Boolean));
       for (const [n, it] of Object.entries(d.items)) {
@@ -1133,6 +1135,172 @@ function countLines(from, to) {
     const detail = by.length > 1 || r.sized ? ` (${by.slice(0, 6).map(([n, q]) => `${short(n)} ${q}`).join(' · ')}${by.length > 6 ? ' …' : ''})` : '';
     return `• ${r.name} ${r.qty} ที่${detail}`;
   })];
+}
+
+// ================= พยากรณ์ยอดขาย (พรุ่งนี้ / 7 วันข้างหน้า) =================
+// คิดจากข้อมูลร้านเอง: วันเดียวกันของสัปดาห์ย้อนหลังสูงสุด 8 สัปดาห์ (สัปดาห์ล่าสุดน้ำหนักมากสุด ลดลงทีละ 20%)
+// × แนวโน้มช่วงหลัง (ยอดเฉลี่ย 2 สัปดาห์ล่าสุด เทียบ 4 สัปดาห์ก่อนหน้า · ใช้ครึ่งเดียวและไม่เกิน ±15–20% กันแกว่ง)
+// asOf = วันขายแรกที่ "ยังไม่จบ" → ใช้แค่วันก่อนหน้านั้น · วันที่ไม่มีบิล = ร้านปิด (ไม่เอามาเฉลี่ย)
+// ไม่รู้วันหยุดนักขัตฤกษ์/เทศกาล/ฝนตก → บอกช่วงต่ำ–สูง และความแม่นย้อนหลังให้เจ้าของร้านตัดสินใจเอง
+const FC_WEEKS = 8, FC_DECAY = 0.8, FC_BUSY = 15;   // FC_BUSY = ต่างจากปกติกี่ % ถึงเรียกว่า ยุ่ง/เงียบ
+// อ่านสรุปรายวันครั้งเดียวต่อการคำนวณ (สรุปจากบิลละเอียดต้องวนทั้งไฟล์ ช้าถ้าเรียกซ้ำ)
+function fcDays() { const m = new Map(); return k => { if (!m.has(k)) m.set(k, dayOf(k)); return m.get(k); }; }
+// วันแรกที่มีข้อมูล (ก่อนหน้านั้นยังไม่ได้ใช้ระบบ ไม่ใช่ร้านปิด)
+function fcFirstDay() {
+  let f = Object.keys(data.daily || {}).sort()[0] || '';
+  for (const o of data.orders) if (o.status === 'paid' && o.paidAt) { const k = dayKey(o.paidAt); if (!f || k < f) f = k; }
+  return f;
+}
+function fcTrend(asOf, day, first) {
+  const avg = (a, b) => {
+    let s = 0, n = 0;
+    for (let i = a; i <= b; i++) { const k = addDays(asOf, -i); if (k < first) break; const d = day(k); if (d.bills) { s += d.subtotal; n++; } }
+    return n >= 4 ? s / n : 0;
+  };
+  const recent = avg(1, 14), older = avg(15, 42);
+  if (!recent || !older) return 1;
+  return Math.min(1.2, Math.max(0.85, 1 + (recent / older - 1) * 0.5));
+}
+// ค่าเฉลี่ยถ่วงน้ำหนัก + ส่วนเบี่ยงเบน
+function fcStat(S, f) {
+  const W = S.reduce((a, x) => a + x.w, 0), m = S.reduce((a, x) => a + x.w * f(x.d), 0) / W;
+  return { m, sd: Math.sqrt(S.reduce((a, x) => a + x.w * (f(x.d) - m) ** 2, 0) / W) };
+}
+function forecastDay(k, asOf = dayKey(Date.now()), day = fcDays(), first = fcFirstDay(), trend = fcTrend(asOf, day, first)) {
+  if (!first) return null;
+  let S = [], closed = 0, basis = 'dow';
+  for (let w = 1; w <= FC_WEEKS + 6 && S.length + closed < FC_WEEKS; w++) {
+    const s = addDays(k, -7 * w);
+    if (s >= asOf) continue;
+    if (s < first) break;
+    const d = day(s);
+    if (d.bills) S.push({ d, w: FC_DECAY ** (S.length + closed) }); else closed++;
+  }
+  const dow = new Date(k + 'T00:00:00').getDay();
+  // ปิดครึ่งหนึ่งขึ้นไป (อย่างน้อย 2 ครั้ง) → วันนี้ของสัปดาห์ร้านมักปิด
+  if (closed >= 2 && closed >= S.length) return { date: k, dow, closed: true, closedN: closed, n: S.length + closed };
+  if (S.length < 2) {
+    // ข้อมูลวันนี้ของสัปดาห์ยังน้อย → ใช้ทุกวันที่เปิดใน 4 สัปดาห์ล่าสุดแทน (ความแม่นต่ำ)
+    S = [];
+    for (let i = 1; i <= 28; i++) { const s = addDays(asOf, -i); if (s < first) break; const d = day(s); if (d.bills) S.push({ d, w: 1 }); }
+    if (S.length < 2) return null;
+    basis = 'all';
+  }
+  const n = S.length, st = f => { const x = fcStat(S, f); return { m: x.m * trend, sd: x.sd * trend }; };
+  const sales = st(d => d.subtotal), bills = st(d => d.bills), dishes = st(d => d.dishes);
+  // ช่วงที่น่าจะเป็น: ±1 ส่วนเบี่ยงเบน · อย่างน้อย ±10% · ข้อมูลน้อยกว่า 4 ครั้งกว้างขึ้น
+  const spread = Math.max(sales.sd, sales.m * 0.1) * (n < 4 ? 1.3 : 1), cv = sales.m ? sales.sd / sales.m : 1;
+  const conf = basis === 'dow' && n >= 4 && cv <= 0.2 ? 'high' : basis === 'dow' && n >= 3 && cv <= 0.35 ? 'mid' : 'low';
+  // เมนู: จำนวนเฉลี่ยต่อวัน (วันที่ไม่ได้ขาย = 0) · hi = เผื่อ (เฉลี่ย + 1 ส่วนเบี่ยงเบน ปัดขึ้น)
+  const names = new Set(S.flatMap(x => Object.keys(x.d.items)));
+  const items = [...names].map(nm => {
+    const q = st(d => d.items[nm]?.qty || 0), opts = {};
+    const os = new Set(S.flatMap(x => Object.keys(x.d.items[nm]?.opts || {})));
+    if (soloGroup(nm)) for (const o of os) { const v = st(d => d.items[nm]?.opts?.[o] || 0).m; if (v >= 0.5) opts[o] = Math.round(v); }
+    return { name: nm, qty: Math.round(q.m), hi: Math.ceil(q.m + q.sd), raw: q.m, opts };
+  }).filter(x => x.raw >= 0.5).sort((a, b) => b.raw - a.raw);
+  // รายการเตรียมของ = รายการที่ตั้งนับใน LINE (กุ้งแม่น้ำ ปู หมึก …) เฉลี่ยรายวันแบบเดียวกัน
+  const per = S.map(x => ({ w: x.w, c: countSold(x.d.date, x.d.date, () => x.d) }));
+  const prep = (per[0]?.c || []).map((c, i) => {
+    const q = fcStat(per.map(p => ({ w: p.w, d: p.c[i].qty })), v => v), by = {};
+    const keys = new Set(per.flatMap(p => Object.keys(p.c[i].by)));
+    for (const b of keys) { const v = fcStat(per.map(p => ({ w: p.w, d: p.c[i].by[b] || 0 })), v => v).m * trend; if (v >= 0.5) by[b] = Math.round(v); }
+    return { name: c.name, qty: Math.round(q.m * trend), hi: Math.ceil((q.m + q.sd) * trend), by, sized: per.some(p => p.c[i].sized) };
+  }).filter(p => p.qty || p.hi);
+  // ชั่วโมง: ยอดเฉลี่ยรายชั่วโมง → ช่วง 3 ชั่วโมงที่ยุ่งสุด (เรียงตามลำดับในวันขาย)
+  const hours = {};
+  for (const h of new Set(S.flatMap(x => Object.keys(x.d.byHour)))) hours[h] = Math.round(st(d => d.byHour[h] || 0).m);
+  const hs = Object.keys(hours).map(Number).sort((a, b) => relH(a) - relH(b));
+  let peak = null;
+  for (const h of hs) {
+    const v = [0, 1, 2].reduce((a, i) => a + (hours[(h + i) % 24] || 0), 0);
+    if (!peak || v > peak.v) peak = { from: h, to: (h + 2) % 24, v };
+  }
+  if (peak) peak.share = sales.m ? Math.round(peak.v / sales.m * 100) : 0;
+  return { date: k, dow, closed: false, basis, n, trend: Math.round((trend - 1) * 100), conf,
+    sales: Math.round(sales.m), low: Math.max(0, Math.round(sales.m - spread)), high: Math.round(sales.m + spread),
+    bills: Math.round(bills.m), dishes: Math.round(dishes.m), hours, peak,
+    items: items.slice(0, 15).map(({ raw, ...x }) => x), prep, samples: S.map(x => ({ date: x.d.date, subtotal: x.d.subtotal })) };
+}
+// ยอด "ปกติ" = เฉลี่ยต่อวันที่เปิดใน 4 สัปดาห์ก่อน asOf
+function fcNormal(asOf, day, first) {
+  let s = 0, b = 0, n = 0;
+  for (let i = 1; i <= 28; i++) { const k = addDays(asOf, -i); if (k < first) break; const d = day(k); if (d.bills) { s += d.subtotal; b += d.dishes; n++; } }
+  return n ? { sales: Math.round(s / n), dishes: Math.round(b / n), n } : null;
+}
+// พยากรณ์หลายวัน + ติดป้าย ยุ่ง/เงียบ เทียบกับปกติ
+function forecastRange(start, days, asOf = dayKey(Date.now())) {
+  const day = fcDays(), first = fcFirstDay(), trend = fcTrend(asOf, day, first), normal = first ? fcNormal(asOf, day, first) : null;
+  const list = [];
+  for (let i = 0; i < days; i++) {
+    const f = forecastDay(addDays(start, i), asOf, day, first, trend);
+    if (f && !f.closed && normal) {
+      f.pct = Math.round((f.sales - normal.sales) / normal.sales * 100);
+      f.dpct = normal.dishes ? Math.round((f.dishes - normal.dishes) / normal.dishes * 100) : 0;
+      const m = Math.max(f.pct, f.dpct);
+      f.tag = m >= FC_BUSY ? 'busy' : Math.max(f.pct, f.dpct) <= -FC_BUSY ? 'quiet' : 'normal';
+    }
+    list.push(f || { date: addDays(start, i), dow: new Date(addDays(start, i) + 'T00:00:00').getDay(), none: true });
+  }
+  return { asOf, normal, trend: Math.round((trend - 1) * 100), days: list };
+}
+// ความแม่นย้อนหลัง: พยากรณ์วันที่ผ่านมาแล้วแต่ละวัน (ใช้แค่ข้อมูลก่อนวันนั้น) แล้วเทียบกับยอดจริง
+function fcAccuracy(asOf = dayKey(Date.now()), back = 14) {
+  const day = fcDays(), first = fcFirstDay(), out = [];
+  if (!first) return null;
+  for (let i = back; i >= 1; i--) {
+    const k = addDays(asOf, -i), real = day(k);
+    if (k < first || !real.bills) continue;
+    const f = forecastDay(k, k, day, first);
+    if (!f || f.closed) continue;
+    out.push({ date: k, fc: f.sales, low: f.low, high: f.high, real: real.subtotal, err: Math.round((f.sales - real.subtotal) / real.subtotal * 100) });
+  }
+  if (out.length < 3) return { n: out.length, days: out };
+  const mape = Math.round(out.reduce((a, x) => a + Math.abs(x.err), 0) / out.length);
+  const inRange = Math.round(out.filter(x => x.real >= x.low && x.real <= x.high).length / out.length * 100);
+  return { n: out.length, mape, inRange, days: out };
+}
+const FC_CONF = { high: 'สูง', mid: 'กลาง', low: 'ต่ำ' };
+// ข้อความ LINE: พรุ่งนี้ + รายการเตรียมของ
+function forecastLines(k) {
+  // ส่งหลังปิดร้าน → นับวันนี้เป็นวันที่จบแล้ว · ดูตัวอย่างระหว่างวัน → ยังไม่นับวันนี้ (ยอดยังไม่ครบ)
+  const start = addDays(k, 1), asOf = k < dayKey(Date.now()) || lineTimePassed() ? start : k;
+  const r = forecastRange(start, 1, asOf), f = r.days[0], dt = new Date(start + 'T00:00:00');
+  const fmt = n => Number(n || 0).toLocaleString('en-US'), head = `🔮 พรุ่งนี้ วัน${TH_DAY[dt.getDay()]} ${dt.getDate()} ${TH_MON[dt.getMonth()]}`;
+  if (f.none) return [];
+  if (f.closed) return [head, `ปกติร้านปิด (ปิด ${f.closedN} จาก ${f.n} สัปดาห์ล่าสุด)`];
+  const L = [head, `คาดว่าขาย ~${fmt(f.sales)} ฿ (${fmt(f.low)}–${fmt(f.high)}) · ~${f.bills} บิล · ~${f.dishes} จาน`];
+  if (f.tag && f.tag !== 'normal') L.push(`${f.tag === 'busy' ? '🔥 ยุ่ง/ขายดีกว่าปกติ' : '🧊 เงียบกว่าปกติ'} ${Math.abs(f.pct)}% (ปกติ ${fmt(r.normal.sales)} ฿/วัน)`);
+  if (f.peak?.v) L.push(`⏰ ช่วงยุ่ง ${f.peak.from}:00–${f.peak.to}:59 (~${f.peak.share}% ของยอด)`);
+  const prep = f.prep.length ? f.prep : f.items.slice(0, 6).map(x => ({ name: x.name, qty: x.qty, hi: x.hi, by: {} }));
+  if (prep.length) {
+    L.push('🧺 เตรียมของ (คาด · เผื่อ)');
+    for (const p of prep) {
+      const by = Object.entries(p.by).sort((a, b) => b[1] - a[1]), short = n => n.replace(p.name, '').trim() || n;
+      const detail = by.length > 1 || p.sized ? ` (${by.slice(0, 4).map(([n, q]) => `${short(n)} ${q}`).join(' · ')})` : '';
+      L.push(`• ${p.name} ~${p.qty}${p.hi > p.qty ? ` · เผื่อ ${p.hi}` : ''}${detail}`);
+    }
+  }
+  const acc = fcAccuracy(asOf);
+  L.push(`ความแม่น${FC_CONF[f.conf]}${acc?.mape != null ? ` (ย้อนหลัง ${acc.n} วัน คลาดเฉลี่ย ±${acc.mape}%)` : ''} · ${f.basis === 'dow' ? `ดูจากวัน${TH_DAY[f.dow]} ${f.n} สัปดาห์ก่อน` : 'ข้อมูลวันนี้ของสัปดาห์ยังน้อย ใช้ค่าเฉลี่ยทุกวัน'}${Math.abs(f.trend) >= 3 ? ` · ช่วงนี้ขาย${f.trend > 0 ? 'ดีขึ้น' : 'ลดลง'} ${Math.abs(f.trend)}%` : ''}`);
+  return L;
+}
+// ข้อความ LINE รายสัปดาห์: 7 วันถัดไป วันไหนยุ่ง/เงียบ
+function weekAheadLines(start) {
+  const r = forecastRange(start, 7, start), DOW = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'], fmt = n => Number(n || 0).toLocaleString('en-US');
+  if (!r.normal || r.days.every(f => f.none)) return [];
+  const L = [`🔮 ${start > dayKey(Date.now()) ? 'สัปดาห์หน้า' : 'สัปดาห์นี้'} (คาดการณ์ · ปกติ ~${fmt(r.normal.sales)} ฿/วัน)`];
+  const open = r.days.filter(f => !f.none && !f.closed), top = [...open].sort((a, b) => b.sales - a.sales)[0];
+  for (const f of r.days) {
+    const dt = new Date(f.date + 'T00:00:00'), d = `${DOW[f.dow]} ${dt.getDate()} ${TH_MON[dt.getMonth()]}`;
+    if (f.none) L.push(`${d} · ข้อมูลไม่พอ`);
+    else if (f.closed) L.push(`${d} · ปกติปิด`);
+    else L.push(`${d} ~${fmt(f.sales)} ฿ ${f.pct >= 0 ? '▲' : '▼'}${Math.abs(f.pct)}%${f.tag === 'busy' ? ' 🔥' : f.tag === 'quiet' ? ' 🧊' : ''}${f === top && f.tag === 'busy' ? ' ยุ่งสุด' : ''}`);
+  }
+  const busy = open.filter(f => f.tag === 'busy'), quiet = open.filter(f => f.tag === 'quiet');
+  if (busy.length) L.push(`👉 วันยุ่ง: ${busy.map(f => DOW[f.dow]).join(' ')} · เตรียมของ/คนเพิ่ม`);
+  if (quiet.length) L.push(`👉 วันเงียบ: ${quiet.map(f => DOW[f.dow]).join(' ')} · ลดของสด/ทำโปรได้`);
+  return L;
 }
 
 // ช่วงล่าสุดที่จบไปแล้ว (นับตามวันขาย) · สัปดาห์ = จันทร์–อาทิตย์ · ถึงเวลาส่งของวันอาทิตย์/วันสิ้นเดือนแล้ว = นับช่วงนั้นด้วย
@@ -1181,6 +1349,7 @@ function lineText(k) {
       L.push('', `⚠ ยังเปิดอยู่ ${open.length} โต๊ะ ยอดรอเก็บ ${fmt(r2(due))} ฿ (ยังไม่นับในยอดขาย)`);
     }
   }
+  if (data.settings.line?.forecast !== false) { const fl = forecastLines(k); if (fl.length) L.push('', ...fl); }
   return L.join('\n');
 }
 // เวลาครัว / เวลานั่ง (ใช้ทั้งสรุปรายวัน รายสัปดาห์ รายเดือน)
@@ -1238,6 +1407,7 @@ function lineRangeText(kind, from, to) {
   const tl = timeLines(d);
   if (tl.length) L.push('', ...tl);
   if (d.cancelled.qty) L.push('', `❌ ยกเลิก ${d.cancelled.qty} จาน (${fmt(d.cancelled.amount)} ฿)${d.voids?.bills ? ` · ยกเลิกทั้งโต๊ะ ${d.voids.bills} โต๊ะ` : ''}`);
+  if (kind === 'week' && data.settings.line?.forecast !== false) { const wl = weekAheadLines(addDays(to, 1)); if (wl.length) L.push('', ...wl); }
   return L.join('\n');
 }
 // ข้อความตามชนิด: day (วันนี้) · week (สัปดาห์ล่าสุดที่จบแล้ว) · month (เดือนล่าสุดที่จบแล้ว)
@@ -1728,6 +1898,12 @@ const routes = {
   'POST /api/line/test': async b => {
     const L = data.settings.line || (data.settings.line = cleanLine({}));
     try { await sendLine(dayKey(Date.now()), ['week', 'month'].includes(b.kind) ? b.kind : 'day'); L.lastErr = ''; } catch (e) { L.lastErr = e.message; throw e; }
+  },
+
+  // พยากรณ์: 7 วันถัดไป (เริ่มพรุ่งนี้) + ความแม่นย้อนหลัง 14 วัน
+  'GET /api/forecast': () => {
+    const today = dayKey(Date.now());
+    return { ...forecastRange(addDays(today, 1), 7, today), accuracy: fcAccuracy(today), busyPct: FC_BUSY };
   },
 
   // รายงานยอดขาย: /api/report?from=2026-10-01&to=2026-10-12 (ส่งพารามิเตอร์มาใน body ของ GET ไม่ได้ จึงอ่านจาก query)

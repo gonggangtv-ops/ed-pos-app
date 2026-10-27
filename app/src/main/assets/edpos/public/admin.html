@@ -387,6 +387,7 @@
           <div class="rowline"><div class="txt"><b>สรุปยอดรายวัน</b><span id="lnStatus"></span></div><label class="sw"><input type="checkbox" id="lnOn"><i></i></label></div>
           <div class="rowline"><div class="txt"><b>สรุปรายสัปดาห์</b><span>จันทร์–อาทิตย์ ส่งคืนวันอาทิตย์ เทียบสัปดาห์ก่อน <span id="lnWeekSt"></span></span></div><label class="sw"><input type="checkbox" id="lnWeekly"><i></i></label></div>
           <div class="rowline"><div class="txt"><b>สรุปรายเดือน</b><span>ส่งคืนวันสุดท้ายของเดือน เทียบเดือนก่อน <span id="lnMonthSt"></span></span></div><label class="sw"><input type="checkbox" id="lnMonthly"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>🔮 พยากรณ์ + เตรียมของ</b><span>ท้ายสรุปรายวัน: พรุ่งนี้น่าจะขายเท่าไร ช่วงไหนยุ่ง เตรียมของ (รายการเดียวกับ "จำนวนที่ขาย") · ท้ายสรุปรายสัปดาห์: 7 วันถัดไป วันไหนยุ่ง/เงียบกว่าปกติ</span></div><label class="sw"><input type="checkbox" id="lnFc"><i></i></label></div>
           <div class="stack" style="margin-top:12px">
             <label class="field"><span>เวลาส่ง</span><input type="time" id="lnTime">
               <small>ใช้กับทั้งรายวัน รายสัปดาห์ และรายเดือน · ตั้งหลังปิดร้าน บิลที่ปิดหลังเวลานี้จะไม่อยู่ในข้อความของวันนั้น · ร้านเปิดเลยเที่ยงคืน ตั้ง <a href="#" data-go="shop">ตัดรอบวันขาย</a> ด้วย สรุปจะได้รวมยอดทั้งคืน</small></label>
@@ -1827,7 +1828,7 @@ function loadLine() {
   $('#lnStatus').style.color = L.lastErr ? 'var(--brick)' : '';
   $$('[data-alert]').forEach(x => (x.checked = L.alerts?.[x.dataset.alert] !== false));
   $('#lnAlertErr').textContent = L.alertErr ? '· แจ้งเตือนล่าสุดส่งไม่สำเร็จ: ' + L.alertErr : '';
-  $('#lnWeekly').checked = !!L.weekly; $('#lnMonthly').checked = !!L.monthly;
+  $('#lnWeekly').checked = !!L.weekly; $('#lnMonthly').checked = !!L.monthly; $('#lnFc').checked = L.forecast !== false;
   loadCounts();
   // lastWeek = วันอาทิตย์ของสัปดาห์ที่ส่งล่าสุด · lastMonth = วันสุดท้ายของเดือนที่ส่งล่าสุด
   $('#lnWeekSt').textContent = L.weekly && L.lastWeek ? `· ส่งถึงสัปดาห์ที่จบ ${thDate(L.lastWeek)}` : '';
@@ -1898,7 +1899,7 @@ $('#lnCounts').addEventListener('input', e => {
   }
 });
 $('#lnCntAdd').onclick = () => { lnCnt.push({ name: '', menus: [], opts: [] }); lnCntOpen = lnCnt.length - 1; dirty.add('line'); renderCounts(); $('#lnCounts [data-cntf="name"]')?.focus(); };
-const lineBody = () => ({ on: $('#lnOn').checked, weekly: $('#lnWeekly').checked, monthly: $('#lnMonthly').checked,
+const lineBody = () => ({ on: $('#lnOn').checked, weekly: $('#lnWeekly').checked, monthly: $('#lnMonthly').checked, forecast: $('#lnFc').checked,
   counts: lnCnt.filter(c => c.name.trim()),
   time: $('#lnTime').value, to: $('#lnTo').value.trim(), token: $('#lnToken').value.trim(),
   alerts: Object.fromEntries($$('[data-alert]').map(x => [x.dataset.alert, x.checked])) });
@@ -2186,6 +2187,8 @@ window.addEventListener('beforeunload', e => {
 live(() => {
   renderMenu(); renderCats(); renderSets(); fillForms();
   if (draft && !$('#editor').hidden) renderPreview();
+  // เปิดจากลิงก์ admin.html#line → ไปหัวข้อนั้นเลย (ครั้งแรกครั้งเดียว)
+  if (firstLoad) { firstLoad = false; const h = location.hash.slice(1); if (/^[a-z]+$/.test(h) && $(`nav.side button[data-sec="${h}"]`)) goSection(h); }
 });
 </script>
 </body>
