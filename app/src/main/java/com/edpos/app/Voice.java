@@ -25,6 +25,8 @@ class Voice implements RecognitionListener {
     private SpeechRecognizer sr;
     private String pendingLang;
     private long lastLevel = 0;
+    // กำลังฟังรอบนี้อยู่ไหม · บางเครื่องส่ง error ตามหลังผลลัพธ์ (หรือส่งซ้ำ) → ไม่ส่งต่อให้หน้าเว็บ ไม่งั้นไมค์ "เด้ง" ฟังใหม่เอง
+    private boolean active = false;
 
     Voice(MainActivity act) { this.act = act; }
 
@@ -54,14 +56,16 @@ class Voice implements RecognitionListener {
             i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L);
             i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L);
             i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, act.getPackageName());
+            active = true;
             sr.startListening(i);
             emit("start", null);
-        } catch (Exception e) { error("other", e.toString()); }
+        } catch (Exception e) { active = false; error("other", e.toString()); }
     }
 
     void stop() { try { if (sr != null) sr.stopListening(); } catch (Exception ignored) { } }
 
     void cancel() {
+        active = false;
         try { if (sr != null) sr.cancel(); } catch (Exception ignored) { }
         emit("end", null);
     }
@@ -111,13 +115,19 @@ class Voice implements RecognitionListener {
     @Override public void onBufferReceived(byte[] b) { }
     @Override public void onEndOfSpeech() { }
     @Override public void onError(int e) {
+        if (!active) return;
+        active = false;
         String code = e == SpeechRecognizer.ERROR_NO_MATCH || e == SpeechRecognizer.ERROR_SPEECH_TIMEOUT ? "nomatch"
                 : e == SpeechRecognizer.ERROR_NETWORK || e == SpeechRecognizer.ERROR_NETWORK_TIMEOUT || e == SpeechRecognizer.ERROR_SERVER ? "net"
                 : e == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ? "perm"
                 : e == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ? "busy" : "other";
         error(code, "error " + e);
     }
-    @Override public void onResults(Bundle b) { emit("result", texts(b)); emit("end", null); }
-    @Override public void onPartialResults(Bundle b) { emit("partial", texts(b)); }
+    @Override public void onResults(Bundle b) {
+        if (!active) return;
+        active = false;
+        emit("result", texts(b)); emit("end", null);
+    }
+    @Override public void onPartialResults(Bundle b) { if (active) emit("partial", texts(b)); }
     @Override public void onEvent(int t, Bundle b) { }
 }

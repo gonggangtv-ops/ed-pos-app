@@ -403,7 +403,7 @@ const VOICE = (() => {
   let mode = 'one'; try { const m = localStorage.getItem('edposMicMode'); if (MODES.some(x => x[0] === m)) mode = m; } catch {}   // กันลืมปิดไมค์: ฟังได้นานสุด 1 นาทีครึ่งต่อครั้ง
   const ses = { on: false, stop: false, push: false, segs: [], base: null, last: 0, start: 0, got: false };
   function listen(push = false) {
-    Object.assign(ses, { on: true, stop: false, push, segs: [], last: Date.now(), start: Date.now(), got: false,
+    Object.assign(ses, { on: true, stop: false, push, segs: [], last: Date.now(), start: Date.now(), got: false, heard: false,
       base: { items: st.items.slice(), unk: st.unk.slice(), allTa: st.allTa, thai: st.thai } });
     st.msg = ''; st.live = ''; st.listening = true; st.swapK = null; draw();
     startRec();
@@ -429,11 +429,19 @@ const VOICE = (() => {
   }
   function endSession() { ses.on = false; st.listening = false; st.live = ''; st.level = 0; }
   // ตัวแปลงเสียงจบหนึ่งช่วง → ฟังต่อไหม
+  // เปิดฟังใหม่เองเมื่อไร (ระวัง: เปิดใหม่บ่อย = ไมค์ "เด้งเอง" มีเสียงติ๊งทุกครั้ง)
+  // · กดค้างอยู่ → ฟังต่อจนปล่อยนิ้ว
+  // · ทีละเมนู → ได้ยินอะไรแล้วหยุดเลย (ถูก/ผิดก็ให้ตรวจ) · ยังไม่ได้ยินอะไรเลย → รอได้ไม่เกินเวลาที่ตั้ง
+  // · หลายเมนูต่อกัน → ฟังต่อจนเงียบ (ไม่มีข้อความใหม่) เกินเวลาที่ตั้ง
+  // นับ "เงียบ" จากข้อความที่ได้ยินเท่านั้น ไม่ใช้ความดังเสียง (ร้านเสียงดังจะนับว่ายังพูดอยู่ตลอด)
   function onRecEnd() {
-    const now = Date.now(), quiet = now - ses.last;
-    // ฟังทีละเมนู: ได้เมนูแล้ว → หยุดให้ตรวจก่อน (กดค้างอยู่ = ฟังต่อจนปล่อย)
-    const done1 = mode === 'one' && ses.got && !ses.push;
-    const more = ses.on && !ses.stop && !done1 && now - ses.start < MAX_SESSION && (ses.push || hold === 0 || quiet < hold);
+    const now = Date.now();
+    let more;
+    if (ses.push) more = true;
+    else if (mode === 'one') more = !ses.heard && (hold === 0 || now - ses.start < hold);
+    else more = hold === 0 || now - ses.last < hold;
+    more = more && ses.on && !ses.stop && now - ses.start < MAX_SESSION;
+    if (!more && ses.heard && !ses.got && ses.segs.length) st.msg = `ไม่พบชื่อเมนูใน “${ses.segs.join(' ')}” ลองพูดใหม่ หรือพูดชื่อให้ตรงกับเมนู`;
     if (more) { st.live = ''; setTimeout(() => { if (ses.on && !ses.stop) startRec(); else { endSession(); draw(); } }, 250); return; }
     endSession();
   }
@@ -584,16 +592,18 @@ const VOICE = (() => {
   }
   // เหตุการณ์จากแอป (Voice.java)
   window.edposVoice = ev => {
-    if (!st.open) return;
-    if (ev.type === 'ready' || ev.type === 'start') { if (!ses.on) return; st.listening = true; }
-    else if (ev.type === 'level') { st.level = ev.v || 0; if (st.level > 0.35) ses.last = Date.now(); paintLevel(); return; }
-    else if (ev.type === 'partial') { st.live = ev.text || ''; if (st.live) ses.last = Date.now(); }
+    // ไม่ได้ฟังอยู่ (หยุดแล้ว/ปิดแผ่นแล้ว) → ไม่สนเหตุการณ์ที่มาช้า
+    if (!st.open || !ses.on) return;
+    if (ev.type === 'ready' || ev.type === 'start') st.listening = true;
+    else if (ev.type === 'level') { st.level = ev.v || 0; paintLevel(); return; }
+    else if (ev.type === 'partial') { st.live = ev.text || ''; if (st.live) { ses.last = Date.now(); ses.heard = true; } }
     else if (ev.type === 'result') {
       const alts = (ev.alts || []).filter(Boolean);
-      if (alts.length && ses.base) { ses.segs.push(bestParse(alts).text); ses.last = Date.now(); reparse(); }
+      if (alts.length && ses.base) { ses.segs.push(bestParse(alts).text); ses.last = Date.now(); ses.heard = true; reparse(); }
     } else if (ev.type === 'error') {
-      // ไม่ได้ยิน/เงียบ ระหว่างฟังต่อเนื่อง = ปกติ (เดี๋ยวฟังใหม่เอง) · บอกเฉพาะตอนยังไม่ได้ยินอะไรเลย
-      if (ev.code === 'nomatch' && ses.on && (ses.segs.length || ses.push || hold === 0 || Date.now() - ses.last < hold)) return;
+      // ไม่ได้ยินระหว่างที่ยังรอได้ = ปกติ (เดี๋ยวฟังใหม่เอง) · หมดเวลารอแล้วค่อยบอก
+      const waitMore = ses.push || (mode === 'one' ? !ses.heard && (hold === 0 || Date.now() - ses.start < hold) : hold === 0 || Date.now() - ses.last < hold);
+      if (ev.code === 'nomatch' && (ses.heard || waitMore)) return;
       if (ev.code !== 'nomatch') ses.stop = true;
       st.msg = { perm: 'ยังไม่ได้อนุญาตให้ใช้ไมค์ · แตะไมค์อีกครั้งแล้วกด “อนุญาต” (หรือ ตั้งค่า › แอป › MAMA POS › สิทธิ์ › ไมโครโฟน)',
         nomatch: 'ไม่ได้ยินชัด ลองพูดอีกครั้ง ใกล้ๆ เครื่อง', net: 'แปลงเสียงไม่ได้ ต้องต่ออินเทอร์เน็ต', busy: 'ไมค์กำลังถูกใช้อยู่ ลองใหม่อีกครั้ง' }[ev.code] || 'ฟังไม่สำเร็จ ลองใหม่อีกครั้ง';
