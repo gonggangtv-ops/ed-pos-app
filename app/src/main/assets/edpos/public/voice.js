@@ -224,7 +224,8 @@ const VOICE = (() => {
       @keyframes vfade { from { opacity: 0; } }
       @keyframes vup { from { transform: translateY(24px); opacity: .4; } }
       .vsh { background: var(--card); width: min(560px, 100%); max-height: 92vh; max-height: 92dvh; overflow: auto; border-radius: 22px 22px 0 0;
-        padding: 10px 18px 0; display: flex; flex-direction: column; box-shadow: 0 -12px 40px rgba(0,0,0,.25); animation: vup .22s cubic-bezier(.2,.8,.2,1); }
+        padding: 10px 18px 0; display: flex; flex-direction: column; box-shadow: 0 -12px 40px rgba(0,0,0,.25); }
+      .vbg.enter .vsh { animation: vup .22s cubic-bezier(.2,.8,.2,1); }
       .vsh::before { content: ""; width: 42px; height: 5px; border-radius: 3px; background: var(--line); align-self: center; margin-bottom: 8px; }
       @media (min-width: 821px) { .vbg { align-items: center; } .vsh { border-radius: 20px; padding-top: 18px; } .vsh::before { display: none; } }
       .vtop { display: flex; align-items: center; gap: 10px; }
@@ -381,7 +382,9 @@ const VOICE = (() => {
   }
   function openSheet() {
     Object.assign(st, { open: true, live: '', heard: '', msg: '', items: [], unk: [], allTa: false, thai: false, fresh: new Set(), swapK: null, q: '', setOpen: false });
-    sheet = document.createElement('div'); sheet.className = 'vbg';
+    // เลื่อนขึ้นเฉพาะตอนเปิดครั้งแรก (วาดใหม่ระหว่างฟังต้องไม่เด้ง)
+    sheet = document.createElement('div'); sheet.className = 'vbg enter';
+    setTimeout(() => sheet?.classList.remove('enter'), 400);
     sheet.onclick = e => { if (e.target === sheet) closeSheet(); };
     document.body.appendChild(sheet);
     draw(); sync();
@@ -403,14 +406,20 @@ const VOICE = (() => {
   let mode = 'one'; try { const m = localStorage.getItem('edposMicMode'); if (MODES.some(x => x[0] === m)) mode = m; } catch {}   // กันลืมปิดไมค์: ฟังได้นานสุด 1 นาทีครึ่งต่อครั้ง
   const ses = { on: false, stop: false, push: false, segs: [], base: null, last: 0, start: 0, got: false };
   function listen(push = false) {
-    Object.assign(ses, { on: true, stop: false, push, segs: [], last: Date.now(), start: Date.now(), got: false, heard: false,
+    Object.assign(ses, { on: true, stop: false, push, segs: [], last: Date.now(), start: Date.now(), got: false, heard: false, miss: 0,
       base: { items: st.items.slice(), unk: st.unk.slice(), allTa: st.allTa, thai: st.thai } });
     st.msg = ''; st.live = ''; st.listening = true; st.swapK = null; draw();
     startRec();
   }
   function startRec() {
-    try { app.voiceStart('th-TH'); } catch { endSession(); st.msg = 'เปิดไมค์ไม่ได้'; draw(); }
+    // ส่งชื่อเมนูไปช่วยตัวแปลงเสียง (Android 13+ ที่รองรับ) ให้เดาคำเป็นชื่อเมนูของร้าน
+    try {
+      if (typeof app.voiceStartBias === 'function') app.voiceStartBias('th-TH', biasWords().join('\n'));
+      else app.voiceStart('th-TH');
+    } catch { endSession(); st.msg = 'เปิดไมค์ไม่ได้'; draw(); }
   }
+  const biasWords = () => [...new Set([...S.menu.filter(m => m.available !== false).map(m => m.name),
+    ...S.menu.flatMap(m => groupsOf(m).flatMap(g => g.choices.map(c => c.name))), 'เล็ก', 'กลาง', 'ใหญ่', 'เผ็ดน้อย', 'ไม่เผ็ด', 'กลับบ้าน'])].slice(0, 500);
   function stopListen() { ses.stop = true; try { app.voiceStop(); } catch {} }
   // ข้อความทั้งหมดของรอบนี้ → แยกเมนูใหม่ทั้งก้อน แล้วต่อท้ายรายการที่มีอยู่ก่อนเริ่มรอบ
   function reparse() {
@@ -438,7 +447,7 @@ const VOICE = (() => {
     const now = Date.now();
     let more;
     if (ses.push) more = true;
-    else if (mode === 'one') more = !ses.heard && (hold === 0 || now - ses.start < hold);
+    else if (mode === 'one') more = !ses.heard && now - ses.start < (hold || 15000);   // กดหยุดเอง: รอคนเริ่มพูดได้ 15 วิ
     else more = hold === 0 || now - ses.last < hold;
     more = more && ses.on && !ses.stop && now - ses.start < MAX_SESSION;
     if (!more && ses.heard && !ses.got && ses.segs.length) st.msg = `ไม่พบชื่อเมนูใน “${ses.segs.join(' ')}” ลองพูดใหม่ หรือพูดชื่อให้ตรงกับเมนู`;
@@ -466,15 +475,17 @@ const VOICE = (() => {
       : small ? '<b>แตะไมค์เพื่อพูดเพิ่ม</b><span>หรือตรวจรายการด้านล่างแล้วกดใส่รายการ</span>'
       : `<b>แตะไมค์แล้วพูดได้เลย</b><span>${mode === 'one' ? 'พูดทีละเมนู พูดจบแล้วไมค์จะหยุดให้ตรวจ' : 'พูดต่อกันได้หลายเมนู'} · กดค้าง = พูดตลอดที่กด</span>`;
     const dis = st.listening ? 'disabled' : '';
-    const sofar = st.listening ? [...ses.segs, st.live].filter(Boolean).join(' ') : '';
+    const sofar = st.listening ? liveText() : '';
+    const scroll = sheet.querySelector('.vsh')?.scrollTop || 0;
     sheet.innerHTML = `<div class="vsh" role="dialog" aria-modal="true" aria-label="สั่งด้วยเสียง">
       <div class="vtop"><span class="vbadge">${ICON_MIC}</span><h2>สั่งด้วยเสียง<small>${esc(tbl)}</small></h2><button class="vclose" data-v="close" aria-label="ปิด">${ICON_X}</button></div>
       <div class="vhero ${small ? 'small' : ''}"><button class="vbtn ${st.listening ? 'on' : ''}" data-v="mic" aria-label="${st.listening ? 'หยุดฟัง' : 'พูด'}">${st.listening ? ICON_STOP : ICON_MIC}</button>
         <div class="vstat" aria-live="polite">${status}</div></div>
-      ${st.listening || !small ? `<div class="vlive ${sofar ? '' : 'ph'}">${sofar ? esc(sofar) : st.listening ? '…' : 'ตัวอย่าง'}${!st.listening && !small ? `<div class="vex"><span>ปลาเผา 2</span><span>ช้างใหญ่ 3</span><span>กะเพราไก่ที่เล็ก เผ็ดน้อย ราดข้าว</span><span>ข้าวสวย 4 กลับบ้าน</span></div>` : ''}</div>` : ''}
+      ${st.listening || !small ? `<div class="vlive ${st.listening && (st.live || ses.segs.length) ? '' : 'ph'}">${sofar ? esc(sofar) : 'ตัวอย่าง'}${!st.listening && !small ? `<div class="vex"><span>ปลาเผา 2</span><span>ช้างใหญ่ 3</span><span>กะเพราไก่ที่เล็ก เผ็ดน้อย ราดข้าว</span><span>ข้าวสวย 4 กลับบ้าน</span></div>` : ''}</div>` : ''}
       <details class="vset" ${st.setOpen ? 'open' : ''}><summary data-v="set">ตั้งค่าการฟัง · ${MODES.find(x => x[0] === mode)[1]} · เงียบ ${HOLDS.find(x => x[0] === hold)[1]}</summary>
         <div class="vhold"><span>วิธีพูด</span>${MODES.map(([m, t]) => `<button data-v="mode" data-m="${m}" aria-pressed="${m === mode}">${t}</button>`).join('')}</div>
-        <div class="vhold"><span>หยุดฟังเองเมื่อเงียบ</span>${HOLDS.map(([ms, t]) => `<button data-v="hold" data-h="${ms}" aria-pressed="${ms === hold}">${t}</button>`).join('')}</div></details>
+        <div class="vhold"><span>หยุดฟังเองเมื่อเงียบ</span>${HOLDS.map(([ms, t]) => `<button data-v="hold" data-h="${ms}" aria-pressed="${ms === hold}">${t}</button>`).join('')}</div>
+        ${st.svc ? `<p class="vheard">ตัวแปลงเสียง: ${esc({ 'com.google.android.googlequicksearchbox': 'Google', 'com.google.android.tts': 'Google (ในเครื่อง)', 'com.google.android.as': 'Google (ในเครื่อง)' }[st.svc] || st.svc)}</p>` : ''}</details>
       ${st.msg ? `<p class="vmsg" role="alert"><span>⚠</span><span>${esc(st.msg)}</span></p>` : ''}
       ${st.heard && !st.listening ? `<p class="vheard">ได้ยินว่า “${esc(st.heard)}”</p>` : ''}
       ${st.items.length ? `<div class="vsec"><span>รายการที่ได้ยิน</span><span>${st.items.reduce((a, x) => a + (x.m.available === false ? 0 : x.qty), 0)} จาน</span></div><ul class="vlist">${st.items.map((x, k) => {
@@ -495,7 +506,17 @@ const VOICE = (() => {
       ${st.items.length ? `<p class="vheard">ตรวจรายการแล้วกด “ใส่รายการ” · เมนูที่ยังไม่ได้บอกตัวเลือก จะถามทีละจาน · ยังไม่ส่งครัวจนกว่าจะกดส่งออเดอร์</p>` : ''}
       <div class="vfoot"><button data-v="close">ยกเลิก</button>
         <button class="primary" data-v="add" ${nAdd() && !st.listening ? '' : 'disabled'}>ใส่รายการ${nAdd() ? ` (${nAdd()})` : ''}</button></div></div>`;
+    const vsh = sheet.querySelector('.vsh'); if (vsh) vsh.scrollTop = scroll;
     paintLevel();
+  }
+  // ข้อความที่ได้ยินระหว่างพูด: เปลี่ยนเฉพาะกล่องข้อความ (ไม่วาดทั้งแผ่น)
+  function liveText() {
+    const t = [...ses.segs, st.live].filter(Boolean).join(' ');
+    return t || (ses.miss >= 2 ? 'ยังไม่ได้ยินเสียงพูด · พูดใกล้ๆ เครื่อง และดูว่าเคสไม่ได้บังรูไมค์' : '…');
+  }
+  function paintLive() {
+    const el = sheet?.querySelector('.vlive'); if (!el) return draw();
+    el.textContent = liveText(); el.classList.toggle('ph', !st.live && !ses.segs.length);
   }
   // ความดังเสียง → วงรอบไมค์ขยาย + แท่งคลื่น 5 แท่ง (ไม่วาดทั้งแผ่นใหม่)
   const WAVE = [0.55, 0.85, 1, 0.8, 0.6];
@@ -594,19 +615,24 @@ const VOICE = (() => {
   window.edposVoice = ev => {
     // ไม่ได้ฟังอยู่ (หยุดแล้ว/ปิดแผ่นแล้ว) → ไม่สนเหตุการณ์ที่มาช้า
     if (!st.open || !ses.on) return;
-    if (ev.type === 'ready' || ev.type === 'start') st.listening = true;
+    if (ev.type === 'ready' || ev.type === 'start') { if (st.listening) return; st.listening = true; }   // ฟังใหม่ต่อเนื่อง: ไม่ต้องวาดใหม่
+    else if (ev.type === 'info') { st.svc = ev.svc || ''; return; }
     else if (ev.type === 'level') { st.level = ev.v || 0; paintLevel(); return; }
-    else if (ev.type === 'partial') { st.live = ev.text || ''; if (st.live) { ses.last = Date.now(); ses.heard = true; } }
+    else if (ev.type === 'partial') { st.live = ev.text || ''; if (st.live) { ses.last = Date.now(); ses.heard = true; } paintLive(); return; }
     else if (ev.type === 'result') {
       const alts = (ev.alts || []).filter(Boolean);
       if (alts.length && ses.base) { ses.segs.push(bestParse(alts).text); ses.last = Date.now(); ses.heard = true; reparse(); }
     } else if (ev.type === 'error') {
       // ไม่ได้ยินระหว่างที่ยังรอได้ = ปกติ (เดี๋ยวฟังใหม่เอง) · หมดเวลารอแล้วค่อยบอก
-      const waitMore = ses.push || (mode === 'one' ? !ses.heard && (hold === 0 || Date.now() - ses.start < hold) : hold === 0 || Date.now() - ses.last < hold);
-      if (ev.code === 'nomatch' && (ses.heard || waitMore)) return;
+      const waitMore = ses.push || (mode === 'one' ? !ses.heard && Date.now() - ses.start < (hold || 15000) : hold === 0 || Date.now() - ses.last < hold);
+      // ได้ยินระหว่างพูดแล้ว แต่ตัวแปลงเสียงจบด้วย error (เกิดบ่อยตอนเสียงรอบข้างดัง) → ใช้ข้อความที่ได้ยินล่าสุดแทน ไม่ทิ้ง
+      if (st.live && ses.base) { ses.segs.push(st.live); st.live = ''; reparse(); if (ev.code === 'nomatch') { draw(); return; } }
+      if (ev.code === 'nomatch') ses.miss++;
+      if (ev.code === 'nomatch' && (ses.heard || waitMore)) { paintLive(); return; }
       if (ev.code !== 'nomatch') ses.stop = true;
       st.msg = { perm: 'ยังไม่ได้อนุญาตให้ใช้ไมค์ · แตะไมค์อีกครั้งแล้วกด “อนุญาต” (หรือ ตั้งค่า › แอป › MAMA POS › สิทธิ์ › ไมโครโฟน)',
         nomatch: 'ไม่ได้ยินชัด ลองพูดอีกครั้ง ใกล้ๆ เครื่อง', net: 'แปลงเสียงไม่ได้ ต้องต่ออินเทอร์เน็ต', busy: 'ไมค์กำลังถูกใช้อยู่ ลองใหม่อีกครั้ง' }[ev.code] || 'ฟังไม่สำเร็จ ลองใหม่อีกครั้ง';
+      if (ev.n != null) st.msg += ` (รหัส ${ev.n})`;   // ไว้แจ้งปัญหา
     } else if (ev.type === 'end') { if (!ses.on) return; onRecEnd(); }
     draw();
   };
