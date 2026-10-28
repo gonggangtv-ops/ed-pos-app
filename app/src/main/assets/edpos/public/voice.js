@@ -148,59 +148,165 @@ const VOICE = (() => {
   // ---------- หน้าตา ----------
   const st = { open: false, listening: false, level: 0, live: '', heard: '', msg: '', items: [], unk: [], allTa: false, thai: false, learn: true };
   let fab = null, sheet = null;
+  // ไอคอน (วาดเอง ไม่ใช้อีโมจิ · สีตามธีม)
+  const ICON_MIC = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="2.5" width="7" height="12" rx="3.5" fill="currentColor"/><path d="M5 11.5a7 7 0 0 0 14 0M12 18.5v3M8.5 21.5h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  const ICON_STOP = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5" fill="currentColor"/></svg>';
+  const ICON_X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
   function css() {
     const s = document.createElement('style');
     s.textContent = `
-      .vfab { position: fixed; right: 18px; bottom: 18px; z-index: 25; width: 62px; height: 62px; border-radius: 50%; padding: 0; font-size: 27px;
-        background: var(--accent); color: var(--accent-ink); border-color: var(--accent); box-shadow: 0 6px 18px #0004; }
+      /* ----- ปุ่มไมค์ลอย (ลากย้ายได้) ----- */
+      .vfab { position: fixed; z-index: 25; width: 64px; height: 64px; border-radius: 50%; padding: 0; display: grid; place-items: center;
+        background: var(--accent); color: var(--accent-ink); border: 3px solid rgba(255,255,255,.92);
+        box-shadow: 0 10px 24px rgba(0,0,0,.28), 0 2px 6px rgba(0,0,0,.18); touch-action: none; user-select: none; -webkit-user-select: none;
+        transition: transform .15s, box-shadow .15s, left .25s cubic-bezier(.2,.8,.2,1), top .25s cubic-bezier(.2,.8,.2,1); }
+      .vfab::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(160deg, rgba(255,255,255,.32), rgba(255,255,255,0) 55%); pointer-events: none; }
+      .vfab svg { width: 30px; height: 30px; position: relative; }
+      .vfab:active { transform: scale(.94); }
+      .vfab.drag { transform: scale(1.1); box-shadow: 0 16px 34px rgba(0,0,0,.35); transition: transform .15s, box-shadow .15s; cursor: grabbing; }
       .vfab[hidden] { display: none; }
-      @media (max-width: 820px) { .vfab { bottom: calc(86px + env(safe-area-inset-bottom)); right: 14px; } }
-      .vbg { position: fixed; inset: 0; background: #0007; z-index: 45; display: flex; align-items: flex-end; justify-content: center; }
-      .vsh { background: var(--card); width: min(560px, 100%); max-height: 92vh; max-height: 92dvh; overflow: auto; border-radius: 18px 18px 0 0;
-        padding: 16px 16px 0; display: flex; flex-direction: column; }
-      @media (min-width: 821px) { .vbg { align-items: center; } .vsh { border-radius: 16px; } }
-      .vsh h2 { margin: 0; font-size: 19px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-      .vsh h2 button { padding: 6px 12px; }
-      .vmic { display: flex; align-items: center; gap: 14px; margin: 14px 0 6px; }
-      .vmic button { width: 66px; height: 66px; border-radius: 50%; padding: 0; font-size: 28px; flex: none; position: relative;
-        background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-      .vmic button.on::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; border: 3px solid var(--accent);
-        opacity: .5; transform: scale(var(--lv, 1)); transition: transform .1s; }
-      .vmic p { margin: 0; font-size: 15.5px; line-height: 1.5; color: var(--muted); }
-      .vmic p b { color: var(--ink); font-weight: 600; }
-      .vmsg { color: var(--bad); font-size: 15px; margin: 4px 0; }
-      .vheard { font-size: 14px; color: var(--muted); margin: 6px 0 4px; }
-      .vlist { list-style: none; margin: 6px 0 0; padding: 0; }
-      .vlist li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+      :root[data-ot=dark] .vfab { border-color: rgba(255,255,255,.18); }
+      .vtip { position: fixed; z-index: 26; background: var(--ink); color: var(--card); font-size: 14px; padding: 8px 12px; border-radius: 10px; pointer-events: none;
+        box-shadow: 0 6px 16px rgba(0,0,0,.25); opacity: 0; transition: opacity .3s; white-space: nowrap; }
+      .vtip.on { opacity: 1; }
+      /* ----- แผ่นสั่งด้วยเสียง ----- */
+      .vbg { position: fixed; inset: 0; background: rgba(10,10,12,.55); z-index: 45; display: flex; align-items: flex-end; justify-content: center; animation: vfade .18s; }
+      @keyframes vfade { from { opacity: 0; } }
+      @keyframes vup { from { transform: translateY(24px); opacity: .4; } }
+      .vsh { background: var(--card); width: min(560px, 100%); max-height: 92vh; max-height: 92dvh; overflow: auto; border-radius: 22px 22px 0 0;
+        padding: 10px 18px 0; display: flex; flex-direction: column; box-shadow: 0 -12px 40px rgba(0,0,0,.25); animation: vup .22s cubic-bezier(.2,.8,.2,1); }
+      .vsh::before { content: ""; width: 42px; height: 5px; border-radius: 3px; background: var(--line); align-self: center; margin-bottom: 8px; }
+      @media (min-width: 821px) { .vbg { align-items: center; } .vsh { border-radius: 20px; padding-top: 18px; } .vsh::before { display: none; } }
+      .vtop { display: flex; align-items: center; gap: 10px; }
+      .vtop .vbadge { width: 34px; height: 34px; border-radius: 10px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; flex: none; }
+      .vtop .vbadge svg { width: 19px; height: 19px; }
+      .vtop h2 { margin: 0; font-size: 18px; font-weight: 700; flex: 1; line-height: 1.25; }
+      .vtop h2 small { display: block; font-size: 13.5px; font-weight: 500; color: var(--muted); }
+      .vclose { width: 38px; height: 38px; padding: 0; border-radius: 50%; display: grid; place-items: center; color: var(--muted); background: var(--bg); border-color: transparent; }
+      .vclose svg { width: 18px; height: 18px; }
+      /* ไมค์ใหญ่ + วงคลื่นตอนฟัง */
+      .vhero { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px 0 8px; }
+      .vhero.small { flex-direction: row; padding: 14px 0 4px; gap: 16px; }
+      .vbtn { --lv: 0; position: relative; width: 84px; height: 84px; border-radius: 50%; padding: 0; display: grid; place-items: center; flex: none;
+        background: var(--accent); color: var(--accent-ink); border: 0; box-shadow: 0 10px 24px rgba(0,0,0,.22); }
+      .vhero.small .vbtn { width: 62px; height: 62px; }
+      .vbtn svg { width: 36px; height: 36px; position: relative; z-index: 1; } .vhero.small .vbtn svg { width: 28px; height: 28px; }
+      .vbtn::before, .vbtn::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--accent); opacity: 0; }
+      .vbtn.on::before { opacity: .22; transform: scale(calc(1.15 + var(--lv) * .45)); transition: transform .1s linear; }
+      .vbtn.on::after { animation: vring 1.6s ease-out infinite; }
+      @keyframes vring { 0% { opacity: .35; transform: scale(1); } 100% { opacity: 0; transform: scale(1.9); } }
+      @media (prefers-reduced-motion: reduce) { .vbtn.on::after { animation: none; } }
+      .vstat { text-align: center; } .vhero.small .vstat { text-align: left; flex: 1; min-width: 0; }
+      .vstat b { display: block; font-size: 17px; font-weight: 700; }
+      .vstat span { font-size: 14.5px; color: var(--muted); line-height: 1.5; }
+      .vwave { display: inline-flex; gap: 3px; align-items: center; height: 18px; vertical-align: -3px; margin-left: 6px; }
+      .vwave i { width: 3px; border-radius: 2px; background: var(--accent); height: 4px; transition: height .1s; }
+      .vlive { background: var(--bg); border-radius: 14px; padding: 12px 14px; font-size: 17px; line-height: 1.5; margin: 4px 0 2px; min-height: 48px; }
+      .vlive.ph { color: var(--muted); font-size: 15px; }
+      .vex { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+      .vex span { font-size: 13.5px; padding: 4px 10px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); color: var(--ink); }
+      .vmsg { display: flex; gap: 8px; align-items: flex-start; color: var(--bad); font-size: 15px; margin: 8px 0 0; padding: 10px 12px; border-radius: 12px; background: rgba(192,57,43,.08); }
+      .vheard { font-size: 13.5px; color: var(--muted); margin: 10px 0 2px; }
+      .vsec { font-size: 13px; font-weight: 700; letter-spacing: .3px; color: var(--muted); margin: 14px 0 4px; display: flex; justify-content: space-between; }
+      .vlist { list-style: none; margin: 0; padding: 0; }
+      .vlist li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 11px 0; border-top: 1px solid var(--line); }
+      .vlist li:first-child { border-top: 0; }
       .vlist li b { font-size: 17px; font-weight: 600; }
-      .vlist li small { display: block; color: var(--muted); font-size: 14px; }
+      .vlist li small { display: block; color: var(--muted); font-size: 14px; margin-top: 1px; }
       .vlist li.out b { text-decoration: line-through; color: var(--muted); }
-      .vlist li small.bad { color: var(--bad); } .vlist li small.ask { color: var(--warn); font-weight: 600; }
-      .vq { display: flex; align-items: center; gap: 6px; } .vq button { padding: 6px 12px; min-width: 40px; } .vq span { min-width: 26px; text-align: center; font-weight: 700; font-size: 18px; }
-      .vx { padding: 6px 11px; color: var(--bad); }
-      .vunk { margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--bg); }
+      .vlist li small.bad { color: var(--bad); }
+      .vlist li small.ask { color: var(--warn); font-weight: 600; }
+      .vq { display: flex; align-items: center; background: var(--bg); border-radius: 999px; padding: 3px; }
+      .vq button { width: 36px; height: 36px; padding: 0; border-radius: 50%; border: 0; background: var(--card); font-size: 18px; font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+      .vq span { min-width: 34px; text-align: center; font-weight: 700; font-size: 18px; color: var(--accent); }
+      .vx { width: 36px; height: 36px; padding: 0; border-radius: 50%; display: grid; place-items: center; color: var(--muted); background: transparent; border-color: transparent; }
+      .vx svg { width: 16px; height: 16px; }
+      .vunk { margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: rgba(201,138,0,.10); border: 1px solid rgba(201,138,0,.28); }
       .vunk p { margin: 0 0 8px; font-size: 15px; }
-      .vunk .vc { display: flex; flex-wrap: wrap; gap: 6px; } .vunk .vc button { padding: 8px 12px; font-size: 15px; }
-      .vunk .vc button.no { color: var(--muted); }
+      .vunk .vc { display: flex; flex-wrap: wrap; gap: 6px; } .vunk .vc button { padding: 8px 14px; font-size: 15px; border-radius: 999px; }
+      .vunk .vc button.no { color: var(--muted); background: transparent; }
       .vlearn { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); margin: 10px 0 0; }
-      .vfoot { position: sticky; bottom: 0; background: var(--card); display: flex; gap: 10px; padding: 12px 0 max(14px, env(safe-area-inset-bottom)); margin-top: 12px; }
-      .vfoot button { flex: 1; min-height: 50px; }
+      .vfoot { position: sticky; bottom: 0; background: var(--card); display: flex; gap: 10px; padding: 12px 0 max(14px, env(safe-area-inset-bottom)); margin-top: 12px; border-top: 1px solid var(--line); }
+      .vfoot button { flex: 1; min-height: 52px; border-radius: 14px; }
+      .vfoot button.primary { flex: 2; }
       .vempty { color: var(--muted); font-size: 15px; margin: 8px 0; }`;
     document.head.appendChild(s);
   }
+
+  // ---------- ปุ่มลอย: ลากไปวางตรงไหนก็ได้ ปล่อยแล้วชิดขอบซ้าย/ขวาที่ใกล้กว่า · จำตำแหน่งไว้ในเครื่องนี้ ----------
+  const POS_KEY = 'edposMicPos', SIZE = 64, EDGE = 14;
+  let pos = null;   // {side: 'l'|'r', y: 0–1 (ตำแหน่งจากบนเทียบความสูงจอ)} · null = มุมขวาล่าง
+  try { pos = JSON.parse(localStorage.getItem(POS_KEY) || 'null'); } catch {}
+  const mobile = () => innerWidth <= 820;
+  // ขอบที่วางได้: มือถือเว้นแถบล่าง (ยอด/ส่งออเดอร์) · จอกว้างฝั่งขวาเว้นบิล
+  function bounds() {
+    const bill = document.querySelector('.bill'), r = bill && !mobile() ? bill.getBoundingClientRect() : null;
+    const top = (document.querySelector('header')?.getBoundingClientRect().bottom || 0) + 8;
+    const bottom = innerHeight - SIZE - (mobile() ? 86 : EDGE);
+    return { left: EDGE, right: (r ? r.left : innerWidth) - SIZE - EDGE, top, bottom };
+  }
+  function place() {
+    const b = bounds(), first = !fab.dataset.placed;
+    if (first) { fab.style.transition = 'none'; fab.dataset.placed = '1'; }   // วางครั้งแรกไม่ต้องเลื่อนมา
+    const y = pos ? pos.y * innerHeight : b.bottom;
+    fab.style.left = (pos?.side === 'l' ? b.left : b.right) + 'px';
+    fab.style.top = Math.min(b.bottom, Math.max(b.top, y)) + 'px';
+    if (first) { void fab.offsetWidth; fab.style.transition = ''; }
+  }
+  function makeFab() {
+    css();
+    fab = document.createElement('button');
+    fab.className = 'vfab'; fab.innerHTML = ICON_MIC;
+    fab.setAttribute('aria-label', 'สั่งด้วยเสียง (ลากเพื่อย้ายปุ่ม)');
+    document.body.appendChild(fab);
+    let drag = null, moved = false;
+    fab.addEventListener('pointerdown', e => {
+      const r = fab.getBoundingClientRect();
+      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, x0: e.clientX, y0: e.clientY }; moved = false;
+      fab.setPointerCapture(e.pointerId);
+    });
+    fab.addEventListener('pointermove', e => {
+      if (!drag) return;
+      if (!moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 8) return;   // ขยับนิดเดียว = แตะ
+      moved = true; fab.classList.add('drag'); hideTip();
+      fab.style.left = Math.min(innerWidth - SIZE, Math.max(0, e.clientX - drag.dx)) + 'px';
+      fab.style.top = Math.min(innerHeight - SIZE, Math.max(0, e.clientY - drag.dy)) + 'px';
+    });
+    const up = () => {
+      if (!drag) return;
+      drag = null; fab.classList.remove('drag');
+      if (!moved) return;
+      const r = fab.getBoundingClientRect(), b = bounds();
+      pos = { side: r.left + SIZE / 2 < (b.left + b.right + SIZE) / 2 ? 'l' : 'r', y: Math.round(Math.min(b.bottom, Math.max(b.top, r.top)) / innerHeight * 1000) / 1000 };
+      try { localStorage.setItem(POS_KEY, JSON.stringify(pos)); } catch {}
+      place();
+    };
+    fab.addEventListener('pointerup', up);
+    fab.addEventListener('pointercancel', up);
+    // แตะ = เปิด (ลากแล้วไม่นับเป็นแตะ)
+    fab.addEventListener('click', e => { if (moved) { moved = false; e.preventDefault(); return; } hideTip(); openSheet(); listen(); });
+    addEventListener('resize', () => { if (!fab.hidden) place(); });
+  }
+  // คำแนะนำ "ลากเพื่อย้ายได้" 2 ครั้งแรก
+  let tip = null;
+  function showTip() {
+    let n = 0; try { n = +localStorage.getItem('edposMicTip') || 0; } catch {}
+    if (n >= 2 || pos) return;
+    try { localStorage.setItem('edposMicTip', n + 1); } catch {}
+    tip = document.createElement('div'); tip.className = 'vtip'; tip.textContent = 'แตะเพื่อสั่งด้วยเสียง · ลากเพื่อย้ายปุ่ม';
+    document.body.appendChild(tip);
+    const r = fab.getBoundingClientRect();
+    tip.style.top = (r.top + SIZE / 2 - 18) + 'px';
+    requestAnimationFrame(() => { tip.style.left = Math.max(8, r.left - tip.offsetWidth - 10) + 'px'; tip.classList.add('on'); });
+    setTimeout(hideTip, 4500);
+  }
+  function hideTip() { if (!tip) return; const t = tip; tip = null; t.classList.remove('on'); setTimeout(() => t.remove(), 300); }
   function sync() {
     if (!ok) return;
-    if (!fab) {
-      css();
-      fab = document.createElement('button');
-      fab.className = 'vfab'; fab.textContent = '🎤'; fab.setAttribute('aria-label', 'สั่งด้วยเสียง');
-      fab.onclick = () => { openSheet(); listen(); };
-      document.body.appendChild(fab);
-    }
+    if (!fab) makeFab();
+    const was = fab.hidden;
     fab.hidden = !(orderUi().voice && current && !hist && !document.body.classList.contains('sheet-open') && !st.open);
-    // จอกว้าง: วางไว้ขวาล่างของรายการเมนู (ไม่ทับบิลด้านขวา)
-    const bill = document.querySelector('.bill');
-    fab.style.right = !fab.hidden && innerWidth > 820 && bill ? Math.max(18, innerWidth - bill.getBoundingClientRect().left + 18) + 'px' : '';
+    if (!fab.hidden) { place(); if (was) showTip(); } else hideTip();
   }
   function openSheet() {
     Object.assign(st, { open: true, live: '', heard: '', msg: '', items: [], unk: [], allTa: false, thai: false });
@@ -225,19 +331,22 @@ const VOICE = (() => {
     if (!sheet) return;
     const tbl = typeof tableName === 'function' ? tableName(current) : current;
     const choiceTxt = x => [...x.choices.map(c => { const g = groupsOf(x.m).find(g => g.choices.some(y => y.name === c)); return g && /^ไม่/.test(g.name) ? `${g.name}${c}` : c; }), ...x.notes, ...(x.ta || st.allTa ? ['กลับบ้าน'] : [])].join(' · ');
+    const small = st.items.length || st.unk.length;
+    const status = st.listening ? `<b>กำลังฟัง<span class="vwave">${'<i></i>'.repeat(5)}</span></b><span>พูดชื่อเมนูตามด้วยจำนวน · หยุดพูดแล้วจะสรุปให้เอง</span>`
+      : small ? '<b>แตะไมค์เพื่อพูดเพิ่ม</b><span>หรือตรวจรายการด้านล่างแล้วกดใส่รายการ</span>' : '<b>แตะไมค์แล้วพูดได้เลย</b><span>ชื่อเมนู + จำนวน ต่อกันได้หลายเมนู</span>';
     sheet.innerHTML = `<div class="vsh" role="dialog" aria-modal="true" aria-label="สั่งด้วยเสียง">
-      <h2><span>🎤 สั่งด้วยเสียง · ${esc(tbl)}</span><button data-v="close">ปิด</button></h2>
-      <div class="vmic"><button data-v="mic" class="${st.listening ? 'on' : ''}" aria-label="${st.listening ? 'หยุดฟัง' : 'พูดเพิ่ม'}">${st.listening ? '■' : '🎤'}</button>
-        <p>${st.listening ? (st.live ? `<b>${esc(st.live)}</b>` : 'กำลังฟัง… พูดชื่อเมนูตามด้วยจำนวน<br>เช่น “ปลาเผา 2 ช้างใหญ่ 3 ข้าวสวย 4”')
-          : st.items.length || st.unk.length ? 'แตะไมค์เพื่อพูดเพิ่ม' : 'แตะไมค์แล้วพูดชื่อเมนูตามด้วยจำนวน'}</p></div>
-      ${st.msg ? `<p class="vmsg" role="alert">${esc(st.msg)}</p>` : ''}
+      <div class="vtop"><span class="vbadge">${ICON_MIC}</span><h2>สั่งด้วยเสียง<small>${esc(tbl)}</small></h2><button class="vclose" data-v="close" aria-label="ปิด">${ICON_X}</button></div>
+      <div class="vhero ${small ? 'small' : ''}"><button class="vbtn ${st.listening ? 'on' : ''}" data-v="mic" aria-label="${st.listening ? 'หยุดฟัง' : 'พูด'}">${st.listening ? ICON_STOP : ICON_MIC}</button>
+        <div class="vstat" aria-live="polite">${status}</div></div>
+      ${st.listening || !small ? `<div class="vlive ${st.live ? '' : 'ph'}">${st.live ? esc(st.live) : st.listening ? '…' : 'ตัวอย่าง'}${!st.live && !small ? `<div class="vex"><span>ปลาเผา 2</span><span>ช้างใหญ่ 3</span><span>กะเพราหมูไข่ดาว</span><span>ข้าวสวย 4 กลับบ้าน</span></div>` : ''}</div>` : ''}
+      ${st.msg ? `<p class="vmsg" role="alert"><span>⚠</span><span>${esc(st.msg)}</span></p>` : ''}
       ${st.heard ? `<p class="vheard">ได้ยินว่า “${esc(st.heard)}”</p>` : ''}
-      ${st.items.length ? `<ul class="vlist">${st.items.map((x, k) => {
+      ${st.items.length ? `<div class="vsec"><span>รายการที่ได้ยิน</span><span>${st.items.reduce((a, x) => a + (x.m.available === false ? 0 : x.qty), 0)} จาน</span></div><ul class="vlist">${st.items.map((x, k) => {
         const out = x.m.available === false;
         const ask = askOf(x);
         return `<li class="${out ? 'out' : ''}"><div><b>${esc(x.m.name)}</b>${out ? '<small class="bad">หมด · จะไม่ใส่รายการ</small>' : choiceTxt(x) ? `<small>${esc(choiceTxt(x))}</small>` : ''}${!out && ask.length ? `<small class="ask">จะถาม: ${esc(ask.join(' · '))}</small>` : ''}</div>
           <div class="vq">${out ? '' : `<button data-v="minus" data-k="${k}" aria-label="ลด">−</button><span>${x.qty}</span><button data-v="plus" data-k="${k}" aria-label="เพิ่ม">+</button>`}</div>
-          <button class="vx" data-v="del" data-k="${k}" aria-label="เอาออก">✕</button></li>`; }).join('')}</ul>`
+          <button class="vx" data-v="del" data-k="${k}" aria-label="เอาออก">${ICON_X}</button></li>`; }).join('')}</ul>`
         : !st.listening && st.heard && !st.unk.length ? '<p class="vempty">ไม่พบชื่อเมนูในที่พูด ลองพูดใหม่ช้าๆ ใกล้เครื่อง</p>' : ''}
       ${st.unk.map((u, k) => { const c = candidates(u.text);
         return `<div class="vunk"><p>ไม่แน่ใจ “<b>${esc(u.text)}</b>”${u.qty ? ` × ${u.qty}` : ''} หมายถึง</p>
@@ -247,7 +356,14 @@ const VOICE = (() => {
       ${st.items.length ? `<p class="vheard">ตรวจรายการแล้วกด “ใส่รายการ” · เมนูที่ยังไม่ได้บอกตัวเลือก จะถามทีละจาน · ยังไม่ส่งครัวจนกว่าจะกดส่งออเดอร์</p>` : ''}
       <div class="vfoot"><button data-v="close">ยกเลิก</button>
         <button class="primary" data-v="add" ${nAdd() && !st.listening ? '' : 'disabled'}>ใส่รายการ${nAdd() ? ` (${nAdd()})` : ''}</button></div></div>`;
-    const lv = sheet.querySelector('.vmic button'); if (lv) lv.style.setProperty('--lv', 1 + st.level * 0.35);
+    paintLevel();
+  }
+  // ความดังเสียง → วงรอบไมค์ขยาย + แท่งคลื่น 5 แท่ง (ไม่วาดทั้งแผ่นใหม่)
+  const WAVE = [0.55, 0.85, 1, 0.8, 0.6];
+  function paintLevel() {
+    if (!sheet) return;
+    sheet.querySelector('.vbtn')?.style.setProperty('--lv', st.level);
+    sheet.querySelectorAll('.vwave i').forEach((b, i) => { b.style.height = Math.round(4 + st.level * 14 * WAVE[(i + Math.round(Date.now() / 120)) % 5]) + 'px'; });
   }
   function onClick(e) {
     const b = e.target.closest('[data-v]'); if (!b || !sheet?.contains(b)) return;
@@ -292,7 +408,7 @@ const VOICE = (() => {
   window.edposVoice = ev => {
     if (!st.open) return;
     if (ev.type === 'ready' || ev.type === 'start') st.listening = true;
-    else if (ev.type === 'level') { st.level = ev.v || 0; sheet?.querySelector('.vmic button')?.style.setProperty('--lv', 1 + st.level * 0.35); return; }
+    else if (ev.type === 'level') { st.level = ev.v || 0; paintLevel(); return; }
     else if (ev.type === 'partial') st.live = ev.text || '';
     else if (ev.type === 'result') {
       const alts = (ev.alts || []).filter(Boolean);
