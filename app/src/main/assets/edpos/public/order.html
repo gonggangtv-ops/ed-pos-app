@@ -801,7 +801,7 @@ function addItem(menuId, editIdx, vp) {
   const curAll = gname => { const k = groups.findIndex(g => g.name === gname); return k < 0 ? [] : [...sel[k]]; };
   // ราคาคนไทย: แก้รายการเดิมใช้ค่าเดิม · เพิ่มใหม่ใช้ตามจานอื่นของโต๊ะนี้ (โต๊ะคนไทยสั่งจานต่อไปก็ราคาไทยเลย)
   const thaiOk = hasThaiPrice(m);
-  const pr = { thai: thaiOk && (old ? !!old.thai : vp?.thai || tableIsThai()) };
+  const pr = { thai: thaiOk && (old ? !!old.thai : vp?.thai ?? tableIsThai()) };
   const priceNow = (over = {}) => gridPriceAll(grid, n => over[n] || curAll(n), pr.thai);
   // ราคาคนไทยที่ไม่แยกไซส์: ซ่อนกลุ่มนั้น (เช่น "ขนาด") ไม่ต้องเลือก ไม่ส่งไปครัว
   const skipNow = () => (pr.thai ? thaiSkipOf(grid) : null);
@@ -827,9 +827,9 @@ function addItem(menuId, editIdx, vp) {
   };
   const pre = splitNote(old?.note);
   let qty = old?.qty || vp?.qty || 1; const notes = new Set([...pre.quick, ...(old ? [] : vp?.notes || [])]);
-  const st = { takeaway: !!(old ? old.takeaway : vp?.takeaway), ...(old?.abroad ? { abroad: true } : {}) };
+  const st = { takeaway: !!(old ? old.takeaway : vp?.takeaway), ...((old ? old.abroad : vp?.abroad) ? { abroad: true } : {}) };
   const bg = modal(`
-    <h2>${old ? 'แก้ไข · ' : ''}${esc(m.name)} <span class="muted" style="font-weight:400" id="hprice">${priceText(m, pr.thai)}</span></h2>
+    <h2>${old || vp?.capture ? 'แก้ไข · ' : ''}${esc(m.name)} <span class="muted" style="font-weight:400" id="hprice">${priceText(m, pr.thai)}</span></h2>
     ${thaiOk ? `<div class="grp">ราคา</div>
       <div class="seg2" id="thaiSeg"><button data-th="0" class="${pr.thai ? '' : 'on'}">ราคาปกติ</button><button data-th="1" class="${pr.thai ? 'on thai' : ''}">ราคาคนไทย</button></div>` : ''}
     ${groups.map((g, k) => `<div data-gw="${k}" ${g.name === skipNow() ? 'hidden' : ''}>
@@ -855,7 +855,7 @@ function addItem(menuId, editIdx, vp) {
     const missing = groups.find((g, k) => g.name !== skipNow() && (g.required || inGrid(g)) && !sel[k].size);
     const none = !missing && Number.isNaN(unit());
     $('#ok').disabled = !!missing || none;
-    $('#ok').textContent = missing ? `เลือก${missing.name}ก่อน` : none ? (pr.thai ? 'ไม่มีราคาคนไทย' : 'แบบนี้ไม่มีขาย') : `${old ? 'บันทึก' : 'เพิ่ม'} · ${baht(r2(unit() * qty))} ฿`;
+    $('#ok').textContent = missing ? `เลือก${missing.name}ก่อน` : none ? (pr.thai ? 'ไม่มีราคาคนไทย' : 'แบบนี้ไม่มีขาย') : `${old || vp?.capture ? 'บันทึก' : 'เพิ่ม'} · ${baht(r2(unit() * qty))} ฿`;
     // ราคาบนปุ่มเปลี่ยนตามตัวเลือกอื่น (กลุ่มในตาราง) และตามราคาปกติ/คนไทย (บวกราคา)
     groups.forEach((g, k) => { bg.querySelectorAll(`[data-g="${k}"] button`).forEach(b => {
       const c = g.choices.find(x => x.name === b.dataset.c); b.innerHTML = esc(c.name) + tagOf(g, c); }); });
@@ -897,6 +897,8 @@ function addItem(menuId, editIdx, vp) {
     const note = m.noNote ? '' : [...notes, $('#note').value.trim()].filter(Boolean).join(', ');
     const line = { menuId: m.id, name: m.name, option: names.join(' '), opts, alerts, choices, note, qty, price: r2(unit()), takeaway: st.takeaway,
       ...(st.abroad ? { abroad: true } : {}), ...(pr.thai ? { thai: true } : {}) };
+    // สั่งด้วยเสียง: แก้รายการในแผ่นตรวจ (ยังไม่ใส่ตะกร้า) → ส่งค่ากลับไป
+    if (vp?.capture) { close(); vp.capture(line); return; }
     if (old && cart[editIdx] === old) { cart[editIdx] = line; bg.remove(); render(); toast('แก้ไขแล้ว'); return; }
     // กดเมนูเดิมซ้ำ (ตัวเลือก หมายเหตุ ทานที่ร้าน/กลับบ้าน ราคา เหมือนกันทุกอย่าง) → บวกจำนวนในบรรทัดเดิม
     // ครัวจะเห็น/ได้ยิน "กะเพรา 3 ที่" บรรทัดเดียว แทน 3 บรรทัด
