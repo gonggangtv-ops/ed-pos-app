@@ -11,7 +11,23 @@ const VOICE = (() => {
 
   // ---------- แยกคำ ----------
   const TH_DIG = '๐๑๒๓๔๕๖๗๘๙';
-  const norm = s => String(s || '').toLowerCase().replace(/[๐-๙]/g, d => TH_DIG.indexOf(d)).replace(/[\s.,!?'"“”()\-]/g, '');
+  // สะกดต่างกันแต่หมายถึงคำเดียวกัน (ตัวแปลงเสียงสะกดได้หลายแบบ) → ทำให้เป็นแบบเดียวกันทั้งชื่อเมนูและคำที่ได้ยิน
+  const SPELL = [[/กระเพราะ|กะเพราะ|กระเพรา|กะเพา|กระเพา/g, 'กะเพรา'], [/ซีอิ้ว|ซีอิว/g, 'ซีอิ๊ว'], [/กระหรี่/g, 'กะหรี่'], [/ไซซ์|ไซต์|ไซด์|ไซ้ส์/g, 'ไซส์']];
+  const norm = s => SPELL.reduce((t, [re, to]) => t.replace(re, to),
+    String(s || '').toLowerCase().replace(/[๐-๙]/g, d => TH_DIG.indexOf(d)).replace(/[\s.,!?'"“”()\-ๆ]/g, ''));
+  // คำพูดที่หมายถึงตัวเลือก (ใช้เมื่อเมนูนั้นไม่มีตัวเลือกชื่อนี้ตรงๆ) เช่น "ที่เล็ก" = ขนาด S · "ไม่เผ็ด" = ไม่พริก
+  const SYN = {
+    s: ['เล็ก', 'ไซส์เล็ก', 'ขนาดเล็ก', 'เอส', 'ไซส์เอส', 'ไซส์s'],
+    m: ['กลาง', 'ไซส์กลาง', 'ขนาดกลาง', 'เอ็ม', 'ไซส์เอ็ม', 'ไซส์m'],
+    l: ['ใหญ่', 'ไซส์ใหญ่', 'ขนาดใหญ่', 'แอล', 'ไซส์แอล', 'ไซส์l'],
+    xl: ['ใหญ่พิเศษ', 'เอ็กซ์แอล', 'ไซส์xl'],
+    ไม่พริก: ['ไม่เผ็ด', 'ไม่ใส่พริก', 'ไม่เอาพริก'],
+    เผ็ด: ['เผ็ดปกติ', 'เผ็ดธรรมดา'],
+    เผ็ดมาก: ['เผ็ดจัด', 'เผ็ดสุด'],
+    ราดข้าว: ['ข้าวราด', 'ราดข้าวสวย', 'โปะข้าว'],
+    หมูสับ: ['หมูบด'], ทะเล: ['ซีฟู้ด', 'รวมมิตรทะเล', 'รวมทะเล'], เจ: ['มังสวิรัติ'],
+    ไข่ดาว: ['ทอดไข่ดาว', 'ไข่ดาวด้วย'],
+  };
   const NUM = { หนึ่ง: 1, นึง: 1, เอ็ด: 1, สอง: 2, ยี่: 2, สาม: 3, สี่: 4, ห้า: 5, หก: 6, เจ็ด: 7, แปด: 8, เก้า: 9 };
   const W = 'หนึ่ง|นึง|สอง|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า';
   const NUM_RE = new RegExp(`^(?:(\\d{1,3})|((?:${W}|ยี่)?สิบ(?:เอ็ด|${W})?)|(${W}))`);
@@ -32,8 +48,12 @@ const VOICE = (() => {
   function dict() {
     if (dictCache && dictRev === S.rev) return dictCache;
     const D = [];
+    const names = new Set(S.menu.map(m => norm(m.name)));
     for (const m of S.menu) {
       D.push({ key: norm(m.name), m });
+      // คนมักไม่พูด "ผัด" นำหน้า: "กะเพราหมู" = ผัดกะเพรา · ใช้เมื่อไม่มีเมนูชื่อนั้นอยู่แล้ว
+      const short = norm(m.name).replace(/^ผัด/, '');
+      if (short !== norm(m.name) && short.length >= 3 && !names.has(short)) D.push({ key: short, m, short: true });
       const en = typeof trEn === 'function' ? norm(trEn(m.name)) : '';
       if (en.length >= 3 && en !== norm(m.name)) D.push({ key: en, m });
     }
@@ -51,7 +71,22 @@ const VOICE = (() => {
     return dictCache;
   }
   // ตัวเลือกของเมนู + ชื่อกลุ่ม (ข้ามได้ เช่น "ช้างขวดใหญ่" · "ข้าวผัดไม่ใส่ไข่")
-  const choiceEntries = m => groupsOf(m).flatMap(g => [{ key: norm(g.name), skip: true }, ...g.choices.map(c => ({ key: norm(c.name), choice: c.name }))]).filter(e => e.key);
+  // ลำดับเมื่อยาวเท่ากัน: ชื่อตัวเลือกตรงๆ (3) > คำพ้อง (2.5) > ชื่อกลุ่มที่ข้ามได้ (2.4) > คำสั่งพิเศษ (2) > เมนู (1)
+  // เช่น กลุ่ม "ราดข้าว" มีตัวเลือก "ราดข้าว" → นับเป็นตัวเลือก
+  function choiceEntries(m) {
+    const out = [], exact = new Set();
+    for (const g of groupsOf(m)) {
+      out.push({ key: norm(g.name), skip: true, pri: 2.4 });
+      for (const c of g.choices) {
+        const k = norm(c.name); exact.add(k);
+        out.push({ key: k, choice: c.name, pri: 3 });
+        const cut = k.replace(/\d.*$/, '');   // "ไข่เจียว1ฟอง" → พูดแค่ "ไข่เจียว" ก็ได้
+        if (cut.length >= 2 && cut !== k) out.push({ key: cut, choice: c.name, pri: 2.5 });
+        for (const w of SYN[k] || []) out.push({ key: norm(w), choice: c.name, pri: 2.5 });
+      }
+    }
+    return out.filter(e => e.key && !(e.pri === 2.5 && exact.has(e.key)));
+  }
 
   // เศษคำที่ยาวพอจะเป็นคำ (ไม่นับสระบน/ล่าง วรรณยุกต์) → ถามว่าหมายถึงเมนูไหน
   const meaningful = s => s.length >= 2 && s.replace(/[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/g, '').length >= 1;   // "ปู" ได้ · "ก" ไม่ได้
@@ -77,7 +112,7 @@ const VOICE = (() => {
         if (e.key.length > rest.length || !rest.startsWith(e.key)) return;
         if (!best || e.key.length > best.e.key.length || (e.key.length === best.e.key.length && pri > best.pri)) best = { e, pri };
       };
-      if (cur) for (const e of cur.ch) tryE(e, 3);
+      if (cur) for (const e of cur.ch) tryE(e, e.pri);
       for (const e of KW) tryE(e, 2);
       for (const e of D) tryE(e, 1);
       if (best) {
@@ -229,7 +264,12 @@ const VOICE = (() => {
       .vfoot { position: sticky; bottom: 0; background: var(--card); display: flex; gap: 10px; padding: 12px 0 max(14px, env(safe-area-inset-bottom)); margin-top: 12px; border-top: 1px solid var(--line); }
       .vfoot button { flex: 1; min-height: 52px; border-radius: 14px; }
       .vfoot button.primary { flex: 2; }
-      .vempty { color: var(--muted); font-size: 15px; margin: 8px 0; }`;
+      .vempty { color: var(--muted); font-size: 15px; margin: 8px 0; }
+      .vhold { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 13.5px; color: var(--muted); }
+      .vhold span { margin-right: 2px; }
+      .vhold button { padding: 4px 11px; font-size: 13.5px; border-radius: 999px; min-height: 0; }
+      .vhold button[aria-pressed="true"] { background: var(--ink); color: var(--card); border-color: var(--ink); }
+      .vq button:disabled, .vx:disabled { opacity: .35; }`;
     document.head.appendChild(s);
   }
 
@@ -293,11 +333,12 @@ const VOICE = (() => {
     let n = 0; try { n = +localStorage.getItem('edposMicTip') || 0; } catch {}
     if (n >= 2 || pos) return;
     try { localStorage.setItem('edposMicTip', n + 1); } catch {}
-    tip = document.createElement('div'); tip.className = 'vtip'; tip.textContent = 'แตะเพื่อสั่งด้วยเสียง · ลากเพื่อย้ายปุ่ม';
-    document.body.appendChild(tip);
+    const t = tip = document.createElement('div'); t.className = 'vtip'; t.textContent = 'แตะเพื่อสั่งด้วยเสียง · ลากเพื่อย้ายปุ่ม';
+    document.body.appendChild(t);
     const r = fab.getBoundingClientRect();
-    tip.style.top = (r.top + SIZE / 2 - 18) + 'px';
-    requestAnimationFrame(() => { tip.style.left = Math.max(8, r.left - tip.offsetWidth - 10) + 'px'; tip.classList.add('on'); });
+    t.style.top = (r.top + SIZE / 2 - 18) + 'px';
+    // ปุ่มชิดซ้าย → ป้ายอยู่ขวาของปุ่ม · ชิดขวา → ป้ายอยู่ซ้าย
+    requestAnimationFrame(() => { t.style.left = (r.left < innerWidth / 2 ? r.right + 10 : Math.max(8, r.left - t.offsetWidth - 10)) + 'px'; t.classList.add('on'); });
     setTimeout(hideTip, 4500);
   }
   function hideTip() { if (!tip) return; const t = tip; tip = null; t.classList.remove('on'); setTimeout(() => t.remove(), 300); }
@@ -316,12 +357,42 @@ const VOICE = (() => {
     draw(); sync();
   }
   function closeSheet() {
+    ses.on = false;
     if (st.listening) try { app.voiceCancel(); } catch {}
     st.open = st.listening = false; sheet?.remove(); sheet = null; sync();
   }
-  function listen() {
+  // ---------- ฟังต่อเนื่อง ----------
+  // ตัวแปลงเสียงของ Android ตัดเองเมื่อเงียบแป๊บเดียว → เปิดฟังใหม่ต่อให้เองจนกว่าจะกดหยุด หรือเงียบนานเกินที่ตั้ง
+  // ข้อความทุกช่วงต่อกันแล้วค่อยแยกเมนู ("ผัดกะเพราไก่" | "ที่เล็ก เผ็ดน้อย" = จานเดียวกัน)
+  // กดค้างที่ไมค์ = ฟังตลอดที่กดอยู่ ปล่อยแล้วหยุด
+  const HOLDS = [[2500, '2 วิ'], [4000, '4 วิ'], [7000, '7 วิ'], [0, 'กดหยุดเอง']];
+  let hold = 4000; try { const h = localStorage.getItem('edposMicHold'); if (h != null && HOLDS.some(x => String(x[0]) === h)) hold = +h; } catch {}
+  const MAX_SESSION = 90000;   // กันลืมปิดไมค์: ฟังได้นานสุด 1 นาทีครึ่งต่อครั้ง
+  const ses = { on: false, stop: false, push: false, segs: [], base: null, last: 0, start: 0 };
+  function listen(push = false) {
+    Object.assign(ses, { on: true, stop: false, push, segs: [], last: Date.now(), start: Date.now(),
+      base: { items: st.items.slice(), unk: st.unk.slice(), allTa: st.allTa, thai: st.thai } });
     st.msg = ''; st.live = ''; st.listening = true; draw();
-    try { app.voiceStart('th-TH'); } catch { st.listening = false; st.msg = 'เปิดไมค์ไม่ได้'; draw(); }
+    startRec();
+  }
+  function startRec() {
+    try { app.voiceStart('th-TH'); } catch { endSession(); st.msg = 'เปิดไมค์ไม่ได้'; draw(); }
+  }
+  function stopListen() { ses.stop = true; try { app.voiceStop(); } catch {} }
+  // ข้อความทั้งหมดของรอบนี้ → แยกเมนูใหม่ทั้งก้อน แล้วต่อท้ายรายการที่มีอยู่ก่อนเริ่มรอบ
+  function reparse() {
+    const b = ses.base, r = ses.segs.length ? parse(ses.segs.join(' ')) : { items: [], unk: [], allTa: false, thai: false };
+    st.items = [...b.items, ...r.items]; st.unk = [...b.unk, ...r.unk];
+    st.allTa = b.allTa || r.allTa; st.thai = b.thai || r.thai;
+    st.heard = ses.segs.join(' ');
+  }
+  function endSession() { ses.on = false; st.listening = false; st.live = ''; st.level = 0; }
+  // ตัวแปลงเสียงจบหนึ่งช่วง → ฟังต่อไหม
+  function onRecEnd() {
+    const now = Date.now(), quiet = now - ses.last;
+    const more = ses.on && !ses.stop && now - ses.start < MAX_SESSION && (ses.push || hold === 0 || quiet < hold);
+    if (more) { st.live = ''; setTimeout(() => { if (ses.on && !ses.stop) startRec(); else { endSession(); draw(); } }, 250); return; }
+    endSession();
   }
   // กลุ่มที่ต้องเลือกแต่ยังไม่ได้บอก (จะเปิดหน้าต่างถามตอนใส่รายการ)
   const askOf = x => { const grid = gridOf(x.m);
@@ -330,27 +401,30 @@ const VOICE = (() => {
   function draw() {
     if (!sheet) return;
     const tbl = typeof tableName === 'function' ? tableName(current) : current;
-    const choiceTxt = x => [...x.choices.map(c => { const g = groupsOf(x.m).find(g => g.choices.some(y => y.name === c)); return g && /^ไม่/.test(g.name) ? `${g.name}${c}` : c; }), ...x.notes, ...(x.ta || st.allTa ? ['กลับบ้าน'] : [])].join(' · ');
+    const choiceTxt = x => [...x.choices.map(c => { const g = groupsOf(x.m).find(g => g.choices.some(y => y.name === c)); return !g ? c : /^ไม่/.test(g.name) ? `${g.name}${c}` : /^[a-z0-9]{1,3}$/i.test(c) ? `${g.name} ${c}` : c; }), ...x.notes, ...(x.ta || st.allTa ? ['กลับบ้าน'] : [])].join(' · ');
     const small = st.items.length || st.unk.length;
-    const status = st.listening ? `<b>กำลังฟัง<span class="vwave">${'<i></i>'.repeat(5)}</span></b><span>พูดชื่อเมนูตามด้วยจำนวน · หยุดพูดแล้วจะสรุปให้เอง</span>`
-      : small ? '<b>แตะไมค์เพื่อพูดเพิ่ม</b><span>หรือตรวจรายการด้านล่างแล้วกดใส่รายการ</span>' : '<b>แตะไมค์แล้วพูดได้เลย</b><span>ชื่อเมนู + จำนวน ต่อกันได้หลายเมนู</span>';
+    const status = st.listening ? `<b>กำลังฟัง<span class="vwave">${'<i></i>'.repeat(5)}</span></b><span>${ses.push ? 'ปล่อยนิ้วเมื่อพูดจบ' : hold ? `พูดต่อได้เรื่อยๆ · เงียบ ${hold / 1000} วินาที หรือแตะ ■ = จบ` : 'พูดต่อได้เรื่อยๆ · แตะ ■ เมื่อพูดจบ'}</span>`
+      : small ? '<b>แตะไมค์เพื่อพูดเพิ่ม</b><span>หรือตรวจรายการด้านล่างแล้วกดใส่รายการ</span>' : '<b>แตะไมค์แล้วพูดได้เลย</b><span>ชื่อเมนู + จำนวน + ตัวเลือก ต่อกันได้หลายเมนู · กดค้าง = พูดตลอดที่กด</span>';
+    const dis = st.listening ? 'disabled' : '';
+    const sofar = st.listening ? [...ses.segs, st.live].filter(Boolean).join(' ') : '';
     sheet.innerHTML = `<div class="vsh" role="dialog" aria-modal="true" aria-label="สั่งด้วยเสียง">
       <div class="vtop"><span class="vbadge">${ICON_MIC}</span><h2>สั่งด้วยเสียง<small>${esc(tbl)}</small></h2><button class="vclose" data-v="close" aria-label="ปิด">${ICON_X}</button></div>
       <div class="vhero ${small ? 'small' : ''}"><button class="vbtn ${st.listening ? 'on' : ''}" data-v="mic" aria-label="${st.listening ? 'หยุดฟัง' : 'พูด'}">${st.listening ? ICON_STOP : ICON_MIC}</button>
         <div class="vstat" aria-live="polite">${status}</div></div>
-      ${st.listening || !small ? `<div class="vlive ${st.live ? '' : 'ph'}">${st.live ? esc(st.live) : st.listening ? '…' : 'ตัวอย่าง'}${!st.live && !small ? `<div class="vex"><span>ปลาเผา 2</span><span>ช้างใหญ่ 3</span><span>กะเพราหมูไข่ดาว</span><span>ข้าวสวย 4 กลับบ้าน</span></div>` : ''}</div>` : ''}
+      ${st.listening || !small ? `<div class="vlive ${sofar ? '' : 'ph'}">${sofar ? esc(sofar) : st.listening ? '…' : 'ตัวอย่าง'}${!st.listening && !small ? `<div class="vex"><span>ปลาเผา 2</span><span>ช้างใหญ่ 3</span><span>กะเพราไก่ที่เล็ก เผ็ดน้อย ราดข้าว</span><span>ข้าวสวย 4 กลับบ้าน</span></div>` : ''}</div>` : ''}
+      <div class="vhold"><span>หยุดฟังเองเมื่อเงียบ</span>${HOLDS.map(([ms, t]) => `<button data-v="hold" data-h="${ms}" aria-pressed="${ms === hold}">${t}</button>`).join('')}</div>
       ${st.msg ? `<p class="vmsg" role="alert"><span>⚠</span><span>${esc(st.msg)}</span></p>` : ''}
-      ${st.heard ? `<p class="vheard">ได้ยินว่า “${esc(st.heard)}”</p>` : ''}
+      ${st.heard && !st.listening ? `<p class="vheard">ได้ยินว่า “${esc(st.heard)}”</p>` : ''}
       ${st.items.length ? `<div class="vsec"><span>รายการที่ได้ยิน</span><span>${st.items.reduce((a, x) => a + (x.m.available === false ? 0 : x.qty), 0)} จาน</span></div><ul class="vlist">${st.items.map((x, k) => {
         const out = x.m.available === false;
         const ask = askOf(x);
         return `<li class="${out ? 'out' : ''}"><div><b>${esc(x.m.name)}</b>${out ? '<small class="bad">หมด · จะไม่ใส่รายการ</small>' : choiceTxt(x) ? `<small>${esc(choiceTxt(x))}</small>` : ''}${!out && ask.length ? `<small class="ask">จะถาม: ${esc(ask.join(' · '))}</small>` : ''}</div>
-          <div class="vq">${out ? '' : `<button data-v="minus" data-k="${k}" aria-label="ลด">−</button><span>${x.qty}</span><button data-v="plus" data-k="${k}" aria-label="เพิ่ม">+</button>`}</div>
-          <button class="vx" data-v="del" data-k="${k}" aria-label="เอาออก">${ICON_X}</button></li>`; }).join('')}</ul>`
+          <div class="vq">${out ? '' : `<button data-v="minus" data-k="${k}" aria-label="ลด" ${dis}>−</button><span>${x.qty}</span><button data-v="plus" data-k="${k}" aria-label="เพิ่ม" ${dis}>+</button>`}</div>
+          <button class="vx" data-v="del" data-k="${k}" aria-label="เอาออก" ${dis}>${ICON_X}</button></li>`; }).join('')}</ul>`
         : !st.listening && st.heard && !st.unk.length ? '<p class="vempty">ไม่พบชื่อเมนูในที่พูด ลองพูดใหม่ช้าๆ ใกล้เครื่อง</p>' : ''}
       ${st.unk.map((u, k) => { const c = candidates(u.text);
         return `<div class="vunk"><p>ไม่แน่ใจ “<b>${esc(u.text)}</b>”${u.qty ? ` × ${u.qty}` : ''} หมายถึง</p>
-          <div class="vc">${c.map(m => `<button data-v="pick" data-k="${k}" data-m="${m.id}">${esc(m.name)}</button>`).join('')}
+          <div class="vc">${c.map(m => `<button data-v="pick" data-k="${k}" data-m="${m.id}" ${dis}>${esc(m.name)}</button>`).join('')}
           <button class="no" data-v="skip" data-k="${k}">${c.length ? 'ไม่ใช่ทั้งหมด' : 'ไม่พบเมนูที่ใกล้เคียง · ข้าม'}</button></div></div>`; }).join('')}
       ${st.unk.length ? `<label class="vlearn"><input type="checkbox" data-v="learn" ${st.learn ? 'checked' : ''}> จำคำนี้ไว้ ครั้งหน้าพูดแบบเดิมจะรู้จักเลย</label>` : ''}
       ${st.items.length ? `<p class="vheard">ตรวจรายการแล้วกด “ใส่รายการ” · เมนูที่ยังไม่ได้บอกตัวเลือก จะถามทีละจาน · ยังไม่ส่งครัวจนกว่าจะกดส่งออเดอร์</p>` : ''}
@@ -369,7 +443,9 @@ const VOICE = (() => {
     const b = e.target.closest('[data-v]'); if (!b || !sheet?.contains(b)) return;
     const v = b.dataset.v, k = +b.dataset.k;
     if (v === 'close') return closeSheet();
-    if (v === 'mic') { if (st.listening) { try { app.voiceStop(); } catch {} } else listen(); return; }
+    if (v === 'mic') { if (Date.now() - pushEnd < 350) return; if (st.listening) stopListen(); else listen(); return; }
+    if (v === 'hold') { hold = +b.dataset.h; try { localStorage.setItem('edposMicHold', hold); } catch {} draw(); return; }
+    if (st.listening && v !== 'add') return;   // ระหว่างฟังแก้รายการไม่ได้ (รายการยังเปลี่ยนตามที่พูด)
     if (v === 'minus') st.items[k].qty = Math.max(1, st.items[k].qty - 1);
     if (v === 'plus') st.items[k].qty = Math.min(99, st.items[k].qty + 1);
     if (v === 'del') st.items.splice(k, 1);
@@ -383,6 +459,18 @@ const VOICE = (() => {
     if (v === 'add') return addAll();
     draw();
   }
+  // กดค้างที่ไมค์ (เกินครึ่งวินาที) = พูดตลอดที่กด ปล่อยแล้วหยุด · แตะสั้นๆ = เปิด/ปิดตามปกติ
+  let pressT = 0, pushEnd = 0;   // pushEnd = เวลาที่ปล่อยนิ้วจากการกดค้าง (คลิกที่ตามมาไม่นับเป็นแตะ)
+  document.addEventListener('pointerdown', e => {
+    const b = e.target.closest('.vbtn'); if (!b || !sheet?.contains(b) || st.listening) return;
+    pressT = setTimeout(() => { pressT = 0; listen(true); }, 500);
+  });
+  const release = () => {
+    if (pressT) { clearTimeout(pressT); pressT = 0; }
+    else if (ses.on && ses.push) { stopListen(); pushEnd = Date.now(); }
+  };
+  document.addEventListener('pointerup', release);
+  document.addEventListener('pointercancel', release);
   function onChange(e) { if (e.target.dataset?.v === 'learn') st.learn = e.target.checked; }
   // ใส่รายการทีละจาน: ตัวเลือกครบ → เพิ่มเลย · ขาด → เปิดหน้าต่างเลือก แล้วค่อยจานถัดไป
   function addAll() {
@@ -407,20 +495,19 @@ const VOICE = (() => {
   // เหตุการณ์จากแอป (Voice.java)
   window.edposVoice = ev => {
     if (!st.open) return;
-    if (ev.type === 'ready' || ev.type === 'start') st.listening = true;
-    else if (ev.type === 'level') { st.level = ev.v || 0; paintLevel(); return; }
-    else if (ev.type === 'partial') st.live = ev.text || '';
+    if (ev.type === 'ready' || ev.type === 'start') { if (!ses.on) return; st.listening = true; }
+    else if (ev.type === 'level') { st.level = ev.v || 0; if (st.level > 0.35) ses.last = Date.now(); paintLevel(); return; }
+    else if (ev.type === 'partial') { st.live = ev.text || ''; if (st.live) ses.last = Date.now(); }
     else if (ev.type === 'result') {
       const alts = (ev.alts || []).filter(Boolean);
-      if (alts.length) {
-        const r = bestParse(alts);
-        st.heard = r.text; st.items.push(...r.items); st.unk.push(...r.unk);
-        st.allTa = st.allTa || r.allTa; st.thai = st.thai || r.thai;
-      }
+      if (alts.length && ses.base) { ses.segs.push(bestParse(alts).text); ses.last = Date.now(); reparse(); }
     } else if (ev.type === 'error') {
+      // ไม่ได้ยิน/เงียบ ระหว่างฟังต่อเนื่อง = ปกติ (เดี๋ยวฟังใหม่เอง) · บอกเฉพาะตอนยังไม่ได้ยินอะไรเลย
+      if (ev.code === 'nomatch' && ses.on && (ses.segs.length || ses.push || hold === 0 || Date.now() - ses.last < hold)) return;
+      if (ev.code !== 'nomatch') ses.stop = true;
       st.msg = { perm: 'ยังไม่ได้อนุญาตให้ใช้ไมค์ · แตะไมค์อีกครั้งแล้วกด “อนุญาต” (หรือ ตั้งค่า › แอป › MAMA POS › สิทธิ์ › ไมโครโฟน)',
         nomatch: 'ไม่ได้ยินชัด ลองพูดอีกครั้ง ใกล้ๆ เครื่อง', net: 'แปลงเสียงไม่ได้ ต้องต่ออินเทอร์เน็ต', busy: 'ไมค์กำลังถูกใช้อยู่ ลองใหม่อีกครั้ง' }[ev.code] || 'ฟังไม่สำเร็จ ลองใหม่อีกครั้ง';
-    } else if (ev.type === 'end') { st.listening = false; st.live = ''; st.level = 0; }
+    } else if (ev.type === 'end') { if (!ses.on) return; onRecEnd(); }
     draw();
   };
   document.addEventListener('click', onClick);
