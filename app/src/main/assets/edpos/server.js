@@ -2479,6 +2479,10 @@ const server = http.createServer(async (req, res) => {
   }
   // เปิดหน้าแรกของเครื่องสำรอง → หน้าสถานะเครื่องสำรอง
   if (role.role === 'standby' && (url.pathname === '/' || url.pathname === '/index.html')) url.pathname = '/standby.html';
+  // เครื่องสำรองใช้สั่งอาหาร/หลังร้านไม่ได้ (อ่านอย่างเดียว ใส่รหัสแล้วก็เข้าไม่ได้) → ไปหน้าเครื่องสำรอง
+  // ซึ่งจะพาไปหน้าเดียวกันของเครื่องหลักเองเมื่อติดต่อเครื่องหลักได้ (เช่น แอปเปิดตอนเครื่องหลักยังไม่พร้อม)
+  const sbPage = role.role === 'standby' && req.method === 'GET' && url.pathname.match(/^\/(order|kds|admin|sales)\.html$/);
+  if (sbPage) { res.writeHead(302, { Location: '/standby.html?go=' + sbPage[1], 'Cache-Control': 'no-store' }); return res.end(); }
 
   // รูปบนใบเสร็จ: /receipt-img/logo  /receipt-img/footer
   const im = url.pathname.match(/^\/receipt-img\/(logo|footer)$/);

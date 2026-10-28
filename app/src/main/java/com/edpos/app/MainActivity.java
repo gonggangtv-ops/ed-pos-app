@@ -243,10 +243,13 @@ public class MainActivity extends Activity {
         new Thread(() -> {
             String ok = null;
             for (String b : tryList) {
-                int tries = LOCAL.equals(b) ? 80 : 1;
+                // เครื่องอื่น: ลองซ้ำ (เครื่องสำรอง 3 ครั้ง · หน้าจออย่างเดียว 2 ครั้ง) เผื่อ Wi-Fi เพิ่งต่อ/เครื่องหลักกำลังเปิด
+                boolean local = LOCAL.equals(b);
+                int tries = local ? 80 : "standby".equals(mode) ? 3 : 2;
                 for (int t = 0; t < tries && ok == null; t++) {
                     if (httpGet(b + "/api/role", 3000) != null) ok = b;
-                    else if (tries > 1) { ensureServerFromThread(); try { Thread.sleep(500); } catch (InterruptedException ignored) { } }
+                    else if (local) { ensureServerFromThread(); try { Thread.sleep(500); } catch (InterruptedException ignored) { } }
+                    else if (t < tries - 1) { try { Thread.sleep(1500); } catch (InterruptedException ignored) { } }
                 }
                 if (ok != null) break;
             }
