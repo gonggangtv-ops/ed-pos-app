@@ -18,7 +18,11 @@
   .tbl.busy { background: var(--accent); color: #fff; border-color: var(--accent); }
   .tbl small { opacity: .85; }
   /* ผังโต๊ะ: ตำแหน่ง/ขนาดเป็นเปอร์เซ็นต์ของผืนผ้าใบ ตัวอักษรย่อตามความกว้างผัง (cqw) */
-  .maptools { display: flex; gap: 8px; justify-content: flex-end; padding: 10px 16px 0; align-items: center; }
+  .maptools { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; padding: 10px 16px 0; align-items: center; }
+  /* ปุ่มไปหน้าสรุปยอดขาย (หน้านั้นถามรหัสเจ้าของร้านเอง) */
+  .salesbtn { display: inline-flex; align-items: center; padding: 6px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); text-decoration: none; font-size: 17px; line-height: 1.5; }
+  .salesbtn:active { transform: scale(.97); }
+  @media (max-width: 520px) { .maptools .viewlbl { display: none; } .maptools .seg { margin-left: auto; } }
   .maptools .seg button { padding: 6px 14px; min-height: 0; }
   .maptools .seg button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
   .mapwrap { overflow-x: auto; padding: 10px 16px 0; }
@@ -450,7 +454,8 @@ function renderTables() {
   // บิลค้างที่โต๊ะซึ่งไม่อยู่ในผังแล้ว (เช่นลบโต๊ะออกทีหลัง) ยังต้องกดเปิดได้
   const orphans = S.orders.filter(o => o.status === 'open' && !isTA(o.table) && !inLayout.has(o.table)).map(o => o.table).sort(natural);
   $app.innerHTML = `
-    <div class="maptools"><button onclick="openHistory()" style="margin-right:auto;padding:6px 14px">📋 ประวัติการสั่ง</button><span class="muted">มุมมอง</span>
+    <div class="maptools"><button onclick="openHistory()" style="padding:6px 14px">📋 ประวัติการสั่ง</button>
+      <a class="salesbtn" href="sales.html" title="สรุปยอดขาย (ใช้รหัสเจ้าของร้าน)">📊 ยอดขาย</a><span class="muted viewlbl" style="margin-left:auto">มุมมอง</span>
       <span class="seg" style="display:flex;gap:6px">
         <button class="${mapMode === 'map' ? 'on' : ''}" onclick="setMapMode('map')">ผังร้าน</button>
         <button class="${mapMode === 'list' ? 'on' : ''}" onclick="setMapMode('list')">รายการ</button></span></div>
