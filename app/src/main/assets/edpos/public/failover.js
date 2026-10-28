@@ -1,7 +1,8 @@
 // สลับไปเครื่องสำรองอัตโนมัติ — ใช้ทุกหน้า (สั่งอาหาร จอครัว หลังร้าน)
 // · ถ้าเปิดหน้านี้อยู่บนเครื่องสำรอง และเครื่องหลักยังทำงาน → ย้ายไปเครื่องหลัก
 // · ถ้าเครื่องที่ใช้อยู่ไม่ตอบ และอีกเครื่องเป็นเครื่องหลักแล้ว → ย้ายไปเครื่องนั้น
-// · ถ้าเครื่องหลักไม่ตอบ และอีกเครื่องยังเป็นเครื่องสำรอง → ขึ้นปุ่มให้กด "ใช้เครื่องสำรองแทน"
+// · ถ้าเครื่องหลักไม่ตอบ → ค้นหาเครื่องหลักของร้านนี้ในวง Wi-Fi ก่อน (เราเตอร์ดับแล้วแจก IP ใหม่) เจอ → ย้ายไปเอง
+// · ค้นไม่เจอ และอีกเครื่องยังเป็นเครื่องสำรอง → ขึ้นปุ่มให้กด "ใช้เครื่องสำรองแทน"
 (() => {
   const KEY = 'edpos-nodes';
   const store = {
@@ -9,7 +10,9 @@
     set(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {} },
   };
   const here = location.origin;
-  let fails = 0, busy = false, bar = null;
+  let fails = 0, busy = false, bar = null, searching = false, lastFind = 0, notFound = false;
+  const SHOP = 'edpos-shop';
+  const shop = { get() { try { return localStorage.getItem(SHOP) || ''; } catch { return ''; } }, set(v) { try { if (v) localStorage.setItem(SHOP, v); } catch {} } };
 
   const ask = async (base, path = '/api/role', opt = {}) => {
     const r = await fetch(base + path, { ...opt, signal: AbortSignal.timeout(2500), cache: 'no-store' });
@@ -62,11 +65,54 @@
   window.edposLift = lift;
   const hideBar = () => { if (bar) { bar.remove(); bar = null; } document.body.classList.remove('fo-on'); };
 
+  // ---------- ค้นหาเครื่องหลักในวง Wi-Fi ----------
+  // ในแอป: ให้แอปค้น (ตะโกนถาม UDP + ไล่ถามทุกเลข) · เบราว์เซอร์: ไล่ถาม /api/role ทุกเลขในวงเดียวกับที่อยู่เดิม
+  function findMain() {
+    return new Promise(done => {
+      const A = window.EdPosApp;
+      if (A && typeof A.findMain === 'function') {
+        const t = setTimeout(() => done(''), 20000);
+        window.edposFound = u => { clearTimeout(t); done(u || ''); };
+        try { A.findMain(); } catch { clearTimeout(t); done(''); }
+        return;
+      }
+      scanLan().then(done, () => done(''));
+    });
+  }
+  async function scanLan() {
+    const nets = [...new Set([here, ...store.get()].map(u => (u.match(/^https?:\/\/(\d+\.\d+\.\d+)\.\d+/) || [])[1]).filter(Boolean))];
+    const port = (here.match(/:(\d+)$/) || [])[1] || '3000', want = shop.get(), hosts = [];
+    for (const n of nets) for (let x = 1; x <= 254; x++) hosts.push(`http://${n}.${x}:${port}`);
+    let found = '', k = 0;
+    const one = async u => {
+      const c = new AbortController(), t = setTimeout(() => c.abort(), 900);
+      try { const j = await (await fetch(u + '/api/role', { signal: c.signal, cache: 'no-store' })).json();
+        if (j.role === 'main' && (!want || !j.shop || j.shop === want)) found = found || u; } catch {}
+      clearTimeout(t);
+    };
+    await Promise.all(Array.from({ length: 24 }, async () => { while (!found && k < hosts.length) await one(hosts[k++]); }));
+    return found;
+  }
+  async function search() {
+    if (searching) return; searching = true; lastFind = Date.now(); notFound = false;
+    showBar('กำลังค้นหาเครื่องหลัก…', 'ติดต่อที่อยู่เดิมไม่ได้ (เราเตอร์อาจแจก IP ใหม่) · ไม่เกิน 10 วินาที');
+    const u = await findMain();
+    searching = false;
+    if (u && u !== here) {
+      store.set([...new Set([u, ...store.get()])]);
+      showBar('เจอเครื่องหลักแล้ว', `ย้ายไป ${u.replace(/^https?:\/\//, '')}…`, '', 'ok');
+      setTimeout(() => go(u), 600);
+      return true;
+    }
+    notFound = true;
+    return false;
+  }
+
   async function check() {
-    if (busy) return; busy = true;
+    if (busy || searching) return; busy = true;
     try {
       const me = await ask(here);
-      fails = 0;
+      fails = 0; notFound = false; shop.set(me.shop);
       // จำที่อยู่ของทั้งสองเครื่องไว้ เผื่อเครื่องนี้ดับ
       const list = [...new Set([...(me.me || []), me.peer, me.nodes?.main, me.nodes?.standby].filter(Boolean))];
       if (!list.includes(here)) list.unshift(here);
@@ -75,6 +121,7 @@
         // หน้านี้เปิดอยู่บนเครื่องสำรอง: ถ้าเครื่องหลักทำงาน ย้ายไปที่นั่น
         if (location.pathname.endsWith('standby.html')) return;
         try { const p = await ask(me.peer); if (p.role === 'main') return go(me.peer); } catch {}
+        if (me.finding) { showBar('เครื่องนี้เป็นเครื่องสำรอง', 'กำลังค้นหาเครื่องหลักในวง Wi-Fi (IP อาจเปลี่ยน)…'); return; }
         showBar('เครื่องนี้เป็นเครื่องสำรอง', 'ติดต่อเครื่องหลักไม่ได้', 'ใช้เครื่องนี้แทน');
         bar.querySelector('#foPromote').onclick = () => promote(here);
         return;
@@ -82,17 +129,24 @@
       hideBar();
     } catch {
       if (++fails < 3) return;          // พลาดครั้งสองครั้งอาจเป็น Wi-Fi สะดุด
+      let standby = '';
       for (const o of others()) {
         try {
           const p = await ask(o);
           if (p.role === 'main') return go(o);
-          showBar('เครื่องหลักไม่ตอบ', `มีเครื่องสำรองที่ ${o.replace(/^https?:\/\//, '')}`, 'ใช้เครื่องสำรอง');
-          bar.querySelector('#foPromote').onclick = () => promote(o);
-          return;
+          standby = standby || o;
         } catch {}
       }
+      // ที่อยู่ที่รู้จักไม่มีเครื่องหลัก → ค้นหาในวง Wi-Fi ก่อน (ค้นซ้ำทุก 30 วิ) · อย่าเพิ่งให้เครื่องสำรองรับงาน เครื่องหลักอาจแค่ย้าย IP
+      if (!notFound || Date.now() - lastFind > 30000) { busy = false; if (await search()) return; }
+      if (standby) {
+        showBar('ไม่เจอเครื่องหลัก', `มีเครื่องสำรองที่ ${standby.replace(/^https?:\/\//, '')}`, 'ใช้เครื่องสำรอง');
+        bar.querySelector('#foPromote').onclick = () => promote(standby);
+        return;
+      }
       showBar(others().length ? 'ติดต่อเครื่องหลักและเครื่องสำรองไม่ได้' : 'ติดต่อเครื่องหลักไม่ได้',
-        others().length ? 'ตรวจ Wi-Fi และไฟของทั้งสองเครื่อง · ลองใหม่อัตโนมัติ' : 'ตรวจ Wi-Fi และไฟเครื่องหลัก · ลองใหม่อัตโนมัติ');
+        'ค้นหาในวง Wi-Fi แล้วไม่เจอ · ตรวจ Wi-Fi และไฟเครื่องหลัก', 'ค้นหาอีกครั้ง');
+      bar.querySelector('#foPromote').onclick = () => { lastFind = 0; notFound = false; search(); };
     } finally { busy = false; }
   }
 

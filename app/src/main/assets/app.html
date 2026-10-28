@@ -140,13 +140,22 @@
     </div>
   </section>
 
+  <!-- ===== ค้นหาเครื่องหลัก (IP เปลี่ยนหลังเราเตอร์ดับ) ===== -->
+  <section id="v-searching" hidden>
+    <div class="center">
+      <div class="spin"></div>
+      <h1>กำลังค้นหาเครื่องหลัก…</h1>
+      <p>ติดต่อที่อยู่เดิมไม่ได้ (เราเตอร์อาจแจก IP ใหม่) · กำลังหาในวง Wi-Fi นี้ ใช้เวลาไม่เกิน 10 วินาที</p>
+    </div>
+  </section>
+
   <!-- ===== ติดต่อเซิร์ฟเวอร์ไม่ได้ ===== -->
   <section id="v-offline" hidden>
     <div class="center">
       <div class="pulse"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M2 8.8a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16.2a5 5 0 0 1 6 0"/><path d="M3 3l18 18"/></svg></div>
       <h1>ติดต่อเซิร์ฟเวอร์ไม่ได้</h1>
       <p id="offWhere"></p>
-      <p id="offHint">ตรวจว่าแท็บเล็ตเครื่องหลักเปิดอยู่ แอป MAMA POS (หรือ Termux) ยังทำงาน และต่อ Wi-Fi ร้านเดียวกัน</p>
+      <p id="offHint">ค้นหาในวง Wi-Fi นี้แล้วไม่เจอเครื่องหลัก · ตรวจว่าแท็บเล็ตเครื่องหลักเปิดอยู่ แอป MAMA POS ยังทำงาน และต่อ Wi-Fi ร้านเดียวกัน</p>
       <pre class="log" id="offLog" hidden style="text-align:left"></pre>
       <p style="font-weight:600;color:var(--ink);margin-top:14px" id="offCount"></p>
       <div class="btns"><button id="offSetup">ตั้งค่า</button><button class="primary" id="offRetry">ลองใหม่ตอนนี้</button></div>
@@ -164,7 +173,7 @@ let page = cfg.page || 'order';
 let srv = cfg.server || 'off';
 
 function show(mode) {
-  ['locked', 'setup', 'offline', 'starting'].forEach(m => ($('#v-' + m).hidden = m !== mode));
+  ['locked', 'setup', 'offline', 'starting', 'searching'].forEach(m => ($('#v-' + m).hidden = m !== mode));
   if (mode === 'locked') $('#forgot').hidden = cfg.server !== 'main';
   if (mode === 'setup') fillSetup();
   if (mode === 'offline') startCountdown();

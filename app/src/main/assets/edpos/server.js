@@ -7,6 +7,7 @@ const net = require('net');
 const os = require('os');
 const crypto = require('crypto');
 const https = require('https');
+const dgram = require('dgram');
 
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -638,6 +639,48 @@ const getJSON = async (u, opt = {}) => {
   return r.json();
 };
 
+// ================= ค้นหาเครื่องหลักในวง Wi-Fi (IP เปลี่ยนหลังเราเตอร์ดับ) =================
+// รหัสร้าน (ไม่บอกความลับ): เครื่องหลัก/สำรองของร้านเดียวกันได้ค่าเดียวกัน · ใช้แยกร้านเวลามีหลายร้านในวงเดียวกัน
+const shopTag = () => crypto.createHmac('sha256', data.auth.secret).update('edpos-shop').digest('hex').slice(0, 16);
+// ทุกเครื่องตอบคำถาม "EDPOS?" (UDP broadcast พอร์ตเดียวกับเว็บ) ว่าเป็นเครื่องหลัก/สำรอง ของร้านไหน
+try {
+  const udp = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+  udp.on('message', (m, r) => {
+    if (String(m).slice(0, 6) !== 'EDPOS?') return;
+    const out = Buffer.from(JSON.stringify({ edpos: 1, role: role.role, port: +PORT, shop: shopTag(), name: data.settings.shopName || '' }));
+    udp.send(out, r.port, r.address, () => {});
+  });
+  udp.on('error', e => console.log('ค้นหาเครื่อง (UDP) ใช้ไม่ได้: ' + e.message));
+  udp.bind(+PORT, () => { try { udp.setBroadcast(true); } catch {} });
+} catch {}
+// ค้นหาเครื่องหลักของร้านนี้: ตะโกนถามก่อน · ไม่มีใครตอบ → ไล่ถาม /api/role ทุกเลขในวง (x.x.x.1–254)
+async function discoverMain(shop) {
+  const lan = Object.values(os.networkInterfaces()).flat().filter(i => i && i.family === 'IPv4' && !i.internal && /^(10|172\.(1[6-9]|2\d|3[01])|192\.168)\./.test(i.address));
+  const ok = j => j && j.role === 'main' && (!shop || j.shop === shop);
+  const viaUdp = await new Promise(done => {
+    let s; try { s = dgram.createSocket('udp4'); } catch { return done(null); }
+    const fin = v => { clearTimeout(t); clearInterval(iv); try { s.close(); } catch {} done(v); };
+    s.on('error', () => fin(null));
+    s.on('message', (m, r) => { try { const j = JSON.parse(String(m)); if (ok(j)) fin(`http://${r.address}:${j.port || PORT}`); } catch {} });
+    const q = Buffer.from('EDPOS?');
+    const targets = ['255.255.255.255', ...lan.map(i => i.address.split('.').map((x, k) => (+x | (~i.netmask.split('.')[k] & 255))).join('.'))];
+    const send = () => targets.forEach(a => s.send(q, +PORT, a, () => {}));
+    s.bind(() => { try { s.setBroadcast(true); } catch {} send(); });
+    const iv = setInterval(send, 600), t = setTimeout(() => fin(null), 1800);
+  });
+  if (viaUdp) return viaUdp;
+  const mine = new Set(lan.map(i => i.address)), hosts = [];
+  for (const i of lan) { const p = i.address.split('.').slice(0, 3).join('.'); for (let x = 1; x <= 254; x++) if (!mine.has(`${p}.${x}`)) hosts.push(`${p}.${x}`); }
+  let found = null, k = 0;
+  await Promise.all(Array.from({ length: 32 }, async () => {
+    while (!found && k < hosts.length) {
+      const h = hosts[k++];
+      try { const r = await fetch(`http://${h}:${PORT}/api/role`, { signal: AbortSignal.timeout(700) }); if (ok(await r.json())) found = `http://${h}:${PORT}`; } catch {}
+    }
+  }));
+  return found;
+}
+
 // เครื่องสำรอง: ดึงข้อมูลล่าสุด
 async function syncTick() {
   if (role.role !== 'standby') return;
@@ -657,8 +700,22 @@ async function syncTick() {
       data = j.data; saveRaw(); broadcast();
       if (role.key) { delete role.key; saveRole(); }   // ข้อมูลชุดนี้มีกุญแจของเครื่องหลักแล้ว
     }
-    repl.lastSync = Date.now(); repl.syncErr = '';
-  } catch { repl.syncErr = 'ติดต่อเครื่องหลักไม่ได้'; }
+    repl.lastSync = Date.now(); repl.syncErr = ''; repl.failSince = 0;
+  } catch {
+    repl.syncErr = 'ติดต่อเครื่องหลักไม่ได้';
+    // ติดต่อเครื่องหลักไม่ได้เกิน 30 วิ → ค้นหาเครื่องหลักของร้านนี้ในวง Wi-Fi (IP อาจเปลี่ยนหลังเราเตอร์ดับ) · ค้นซ้ำทุก 1 นาที
+    if (!repl.failSince) repl.failSince = Date.now();
+    if (Date.now() - repl.failSince > 30000 && Date.now() - (repl.findAt || 0) > 60000 && !repl.finding) {
+      repl.finding = true; repl.findAt = Date.now();
+      discoverMain(data.auth.admin ? shopTag() : '').then(u => {
+        if (u && u !== role.peer && !myUrls().includes(u)) {
+          console.log(`เครื่องหลักย้ายไป ${u} (เดิม ${role.peer}) → คัดลอกจากที่อยู่ใหม่`);
+          healthEvent('standby', { ok: true, moved: u });
+          role.peer = u; saveRole(); repl.failSince = 0; syncTick();
+        }
+      }).catch(() => {}).finally(() => { repl.finding = false; });
+    }
+  }
 }
 setInterval(syncTick, 2000);
 
@@ -722,10 +779,11 @@ function healthReport(from, to) {
   };
 }
 function roleInfo() {
-  return { role: role.role, epoch: data.epoch, rev: data.rev || 0, peer: peerUrl(), me: myUrls().slice(0, -2),
+  return { role: role.role, shop: shopTag(), name: data.settings.shopName || '', epoch: data.epoch, rev: data.rev || 0, peer: peerUrl(), me: myUrls().slice(0, -2),
     nodes: data.settings.nodes || {}, lastSync: repl.lastSync, syncErr: repl.syncErr,
     standbySeen: repl.standbySeen, standbyIp: repl.standbyIp, peerRole: repl.peerRole, peerSeen: repl.peerSeen,
     // hasData = มีข้อมูลร้านแล้ว (เคยคัดลอก/ตั้งรหัส)
+    finding: !!repl.finding,   // เครื่องสำรองกำลังค้นหาเครื่องหลักในวง Wi-Fi
     conflict: repl.conflict, now: Date.now(), hasData: !!data.auth.admin, tz: new Date().getTimezoneOffset(), needPair: repl.needPair, app: !!process.env.EDPOS_APP, startupWarn,
     pairAsk: Date.now() - repl.pairAsk < 15000 ? repl.pairAskIp : '',
     openTables: data.orders.filter(o => o.status === 'open').length };

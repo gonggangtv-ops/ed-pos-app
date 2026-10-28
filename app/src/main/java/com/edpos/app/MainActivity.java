@@ -242,6 +242,7 @@ public class MainActivity extends Activity {
             else if (!standby().isEmpty()) tryList.add(standby());
         }
         if ("main".equals(mode)) showPage("starting");
+        final String mainAddr = main();
         new Thread(() -> {
             String ok = null;
             for (String b : tryList) {
@@ -249,12 +250,24 @@ public class MainActivity extends Activity {
                 boolean local = LOCAL.equals(b);
                 int tries = local ? 80 : "standby".equals(mode) ? 3 : 2;
                 for (int t = 0; t < tries && ok == null; t++) {
-                    if (httpGet(b + "/api/role", 3000) != null) ok = b;
+                    String r = httpGet(b + "/api/role", 3000);
+                    if (r != null) {
+                        ok = b;
+                        // จำรหัสร้านของเครื่องหลัก ไว้ค้นหาเครื่องที่ถูกร้านตอน IP เปลี่ยน
+                        String shop = Discovery.shopOf(r);
+                        if (!local && !shop.isEmpty() && "main".equals(roleOf(r))) prefs.edit().putString("shop", shop).apply();
+                    }
                     else if (local) { ensureServerFromThread(); try { Thread.sleep(500); } catch (InterruptedException ignored) { } }
                     else if (t < tries - 1) { try { Thread.sleep(1500); } catch (InterruptedException ignored) { } }
                 }
                 if (ok != null) break;
+                // เครื่องหลักที่จำไว้ไม่ตอบ (เราเตอร์ดับแล้วแจก IP ใหม่?) → ค้นหาเครื่องหลักในวง Wi-Fi ก่อนไปใช้เครื่องสำรอง
+                if (!local && b.equals(mainAddr)) {
+                    String f = findMainNow();
+                    if (f != null) { ok = f; break; }
+                }
             }
+            if (ok == null && !"main".equals(mode) && mainAddr.isEmpty()) ok = findMainNow();   // ยังไม่เคยตั้ง IP เครื่องหลัก
             final String found = ok;
             ui.post(() -> {
                 if (found == null) { showPage("offline"); return; }
@@ -264,6 +277,20 @@ public class MainActivity extends Activity {
                 applyLock(true);
             });
         }).start();
+    }
+
+    private static String roleOf(String json) {
+        try { return new org.json.JSONObject(json).optString("role"); } catch (Exception e) { return ""; }
+    }
+    /** ค้นหาเครื่องหลักของร้านนี้ในวง Wi-Fi (เรียกจาก thread อื่น) · เจอ → จำ IP ใหม่ไว้เปิดครั้งหน้า */
+    private String findMainNow() {
+        ui.post(() -> { if (!onServer) showPage("searching"); });
+        String f = Discovery.findMain(prefs.getString("shop", ""));
+        if (f != null && !f.equals(main()) && !"main".equals(serverMode())) {
+            prefs.edit().putString("main", f).apply();
+            Watchdog.log(this, "ค้นหาเจอเครื่องหลักที่ IP ใหม่: " + f);
+        }
+        return f;
     }
 
     private long lastEnsure = 0;
@@ -602,6 +629,16 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void retry() { ui.post(MainActivity.this::openServer); }
+
+        /** หน้าเว็บติดต่อเครื่องหลักไม่ได้ → ค้นหาในวง Wi-Fi แล้วตอบกลับ window.edposFound("http://…:3000" หรือ "") */
+        @JavascriptInterface
+        public void findMain() {
+            new Thread(() -> {
+                String f = Discovery.findMain(prefs.getString("shop", ""));
+                if (f != null && !"main".equals(serverMode())) prefs.edit().putString("main", f).apply();
+                js("window.edposFound && window.edposFound(" + org.json.JSONObject.quote(f == null ? "" : f) + ")");
+            }, "find-main").start();
+        }
 
         // ----- สั่งอาหารด้วยเสียง (ดู Voice.java) -----
         @JavascriptInterface
