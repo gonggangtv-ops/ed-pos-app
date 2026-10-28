@@ -39,7 +39,8 @@
   @container (max-width:185px){.tw{display:none}}
   .card.urge{border-color:var(--late);box-shadow:0 0 0 1px var(--late),0 0 22px -6px var(--late)}
   .card header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel-2)}
-  .tbl{font-size:20px;font-weight:800;white-space:nowrap}
+  .tbl{font-size:20px;font-weight:800;white-space:nowrap;cursor:pointer;border-radius:8px;padding:0 4px;margin:0 -4px;transition:background .2s}
+  .tbl.said{background:var(--accent,#ff7a45);color:#fff}
   .otype{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;padding:3px 7px;border-radius:7px;background:color-mix(in srgb,var(--info) 20%,transparent);color:var(--info)}
   .age{margin-left:auto;flex:none;font-size:13px;font-weight:700;padding:2px 7px;border-radius:7px;font-variant-numeric:tabular-nums}
   .age[data-s=fresh]{color:var(--fresh);background:color-mix(in srgb,var(--fresh) 15%,transparent)}
@@ -293,6 +294,13 @@
       <label class="trow"><input type="checkbox" id="waitSpeak"><span>อ่านออกเสียงด้วย (ต้องเปิดอ่านออกเสียง)</span></label>
       <div class="trow" style="cursor:default;flex-wrap:wrap"><span style="font-size:13px;color:var(--muted);flex:1 1 200px">หลายโต๊ะรอนานพร้อมกัน จะรวมเป็นการเตือนครั้งเดียว เช่น “3 โต๊ะรอนาน: 11 · 12 · 15”</span><button class="btn" id="waitTest">▶ ลองเสียงเตือน</button></div>
     </div>
+    <div class="sublabel">📣 เสียงเรียกโต๊ะ (ให้คนเสิร์ฟได้ยิน · ทำงานแม้ปิดปุ่มอ่านออกเสียง)</div>
+    <div class="trows">
+      <label class="trow"><input type="checkbox" id="callDone"><span>กดจานเสร็จ → พูดโต๊ะ เช่น “โต๊ะ 5 ผัดกะเพรา”</span></label>
+      <label class="trow"><input type="checkbox" id="callDish"><span>พูดชื่อเมนูที่เสร็จด้วย (ไม่ติ๊ก = พูดแค่ “โต๊ะ 5”)</span></label>
+      <label class="trow"><input type="checkbox" id="callTap"><span>แตะเลขโต๊ะบนการ์ด → พูดเลขโต๊ะ</span></label>
+      <div class="trow" style="cursor:default;flex-wrap:wrap"><span style="font-size:13px;color:var(--muted);flex:1 1 200px">กดเสร็จหลายจานติดกัน (หรือเสร็จทั้งชุดในทำรวม) จะพูดรวมครั้งเดียว เช่น “โต๊ะ 5 ผัดกะเพรา 2 ที่, โต๊ะ 8 ผัดกะเพรา”</span><button class="btn" id="callTest">▶ ลองฟัง</button></div>
+    </div>
     <div class="sublabel">🔊 อ่านออกเสียง</div>
     <div class="trows">
       <label class="trow"><input type="checkbox" id="ttsOpts"><span>อ่านตัวเลือกเพิ่มและหมายเหตุ (เช่น ไม่ใส่พริก)</span></label>
@@ -369,7 +377,7 @@ const ARMED=new Set();      // first tap done, second tap hides
 let GONE=new Map();try{GONE=new Map(Object.entries(JSON.parse(localStorage.getItem('kds_gone')||'{}')));}catch(e){}
 (function(){const cut=Date.now()-24*3600e3;for(const [k,v] of [...GONE])if(!(v>cut))GONE.delete(k);})();
 const saveGone=()=>{try{localStorage.setItem('kds_gone',JSON.stringify(Object.fromEntries(GONE)));}catch(e){}};
-function markDone(o,d){if(!d||d.status==='completed')return;o.pending=o.pending.filter(x=>x.id!==d.id);
+function markDone(o,d){if(!d||d.status==='completed')return;o.pending=o.pending.filter(x=>x.id!==d.id);callDone(o,d);
   DONEDISH.set(d.id,{oid:o.id,dish:{...d,status:'completed'}});
   post('/api/dish/complete',{order_id:o.id,dishes_id:d.id,status:'completed'});}
 const ADDED=new Set();   // dishes added to a table after it first appeared — highlighted until done
@@ -497,6 +505,21 @@ function renderDone(){
   }).join('');
 }
 renderDone();
+// ---- เสียงเรียกโต๊ะ: กดจานเสร็จ → "โต๊ะ 5 ผัดกะเพรา" · แตะเลขโต๊ะ → "โต๊ะ 5" ----
+// แยกจากปุ่มอ่านออกเสียงออเดอร์ (ปิดอ่านออเดอร์ไว้ ก็ยังเรียกโต๊ะได้) · ตั้งในเครื่องนี้ (localStorage kds_call)
+const CALL=Object.assign({done:true,dish:true,tap:true},(()=>{try{return JSON.parse(localStorage.getItem('kds_call')||'{}');}catch(e){return {};}})());
+const saveCall=()=>{try{localStorage.setItem('kds_call',JSON.stringify(CALL));}catch(e){}};
+function callSay(text){if(!canSpeak||!text)return;
+  const u=new SpeechSynthesisUtterance(text);u.lang='th-TH';u.rate=TTS.rate;if(VOICE)u.voice=VOICE;speechSynthesis.speak(u);}
+// กดเสร็จหลายจานติดกัน (ภายใน 0.7 วินาที) → พูดครั้งเดียว รวมตามโต๊ะ
+const callQ=new Map();let callT=0;
+function callDone(o,d){if(!CALL.done)return;
+  const e=callQ.get(o.id)||{o,ds:[],all:false};if(d)e.ds.push(d);else e.all=true;callQ.set(o.id,e);
+  clearTimeout(callT);callT=setTimeout(flushCall,700);}
+function callNames(ds){const by=new Map();for(const d of ds)by.set(d.name,(by.get(d.name)||0)+(+d.quantity||1));
+  return [...by].map(([n,q])=>n+(q>1?' '+q+' ที่':'')).join(' ');}
+function flushCall(){const t=[...callQ.values()].map(e=>spokenHead(e.o)+(CALL.dish&&e.ds.length?' '+callNames(e.ds):e.all?' ครบทั้งโต๊ะ':'')).join(', ');
+  callQ.clear();callSay(t);}
 // ---- read-aloud (Thai text-to-speech through the device's own audio output, e.g. a Bluetooth speaker) ----
 let primed=false; const seenDish=new Set(), urgeSeen=new Set();
 const TTS=Object.assign({on:false,opts:true,spec:false,batch:true,group:true,rate:1,repeat:'2',every:'15',wait:'15',only:[]},(()=>{try{return JSON.parse(localStorage.getItem('kds_tts')||'{}');}catch(e){return {};}})());
@@ -599,6 +622,10 @@ document.getElementById('ttsClose').addEventListener('click',()=>{ttsModal.hidde
 ttsModal.addEventListener('click',e=>{if(e.target===ttsModal)ttsModal.hidden=true;});
 [['ttsOpts','opts'],['ttsSpec','spec'],['ttsBatch','batch'],['ttsGroup','group']].forEach(([id,k])=>
   document.getElementById(id).addEventListener('change',e=>{TTS[k]=e.target.checked;saveTts();}));
+[['callDone','done'],['callDish','dish'],['callTap','tap']].forEach(([id,k])=>{const el=document.getElementById(id);el.checked=!!CALL[k];
+  el.addEventListener('change',e=>{CALL[k]=e.target.checked;saveCall();});});
+document.getElementById('callTest').addEventListener('click',()=>{if(!canSpeak){toast('⚠️ เครื่องนี้อ่านออกเสียงไม่ได้','');return;}
+  speechSynthesis.cancel();const t=CALL.dish?'โต๊ะ 5 ผัดกะเพรา 2 ที่, โต๊ะ 8 ต้มยำกุ้ง':'โต๊ะ 5, โต๊ะ 8';callSay(t);toast('🔊 ตัวอย่าง',t,4000);});
 document.getElementById('ttsRate').addEventListener('change',e=>{TTS.rate=+e.target.value;saveTts();});
 [['sndType','type'],['sndVol','vol'],['sndRep','rep'],['sndAdd','add'],['sndNag','nag']].forEach(([id,k])=>document.getElementById(id).addEventListener('change',e=>{SND[k]=e.target.value;saveSnd();}));
 document.getElementById('sndTest').addEventListener('click',()=>{const w=sound;sound=true;beep('order');sound=w;});
@@ -713,6 +740,10 @@ boardEl.addEventListener('click',e=>{
   const ak=e.target.closest('[data-ack]'),aa=e.target.closest('[data-ackall]');
   if(ak||aa){if(ak)ak.dataset.ack.split(',').forEach(x=>ACKED.add(x));else{const o=ORDERS.find(x=>x.id===aa.dataset.ackall);if(o)o.pending.forEach(d=>ACKED.add(d.id));}
     try{speechSynthesis.cancel();}catch(_){}render();return;}
+  // แตะเลขโต๊ะ → พูดเลขโต๊ะ (ไฮไลต์แป๊บหนึ่งให้รู้ว่ากดแล้ว)
+  const th=e.target.closest('.card header .tbl');
+  if(th&&CALL.tap){const o=ORDERS.find(x=>x.id===th.closest('.card').dataset.oid);
+    if(o){speechSynthesis.cancel();callSay(spokenHead(o));th.classList.add('said');setTimeout(()=>th.classList.remove('said'),900);}return;}
   const li=e.target.closest('li.dish');
   if(li){const o=ORDERS.find(x=>x.id===li.dataset.o),id=li.dataset.d,st=li.dataset.st,ids=id.split(',');if(!o)return;   // บรรทัดที่รวมจานเหมือนกัน: id = "i1,i2,i3"
     if(st==='done'&&e.target.closest('.check')){   // tap the green tick of a finished dish = undo: back to the pending list
@@ -727,7 +758,7 @@ boardEl.addEventListener('click',e=>{
   if(all){const ho=ORDERS.find(x=>x.id===all.dataset.all);
     if(ho&&ho.pending.some(d=>d.status==='pending'&&isHid(d))){visPend(ho).forEach(d=>markDone(ho,d));render();toast('✅ เสร็จเฉพาะจานที่เห็น','จานในหมวดที่ซ่อนยังค้างอยู่');return;}}
   if(all){post('/api/order/complete',{order_id:all.dataset.all,status:'completed',screen:SCREEN});
-    const fo=ORDERS.find(x=>x.id===all.dataset.all);if(fo)recordDone(fo);ORDERS=ORDERS.filter(x=>x.id!==all.dataset.all);render();}});
+    const fo=ORDERS.find(x=>x.id===all.dataset.all);if(fo){const pd=fo.pending.filter(d=>d.status==='pending'&&!isHid(d));if(pd.length&&new Set(pd.map(d=>d.name)).size<=3)pd.forEach(d=>callDone(fo,d));else callDone(fo,null);recordDone(fo);}ORDERS=ORDERS.filter(x=>x.id!==all.dataset.all);render();}});
 doneEl.addEventListener('click',async e=>{const b=e.target.closest('[data-recall]');if(!b||b.disabled)return;
   const h=DONE.find(x=>x.id===b.dataset.recall);if(!h)return;
   b.disabled=true;b.textContent='กำลังเรียกกลับ…';
