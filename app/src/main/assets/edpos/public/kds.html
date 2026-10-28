@@ -69,6 +69,10 @@
   .bqty small{display:block;font-size:11px;color:var(--muted);font-weight:600;margin-top:3px}
   .binfo{flex:1;min-width:0}.bname{font-size:18px;font-weight:700}.bspec{font-size:13px;color:var(--muted)}
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .catpick{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .catpick .btn{padding:6px 12px;font-size:14px}
+  .catpick .btn.on{background:var(--danger,#c0392b);border-color:var(--danger,#c0392b);color:#fff}
+  .catpick .btn.on::before{content:"🔇 "}
   .chip{font-size:12px;font-weight:600;padding:3px 9px;border-radius:20px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted)}
   .chip .x{color:var(--accent);font-weight:800}
   .empty{text-align:center;color:var(--faint);padding:50px 20px;font-size:15px}
@@ -296,10 +300,18 @@
     </div>
     <div class="sublabel">📣 เสียงเรียกโต๊ะ (ให้คนเสิร์ฟได้ยิน · ทำงานแม้ปิดปุ่มอ่านออกเสียง)</div>
     <div class="trows">
-      <label class="trow"><input type="checkbox" id="callDone"><span>กดจานเสร็จ → พูดโต๊ะ เช่น “โต๊ะ 5 ผัดกะเพรา”</span></label>
-      <label class="trow"><input type="checkbox" id="callDish"><span>พูดชื่อเมนูที่เสร็จด้วย (ไม่ติ๊ก = พูดแค่ “โต๊ะ 5”)</span></label>
+      <label class="trow"><span>เรียกเมื่อ</span><select id="callWhen" class="sel"><option value="dish">กดจานเสร็จ (ทุกจาน)</option><option value="table">ครบทั้งโต๊ะแล้วเท่านั้น</option><option value="off">ไม่เรียก</option></select></label>
+      <label class="trow"><span>พูดอะไร</span><select id="callWhat" class="sel"><option value="dish">โต๊ะ + ชื่อเมนู</option><option value="opts">โต๊ะ + ชื่อเมนู + ตัวเลือก</option><option value="table">โต๊ะอย่างเดียว</option></select></label>
+      <label class="trow"><input type="checkbox" id="callQty"><span>พูดจำนวน (เช่น “ผัดกะเพรา 2 ที่”)</span></label>
+      <label class="trow"><span>คำขึ้นต้น</span><select id="callPre" class="sel"><option value="">ไม่มี</option><option>เสิร์ฟ</option><option>รับอาหาร</option><option>อาหารได้แล้ว</option><option>เชิญรับ</option></select></label>
+      <label class="trow"><span>คำลงท้าย</span><select id="callPost" class="sel"><option value="">ไม่มี</option><option>เสร็จแล้ว</option><option>เสิร์ฟได้เลย</option><option>ได้แล้วค่ะ</option><option>ได้แล้วครับ</option></select></label>
+      <label class="trow"><span>เสียงก่อนพูด</span><select id="callSnd" class="sel" data-sounds="off"></select></label>
+      <label class="trow"><span>พูดกี่รอบ</span><select id="callRep" class="sel"><option value="1">1 รอบ</option><option value="2">2 รอบ</option><option value="3">3 รอบ</option></select></label>
+      <label class="trow"><span>ความเร็วเสียง</span><select id="callRate" class="sel"><option value="0.85">ช้า</option><option value="1">ปกติ</option><option value="1.2">เร็ว</option><option value="1.4">เร็วมาก</option></select></label>
+      <label class="trow"><span>รวมจานที่กดติดกันภายใน</span><select id="callWait" class="sel"><option value="0.7">ไม่ถึง 1 วินาที</option><option value="2">2 วินาที</option><option value="4">4 วินาที</option></select></label>
+      <div class="trow" style="cursor:default;display:block"><span>หมวดที่<b>ไม่ต้องเรียก</b> (แตะเพื่อเลือก เช่น ของทอด)</span><div id="callSkip" class="catpick"></div></div>
       <label class="trow"><input type="checkbox" id="callTap"><span>แตะเลขโต๊ะบนการ์ด → พูดเลขโต๊ะ</span></label>
-      <div class="trow" style="cursor:default;flex-wrap:wrap"><span style="font-size:13px;color:var(--muted);flex:1 1 200px">กดเสร็จหลายจานติดกัน (หรือเสร็จทั้งชุดในทำรวม) จะพูดรวมครั้งเดียว เช่น “โต๊ะ 5 ผัดกะเพรา 2 ที่, โต๊ะ 8 ผัดกะเพรา”</span><button class="btn" id="callTest">▶ ลองฟัง</button></div>
+      <div class="trow" style="cursor:default;flex-wrap:wrap"><span id="callDemo" style="font-size:13px;color:var(--muted);flex:1 1 200px"></span><button class="btn" id="callTest">▶ ลองฟัง</button></div>
     </div>
     <div class="sublabel">🔊 อ่านออกเสียง</div>
     <div class="trows">
@@ -307,6 +319,7 @@
       <label class="trow"><input type="checkbox" id="ttsSpec"><span>อ่านขนาด/สเปก (รหัสย่อบางตัวอาจอ่านเพี้ยน)</span></label>
       <label class="trow"><input type="checkbox" id="ttsGroup"><span>อ่านรวมเมนูเดียวกันในโต๊ะ (เช่น “กะเพรา 3 ที่ หมูกรอบ 2 ไก่ 1” แทนอ่านทีละจาน)</span></label>
       <label class="trow"><input type="checkbox" id="ttsBatch"><span>แจ้งเมื่อมีเมนูซ้ำที่ทำรวมได้</span></label>
+      <div class="trow" style="cursor:default;display:block"><span>หมวดที่<b>ไม่อ่านออกเสียง</b>ตอนออเดอร์เข้า (แตะเพื่อเลือก เช่น ของทอด)</span><div id="ttsSkip" class="catpick"></div></div>
       <label class="trow"><span>ความเร็วเสียง</span>
         <select id="ttsRate" class="sel"><option value="0.85">ช้า</option><option value="1">ปกติ</option><option value="1.2">เร็ว</option></select></label>
       <label class="trow"><span>พูดซ้ำ</span>
@@ -507,19 +520,53 @@ function renderDone(){
 renderDone();
 // ---- เสียงเรียกโต๊ะ: กดจานเสร็จ → "โต๊ะ 5 ผัดกะเพรา" · แตะเลขโต๊ะ → "โต๊ะ 5" ----
 // แยกจากปุ่มอ่านออกเสียงออเดอร์ (ปิดอ่านออเดอร์ไว้ ก็ยังเรียกโต๊ะได้) · ตั้งในเครื่องนี้ (localStorage kds_call)
-const CALL=Object.assign({done:true,dish:true,tap:true},(()=>{try{return JSON.parse(localStorage.getItem('kds_call')||'{}');}catch(e){return {};}})());
+// when: dish = ทุกจานที่กดเสร็จ · table = เมื่อจานของโต๊ะเสร็จครบ · off
+// what: dish = โต๊ะ+เมนู · opts = +ตัวเลือก · table = โต๊ะอย่างเดียว · skip = หมวดที่ไม่เรียก (เช่น ของทอด ที่คนทอดเสิร์ฟเอง)
+const CALL=(()=>{let c={};try{c=JSON.parse(localStorage.getItem('kds_call')||'{}');}catch(e){}
+  if(c.done===false&&!c.when)c.when='off';if(c.dish===false&&!c.what)c.what='table';   // ค่าจากรุ่นก่อน
+  return Object.assign({when:'dish',what:'dish',qty:true,pre:'',post:'',snd:'off',rep:'1',rate:'1',wait:'0.7',skip:null,tap:true},c);})();
 const saveCall=()=>{try{localStorage.setItem('kds_call',JSON.stringify(CALL));}catch(e){}};
 function callSay(text){if(!canSpeak||!text)return;
-  const u=new SpeechSynthesisUtterance(text);u.lang='th-TH';u.rate=TTS.rate;if(VOICE)u.voice=VOICE;speechSynthesis.speak(u);}
-// กดเสร็จหลายจานติดกัน (ภายใน 0.7 วินาที) → พูดครั้งเดียว รวมตามโต๊ะ
+  const go=()=>{for(let i=0;i<(+CALL.rep||1);i++){const u=new SpeechSynthesisUtterance(text);u.lang='th-TH';u.rate=+CALL.rate||1;if(VOICE)u.voice=VOICE;speechSynthesis.speak(u);}};
+  if(CALL.snd&&CALL.snd!=='off'){playPat(CALL.snd,1);const w=soundUntil-Date.now();if(w>0){setTimeout(go,w);return;}}
+  go();}
+const callSkip=d=>(CALL.skip||[]).includes(d.cat);
+// กดเสร็จหลายจานติดกัน → พูดครั้งเดียว รวมตามโต๊ะ
 const callQ=new Map();let callT=0;
-function callDone(o,d){if(!CALL.done)return;
+function callDone(o,d){if(CALL.when==='off')return;
+  if(d&&callSkip(d))return;
   const e=callQ.get(o.id)||{o,ds:[],all:false};if(d)e.ds.push(d);else e.all=true;callQ.set(o.id,e);
-  clearTimeout(callT);callT=setTimeout(flushCall,700);}
-function callNames(ds){const by=new Map();for(const d of ds)by.set(d.name,(by.get(d.name)||0)+(+d.quantity||1));
-  return [...by].map(([n,q])=>n+(q>1?' '+q+' ที่':'')).join(' ');}
-function flushCall(){const t=[...callQ.values()].map(e=>spokenHead(e.o)+(CALL.dish&&e.ds.length?' '+callNames(e.ds):e.all?' ครบทั้งโต๊ะ':'')).join(', ');
-  callQ.clear();callSay(t);}
+  clearTimeout(callT);callT=setTimeout(flushCall,(+CALL.wait||0.7)*1000);}
+function callNames(ds){const by=new Map();
+  for(const d of ds){const opt=CALL.what==='opts'?[...(d.extra_option||[]),d.remark].filter(Boolean).join(' '):'';
+    const k=d.name+(opt?' '+opt:'');by.set(k,(by.get(k)||0)+(+d.quantity||1));}
+  return [...by].map(([n,q])=>n+(CALL.qty&&q>1?' '+q+' ที่':'')).join(' ');}
+// โต๊ะนี้ยังมีจานค้าง (ที่ต้องเรียก) อยู่ไหม
+const stillCooking=o=>{const x=ORDERS.find(y=>y.id===o.id);return !!x&&x.pending.some(d=>d.status==='pending'&&!callSkip(d));};
+function callText(entries){
+  const parts=entries.map(e=>{const head=spokenHead(e.o);
+    if(CALL.when==='table')return head+' ครบแล้ว';
+    if(CALL.what==='table'||!e.ds.length)return head+(e.all&&!e.ds.length?' ครบทั้งโต๊ะ':'');
+    return head+' '+callNames(e.ds);});
+  return [CALL.pre,parts.join(', '),CALL.post].filter(Boolean).join(' ');}
+function flushCall(){let es=[...callQ.values()];callQ.clear();
+  if(CALL.when==='table')es=es.filter(e=>!stillCooking(e.o));   // เรียกเฉพาะโต๊ะที่ครบแล้ว
+  if(es.length)callSay(callText(es));}
+function renderCallCfg(){
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=String(v);};
+  set('callWhen',CALL.when);set('callWhat',CALL.what);set('callPre',CALL.pre);set('callPost',CALL.post);set('callSnd',CALL.snd);
+  set('callRep',CALL.rep);set('callRate',CALL.rate);set('callWait',CALL.wait);
+  document.getElementById('callQty').checked=!!CALL.qty;document.getElementById('callTap').checked=!!CALL.tap;
+  // ครั้งแรก: ไม่เรียก/ไม่อ่าน หมวดที่มีคำว่า "ทอด" (เลือกใหม่ได้)
+  if(!Array.isArray(CALL.skip)&&CATS.length){CALL.skip=CATS.filter(c=>c.includes('ทอด'));saveCall();}
+  if(!Array.isArray(TTS.skip)&&CATS.length){TTS.skip=CATS.filter(c=>c.includes('ทอด'));saveTts();}
+  const chips=(list)=>CATS.length?CATS.map(c=>`<button class="btn${(list||[]).includes(c)?' on':''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')
+    :'<span style="font-size:13px;color:var(--muted)">ยังไม่มีรายการหมวด (รอเชื่อมต่อเซิร์ฟเวอร์)</span>';
+  document.getElementById('callSkip').innerHTML=chips(CALL.skip);document.getElementById('ttsSkip').innerHTML=chips(TTS.skip);
+  document.getElementById('callDemo').textContent='ตัวอย่าง: “'+callDemo()+'”';}
+function callDemo(){const o={table_num:'5'},o2={table_num:'8'};
+  const ds=[{name:'ผัดกะเพรา',quantity:2,extra_option:['หมูกรอบ','เผ็ดน้อย']}],ds2=[{name:'ต้มยำกุ้ง',quantity:1,extra_option:[]}];
+  return CALL.when==='off'?'(ปิดเสียงเรียกโต๊ะ)':callText([{o,ds,all:false},{o:o2,ds:ds2,all:false}]);}
 // ---- read-aloud (Thai text-to-speech through the device's own audio output, e.g. a Bluetooth speaker) ----
 let primed=false; const seenDish=new Set(), urgeSeen=new Set();
 const TTS=Object.assign({on:false,opts:true,spec:false,batch:true,group:true,rate:1,repeat:'2',every:'15',wait:'15',only:[]},(()=>{try{return JSON.parse(localStorage.getItem('kds_tts')||'{}');}catch(e){return {};}})());
@@ -565,7 +612,7 @@ function pendingOf(r){const o=ORDERS.find(x=>x.id===r.oid);return o?o.pending.fi
 const repeating=(o,d)=>d.status==='pending'&&!ACKED.has(d.id)&&REPEATS.some(r=>r.oid===o.id&&r.ids.includes(d.id));
 function announce(prefix,o,dishes,noRepeat){
   if(!TTS.on)return false;
-  const ds=dishes.filter(d=>d.status==='pending'&&chosen(d));
+  const ds=dishes.filter(d=>d.status==='pending'&&chosen(d)&&!(TTS.skip||[]).includes(d.cat));   // หมวดที่ตั้งไม่อ่าน (เช่น ของทอด)
   if(!ds.length)return false;
   speak((prefix?prefix+' ':'')+spokenHead(o)+' '+sayList(ds));
   if(!noRepeat){
@@ -613,7 +660,7 @@ ttsBtn.addEventListener('click',()=>{
 document.getElementById('ttsCfg').addEventListener('click',()=>{
   document.getElementById('ttsOpts').checked=TTS.opts;document.getElementById('ttsSpec').checked=TTS.spec;
   document.getElementById('ttsBatch').checked=TTS.batch;document.getElementById('ttsGroup').checked=TTS.group!==false;document.getElementById('ttsRate').value=String(TTS.rate);
-  renderTtsDishes();document.getElementById('ttsRepeat').value=String(TTS.repeat);document.getElementById('ttsEvery').value=String(TTS.every||'15');renderRules();['min','every','gap','rep'].forEach(k=>document.getElementById('wait'+k[0].toUpperCase()+k.slice(1)).value=String(WAIT[k]));document.getElementById('waitSnd').value=WAIT.sound;document.getElementById('waitSpeak').checked=!!WAIT.speak;document.getElementById('sndType').value=SND.type;document.getElementById('sndVol').value=String(SND.vol);document.getElementById('sndRep').value=String(SND.rep);document.getElementById('sndAdd').value=String(SND.add);document.getElementById('sndNag').value=String(SND.nag);loadVoices();ttsModal.hidden=false;});
+  renderTtsDishes();document.getElementById('ttsRepeat').value=String(TTS.repeat);document.getElementById('ttsEvery').value=String(TTS.every||'15');renderRules();['min','every','gap','rep'].forEach(k=>document.getElementById('wait'+k[0].toUpperCase()+k.slice(1)).value=String(WAIT[k]));document.getElementById('waitSnd').value=WAIT.sound;document.getElementById('waitSpeak').checked=!!WAIT.speak;document.getElementById('sndType').value=SND.type;document.getElementById('sndVol').value=String(SND.vol);document.getElementById('sndRep').value=String(SND.rep);document.getElementById('sndAdd').value=String(SND.add);document.getElementById('sndNag').value=String(SND.nag);loadVoices();renderCallCfg();ttsModal.hidden=false;});
 function addTtsName(){const i=document.getElementById('ttsAddName'),n=i.value.trim();if(!n)return;
   const s=new Set(TTS.only||[]);s.add(n);TTS.only=[...s];saveTts();i.value='';renderTtsDishes();}
 document.getElementById('ttsAdd').addEventListener('click',addTtsName);
@@ -622,10 +669,15 @@ document.getElementById('ttsClose').addEventListener('click',()=>{ttsModal.hidde
 ttsModal.addEventListener('click',e=>{if(e.target===ttsModal)ttsModal.hidden=true;});
 [['ttsOpts','opts'],['ttsSpec','spec'],['ttsBatch','batch'],['ttsGroup','group']].forEach(([id,k])=>
   document.getElementById(id).addEventListener('change',e=>{TTS[k]=e.target.checked;saveTts();}));
-[['callDone','done'],['callDish','dish'],['callTap','tap']].forEach(([id,k])=>{const el=document.getElementById(id);el.checked=!!CALL[k];
-  el.addEventListener('change',e=>{CALL[k]=e.target.checked;saveCall();});});
+[['callWhen','when'],['callWhat','what'],['callPre','pre'],['callPost','post'],['callSnd','snd'],['callRep','rep'],['callRate','rate'],['callWait','wait']]
+  .forEach(([id,k])=>document.getElementById(id).addEventListener('change',e=>{CALL[k]=e.target.value;saveCall();renderCallCfg();}));
+[['callQty','qty'],['callTap','tap']].forEach(([id,k])=>document.getElementById(id).addEventListener('change',e=>{CALL[k]=e.target.checked;saveCall();renderCallCfg();}));
+// แตะหมวด → สลับ ไม่เรียก/เรียก (และ ไม่อ่าน/อ่าน)
+[['callSkip',CALL,saveCall],['ttsSkip',TTS,saveTts]].forEach(([id,obj,save])=>document.getElementById(id).addEventListener('click',e=>{
+  const b=e.target.closest('[data-cat]');if(!b)return;const c=b.dataset.cat,l=obj.skip||(obj.skip=[]);
+  l.includes(c)?l.splice(l.indexOf(c),1):l.push(c);save();renderCallCfg();}));
 document.getElementById('callTest').addEventListener('click',()=>{if(!canSpeak){toast('⚠️ เครื่องนี้อ่านออกเสียงไม่ได้','');return;}
-  speechSynthesis.cancel();const t=CALL.dish?'โต๊ะ 5 ผัดกะเพรา 2 ที่, โต๊ะ 8 ต้มยำกุ้ง':'โต๊ะ 5, โต๊ะ 8';callSay(t);toast('🔊 ตัวอย่าง',t,4000);});
+  speechSynthesis.cancel();const t=callDemo();if(CALL.when!=='off')callSay(t);toast('🔊 ตัวอย่าง',t,4000);});
 document.getElementById('ttsRate').addEventListener('change',e=>{TTS.rate=+e.target.value;saveTts();});
 [['sndType','type'],['sndVol','vol'],['sndRep','rep'],['sndAdd','add'],['sndNag','nag']].forEach(([id,k])=>document.getElementById(id).addEventListener('change',e=>{SND[k]=e.target.value;saveSnd();}));
 document.getElementById('sndTest').addEventListener('click',()=>{const w=sound;sound=true;beep('order');sound=w;});
@@ -984,7 +1036,10 @@ async function poll(){try{
   setLink(j.ok,er||'ติดต่อเซิร์ฟเวอร์ไม่ได้');
   KNOWN=j.knownDishes||[];
   if(Array.isArray(j.categories)){CATS=j.categories;
-    if(!Array.isArray(HIDE.cats)){HIDE.cats=CATS.filter(c=>c.includes('ทอด'));saveHide();}   // ครั้งแรก: หมวดที่มีคำว่า "ทอด"
+    if(!Array.isArray(HIDE.cats)){HIDE.cats=CATS.filter(c=>c.includes('ทอด'));saveHide();}
+    // ครั้งแรก: ไม่เรียกโต๊ะ/ไม่อ่านออกเสียง หมวดที่มีคำว่า "ทอด" (แก้ได้ในตั้งค่า)
+    if(!Array.isArray(CALL.skip)){CALL.skip=CATS.filter(c=>c.includes('ทอด'));saveCall();}
+    if(!Array.isArray(TTS.skip)){TTS.skip=CATS.filter(c=>c.includes('ทอด'));saveTts();}   // ครั้งแรก: หมวดที่มีคำว่า "ทอด"
   }
   const next=normalize(j.orders);
   // detect new orders / added dishes / urgent flags, and whether a new dish collides with one already pending
