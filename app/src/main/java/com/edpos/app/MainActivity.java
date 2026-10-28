@@ -606,9 +606,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public boolean voiceAvailable() { return Voice.available(MainActivity.this); }
         @JavascriptInterface
-        public void voiceStart(String lang) { ui.post(() -> voice.begin(lang == null || lang.isEmpty() ? "th-TH" : lang, null)); }
-        @JavascriptInterface
-        public void voiceStartBias(String lang, String bias) { ui.post(() -> voice.begin(lang == null || lang.isEmpty() ? "th-TH" : lang, bias)); }
+        public void voiceStart(String lang) { ui.post(() -> voice.begin(lang == null || lang.isEmpty() ? "th-TH" : lang)); }
         @JavascriptInterface
         public void voiceStop() { ui.post(voice::stop); }
         @JavascriptInterface

@@ -4,8 +4,10 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.Settings;
 import android.speech.RecognitionListener;
 import android.speech.RecognitionService;
 import android.speech.RecognizerIntent;
@@ -15,24 +17,30 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
  * สั่งอาหารด้วยเสียง: ใช้ตัวแปลงเสียงเป็นข้อความของ Android (ส่วนใหญ่เป็นของ Google ต้องต่อเน็ต)
  * หน้าเว็บในแอปเรียก EdPosApp.voiceStart("th-TH") → ส่งเหตุการณ์กลับทาง window.edposVoice({type, ...})
- * type: start · ready (เริ่มฟัง) · level (ความดังเสียง 0–1) · partial (ข้อความระหว่างพูด) · result (alts = คำที่เป็นไปได้ เรียงจากน่าจะใช่สุด)
- *       · error (code: perm = ไม่อนุญาตไมค์, nomatch = ฟังไม่ออก, net = ไม่มีเน็ต, busy, other) · end
+ * type: start · info (svc = ตัวแปลงเสียงที่ใช้) · ready (เริ่มฟัง) · level (ความดังเสียง 0–1) · partial (ข้อความระหว่างพูด)
+ *       · result (alts = คำที่เป็นไปได้ เรียงจากน่าจะใช่สุด)
+ *       · error (code: perm = ไม่อนุญาตไมค์, nomatch = ฟังไม่ออก, net = ไม่มีเน็ต, busy, other · n = รหัสของ Android) · end
  * Chrome ในมือถือเปิดไมค์ในหน้าเว็บ http:// ของร้านไม่ได้ จึงต้องทำผ่านแอป
+ *
+ * ข้อควรระวัง (จากเครื่องจริง):
+ * · อย่าทำลายแล้วสร้างตัวแปลงเสียงใหม่ทุกครั้ง → Android 12+ ตอบ error 11 (ตัวแปลงเสียงหลุด) บ่อย · ใช้ตัวเดิม สร้างใหม่เฉพาะตอนหลุด
+ * · error 11 / 5 / 8 (หลุด / ค้าง / ไม่ว่าง) → สร้างใหม่แล้วลองซ้ำเองครั้งเดียว ไม่ต้องให้พนักงานกดใหม่
  */
 class Voice implements RecognitionListener {
     static final int PERM_CODE = 11;
+    private static final int ERR_SERVER_DISCONNECTED = 11;   // SpeechRecognizer.ERROR_SERVER_DISCONNECTED (Android 12+)
     private final MainActivity act;
+    private final Handler ui = new Handler(Looper.getMainLooper());
     private SpeechRecognizer sr;
-    private String pendingLang, pendingBias;
-    // เริ่มฟังแล้วพังทันที (ตัวแปลงเสียงไม่รองรับชื่อเมนู/ภาษาไทย) → ลองใหม่ครั้งเดียวแบบไม่ส่งชื่อเมนู + ใช้ตัวแปลงเสียงของเครื่อง แล้วจำไว้
-    private static boolean noBias = false, noPrefer = false;
-    private String curLang; private boolean curBias, curPrefer, retried;
+    private boolean rebuild = false;        // ตัวแปลงเสียงหลุด → สร้างใหม่ตอนเริ่มครั้งถัดไป
+    private static boolean noPrefer = false; // ใช้ Google ตรงๆ แล้วหลุดซ้ำ → กลับไปใช้ตัวที่เครื่องตั้งไว้
+    private String pendingLang, curLang;
+    private boolean curPrefer, retried;
     private long lastLevel = 0;
     // กำลังฟังรอบนี้อยู่ไหม · บางเครื่องส่ง error ตามหลังผลลัพธ์ (หรือส่งซ้ำ) → ไม่ส่งต่อให้หน้าเว็บ ไม่งั้นไมค์ "เด้ง" ฟังใหม่เอง
     private boolean active = false;
@@ -43,53 +51,60 @@ class Voice implements RecognitionListener {
         try { return SpeechRecognizer.isRecognitionAvailable(a); } catch (Exception e) { return false; }
     }
 
-    /** ตัวแปลงเสียงที่ใช้: ของ Google ก่อน (ภาษาไทยดีสุด) · ไม่มี → ตัวที่เครื่องตั้งไว้ (บางยี่ห้อไม่รองรับภาษาไทย) */
-    private static final String[] PREFER = { "com.google.android.googlequicksearchbox", "com.google.android.tts", "com.google.android.as" };
+    /** ตัวแปลงเสียงที่เครื่องตั้งไว้เป็นของ Google อยู่แล้ว → ใช้ตามเครื่อง (เสถียรสุด)
+     *  เป็นของยี่ห้ออื่น (ภาษาไทยมักไม่ดี) และมีของ Google ในเครื่อง → ใช้ของ Google */
+    private static final String[] PREFER = { "com.google.android.googlequicksearchbox", "com.google.android.tts" };
     private ComponentName service() {
+        if (noPrefer) return null;
         try {
+            String def = Settings.Secure.getString(act.getContentResolver(), "voice_recognition_service");
+            if (def == null || def.isEmpty() || def.startsWith("com.google.")) return null;
             List<ResolveInfo> l = act.getPackageManager().queryIntentServices(new Intent(RecognitionService.SERVICE_INTERFACE), 0);
             for (String p : PREFER) for (ResolveInfo r : l)
                 if (r.serviceInfo != null && p.equals(r.serviceInfo.packageName)) return new ComponentName(r.serviceInfo.packageName, r.serviceInfo.name);
         } catch (Exception ignored) { }
         return null;
     }
+    private String serviceName(ComponentName c) {
+        if (c != null) return c.getPackageName();
+        try {
+            String def = Settings.Secure.getString(act.getContentResolver(), "voice_recognition_service");
+            if (def != null && !def.isEmpty()) return def.split("/")[0];
+        } catch (Exception ignored) { }
+        return "ค่าเริ่มต้นของเครื่อง";
+    }
 
-    void start(String lang) { start(lang, null); }
-    /** จากหน้าเว็บ: เริ่มรอบใหม่ (ล้างการลองซ้ำ) */
-    void begin(String lang, String bias) { retried = false; start(lang, bias); }
+    /** จากหน้าเว็บ: เริ่มรอบใหม่ */
+    void begin(String lang) { retried = false; start(lang); }
 
-    /** เรียกบน UI thread เท่านั้น · bias = ชื่อเมนูคั่นบรรทัด (Android 13+ ใช้ช่วยเดาคำ) */
-    void start(String lang, String bias) {
+    /** เรียกบน UI thread เท่านั้น */
+    void start(String lang) {
         if (act.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            pendingLang = lang; pendingBias = bias;
+            pendingLang = lang;
             act.requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, PERM_CODE);
             return;
         }
         try {
-            // สร้างใหม่ทุกครั้ง: ใช้ตัวเดิมเริ่มฟังซ้ำเร็วๆ บางเครื่องค้าง/ตอบ error ทันที
-            if (sr != null) { try { sr.destroy(); } catch (Exception ignored) { } }
-            ComponentName svc = noPrefer ? null : service();
-            sr = svc != null ? SpeechRecognizer.createSpeechRecognizer(act, svc) : SpeechRecognizer.createSpeechRecognizer(act);
-            sr.setRecognitionListener(this);
-            try { JSONObject o = new JSONObject(); o.put("svc", svc != null ? svc.getPackageName() : "ค่าเริ่มต้นของเครื่อง"); emit("info", o); } catch (Exception ignored) { }
+            if (sr == null || rebuild) {
+                if (sr != null) { try { sr.destroy(); } catch (Exception ignored) { } }
+                ComponentName svc = service();
+                sr = svc != null ? SpeechRecognizer.createSpeechRecognizer(act, svc) : SpeechRecognizer.createSpeechRecognizer(act);
+                sr.setRecognitionListener(this);
+                rebuild = false; curPrefer = svc != null;
+                try { JSONObject o = new JSONObject(); o.put("svc", serviceName(svc)); emit("info", o); } catch (Exception ignored) { }
+            } else sr.cancel();
+            curLang = lang;
             Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
             i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
             i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang);
             i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang);
             i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
             i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
-            // ชื่อเมนูของร้าน → ช่วยให้ตัวแปลงเสียงเลือกคำที่เป็นชื่อเมนู (Android 13+ ตัวที่รองรับ · ไม่รองรับก็ไม่เป็นไร)
-            curLang = lang; curPrefer = svc != null; curBias = false;
-            if (bias != null && !bias.isEmpty() && Build.VERSION.SDK_INT >= 33 && !noBias) {
-                curBias = true;
-                pendingBias = bias;
-                i.putStringArrayListExtra(RecognizerIntent.EXTRA_BIASING_STRINGS, new ArrayList<>(Arrays.asList(bias.split("\n"))));
-            }
             i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, act.getPackageName());
             active = true;
             sr.startListening(i);
             emit("start", null);
-        } catch (Exception e) { active = false; error("other", e.toString()); }
+        } catch (Exception e) { active = false; rebuild = true; error("other", e.toString(), -1); }
     }
 
     void stop() { try { if (sr != null) sr.stopListening(); } catch (Exception ignored) { } }
@@ -101,8 +116,8 @@ class Voice implements RecognitionListener {
     }
 
     void onPermission(boolean granted) {
-        if (granted && pendingLang != null) start(pendingLang, pendingBias);
-        else error("perm", "");
+        if (granted && pendingLang != null) begin(pendingLang);
+        else error("perm", "", -1);
         pendingLang = null;
     }
 
@@ -116,7 +131,6 @@ class Voice implements RecognitionListener {
         } catch (Exception ignored) { }
     }
 
-    private void error(String code, String msg) { error(code, msg, -1); }
     private void error(String code, String msg, int n) {
         try { JSONObject o = new JSONObject(); o.put("code", code); o.put("msg", msg); if (n >= 0) o.put("n", n); emit("error", o); } catch (Exception ignored) { }
         emit("end", null);
@@ -134,12 +148,12 @@ class Voice implements RecognitionListener {
         return o;
     }
 
-    @Override public void onReadyForSpeech(Bundle p) { emit("ready", null); }
+    @Override public void onReadyForSpeech(Bundle p) { if (active) emit("ready", null); }
     @Override public void onBeginningOfSpeech() { }
     @Override public void onRmsChanged(float db) {
         // ส่งความดังเสียงไม่เกิน 10 ครั้ง/วินาที (ให้วงกลมไมค์ขยับ)
         long now = System.currentTimeMillis();
-        if (now - lastLevel < 100) return;
+        if (!active || now - lastLevel < 100) return;
         lastLevel = now;
         try { JSONObject o = new JSONObject(); o.put("v", Math.max(0, Math.min(1, (db + 2) / 12.0))); emit("level", o); } catch (Exception ignored) { }
     }
@@ -148,24 +162,28 @@ class Voice implements RecognitionListener {
     @Override public void onError(int e) {
         if (!active) return;
         active = false;
-        boolean normal = e == SpeechRecognizer.ERROR_NO_MATCH || e == SpeechRecognizer.ERROR_SPEECH_TIMEOUT || e == SpeechRecognizer.ERROR_NETWORK
-                || e == SpeechRecognizer.ERROR_NETWORK_TIMEOUT || e == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS;
-        if (!normal && !retried && (curBias || curPrefer)) {
-            retried = true;
-            if (curBias) noBias = true; else noPrefer = true;
-            Watchdog.log(act, "สั่งด้วยเสียง: error " + e + " → ลองใหม่" + (curBias ? " ไม่ส่งชื่อเมนู" : " ด้วยตัวแปลงเสียงของเครื่อง"));
-            start(curLang, curBias ? null : pendingBias);
-            return;
+        // หลุด / ค้าง / ไม่ว่าง → สร้างตัวแปลงเสียงใหม่แล้วลองเองครั้งเดียว (หน้าเว็บยังเห็นว่ากำลังฟังอยู่)
+        boolean flaky = e == ERR_SERVER_DISCONNECTED || e == SpeechRecognizer.ERROR_CLIENT || e == SpeechRecognizer.ERROR_RECOGNIZER_BUSY;
+        if (flaky) {
+            rebuild = true;
+            if (e == ERR_SERVER_DISCONNECTED && curPrefer) noPrefer = true;   // ใช้ Google ตรงๆ แล้วหลุด → ใช้ตามเครื่อง
+            if (!retried) {
+                retried = true;
+                Watchdog.log(act, "สั่งด้วยเสียง: error " + e + " → สร้างตัวแปลงเสียงใหม่แล้วลองอีกครั้ง");
+                ui.postDelayed(() -> start(curLang), 400);
+                return;
+            }
         }
         String code = e == SpeechRecognizer.ERROR_NO_MATCH || e == SpeechRecognizer.ERROR_SPEECH_TIMEOUT ? "nomatch"
                 : e == SpeechRecognizer.ERROR_NETWORK || e == SpeechRecognizer.ERROR_NETWORK_TIMEOUT || e == SpeechRecognizer.ERROR_SERVER ? "net"
                 : e == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ? "perm"
-                : e == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ? "busy" : "other";
+                : e == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ? "busy"
+                : e == ERR_SERVER_DISCONNECTED ? "lost" : "other";
         error(code, "error " + e, e);
     }
     @Override public void onResults(Bundle b) {
         if (!active) return;
-        active = false;
+        active = false; retried = false;
         emit("result", texts(b)); emit("end", null);
     }
     @Override public void onPartialResults(Bundle b) { if (active) emit("partial", texts(b)); }

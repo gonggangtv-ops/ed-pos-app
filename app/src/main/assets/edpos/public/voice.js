@@ -412,14 +412,8 @@ const VOICE = (() => {
     startRec();
   }
   function startRec() {
-    // ส่งชื่อเมนูไปช่วยตัวแปลงเสียง (Android 13+ ที่รองรับ) ให้เดาคำเป็นชื่อเมนูของร้าน
-    try {
-      if (typeof app.voiceStartBias === 'function') app.voiceStartBias('th-TH', biasWords().join('\n'));
-      else app.voiceStart('th-TH');
-    } catch { endSession(); st.msg = 'เปิดไมค์ไม่ได้'; draw(); }
+    try { app.voiceStart('th-TH'); } catch { endSession(); st.msg = 'เปิดไมค์ไม่ได้'; draw(); }
   }
-  const biasWords = () => [...new Set([...S.menu.filter(m => m.available !== false).map(m => m.name),
-    ...S.menu.flatMap(m => groupsOf(m).flatMap(g => g.choices.map(c => c.name))), 'เล็ก', 'กลาง', 'ใหญ่', 'เผ็ดน้อย', 'ไม่เผ็ด', 'กลับบ้าน'])].slice(0, 500);
   function stopListen() { ses.stop = true; try { app.voiceStop(); } catch {} }
   // ข้อความทั้งหมดของรอบนี้ → แยกเมนูใหม่ทั้งก้อน แล้วต่อท้ายรายการที่มีอยู่ก่อนเริ่มรอบ
   function reparse() {
@@ -631,7 +625,8 @@ const VOICE = (() => {
       if (ev.code === 'nomatch' && (ses.heard || waitMore)) { paintLive(); return; }
       if (ev.code !== 'nomatch') ses.stop = true;
       st.msg = { perm: 'ยังไม่ได้อนุญาตให้ใช้ไมค์ · แตะไมค์อีกครั้งแล้วกด “อนุญาต” (หรือ ตั้งค่า › แอป › MAMA POS › สิทธิ์ › ไมโครโฟน)',
-        nomatch: 'ไม่ได้ยินชัด ลองพูดอีกครั้ง ใกล้ๆ เครื่อง', net: 'แปลงเสียงไม่ได้ ต้องต่ออินเทอร์เน็ต', busy: 'ไมค์กำลังถูกใช้อยู่ ลองใหม่อีกครั้ง' }[ev.code] || 'ฟังไม่สำเร็จ ลองใหม่อีกครั้ง';
+        nomatch: 'ไม่ได้ยินชัด ลองพูดอีกครั้ง ใกล้ๆ เครื่อง', net: 'แปลงเสียงไม่ได้ ต้องต่ออินเทอร์เน็ต', busy: 'ไมค์กำลังถูกใช้อยู่ ลองใหม่อีกครั้ง',
+        lost: 'ตัวแปลงเสียงหลุด แตะไมค์อีกครั้ง · ถ้าเป็นบ่อย อัปเดตแอป Google ใน Play Store' }[ev.code] || 'ฟังไม่สำเร็จ ลองใหม่อีกครั้ง';
       if (ev.n != null) st.msg += ` (รหัส ${ev.n})`;   // ไว้แจ้งปัญหา
     } else if (ev.type === 'end') { if (!ses.on) return; onRecEnd(); }
     draw();
