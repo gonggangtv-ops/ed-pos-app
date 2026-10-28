@@ -24,19 +24,43 @@
   };
   const others = () => store.get().filter(u => u && u !== here);
 
-  function showBar(html, tone) {
-    if (!bar) {
-      bar = document.createElement('div');
-      bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;padding:14px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;'
-        + 'font:600 16px/1.4 "IBM Plex Sans Thai","Noto Sans Thai",system-ui,sans-serif;color:#fff;box-shadow:0 -6px 24px #0006';
-      document.body.appendChild(bar);
-    }
-    bar.style.background = tone === 'ok' ? '#1E6B58' : '#B03A27';
-    bar.innerHTML = html;
+  // การ์ดเล็กลอยกลางจอด้านล่าง (อยู่เหนือแถบยอด/ส่งออเดอร์ของมือถือ ไม่บังหัวหน้าจอ): จุดสี + หัวข้อ + คำอธิบาย + ปุ่ม (ถ้ามี) · ไม่ใช้แถบสีเต็มจอ
+  function css() {
+    if (document.getElementById('foCss')) return;
+    const s = document.createElement('style'); s.id = 'foCss';
+    s.textContent = `
+      #foBar { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 9999; width: max-content; max-width: min(560px, calc(100% - 24px));
+        display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 14px; border-radius: 14px;
+        background: rgba(24,26,30,.94); color: #fff; border: 1px solid rgba(255,255,255,.08); box-shadow: 0 10px 30px rgba(0,0,0,.3);
+        -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font: 400 14px/1.4 "IBM Plex Sans Thai","Noto Sans Thai",system-ui,sans-serif;
+        animation: foIn .25s ease-out; }
+      @keyframes foIn { from { opacity: 0; transform: translate(-50%, 8px); } }
+      #foBar .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: #ff5d4d; animation: foPulse 1.6s infinite; }
+      #foBar.ok .dot { background: #3ecf8e; animation: none; }
+      @keyframes foPulse { 0% { box-shadow: 0 0 0 0 rgba(255,93,77,.55); } 70%, 100% { box-shadow: 0 0 0 8px rgba(255,93,77,0); } }
+      #foBar .tx { min-width: 0; padding-right: 4px; } #foBar b { display: block; font-weight: 600; font-size: 14.5px; }
+      #foBar small { display: block; font-size: 12.5px; opacity: .7; }
+      #foBar button { flex: none; font: 600 13.5px/1 inherit; font-family: inherit; padding: 9px 14px; border-radius: 10px; border: 0; background: #fff; color: #18221E; cursor: pointer; }
+      #foBar button:disabled { opacity: .6; }
+      @media (prefers-reduced-motion: reduce) { #foBar, #foBar .dot { animation: none; } }`;
+    document.head.appendChild(s);
+  }
+  function showBar(title, sub, button, tone) {
+    css();
+    if (!bar) { bar = document.createElement('div'); bar.id = 'foBar'; bar.setAttribute('role', 'status'); document.body.appendChild(bar); }
+    document.body.classList.add('fo-on');
+    bar.className = tone === 'ok' ? 'ok' : '';
+    lift(bar);
+    bar.innerHTML = `<span class="dot"></span><span class="tx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span>${button ? `<button id="foPromote">${button}</button>` : ''}`;
     return bar;
   }
-  const hideBar = () => { if (bar) { bar.remove(); bar = null; } };
-  const btn = 'style="margin-left:auto;font:inherit;padding:10px 18px;border-radius:10px;border:0;background:#fff;color:#18221E;cursor:pointer"';
+  // หน้าสั่งอาหารบนมือถือมีแถบล่าง → ยกการ์ดขึ้นเหนือแถบนั้น
+  function lift(el) {
+    const m = document.querySelector('.mbar'), h = m && getComputedStyle(m).display !== 'none' ? m.getBoundingClientRect().height : 0;
+    el.style.bottom = `calc(${Math.round(h) + 12}px + env(safe-area-inset-bottom, 0px))`;
+  }
+  window.edposLift = lift;
+  const hideBar = () => { if (bar) { bar.remove(); bar = null; } document.body.classList.remove('fo-on'); };
 
   async function check() {
     if (busy) return; busy = true;
@@ -51,8 +75,7 @@
         // หน้านี้เปิดอยู่บนเครื่องสำรอง: ถ้าเครื่องหลักทำงาน ย้ายไปที่นั่น
         if (location.pathname.endsWith('standby.html')) return;
         try { const p = await ask(me.peer); if (p.role === 'main') return go(me.peer); } catch {}
-        showBar(`เครื่องนี้เป็นเครื่องสำรอง และติดต่อเครื่องหลักไม่ได้
-          <button ${btn} id="foPromote">ใช้เครื่องนี้เป็นเครื่องหลัก</button>`);
+        showBar('เครื่องนี้เป็นเครื่องสำรอง', 'ติดต่อเครื่องหลักไม่ได้', 'ใช้เครื่องนี้แทน');
         bar.querySelector('#foPromote').onclick = () => promote(here);
         return;
       }
@@ -63,14 +86,13 @@
         try {
           const p = await ask(o);
           if (p.role === 'main') return go(o);
-          showBar(`เครื่องหลักไม่ตอบ · มีเครื่องสำรองที่ ${o.replace(/^https?:\/\//, '')}
-            <button ${btn} id="foPromote">ใช้เครื่องสำรองแทน</button>`);
+          showBar('เครื่องหลักไม่ตอบ', `มีเครื่องสำรองที่ ${o.replace(/^https?:\/\//, '')}`, 'ใช้เครื่องสำรอง');
           bar.querySelector('#foPromote').onclick = () => promote(o);
           return;
         } catch {}
       }
-      showBar(others().length ? 'ติดต่อทั้งเครื่องหลักและเครื่องสำรองไม่ได้ ตรวจ Wi-Fi และไฟของทั้งสองเครื่อง'
-        : 'ติดต่อเครื่องหลักไม่ได้ ตรวจว่าแท็บเล็ตเปิดอยู่และ Termux ยังรันอยู่');
+      showBar(others().length ? 'ติดต่อเครื่องหลักและเครื่องสำรองไม่ได้' : 'ติดต่อเครื่องหลักไม่ได้',
+        others().length ? 'ตรวจ Wi-Fi และไฟของทั้งสองเครื่อง · ลองใหม่อัตโนมัติ' : 'ตรวจ Wi-Fi และไฟเครื่องหลัก · ลองใหม่อัตโนมัติ');
     } finally { busy = false; }
   }
 
@@ -79,7 +101,7 @@
     b.disabled = true; b.textContent = 'กำลังสลับ…';
     try {
       await ask(base, '/api/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-      showBar('สลับเครื่องเรียบร้อย กำลังเปิดหน้าใหม่…', 'ok');
+      showBar('สลับเครื่องเรียบร้อย', 'กำลังเปิดหน้าใหม่…', '', 'ok');
       setTimeout(() => (base === here ? location.reload() : go(base)), 800);
     } catch (e) {
       b.disabled = false; b.textContent = 'ลองอีกครั้ง';

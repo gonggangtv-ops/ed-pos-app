@@ -368,7 +368,6 @@
 
   .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 10px; z-index: 99; box-shadow: 0 8px 24px #0004; }
   .toast.bad { background: var(--brick); }
-  #net.bad { position: fixed; top: 0; left: 0; right: 0; background: var(--brick); color: #fff; text-align: center; padding: 6px; z-index: 100; }
 
   /* ---------- เครื่องพิมพ์ / จอครัว ---------- */
   .dev { display: grid; grid-template-columns: minmax(150px, 1.2fr) minmax(140px, 1fr) 90px 110px 100px auto; gap: 12px; align-items: end; }

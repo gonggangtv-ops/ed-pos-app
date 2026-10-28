@@ -242,11 +242,30 @@ function live(onUpdate) {
   addEventListener('focus', () => { if (Date.now() - heard > 20000) wake(); });
 }
 
+// ขาดการเชื่อมต่อ: ป้ายเล็กกลางจอด้านล่าง (ไม่บังหน้า กดทะลุได้) · ต่อได้แล้วจางหายเอง
 function setOnline(ok) {
   let el = document.getElementById('net');
-  if (!el) { el = document.createElement('div'); el.id = 'net'; document.body.appendChild(el); }
+  if (!el) {
+    if (!document.getElementById('netCss')) {
+      const s = document.createElement('style'); s.id = 'netCss';
+      s.textContent = `
+        #net { position: fixed; bottom: 12px; left: 50%; transform: translate(-50%, 8px); z-index: 100; pointer-events: none; opacity: 0;
+          display: flex; align-items: center; gap: 8px; padding: 6px 14px 6px 11px; border-radius: 999px;
+          background: rgba(24,26,30,.9); color: #fff; font: 500 13.5px/1.3 "IBM Plex Sans Thai","Noto Sans Thai",system-ui,sans-serif;
+          box-shadow: 0 6px 20px rgba(0,0,0,.25); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); transition: opacity .25s, transform .25s; white-space: nowrap; }
+        #net.bad { opacity: 1; transform: translate(-50%, 0); }
+        #net i { width: 8px; height: 8px; border-radius: 50%; background: #ff5d4d; box-shadow: 0 0 0 0 rgba(255,93,77,.6); animation: netPulse 1.6s infinite; }
+        @keyframes netPulse { 70% { box-shadow: 0 0 0 7px rgba(255,93,77,0); } 100% { box-shadow: 0 0 0 0 rgba(255,93,77,0); } }
+        @media (prefers-reduced-motion: reduce) { #net i { animation: none; } }
+        body.fo-on #net { display: none; }`;
+      document.head.appendChild(s);
+    }
+    el = document.createElement('div'); el.id = 'net'; el.setAttribute('role', 'status');
+    el.innerHTML = '<i></i><span>ขาดการเชื่อมต่อ · กำลังต่อใหม่…</span>';
+    document.body.appendChild(el);
+  }
   el.className = ok ? 'ok' : 'bad';
-  el.textContent = ok ? '' : 'ขาดการเชื่อมต่อเซิร์ฟเวอร์…';
+  if (!ok) window.edposLift?.(el);   // อยู่เหนือแถบล่างของมือถือ
 }
 
 // มีสตางค์ → แสดง 2 ตำแหน่งเสมอ (216.30) · จำนวนเต็ม → ไม่มีทศนิยม (210)

@@ -23,7 +23,6 @@ header button { background: transparent; color: #fff; border-color: #ffffff40; p
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff;
   padding: 12px 20px; border-radius: 10px; z-index: 99; }
 .toast.bad { background: var(--bad); }
-#net.bad { position: fixed; top: 0; left: 0; right: 0; background: var(--bad); color: #fff; text-align: center; padding: 6px; z-index: 100; }
 .modal-bg { position: fixed; inset: 0; background: #0007; display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
 .modal { background: var(--card); border-radius: 14px; padding: 20px; width: min(460px, 100%); max-height: 90vh; overflow: auto; }
 .modal h2 { margin: 0 0 12px; font-size: 20px; }
