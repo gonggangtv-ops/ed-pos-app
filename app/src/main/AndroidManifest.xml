@@ -12,11 +12,17 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- สั่งอาหารด้วยเสียง (ขออนุญาตตอนกดไมค์ครั้งแรก) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!-- เสียงอ่านภาษาไทย (Android 11+ ต้องประกาศว่าจะใช้เครื่องอ่านออกเสียง) -->
     <queries>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <!-- ตัวแปลงเสียงเป็นข้อความ (สั่งอาหารด้วยเสียง) -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 

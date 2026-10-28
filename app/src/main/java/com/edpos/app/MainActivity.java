@@ -70,6 +70,7 @@ public class MainActivity extends Activity {
     private SharedPreferences prefs;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private TextToSpeech tts;
+    private final Voice voice = new Voice(this);   // สั่งอาหารด้วยเสียง
     private volatile boolean ttsReady = false;
     private ValueCallback<Uri[]> fileCb;
     private String base = "";          // เครื่องที่เปิดอยู่ เช่น http://192.168.1.34:3000
@@ -183,6 +184,7 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
         super.onRequestPermissionsResult(code, perms, results);
         if (code == 9) askBattery();
+        if (code == Voice.PERM_CODE) voice.onPermission(results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED);
     }
 
     private boolean batteryOk() {
@@ -342,11 +344,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         if (tts != null) tts.shutdown();
+        voice.destroy();
         web.destroy();
         super.onDestroy();
     }
 
-    private void js(String code) {
+    void js(String code) {
         ui.post(() -> web.evaluateJavascript(code, null));
     }
 
@@ -598,6 +601,16 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void retry() { ui.post(MainActivity.this::openServer); }
+
+        // ----- สั่งอาหารด้วยเสียง (ดู Voice.java) -----
+        @JavascriptInterface
+        public boolean voiceAvailable() { return Voice.available(MainActivity.this); }
+        @JavascriptInterface
+        public void voiceStart(String lang) { ui.post(() -> voice.start(lang == null || lang.isEmpty() ? "th-TH" : lang)); }
+        @JavascriptInterface
+        public void voiceStop() { ui.post(voice::stop); }
+        @JavascriptInterface
+        public void voiceCancel() { ui.post(voice::cancel); }
 
         // ----- โหมดเซิร์ฟเวอร์ -----
         /** ขอให้ Android ไม่ปิดแอปเพื่อประหยัดแบต (สำคัญมากกับเครื่องหลัก) */

@@ -374,6 +374,9 @@
         <h3 class="rc-h">การสั่ง</h3>
         <div class="rowline"><div class="txt"><b>ปุ่ม "กลับต่างประเทศ"</b><span>เพิ่มจาก ทานที่ร้าน / กลับบ้าน · ใบสั่งพิมพ์แถบดำ "กลับต่างประเทศ" จอครัวขึ้นหมายเหตุ</span></div>
           <label class="sw"><input type="checkbox" id="ouAbroad"><i></i></label></div>
+        <div class="rowline"><div class="txt"><b>🎤 สั่งด้วยเสียง</b><span>ปุ่มไมค์มุมขวาล่างของหน้าสั่งอาหาร · ใช้ได้ในแอป MAMA POS เท่านั้น เครื่องต้องต่อเน็ต · พูด "ปลาเผา 2 ข้าวสวย 3" แล้วตรวจก่อนใส่รายการ</span></div>
+          <label class="sw"><input type="checkbox" id="ouVoice"><i></i></label></div>
+        <div id="vaBox"></div>
         <div class="actions"><button class="btn" id="ouReset">ค่าเริ่มต้น</button><button class="btn primary" id="ouSave">บันทึกหน้าสั่งอาหาร</button></div>
       </div>
     </section>
@@ -1932,10 +1935,23 @@ $('#lnTest').onclick = async function () {
 
 // ================= หน้าสั่งอาหาร (settings.orderUi) =================
 let ou = null;   // ค่าที่กำลังแก้ (ยังไม่บันทึก)
-const OU_SW = { ouShowEn: 'showEn', ouShowPrice: 'showPrice', ouShowSearch: 'showSearch', ouAbroad: 'abroad' };
+const OU_SW = { ouShowEn: 'showEn', ouShowPrice: 'showPrice', ouShowSearch: 'showSearch', ouAbroad: 'abroad', ouVoice: 'voice' };
+// คำที่ระบบจำไว้ (สั่งด้วยเสียง) · พนักงานสอนตอนเลือกคำที่ระบบไม่แน่ใจ · ลบคำที่จำผิดได้ที่นี่
+function renderVoiceAliases() {
+  const list = S.settings.voiceAliases || [], name = id => S.menu.find(m => m.id === id)?.name || '(เมนูถูกลบ)';
+  $('#vaBox').innerHTML = !list.length ? '' : `<details class="va"><summary>คำที่ระบบจำไว้ (${list.length})</summary>
+    <ul>${list.map((a, k) => `<li><span>“${esc(a.p)}” → <b>${esc(name(a.m))}</b>${a.c?.length ? ' ' + esc(a.c.join(' ')) : ''}</span><button class="btn" data-vadel="${k}">ลบ</button></li>`).join('')}</ul></details>`;
+}
+$('#vaBox').addEventListener('click', async e => {
+  const b = e.target.closest('[data-vadel]'); if (!b) return;
+  const a = (S.settings.voiceAliases || [])[+b.dataset.vadel]; if (!a) return;
+  try { await api('/api/voice/alias/delete', { p: a.p }); S.settings.voiceAliases = S.settings.voiceAliases.filter(x => x !== a); renderVoiceAliases(); toast('ลบคำแล้ว'); }
+  catch (err) { toast(err.message, true); }
+});
 function loadOrderUi(cfg) {
   ou = { ...(cfg || orderUi()) };
   for (const [id, k] of Object.entries(OU_SW)) $('#' + id).checked = !!ou[k];
+  renderVoiceAliases();
   $$('[data-ouseg]').forEach(sg => sg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === String(ou[sg.dataset.ouseg]))));
 }
 $('#ouForm').addEventListener('change', e => { const k = OU_SW[e.target.id]; if (k) { ou[k] = e.target.checked; dirty.add('orderui'); } });
@@ -2106,7 +2122,7 @@ function fillForms() {
   if (!dirty.has('layout')) { loadLayout(); renderLayout(); fillSel(); }
   if (!dirty.has('receipt')) loadReceipt();
   if (!dirty.has('ticket')) loadTicket(); else fillTkPrinters();
-  if (!dirty.has('orderui')) loadOrderUi();
+  if (!dirty.has('orderui')) loadOrderUi(); else renderVoiceAliases();
   if (!dirty.has('line')) loadLine();
   loadEnglish();
 }

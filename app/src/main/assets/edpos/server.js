@@ -513,6 +513,7 @@ function cleanI18n(v) {
   return out;
 }
 // ---------- หน้าตาหน้าสั่งอาหาร (หลังร้าน > หน้าสั่งอาหาร) ----------
+const voiceKey = s => String(s || '').toLowerCase().replace(/[\s.,!?'"“”]/g, '').slice(0, 40);
 function cleanOrderUi(u) {
   u = u && typeof u === 'object' ? u : {};
   const pick = (v, list, d) => (list.includes(v) ? v : d);
@@ -522,6 +523,7 @@ function cleanOrderUi(u) {
     cols: pick(String(u.cols), ['auto', '2', '3', '4', '5', '6'], 'auto'),
     showEn: u.showEn !== false, showPrice: u.showPrice !== false, showSearch: u.showSearch !== false,
     abroad: u.abroad !== false,   // ปุ่ม "กลับต่างประเทศ"
+    voice: u.voice !== false,     // ปุ่มไมค์ สั่งด้วยเสียง (เฉพาะในแอป MAMA POS)
   };
 }
 // ---------- รูปแบบใบสั่งครัว (หลังร้าน > ใบสั่งครัว) ----------
@@ -1900,6 +1902,23 @@ const routes = {
     try { await sendLine(dayKey(Date.now()), ['week', 'month'].includes(b.kind) ? b.kind : 'day'); L.lastErr = ''; } catch (e) { L.lastErr = e.message; throw e; }
   },
 
+  // สั่งด้วยเสียง: สอนคำที่ร้านเรียก → เมนู (เช่น "ช้างใหญ่" = ช้าง ขวดใหญ่) · พนักงานสอนได้ตอนเลือกคำที่ระบบไม่แน่ใจ
+  // settings.voiceAliases = [{p: คำ (ตัดช่องว่าง ตัวเล็ก), m: menuId, c: [ตัวเลือก]}] ใหม่สุดอยู่หน้า เก็บไม่เกิน 500
+  'POST /api/voice/alias': b => {
+    const p = voiceKey(b.p);
+    if (p.length < 2) throw new Error('คำสั้นเกินไป');
+    const m = data.menu.find(x => x.id === b.m);
+    if (!m) throw new Error('ไม่พบเมนูนี้');
+    const c = Array.isArray(b.c) ? b.c.map(x => String(x).trim().slice(0, 40)).filter(Boolean).slice(0, 5) : [];
+    const list = (data.settings.voiceAliases || []).filter(a => a.p !== p);
+    list.unshift({ p, m: m.id, ...(c.length ? { c } : {}) });
+    data.settings.voiceAliases = list.slice(0, 500);
+  },
+  'POST /api/voice/alias/delete': b => {
+    const p = voiceKey(b.p);
+    data.settings.voiceAliases = (data.settings.voiceAliases || []).filter(a => a.p !== p);
+  },
+
   // พยากรณ์: 7 วันถัดไป (เริ่มพรุ่งนี้) + ความแม่นย้อนหลัง 14 วัน
   'GET /api/forecast': () => {
     const today = dayKey(Date.now());
@@ -2441,7 +2460,7 @@ const PUBLIC_ROUTES = new Set(['GET /api/auth', 'POST /api/auth/setup', 'POST /a
   'GET /api/orders', 'POST /api/dish/complete', 'POST /api/order/complete', 'POST /api/kds/clear', 'POST /api/events/clear']);
 // หน้าสั่งอาหาร (รหัสพนักงาน หรือรหัสเจ้าของร้าน)
 const STAFF_ROUTES = new Set(['GET /api/state', 'GET /api/rev', 'GET /api/history', 'POST /api/order', 'POST /api/item/status', 'POST /api/item/cancel',
-  'POST /api/order/void', 'POST /api/order/move', 'POST /api/order/lang', 'POST /api/order/pay', 'POST /api/print']);
+  'POST /api/order/void', 'POST /api/order/move', 'POST /api/order/lang', 'POST /api/order/pay', 'POST /api/print', 'POST /api/voice/alias']);
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };

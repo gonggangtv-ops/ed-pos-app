@@ -434,3 +434,8 @@
   .ppdays .btn[aria-pressed="true"] { background: var(--jade); border-color: var(--jade); color: #fff; font-weight: 600; }
   .pptools { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   @media (max-width: 860px) { .pprow { grid-template-columns: 1fr; } .pptools { justify-content: flex-start; } }
+/* หลังร้าน > หน้าสั่งอาหาร: คำที่ระบบจำไว้ (สั่งด้วยเสียง) */
+details.va { margin: 4px 0 8px; } details.va summary { cursor: pointer; color: var(--muted); font-size: 14.5px; padding: 6px 0; }
+details.va ul { list-style: none; margin: 4px 0 0; padding: 0; }
+details.va li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 15px; }
+details.va li .btn { padding: 4px 12px; min-height: 0; }

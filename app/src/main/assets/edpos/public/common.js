@@ -457,7 +457,7 @@ const TICKET_DEF = { lang: 'th', sizeTable: 44, sizeItem: 36, sizeOpt: 30,
   qtyPos: 'front', optStyle: 'inline', noteStyle: 'normal', alertStyle: 'bold', mode: 'all', footer: '', feed: 4, beep: 0, showThai: true, price: 'all' };
 const ticketCfg = over => ({ ...TICKET_DEF, ...(S.settings?.ticket || {}), ...(over || {}) });
 // หน้าตาหน้าสั่งอาหาร ตั้งที่หลังร้าน > หน้าสั่งอาหาร (settings.orderUi)
-const ORDER_UI_DEF = { theme: 'classic', size: 'md', font: 'md', cols: 'auto', showEn: true, showPrice: true, showSearch: true, abroad: true };
+const ORDER_UI_DEF = { theme: 'classic', size: 'md', font: 'md', cols: 'auto', showEn: true, showPrice: true, showSearch: true, abroad: true, voice: true };
 const orderUi = () => ({ ...ORDER_UI_DEF, ...(S.settings?.orderUi || {}) });
 // รอบที่สั่งของโต๊ะนี้ (กดส่งห่างกันเกิน 5 วินาที = คนละรอบ เหมือนหน้าพิมพ์ใบสั่งซ้ำ)
 function ticketRound(items) {

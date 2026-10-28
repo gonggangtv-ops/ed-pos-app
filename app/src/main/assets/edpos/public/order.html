@@ -775,7 +775,9 @@ function addCustom(editIdx) {
 function priceText(m, thai) { const [lo, hi] = menuPriceRange(m, thai); return lo === hi ? baht(lo) + ' ฿' : `${baht(lo)}–${baht(hi)} ฿`; }
 
 // editIdx = แก้รายการที่ยังไม่ส่ง (cart[editIdx]) แทนการเพิ่มใหม่
-function addItem(menuId, editIdx) {
+// vp = ค่าเริ่มจากการสั่งด้วยเสียง (voice.js): {qty, choices: [ชื่อตัวเลือก], notes, takeaway, thai, auto, quiet, done}
+//   auto = ตัวเลือกครบ → เพิ่มเลยไม่ต้องเปิดหน้าต่าง · ขาดตัวเลือกที่ต้องเลือก → เปิดหน้าต่างให้เลือก · done = เรียกตอนหน้าต่างปิด
+function addItem(menuId, editIdx, vp) {
   const m = S.menu.find(x => x.id === menuId);
   const old = editIdx != null ? cart[editIdx] : null;
   const groups = groupsOf(m), grid = gridOf(m);
@@ -789,11 +791,17 @@ function addItem(menuId, editIdx) {
     const was = (old.choices || []).filter(p => p.g === g.name && g.choices.some(c => c.name === p.c)).map(p => p.c);
     sel[k] = new Set(was.length || !(g.required || inGrid(g)) ? was : sel[k]);
   });
+  // สั่งด้วยเสียง: ใส่ตัวเลือกที่พูดมา (กลุ่มเลือกอย่างเดียว = ตัวแรกที่ตรง · กลุ่มหลายอย่าง = ทุกตัวที่ตรง)
+  // กลุ่มบังคับแบบหลายอย่างที่ไม่ได้พูด → เว้นว่างไว้ให้เลือกเอง
+  if (vp && !old) groups.forEach((g, k) => {
+    const hit = shown(g).filter(c => (vp.choices || []).includes(c.name)).map(c => c.name);
+    if (hit.length) sel[k] = new Set(g.type === 'single' ? [hit[0]] : hit);
+  });
   // ตัวเลือกที่เลือกอยู่ของกลุ่ม (กลุ่มแบบหลายอย่าง เช่น เนื้อสัตว์ผสม ได้หลายตัว)
   const curAll = gname => { const k = groups.findIndex(g => g.name === gname); return k < 0 ? [] : [...sel[k]]; };
   // ราคาคนไทย: แก้รายการเดิมใช้ค่าเดิม · เพิ่มใหม่ใช้ตามจานอื่นของโต๊ะนี้ (โต๊ะคนไทยสั่งจานต่อไปก็ราคาไทยเลย)
   const thaiOk = hasThaiPrice(m);
-  const pr = { thai: thaiOk && (old ? !!old.thai : tableIsThai()) };
+  const pr = { thai: thaiOk && (old ? !!old.thai : vp?.thai || tableIsThai()) };
   const priceNow = (over = {}) => gridPriceAll(grid, n => over[n] || curAll(n), pr.thai);
   // ราคาคนไทยที่ไม่แยกไซส์: ซ่อนกลุ่มนั้น (เช่น "ขนาด") ไม่ต้องเลือก ไม่ส่งไปครัว
   const skipNow = () => (pr.thai ? thaiSkipOf(grid) : null);
@@ -818,7 +826,8 @@ function addItem(menuId, editIdx) {
     return `<small>${p == null ? '—' : baht(p)}</small>`;
   };
   const pre = splitNote(old?.note);
-  let qty = old?.qty || 1; const notes = new Set(pre.quick); const st = { takeaway: !!old?.takeaway, ...(old?.abroad ? { abroad: true } : {}) };
+  let qty = old?.qty || vp?.qty || 1; const notes = new Set([...pre.quick, ...(old ? [] : vp?.notes || [])]);
+  const st = { takeaway: !!(old ? old.takeaway : vp?.takeaway), ...(old?.abroad ? { abroad: true } : {}) };
   const bg = modal(`
     <h2>${old ? 'แก้ไข · ' : ''}${esc(m.name)} <span class="muted" style="font-weight:400" id="hprice">${priceText(m, pr.thai)}</span></h2>
     ${thaiOk ? `<div class="grp">ราคา</div>
@@ -836,6 +845,9 @@ function addItem(menuId, editIdx) {
     <input id="note" placeholder="หมายเหตุอื่นๆ" value="${esc(pre.free)}">`}
     <div class="btns" style="margin-top:14px"><button id="cancel">ยกเลิก</button><button class="primary" id="ok">เพิ่ม</button></div>`);
   const $ = s => bg.querySelector(s);
+  // ปิดหน้าต่าง (แตะพื้นหลังด้วย) → บอกการสั่งด้วยเสียงให้ทำรายการถัดไป
+  const close = () => { bg.remove(); vp?.done?.(); };
+  bg.onclick = e => { if (e.target === bg) close(); };
   const unit = () => (grid ? priceNow() ?? NaN : pr.thai && m.priceTh != null && m.priceTh !== '' ? Number(m.priceTh) : m.price)
     + groups.reduce((s, g, k) => s + (inGrid(g) ? 0 : g.choices.filter(c => sel[k].has(c.name)).reduce((a, c) => a + addOf(c, pr.thai), 0)), 0);
   const refresh = () => {
@@ -876,7 +888,7 @@ function addItem(menuId, editIdx) {
   $('#minus').onclick = () => { qty = Math.max(1, qty - 1); refresh(); };
   $('#plus').onclick = () => { qty++; refresh(); };
   wireDine(bg, st);
-  $('#cancel').onclick = () => bg.remove();
+  $('#cancel').onclick = close;
   $('#ok').onclick = () => {
     const choices = [], names = [], opts = [], alerts = [];
     groups.forEach((g, k) => g.name !== skipNow() && g.choices.forEach(c => { if (sel[k].has(c.name)) {
@@ -890,11 +902,15 @@ function addItem(menuId, editIdx) {
     // ครัวจะเห็น/ได้ยิน "กะเพรา 3 ที่" บรรทัดเดียว แทน 3 บรรทัด
     const same = cart.find(c => !c.custom && c.menuId === line.menuId && JSON.stringify(c.choices || []) === JSON.stringify(line.choices)
       && (c.note || '') === line.note && !!c.takeaway === !!line.takeaway && !!c.abroad === !!line.abroad && !!c.thai === !!line.thai && c.price === line.price);
-    if (same) { same.qty += qty; bg.remove(); render(); toast(`${m.name} รวมเป็น ${same.qty} แล้ว`); return; }
+    if (same) { same.qty += qty; close(); render(); if (!vp?.quiet) toast(`${m.name} รวมเป็น ${same.qty} แล้ว`); return; }
     cart.push(line);
-    bg.remove(); render(); added(m.name, qty);
+    close(); render(); if (!vp?.quiet) added(m.name, qty);
   };
   refresh();
+  // สั่งด้วยเสียง: กลุ่มที่ต้องเลือกได้บอกมาครบ (หรือมีให้เลือกอย่างเดียว) → เพิ่มเลย (หน้าต่างถูกสร้างแล้วปิดทันที ไม่ทันเห็น)
+  // ไม่ได้บอก เช่น "ปลาเผา" ไม่บอกชนิดปลา → เปิดหน้าต่างให้เลือก ไม่เดาตัวแรกให้
+  const told = groups.every(g => !(g.required || inGrid(g)) || g.name === skipNow() || shown(g).length <= 1 || shown(g).some(c => vp?.choices?.includes(c.name)));
+  if (vp?.auto && !old && told && !$('#ok').disabled) $('#ok').click();
 }
 
 let sending = false;
@@ -1172,5 +1188,6 @@ live(() => { if (hist && !current && hist.date === dayBack(0)) loadHistory(); el
 loadMe();
 setInterval(() => { if (!current) render(); }, 60000);
 </script>
+<script src="voice.js"></script>
 </body>
 </html>
