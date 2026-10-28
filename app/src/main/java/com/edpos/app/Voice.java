@@ -107,6 +107,43 @@ class Voice implements RecognitionListener {
         } catch (Exception e) { active = false; rebuild = true; error("other", e.toString(), -1); }
     }
 
+    // ---------- หน้าต่างฟังของ Google (ทางเลือก) ----------
+    // บางเครื่อง ตัวแปลงเสียงเบื้องหลังได้ยินเสียงแต่แปลภาษาไทยไม่ได้ (error 7 ตลอด เช่น ใช้ตัวแปลงในเครื่องที่ไม่มีภาษาไทย)
+    // → เปิดหน้าต่างไมค์ของ Google เอง (ใช้ระบบเดียวกับพิมพ์ด้วยเสียง) ได้ผลแล้วส่งกลับหน้าเว็บแบบเดียวกัน
+    static final int DIALOG_REQ = 12;
+    private boolean dialogOn = false;
+    boolean dialogAvailable() {
+        try { return new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).resolveActivity(act.getPackageManager()) != null; }
+        catch (Exception e) { return false; }
+    }
+    void dialog(String lang) {
+        try {
+            Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang);
+            i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang);
+            i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
+            i.putExtra(RecognizerIntent.EXTRA_PROMPT, "พูดชื่อเมนู + ตัวเลือก + จำนวน");
+            dialogOn = true;
+            act.startActivityForResult(i, DIALOG_REQ);
+            emit("start", null);
+        } catch (Exception e) { dialogOn = false; error("other", e.toString(), -1); }
+    }
+    void onDialogResult(boolean ok, Intent data) {
+        if (!dialogOn) return;
+        dialogOn = false;
+        ArrayList<String> l = data == null ? null : data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+        if (ok && l != null && !l.isEmpty()) {
+            try {
+                JSONObject o = new JSONObject(); JSONArray a = new JSONArray();
+                for (String x : l) a.put(x);
+                o.put("alts", a); o.put("text", l.get(0));
+                emit("result", o);
+            } catch (Exception ignored) { }
+            emit("end", null);
+        } else error("cancel", "", -1);   // ปิดหน้าต่าง/ไม่ได้ยิน
+    }
+
     void stop() { try { if (sr != null) sr.stopListening(); } catch (Exception ignored) { } }
 
     void cancel() {

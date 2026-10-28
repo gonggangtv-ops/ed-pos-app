@@ -24,6 +24,10 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- หน้าต่างฟังของ Google (สั่งด้วยเสียง แบบสำรอง) -->
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
     </queries>
 
     <!-- usesCleartextTraffic: เซิร์ฟเวอร์ ED POS ในร้านเป็น http:// (ไม่มี https) -->

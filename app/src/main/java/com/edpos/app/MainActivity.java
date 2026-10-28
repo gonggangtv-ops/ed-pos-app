@@ -443,6 +443,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
+        if (req == Voice.DIALOG_REQ) { voice.onDialogResult(res == RESULT_OK, data); return; }
         if (req == REQ_FILE && fileCb != null) {
             fileCb.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(res, data));
             fileCb = null;
@@ -609,6 +610,10 @@ public class MainActivity extends Activity {
         public void voiceStart(String lang) { ui.post(() -> voice.begin(lang == null || lang.isEmpty() ? "th-TH" : lang)); }
         @JavascriptInterface
         public void voiceStop() { ui.post(voice::stop); }
+        @JavascriptInterface
+        public boolean voiceDialogAvailable() { return voice.dialogAvailable(); }
+        @JavascriptInterface
+        public void voiceDialog(String lang) { ui.post(() -> voice.dialog(lang == null || lang.isEmpty() ? "th-TH" : lang)); }
         @JavascriptInterface
         public void voiceCancel() { ui.post(voice::cancel); }
 

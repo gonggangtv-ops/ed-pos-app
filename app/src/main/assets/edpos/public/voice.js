@@ -286,6 +286,8 @@ const VOICE = (() => {
       .vhold button { padding: 4px 11px; font-size: 13.5px; border-radius: 999px; min-height: 0; }
       .vhold button[aria-pressed="true"] { background: var(--ink); color: var(--card); border-color: var(--ink); }
       .vq button:disabled, .vx:disabled { opacity: .35; }
+      .vsug { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 0; padding: 12px; border-radius: 12px; background: var(--bg); font-size: 14.5px; }
+      .vsug button { min-height: 44px; border-radius: 12px; }
       .vset { margin: 8px 0 0; } .vset summary { cursor: pointer; font-size: 13.5px; color: var(--muted); padding: 4px 0; }
       .vlist li .vacts, .vlist li .vswap { grid-column: 1 / -1; }
       .vacts { display: flex; gap: 6px; margin-top: -2px; }
@@ -403,16 +405,22 @@ const VOICE = (() => {
   const MAX_SESSION = 90000;
   // ทีละเมนู (หยุดให้ตรวจทุกเมนู) / หลายเมนูต่อกัน
   const MODES = [['one', 'ทีละเมนู'], ['multi', 'หลายเมนูต่อกัน']];
+  // วิธีฟัง: ในแอป (ตัวแปลงเสียงเบื้องหลัง เห็นข้อความระหว่างพูด) / หน้าต่าง Google (ขึ้นหน้าต่างไมค์ของ Google ทุกครั้ง · ใช้กับเครื่องที่ฟังในแอปไม่ได้ยิน)
+  const ENGINES = [['app', 'ฟังในแอป'], ['google', 'หน้าต่าง Google']];
+  let engine = 'app'; try { if (localStorage.getItem('edposMicEngine') === 'google') engine = 'google'; } catch {}
+  const hasDialog = () => { try { return !!app?.voiceDialogAvailable?.(); } catch { return false; } };
   let mode = 'one'; try { const m = localStorage.getItem('edposMicMode'); if (MODES.some(x => x[0] === m)) mode = m; } catch {}   // กันลืมปิดไมค์: ฟังได้นานสุด 1 นาทีครึ่งต่อครั้ง
   const ses = { on: false, stop: false, push: false, segs: [], base: null, last: 0, start: 0, got: false };
   function listen(push = false) {
-    Object.assign(ses, { on: true, stop: false, push, segs: [], last: Date.now(), start: Date.now(), got: false, heard: false, miss: 0,
+    st.suggest = false;
+    Object.assign(ses, { on: true, stop: false, push, segs: [], last: Date.now(), start: Date.now(), got: false, heard: false, miss: 0, loud: false,
       base: { items: st.items.slice(), unk: st.unk.slice(), allTa: st.allTa, thai: st.thai } });
     st.msg = ''; st.live = ''; st.listening = true; st.swapK = null; draw();
     startRec();
   }
   function startRec() {
-    try { app.voiceStart('th-TH'); } catch { endSession(); st.msg = 'เปิดไมค์ไม่ได้'; draw(); }
+    try { if (engine === 'google' && hasDialog()) app.voiceDialog('th-TH'); else app.voiceStart('th-TH'); }
+    catch { endSession(); st.msg = 'เปิดไมค์ไม่ได้'; draw(); }
   }
   function stopListen() { ses.stop = true; try { app.voiceStop(); } catch {} }
   // ข้อความทั้งหมดของรอบนี้ → แยกเมนูใหม่ทั้งก้อน แล้วต่อท้ายรายการที่มีอยู่ก่อนเริ่มรอบ
@@ -440,7 +448,8 @@ const VOICE = (() => {
   function onRecEnd() {
     const now = Date.now();
     let more;
-    if (ses.push) more = true;
+    if (engine === 'google') more = false;   // หน้าต่าง Google: ทีละครั้ง (ไม่เปิดหน้าต่างซ้ำเอง)
+    else if (ses.push) more = true;
     else if (mode === 'one') more = !ses.heard && now - ses.start < (hold || 15000);   // กดหยุดเอง: รอคนเริ่มพูดได้ 15 วิ
     else more = hold === 0 || now - ses.last < hold;
     more = more && ses.on && !ses.stop && now - ses.start < MAX_SESSION;
@@ -464,7 +473,8 @@ const VOICE = (() => {
     const tbl = typeof tableName === 'function' ? tableName(current) : current;
     const choiceTxt = x => [...x.choices.map(c => { const g = groupsOf(x.m).find(g => g.choices.some(y => y.name === c)); return !g ? c : /^ไม่/.test(g.name) ? `${g.name}${c}` : /^[a-z0-9]{1,3}$/i.test(c) ? `${g.name} ${c}` : c; }), ...x.notes, ...(x.ta || st.allTa ? ['กลับบ้าน'] : [])].join(' · ');
     const small = st.items.length || st.unk.length;
-    const status = st.listening ? `<b>กำลังฟัง<span class="vwave">${'<i></i>'.repeat(5)}</span></b><span>${ses.push ? 'ปล่อยนิ้วเมื่อพูดจบ' : mode === 'one' ? 'พูดหนึ่งเมนู + ตัวเลือก + จำนวน · หยุดพูดแล้วไมค์จะหยุดให้ตรวจ' : hold ? `พูดต่อได้เรื่อยๆ · เงียบ ${hold / 1000} วินาที หรือแตะ ■ = จบ` : 'พูดต่อได้เรื่อยๆ · แตะ ■ เมื่อพูดจบ'}</span>`
+    const status = st.listening && engine === 'google' ? '<b>พูดในหน้าต่างของ Google</b><span>พูดจบแล้วจะกลับมาที่นี่ให้ตรวจ</span>'
+      : st.listening ? `<b>กำลังฟัง<span class="vwave">${'<i></i>'.repeat(5)}</span></b><span>${ses.push ? 'ปล่อยนิ้วเมื่อพูดจบ' : mode === 'one' ? 'พูดหนึ่งเมนู + ตัวเลือก + จำนวน · หยุดพูดแล้วไมค์จะหยุดให้ตรวจ' : hold ? `พูดต่อได้เรื่อยๆ · เงียบ ${hold / 1000} วินาที หรือแตะ ■ = จบ` : 'พูดต่อได้เรื่อยๆ · แตะ ■ เมื่อพูดจบ'}</span>`
       : st.fresh.size ? '<b>ถูกไหม? ถ้าถูก แตะไมค์พูดเมนูถัดไป</b><span>ไม่ถูก แก้ที่รายการ (ตัวเลือก / เปลี่ยนเมนู / จำนวน) หรือพูดต่อ เช่น “ที่ใหญ่ เผ็ดน้อย”</span>'
       : small ? '<b>แตะไมค์เพื่อพูดเพิ่ม</b><span>หรือตรวจรายการด้านล่างแล้วกดใส่รายการ</span>'
       : `<b>แตะไมค์แล้วพูดได้เลย</b><span>${mode === 'one' ? 'พูดทีละเมนู พูดจบแล้วไมค์จะหยุดให้ตรวจ' : 'พูดต่อกันได้หลายเมนู'} · กดค้าง = พูดตลอดที่กด</span>`;
@@ -477,10 +487,12 @@ const VOICE = (() => {
         <div class="vstat" aria-live="polite">${status}</div></div>
       ${st.listening || !small ? `<div class="vlive ${st.listening && (st.live || ses.segs.length) ? '' : 'ph'}">${sofar ? esc(sofar) : 'ตัวอย่าง'}${!st.listening && !small ? `<div class="vex"><span>ปลาเผา 2</span><span>ช้างใหญ่ 3</span><span>กะเพราไก่ที่เล็ก เผ็ดน้อย ราดข้าว</span><span>ข้าวสวย 4 กลับบ้าน</span></div>` : ''}</div>` : ''}
       <details class="vset" ${st.setOpen ? 'open' : ''}><summary data-v="set">ตั้งค่าการฟัง · ${MODES.find(x => x[0] === mode)[1]} · เงียบ ${HOLDS.find(x => x[0] === hold)[1]}</summary>
+        ${hasDialog() ? `<div class="vhold"><span>วิธีฟัง</span>${ENGINES.map(([e, t]) => `<button data-v="engine" data-e="${e}" aria-pressed="${e === engine}">${t}</button>`).join('')}</div>` : ''}
         <div class="vhold"><span>วิธีพูด</span>${MODES.map(([m, t]) => `<button data-v="mode" data-m="${m}" aria-pressed="${m === mode}">${t}</button>`).join('')}</div>
         <div class="vhold"><span>หยุดฟังเองเมื่อเงียบ</span>${HOLDS.map(([ms, t]) => `<button data-v="hold" data-h="${ms}" aria-pressed="${ms === hold}">${t}</button>`).join('')}</div>
         ${st.svc ? `<p class="vheard">ตัวแปลงเสียง: ${esc({ 'com.google.android.googlequicksearchbox': 'Google', 'com.google.android.tts': 'Google (ในเครื่อง)', 'com.google.android.as': 'Google (ในเครื่อง)' }[st.svc] || st.svc)}</p>` : ''}</details>
       ${st.msg ? `<p class="vmsg" role="alert"><span>⚠</span><span>${esc(st.msg)}</span></p>` : ''}
+      ${st.suggest && engine === 'app' && !st.listening ? `<div class="vsug"><span>ไมค์ได้ยินเสียง แต่แปลเป็นคำไม่ได้ · ลองใช้หน้าต่างฟังของ Google แทน (มักได้ผลกับเครื่องที่เป็นแบบนี้)</span><button class="primary" data-v="useg">ใช้หน้าต่าง Google</button></div>` : ''}
       ${st.heard && !st.listening ? `<p class="vheard">ได้ยินว่า “${esc(st.heard)}”</p>` : ''}
       ${st.items.length ? `<div class="vsec"><span>รายการที่ได้ยิน</span><span>${st.items.reduce((a, x) => a + (x.m.available === false ? 0 : x.qty), 0)} จาน</span></div><ul class="vlist">${st.items.map((x, k) => {
         const out = x.m.available === false;
@@ -525,6 +537,12 @@ const VOICE = (() => {
     if (v === 'close') return closeSheet();
     if (v === 'mic') { if (Date.now() - pushEnd < 350) return; if (st.listening) stopListen(); else listen(); return; }
     if (v === 'hold') { hold = +b.dataset.h; try { localStorage.setItem('edposMicHold', hold); } catch {} st.setOpen = true; draw(); return; }
+    if (v === 'engine' || v === 'useg') {
+      engine = v === 'useg' ? 'google' : b.dataset.e; st.suggest = false;
+      try { localStorage.setItem('edposMicEngine', engine); } catch {}
+      if (v === 'useg') { listen(); return; }
+      st.setOpen = true; draw(); return;
+    }
     if (v === 'mode') { mode = b.dataset.m; try { localStorage.setItem('edposMicMode', mode); } catch {} st.setOpen = true; draw(); return; }
     if (v === 'set') { e.preventDefault(); st.setOpen = !st.setOpen; draw(); return; }
     if (st.listening && v !== 'add') return;   // ระหว่างฟังแก้รายการไม่ได้ (รายการยังเปลี่ยนตามที่พูด)
@@ -611,7 +629,7 @@ const VOICE = (() => {
     if (!st.open || !ses.on) return;
     if (ev.type === 'ready' || ev.type === 'start') { if (st.listening) return; st.listening = true; }   // ฟังใหม่ต่อเนื่อง: ไม่ต้องวาดใหม่
     else if (ev.type === 'info') { st.svc = ev.svc || ''; return; }
-    else if (ev.type === 'level') { st.level = ev.v || 0; paintLevel(); return; }
+    else if (ev.type === 'level') { st.level = ev.v || 0; if (st.level > 0.3) ses.loud = true; paintLevel(); return; }
     else if (ev.type === 'partial') { st.live = ev.text || ''; if (st.live) { ses.last = Date.now(); ses.heard = true; } paintLive(); return; }
     else if (ev.type === 'result') {
       const alts = (ev.alts || []).filter(Boolean);
@@ -622,8 +640,13 @@ const VOICE = (() => {
       // ได้ยินระหว่างพูดแล้ว แต่ตัวแปลงเสียงจบด้วย error (เกิดบ่อยตอนเสียงรอบข้างดัง) → ใช้ข้อความที่ได้ยินล่าสุดแทน ไม่ทิ้ง
       if (st.live && ses.base) { ses.segs.push(st.live); st.live = ''; reparse(); if (ev.code === 'nomatch') { draw(); return; } }
       if (ev.code === 'nomatch') ses.miss++;
+      // ได้ยินเสียง 2 รอบแต่ไม่ได้คำเลย → หยุด แล้วชวนใช้หน้าต่าง Google (ไม่วนฟังต่อเรื่อยๆ)
+      if (ev.code === 'nomatch' && ses.miss >= 2 && ses.loud && !ses.heard && engine === 'app' && hasDialog()) { st.suggest = true; ses.stop = true; return; }
       if (ev.code === 'nomatch' && (ses.heard || waitMore)) { paintLive(); return; }
+      if (ev.code === 'cancel') { ses.stop = true; onRecEnd(); draw(); return; }   // ปิดหน้าต่าง Google เอง = ไม่ต้องเตือน
       if (ev.code !== 'nomatch') ses.stop = true;
+      // ได้ยินเสียงแต่แปลเป็นคำไม่ได้ (รหัส 7 ซ้ำๆ) → ชวนเปลี่ยนไปใช้หน้าต่าง Google
+      if (ev.code === 'nomatch' && engine === 'app' && ses.loud && hasDialog()) st.suggest = true;
       st.msg = { perm: 'ยังไม่ได้อนุญาตให้ใช้ไมค์ · แตะไมค์อีกครั้งแล้วกด “อนุญาต” (หรือ ตั้งค่า › แอป › MAMA POS › สิทธิ์ › ไมโครโฟน)',
         nomatch: 'ไม่ได้ยินชัด ลองพูดอีกครั้ง ใกล้ๆ เครื่อง', net: 'แปลงเสียงไม่ได้ ต้องต่ออินเทอร์เน็ต', busy: 'ไมค์กำลังถูกใช้อยู่ ลองใหม่อีกครั้ง',
         lost: 'ตัวแปลงเสียงหลุด แตะไมค์อีกครั้ง · ถ้าเป็นบ่อย อัปเดตแอป Google ใน Play Store' }[ev.code] || 'ฟังไม่สำเร็จ ลองใหม่อีกครั้ง';
