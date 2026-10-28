@@ -18,6 +18,7 @@
     <button data-sec="sets">ชุดตัวเลือก <small id="nSets"></small></button>
     <button data-sec="cats">หมวดหมู่ <small id="nCats"></small></button>
     <button data-sec="english">ชื่อภาษาอังกฤษ <small id="nEn" title="ยังไม่ได้แปล"></small></button>
+    <button data-sec="ingredients">🥬 วัตถุดิบ <small id="nIng"></small></button>
     <button data-sec="pay">การชำระเงิน</button>
     <button data-sec="printers">เครื่องพิมพ์ <small id="nPrn"></small></button>
     <button data-sec="screens">จอครัว <small id="nScr"></small></button>
@@ -381,6 +382,16 @@
       </div>
     </section>
 
+    <!-- ===== วัตถุดิบ: ใช้เท่าไรต่อจาน → หน้ายอดขายคำนวณว่าใช้ไปเท่าไร / ควรเตรียมพรุ่งนี้เท่าไร ===== -->
+    <section id="sec-ingredients" hidden>
+      <h1>วัตถุดิบ</h1>
+      <p class="lede">ตั้งว่าวัตถุดิบแต่ละอย่างใช้ในเมนูไหน จานละเท่าไร แล้วหน้ายอดขายจะบอกว่าใช้ไปเท่าไร (แท็บเมนู) และพรุ่งนี้ควรเตรียมเท่าไร (แท็บพยากรณ์ + LINE)
+        · ใช้กับ "ตัวเลือก" ได้ด้วย เช่น ตัวเลือก <b>กุ้ง</b> (ทุกเมนูที่เลือกกุ้ง) ใช้กุ้ง 80 กรัม</p>
+      <div id="ingList"></div>
+      <div class="actions"><button class="btn" id="ingAdd">+ เพิ่มวัตถุดิบ</button><button class="btn primary" id="ingSave">บันทึกวัตถุดิบ</button></div>
+      <datalist id="ingChoices"></datalist>
+    </section>
+
     <!-- ===== สรุปยอดเข้า LINE ===== -->
     <section id="sec-line" hidden>
       <h1>สรุปยอดเข้า LINE</h1>
@@ -601,6 +612,7 @@ $$('nav.side button').forEach(b => b.onclick = () => {
   if (section === 'backup') loadBackups();
   if (section === 'printers' || section === 'screens') loadDevices();
   if (section === 'english') loadEnglish();
+  if (section === 'ingredients') loadIngredients();
 });
 document.addEventListener('click', e => { const a = e.target.closest('[data-go]'); if (a) { e.preventDefault(); goSection(a.dataset.go); } });
 
@@ -1931,6 +1943,59 @@ $('#lnTest').onclick = async function () {
     toast('ส่งเข้า LINE แล้ว ลองเปิด LINE ดู');
   } catch (err) { toast(err.message, true); }
   finally { this.disabled = false; this.textContent = 'ส่ง' + LN_KIND[lnKind] + 'ทดสอบ'; try { Object.assign(S, await api('/api/state')); loadLine(); } catch {} }
+};
+
+// ================= วัตถุดิบ (data.ingredients) =================
+// [{id, name, unit, uses: [{t: 'm' เมนู | 'c' ตัวเลือก, r: menuId | ชื่อตัวเลือก, q: ต่อจาน}]}]
+const ING_UNITS = ['กรัม', 'กก.', 'มล.', 'ลิตร', 'ชิ้น', 'ตัว', 'ฟอง', 'ถุง', 'ขวด', 'กล่อง', 'แพ็ค'];
+let ing = null;
+function loadIngredients(force) {
+  if (ing && !force && dirty.has('ingredients')) return renderIngredients();
+  ing = JSON.parse(JSON.stringify(S.ingredients || []));
+  if (!ing.length) ing.push({ id: '', name: '', unit: 'กรัม', uses: [{ t: 'm', r: '', q: '' }] });
+  // ตัวเลือกทั้งหมด (ไว้เลือกในช่อง "ตัวเลือก")
+  const ch = new Set(); S.menu.forEach(m => groupsOf(m).forEach(g => g.choices.forEach(c => ch.add(c.name))));
+  $('#ingChoices').innerHTML = [...ch].sort((a, b) => a.localeCompare(b, 'th')).map(c => `<option value="${esc(c)}">`).join('');
+  renderIngredients();
+}
+function menuOptions(sel) {
+  const byCat = {}; S.menu.forEach(m => (byCat[m.category || 'อื่นๆ'] ||= []).push(m));
+  return `<option value="">— เลือกเมนู —</option>` + Object.entries(byCat).map(([c, ms]) => `<optgroup label="${esc(c)}">${ms.map(m => `<option value="${m.id}" ${m.id === sel ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</optgroup>`).join('');
+}
+function renderIngredients() {
+  $('#nIng').textContent = (S.ingredients || []).length || '';
+  $('#ingList').innerHTML = ing.map((g, i) => `<div class="panel ingcard">
+    <div class="ingtop"><input data-ig="name" data-i="${i}" value="${esc(g.name)}" placeholder="ชื่อวัตถุดิบ เช่น กุ้งแม่น้ำ">
+      <select data-ig="unit" data-i="${i}">${[...new Set([...ING_UNITS, g.unit])].map(u => `<option ${u === g.unit ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select>
+      <button class="btn" data-igdel="${i}" aria-label="ลบวัตถุดิบ">ลบ</button></div>
+    <div class="inghead"><span>ใช้ใน</span><span>ต่อ 1 จาน (${esc(g.unit)})</span></div>
+    ${g.uses.map((u, j) => `<div class="ingrow">
+      <select data-iu="t" data-i="${i}" data-j="${j}"><option value="m" ${u.t === 'm' ? 'selected' : ''}>เมนู</option><option value="c" ${u.t === 'c' ? 'selected' : ''}>ตัวเลือก</option></select>
+      ${u.t === 'c' ? `<input data-iu="r" data-i="${i}" data-j="${j}" list="ingChoices" value="${esc(u.r)}" placeholder="ชื่อตัวเลือก เช่น กุ้ง">`
+        : `<select data-iu="r" data-i="${i}" data-j="${j}">${menuOptions(u.r)}</select>`}
+      <input data-iu="q" data-i="${i}" data-j="${j}" type="number" inputmode="decimal" min="0" step="any" value="${u.q}" placeholder="เช่น 300">
+      <button class="btn" data-iudel="${i}.${j}" aria-label="ลบ">✕</button></div>`).join('')}
+    <button class="linkbtn" data-iuadd="${i}">+ เมนู/ตัวเลือกที่ใช้</button></div>`).join('');
+}
+$('#ingList').addEventListener('input', e => {
+  const t = e.target, i = +t.dataset.i;
+  if (t.dataset.ig) { ing[i][t.dataset.ig] = t.value; dirty.add('ingredients'); if (t.dataset.ig === 'unit') renderIngredients(); }
+  if (t.dataset.iu) { const u = ing[i].uses[+t.dataset.j]; u[t.dataset.iu] = t.value; if (t.dataset.iu === 't') { u.r = ''; renderIngredients(); } dirty.add('ingredients'); }
+});
+$('#ingList').addEventListener('change', e => { if (e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', { bubbles: true })); });
+$('#ingList').addEventListener('click', e => {
+  const d = e.target.closest('[data-igdel]'), ud = e.target.closest('[data-iudel]'), ua = e.target.closest('[data-iuadd]');
+  if (d) { ing.splice(+d.dataset.igdel, 1); dirty.add('ingredients'); renderIngredients(); }
+  if (ud) { const [i, j] = ud.dataset.iudel.split('.').map(Number); ing[i].uses.splice(j, 1); dirty.add('ingredients'); renderIngredients(); }
+  if (ua) { ing[+ua.dataset.iuadd].uses.push({ t: 'm', r: '', q: '' }); renderIngredients(); }
+});
+$('#ingAdd').onclick = () => { ing.push({ id: '', name: '', unit: 'กรัม', uses: [{ t: 'm', r: '', q: '' }] }); renderIngredients(); $('#ingList .ingcard:last-child input').focus(); };
+$('#ingSave').onclick = async () => {
+  try {
+    const list = ing.filter(g => g.name.trim()).map(g => ({ ...g, uses: g.uses.filter(u => u.r && +u.q > 0).map(u => ({ t: u.t, r: u.r, q: +u.q })) }));
+    const r = await api('/api/ingredients', { list });
+    S.ingredients = r.list; dirty.delete('ingredients'); loadIngredients(true); toast('บันทึกวัตถุดิบแล้ว');
+  } catch (err) { toast(err.message, true); }
 };
 
 // ================= หน้าสั่งอาหาร (settings.orderUi) =================

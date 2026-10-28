@@ -74,7 +74,35 @@
   .shopsec li small { display: block; color: var(--muted); font-size: 13.5px; }
   .pareto { background: var(--jade-soft); border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; font-size: 15px; }
   /* พยากรณ์: ไม่ใช้ช่วงวันที่ด้านบน */
-  body[data-tab="forecast"] #range, body[data-tab="forecast"] #customBox, body[data-tab="forecast"] #rangeLabel { display: none !important; }
+  body[data-tab="forecast"] #range, body[data-tab="forecast"] #customBox, body[data-tab="forecast"] #rangeLabel,
+  body[data-tab="breakeven"] #range, body[data-tab="breakeven"] #customBox, body[data-tab="breakeven"] #rangeLabel { display: none !important; }
+  /* ยอดวันนี้ตอนนี้ */
+  .pace h2 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pbadge { font-size: 14px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--sunk); }
+  .pbadge.up { background: var(--jade-soft); color: var(--jade); } .pbadge.down { background: var(--brick-soft); color: var(--brick); }
+  .pnums { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 6px 0 12px; }
+  .pnums div span { display: block; font-size: 13px; color: var(--muted); } .pnums div b { font-size: 22px; } .pnums div small { display: block; font-size: 12.5px; color: var(--muted); }
+  .pnums div.hero b { font-size: 28px; color: var(--jade); }
+  svg.lc { width: 100%; height: auto; display: block; overflow: visible; }
+  svg.lc text { font-size: 11px; fill: var(--muted); font-family: inherit; }
+  .lcleg { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .lcleg i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: 3px; margin-right: 6px; }
+  .lcleg .a i { border-color: var(--jade); } .lcleg .e i { border-color: var(--amber); border-top-style: dashed; } .lcleg .w i { border-color: var(--faint); border-top-width: 2px; }
+  .lcleg .b i { border-color: var(--brick); border-top-style: dashed; }
+  /* อากาศ */
+  .wxrow { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: end; margin-top: 10px; }
+  .wxrow label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  .wxrow input, .wxrow select { font: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); }
+  .wxrow input[type=number] { width: 120px; }
+  .wxnext { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .wxnext span { background: var(--sunk); border-radius: 10px; padding: 6px 10px; font-size: 13.5px; text-align: center; min-width: 64px; }
+  .wxnext span b { display: block; font-size: 18px; }
+  /* คุ้มทุน */
+  .berow { display: grid; grid-template-columns: minmax(0, 1fr) 140px 40px; gap: 8px; margin-bottom: 8px; }
+  .berow input { font: inherit; font-size: 15px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); min-width: 0; }
+  .berow input.num { text-align: right; }
+  .berow button { padding: 0; }
+  .betot { display: flex; justify-content: space-between; font-weight: 700; padding: 8px 2px; border-top: 1px solid var(--line); margin-top: 4px; }
   .fcweek { display: grid; gap: 6px; }
   .fcd { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 112px minmax(0, 1fr) 170px; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 10px; border: 1px solid transparent; }
   .fcd:hover { background: var(--sunk); }
@@ -141,6 +169,7 @@
   <nav class="tabs" id="tabs" role="tablist" aria-label="หัวข้อ">
     <button role="tab" data-t="shop">สรุปร้าน</button>
     <button role="tab" data-t="forecast">🔮 พยากรณ์</button>
+    <button role="tab" data-t="breakeven">💰 คุ้มทุน</button>
     <button role="tab" data-t="overview" aria-selected="true">ภาพรวม</button>
     <button role="tab" data-t="menu">เมนู</button>
     <button role="tab" data-t="tables">โต๊ะ</button>
@@ -163,11 +192,13 @@
 
   <!-- ===== พยากรณ์: พรุ่งนี้ + เตรียมของ + 7 วันข้างหน้า (ไม่ขึ้นกับช่วงวันที่ด้านบน) ===== -->
   <section class="pane" data-p="forecast" hidden>
+    <div class="panel pace" id="paceBox" hidden></div>
     <div class="verdict" id="fcTop"><h2>กำลังคำนวณ…</h2></div>
     <div class="two">
       <div class="panel"><h2>🧺 เตรียมของ</h2><div id="fcPrep"></div></div>
       <div class="panel"><h2>🍽 เมนูที่น่าจะขายดี</h2><div id="fcItems"></div></div>
     </div>
+    <div class="panel"><h2>🥬 วัตถุดิบที่ควรเตรียม <small class="muted" id="fcUseDay" style="font-weight:400;font-size:14px"></small></h2><div id="fcUse"></div></div>
     <div class="panel">
       <h2>📅 7 วันข้างหน้า วันไหนยุ่ง/เงียบ</h2>
       <p class="note" id="fcWeekSum" style="margin:0 0 12px"></p>
@@ -176,7 +207,25 @@
     </div>
     <div class="panel"><h2>⏰ ยอดรายชั่วโมงที่คาด <small class="muted" id="fcHourDay" style="font-weight:400;font-size:14px"></small></h2><div id="fcHours"></div></div>
     <div class="panel" id="fcAccBox"></div>
-    <p class="note">คิดจากยอดจริงของร้าน: วันเดียวกันของสัปดาห์ย้อนหลังสูงสุด 8 สัปดาห์ (สัปดาห์ล่าสุดสำคัญสุด) ปรับตามแนวโน้มช่วงหลัง · ไม่รู้วันหยุดนักขัตฤกษ์ เทศกาล ฝนตก หรือโต๊ะจอง ถ้ารู้ล่วงหน้าให้เผื่อเอง · "เผื่อ" = พอสำหรับวันที่ขายดีกว่าปกติ (ประมาณ 5 ใน 6 วัน) · กดวันในรายการ 7 วันเพื่อดูรายละเอียดของวันนั้น</p>
+    <div class="panel" id="wxBox"></div>
+    <p class="note">คิดจากยอดจริงของร้าน: วันเดียวกันของสัปดาห์ย้อนหลังสูงสุด 8 สัปดาห์ (สัปดาห์ล่าสุดสำคัญสุด) ปรับตามแนวโน้มช่วงหลัง · เปิดใช้อากาศแล้วจะคิดผลของฝนให้ · ไม่รู้วันหยุดนักขัตฤกษ์ เทศกาล หรือโต๊ะจอง ถ้ารู้ล่วงหน้าให้เผื่อเอง · "เผื่อ" = พอสำหรับวันที่ขายดีกว่าปกติ (ประมาณ 5 ใน 6 วัน) · กดวันในรายการ 7 วันเพื่อดูรายละเอียดของวันนั้น</p>
+  </section>
+
+  <!-- ===== จุดคุ้มทุน (เดือนนี้) ===== -->
+  <section class="pane" data-p="breakeven" hidden>
+    <div class="verdict" id="beTop"><h2>กำลังคำนวณ…</h2></div>
+    <div class="mini" id="beKpi"></div>
+    <div class="panel"><h2>📈 ยอดสะสมเดือนนี้ เทียบจุดคุ้มทุน</h2><div id="beChart"></div>
+      <div class="lcleg"><span class="a"><i></i>ขายจริง</span><span class="e"><i></i>คาดการณ์ (ต่อจากวันนี้)</span><span class="b"><i></i>จุดคุ้มทุน</span></div></div>
+    <div class="two">
+      <div class="panel"><h2>🧾 ค่าใช้จ่ายคงที่ต่อเดือน</h2>
+        <div id="beRows"></div><button class="btn" id="beAdd">+ เพิ่มรายการ</button>
+        <div class="betot"><span>รวม</span><span id="beSum">0</span></div>
+        <label class="field" style="margin-top:12px"><span>ต้นทุนวัตถุดิบ (% ของยอดขาย)</span><input type="number" id="beFood" min="0" max="95" step="1" inputmode="decimal">
+          <small>ร้านอาหารทั่วไปประมาณ 30–40% · รวมของสด เครื่องปรุง แก๊ส บรรจุภัณฑ์ ที่ขึ้นลงตามยอดขาย</small></label>
+        <div class="actions" style="margin-top:12px"><button class="btn primary" id="beSave">บันทึกและคำนวณ</button></div></div>
+      <div class="panel shopsec"><h2>💡 อ่านยังไง</h2><ul id="beNotes"></ul></div>
+    </div>
   </section>
 
   <!-- ===== ภาพรวม ===== -->
@@ -232,6 +281,10 @@
     <div class="panel">
       <div class="phead"><h2>ตัวเลือกที่บวกราคา</h2><span class="muted">เช่น ไข่ดาว เพิ่มกุ้ง</span></div>
       <div id="addonList"></div>
+    </div>
+    <div class="panel">
+      <div class="phead"><h2>🥬 วัตถุดิบที่ใช้</h2><span class="muted" id="useNote"></span></div>
+      <div id="useList"></div>
     </div>
     <div class="panel">
       <div class="phead"><h2>เมนูที่ขายไม่ออก</h2><span class="muted" id="slowNote"></span></div>
@@ -310,7 +363,7 @@ function cats() { const c = [...(S.categories || [])]; S.menu.forEach(m => c.inc
 $('#lockBtn').onclick = e => { e.preventDefault(); PIN.lock(); };
 
 // ---------- แท็บ (จำแท็บล่าสุดใน #hash เปิดลิงก์ sales.html#tables ได้ตรงแท็บ) ----------
-const TABS = ['shop', 'forecast', 'overview', 'menu', 'tables', 'kitchen', 'staff', 'system', 'bills'];
+const TABS = ['shop', 'forecast', 'breakeven', 'overview', 'menu', 'tables', 'kitchen', 'staff', 'system', 'bills'];
 let tab = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'shop';
 function showTab(t, push = true) {
   tab = t;
@@ -318,14 +371,16 @@ function showTab(t, push = true) {
   $$('.pane').forEach(p => (p.hidden = p.dataset.p !== t));
   if (push) history.replaceState(null, '', '#' + t);
   document.body.dataset.tab = t;
-  if (t === 'forecast' && (!fc || Date.now() - fcAt > 10 * 60000)) loadForecast();   // โหลดเมื่อเปิดแท็บ (เก่ากว่า 10 นาที → คำนวณใหม่)
+  if (t === 'forecast' && (!fc || Date.now() - fcAt > 10 * 60000)) loadForecast();
+  if (t === 'forecast') loadPace();
+  if (t === 'breakeven') loadBe();   // โหลดเมื่อเปิดแท็บ (เก่ากว่า 10 นาที → คำนวณใหม่)
   if (t === 'overview' && report) renderChart();   // กราฟวัดความกว้างใหม่ตอนแท็บกลับมาแสดง
 }
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) showTab(b.dataset.t); });
 
 // ================= ยอดขาย =================
 const PAY_COLOR = { cash: '#0F8A6C', transfer: '#B8770F', card: '#4460C0' };   // ผ่านการตรวจสีสำหรับคนตาบอดสีแล้ว
-let fc = null, fcAt = 0, fcSel = 0;
+let fc = null, fcAt = 0, fcSel = 0, usage = null, pace = null, wx = null, be = null;
 let range = 'today', report = null, health = null, topSort = 'qty', showAllTop = false, showAllBills = false;
 const openTop = new Set();
 
@@ -346,9 +401,10 @@ async function loadReport() {
   const [from, to] = rangeDates();
   const n = ++loading;
   try {
-    const [r, h] = await Promise.all([api(`/api/report?from=${from}&to=${to}`), api(`/api/health?from=${from}&to=${to}`).catch(() => null)]);
+    const [r, h, u] = await Promise.all([api(`/api/report?from=${from}&to=${to}`), api(`/api/health?from=${from}&to=${to}`).catch(() => null),
+      api(`/api/usage?from=${from}&to=${to}`).catch(() => null)]);
     if (n !== loading) return;          // มีคำขอใหม่กว่าแล้ว
-    report = r; health = h; renderSales();
+    report = r; health = h; usage = u; renderSales(); renderUsage();
   } catch (err) { toast(err.message, true); }
 }
 $('#range').addEventListener('click', e => {
@@ -867,11 +923,165 @@ function renderKinds(s) {
 
 // ================= สรุปร้าน: อ่านตัวเลขทั้งหมดแล้วสรุปเป็นข้อความ (จุดแข็ง / ควรระวัง / ข้อแนะนำ) =================
 // กติกาตรงไปตรงมา ไม่เดา: แต่ละข้อมาจากตัวเลขในรายงาน · ช่วงสั้น (วันเดียว) วิเคราะห์ได้น้อยกว่า
+// ================= ปริมาณวัตถุดิบ: "2,400 กรัม" → "2.4 กก." · นับเป็นชิ้น → จำนวนเต็ม =================
+function amtTxt(q, unit, up) {
+  if (!['กรัม', 'กก.', 'มล.', 'ลิตร'].includes(unit)) return (up ? Math.ceil(q - 0.05) : Math.max(q > 0 ? 1 : 0, Math.round(q))).toLocaleString('th-TH') + ' ' + unit;
+  if (unit === 'กรัม' && q >= 1000) return (Math.round(q / 100) / 10).toLocaleString('th-TH') + ' กก.';
+  if (unit === 'มล.' && q >= 1000) return (Math.round(q / 100) / 10).toLocaleString('th-TH') + ' ลิตร';
+  return (q >= 10 ? Math.round(q) : Math.round(q * 10) / 10).toLocaleString('th-TH') + ' ' + unit;
+}
+// ================= กราฟเส้น (SVG) =================
+// lines = [{pts: [[x, y|null]], cls: 'a'|'e'|'w'|'b', dash}] · xs = ป้ายแกน x
+function lineChart(lines, xs, { h = 190, yMax, hline } = {}) {
+  const W = 640, H = h, L = 46, R = 10, T = 10, B = 24;
+  const all = lines.flatMap(l => l.pts.map(p => p[1])).filter(v => v != null);
+  const top = Math.max(1, yMax || 0, hline || 0, ...all) * 1.08;
+  const X = i => L + (xs.length <= 1 ? 0 : i / (xs.length - 1) * (W - L - R)), Y = v => T + (1 - v / top) * (H - T - B);
+  const step = top > 200000 ? 50000 : top > 50000 ? 20000 : top > 20000 ? 5000 : top > 8000 ? 2000 : top > 3000 ? 1000 : 500;
+  let g = '';
+  for (let v = 0; v <= top; v += step) g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${v >= 1000 ? (v / 1000) + 'k' : v}</text>`;
+  const every = Math.ceil(xs.length / 10);
+  xs.forEach((t, i) => { if (i % every === 0 || i === xs.length - 1) g += `<text x="${X(i)}" y="${H - 6}" text-anchor="middle">${esc(t)}</text>`; });
+  const COL = { a: 'var(--jade)', e: 'var(--amber)', w: 'var(--faint)', b: 'var(--brick)' };
+  if (hline) g += `<line x1="${L}" x2="${W - R}" y1="${Y(hline)}" y2="${Y(hline)}" stroke="${COL.b}" stroke-width="2" stroke-dasharray="6 5"/>`;
+  for (const l of lines) {
+    const segs = []; let cur = [];
+    l.pts.forEach(([i, v]) => { if (v == null) { if (cur.length) segs.push(cur); cur = []; } else cur.push(`${X(i).toFixed(1)},${Y(v).toFixed(1)}`); });
+    if (cur.length) segs.push(cur);
+    for (const sg of segs) g += `<polyline points="${sg.join(' ')}" fill="none" stroke="${COL[l.cls]}" stroke-width="${l.cls === 'w' ? 2 : 3}" ${l.dash ? 'stroke-dasharray="7 6"' : ''} stroke-linejoin="round" stroke-linecap="round"/>`;
+    const last = l.pts.filter(p => p[1] != null).pop();
+    if (l.dot && last) g += `<circle cx="${X(last[0])}" cy="${Y(last[1])}" r="5" fill="${COL[l.cls]}" stroke="var(--surface)" stroke-width="2"/>`;
+  }
+  return `<svg class="lc" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
+}
+
+// ================= ยอดวันนี้ตอนนี้ เทียบที่คาด =================
+async function loadPace() {
+  try { pace = await api('/api/pace'); renderPace(); } catch { $('#paceBox').hidden = true; }
+}
+setInterval(() => { if (tab === 'forecast' && document.visibilityState !== 'hidden') loadPace(); }, 60000);
+function renderPace() {
+  const p = pace, box = $('#paceBox');
+  if (!p || p.none && !p.actual) { box.hidden = true; return; }
+  box.hidden = false;
+  const up = p.pace != null && p.pace >= 0;
+  const badge = p.pace == null ? '' : `<span class="pbadge ${Math.abs(p.pace) < 5 ? '' : up ? 'up' : 'down'}">${Math.abs(p.pace) < 5 ? '➖ ตามที่คาด' : up ? `▲ เร็วกว่าที่คาด ${p.pace}%` : `▼ ช้ากว่าที่คาด ${-p.pace}%`}</span>`;
+  const xs = p.series.map(x => x.h + ':00');
+  box.innerHTML = `<h2>📈 วันนี้ ณ ${p.now} น. ${badge}</h2>
+    <div class="pnums">
+      <div class="hero"><span>ขายแล้ว (บิลที่ปิด)</span><b>${baht(p.actual)}</b><small>${p.bills} บิล${p.openTables ? ` · โต๊ะเปิดอยู่ ${p.openTables} รอเก็บ ${baht(p.openDue)}` : ''}</small></div>
+      ${p.forecast != null ? `<div><span>ตอนนี้ควรได้</span><b>~${baht(p.expected)}</b><small>ตามยอดรายชั่วโมงของวัน${DOW_L[new Date(p.date + 'T00:00:00').getDay()]}</small></div>
+      <div><span>คาดว่าปิดวันที่</span><b>~${baht(p.projected)}</b><small>ทั้งวันคาดไว้ ${baht(p.forecast)} (${baht(p.low)}–${baht(p.high)})${p.wxAdj ? ` · 🌧 ${sgn(p.wxAdj)}%` : ''}</small></div>` : ''}
+      <div><span>สัปดาห์ที่แล้ว เวลาเดียวกัน</span><b>${baht(p.lastWeekNow)}</b><small>ทั้งวัน ${baht(p.lastWeek)}</small></div>
+    </div>
+    ${lineChart([{ pts: p.series.map((x, i) => [i, x.lw]), cls: 'w' }, { pts: p.series.map((x, i) => [i, p.forecast != null ? x.exp : null]), cls: 'e', dash: true },
+      { pts: p.series.map((x, i) => [i, x.act]), cls: 'a', dot: true }], xs)}
+    <div class="lcleg"><span class="a"><i></i>ขายจริงวันนี้ (สะสม)</span>${p.forecast != null ? '<span class="e"><i></i>ที่คาดไว้</span>' : ''}<span class="w"><i></i>สัปดาห์ที่แล้ว</span><span>อัปเดตทุก 1 นาที</span></div>`;
+}
+
+// ================= อากาศกับยอดขาย =================
+const WX_PLACES = [['กรุงเทพฯ', 13.7563, 100.5018], ['นนทบุรี', 13.8621, 100.5144], ['ปทุมธานี', 14.0208, 100.5250], ['สมุทรปราการ', 13.5991, 100.5998],
+  ['เชียงใหม่', 18.7883, 98.9853], ['เชียงราย', 19.9105, 99.8406], ['ภูเก็ต', 7.8804, 98.3923], ['พัทยา', 12.9236, 100.8825], ['หัวหิน', 12.5684, 99.9577],
+  ['กระบี่', 8.0863, 98.9063], ['เกาะสมุย', 9.5120, 100.0136], ['ขอนแก่น', 16.4419, 102.8360], ['นครราชสีมา', 14.9799, 102.0978], ['อุดรธานี', 17.4138, 102.7872],
+  ['หาดใหญ่', 7.0084, 100.4747], ['อยุธยา', 14.3532, 100.5689], ['กาญจนบุรี', 14.0228, 99.5328], ['ระยอง', 12.6814, 101.2816]];
+function renderWx() {
+  const w = wx, box = $('#wxBox'); if (!w) { box.innerHTML = ''; return; }
+  const c = w.cfg, known = WX_PLACES.find(p => p[0] === c.place);
+  const eff = !c.on ? '' : w.rain?.pct != null
+    ? `🌧 วันฝนตก (5 มม.ขึ้นไป) ร้านขายได้${w.rain.pct < 0 ? '<b class="down">น้อยลง' : '<b class="up">มากขึ้น'} ~${Math.abs(w.rain.pct)}%</b> เทียบกับที่ควรขาย · จาก ${w.rain.n} วันที่ฝนตก และ ${w.rain.dry} วันที่แห้ง · พยากรณ์คิดผลนี้ให้แล้ว`
+    : `ยังสรุปผลของฝนไม่ได้ ต้องมีวันฝนตกอย่างน้อย 3 วัน และวันแห้ง 5 วันที่ร้านเปิด (ตอนนี้ฝนตก ${w.rain?.n || 0} วัน)`;
+  box.innerHTML = `<h2>🌦 อากาศกับยอดขาย</h2>
+    <p class="note" style="margin:0">${c.on ? `ใช้อากาศของ <b>${esc(c.place)}</b>${w.at ? ` · อัปเดต ${new Date(w.at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}` : ''} · มีข้อมูล ${w.days} วัน` : 'ปิดอยู่ · เปิดแล้วเครื่องหลักจะดึงข้อมูลฝน/อุณหภูมิจาก Open-Meteo (ฟรี) ทุก 3 ชั่วโมง ต้องต่อเน็ต'}
+      ${w.err ? `<br><b class="down">⚠ ${esc(w.err)}</b>` : ''}</p>
+    ${c.on ? `<p style="margin:10px 0 0;font-size:15px;line-height:1.6">${eff}</p>` : ''}
+    ${c.on && w.next?.length ? `<div class="wxnext">${w.next.map(x => `<span>${shortDay(x.date).split(' ')[0]}<b>${x.icon || '·'}</b>${x.prob != null ? x.prob + '%' : x.rain != null ? Math.round(x.rain) + 'มม.' : ''}${x.tmax != null ? ` · ${Math.round(x.tmax)}°` : ''}</span>`).join('')}</div>` : ''}
+    <div class="wxrow">
+      <label><span>ใช้ข้อมูลอากาศ</span><span class="sw"><input type="checkbox" id="wxOn" ${c.on ? 'checked' : ''}><i></i></span></label>
+      <label><span>ที่ตั้งร้าน</span><select id="wxPlace">${WX_PLACES.map(p => `<option ${p[0] === c.place ? 'selected' : ''}>${p[0]}</option>`).join('')}<option value="" ${known ? '' : 'selected'}>กำหนดพิกัดเอง</option></select></label>
+      <label><span>ละติจูด</span><input type="number" step="0.0001" id="wxLat" value="${c.lat}"></label>
+      <label><span>ลองจิจูด</span><input type="number" step="0.0001" id="wxLon" value="${c.lon}"></label>
+      <button class="btn primary" id="wxSave">บันทึก</button>
+    </div>`;
+  $('#wxPlace').onchange = e => { const p = WX_PLACES.find(x => x[0] === e.target.value); if (p) { $('#wxLat').value = p[1]; $('#wxLon').value = p[2]; } };
+  $('#wxSave').onclick = async () => {
+    const b = $('#wxSave'); b.disabled = true; b.textContent = 'กำลังดึงข้อมูล…';
+    try {
+      const place = $('#wxPlace').value || `${(+$('#wxLat').value).toFixed(3)}, ${(+$('#wxLon').value).toFixed(3)}`;
+      wx = await api('/api/weather', { on: $('#wxOn').checked, lat: +$('#wxLat').value, lon: +$('#wxLon').value, place });
+      toast(wx.err ? wx.err : 'บันทึกแล้ว', !!wx.err); fc = null; loadForecast();
+    } catch (err) { toast(err.message, true); }
+    finally { b.disabled = false; b.textContent = 'บันทึก'; }
+  };
+}
+
+// ================= จุดคุ้มทุน =================
+let beDraft = null;
+async function loadBe() {
+  try { be = await api('/api/breakeven'); beDraft = null; renderBe(); } catch (err) { $('#beTop').innerHTML = `<h2>คำนวณไม่ได้</h2><p>${esc(err.message)}</p>`; }
+}
+function renderBe() {
+  const b = be, mName = thDate(b.month + '-01', { month: 'long', year: 'numeric' });
+  if (!beDraft) beDraft = { fixed: b.cfg.fixed.length ? b.cfg.fixed.map(x => ({ ...x })) : [{ name: 'ค่าเช่า', amt: '' }, { name: 'ค่าแรงพนักงาน', amt: '' }, { name: 'ค่าไฟ น้ำ แก๊ส', amt: '' }], foodPct: b.cfg.foodPct };
+  renderBeRows();
+  const top = $('#beTop');
+  if (!b.fixed) {
+    top.className = 'verdict'; top.innerHTML = `<h2>ใส่ค่าใช้จ่ายคงที่ก่อน</h2><p>ใส่ค่าเช่า ค่าแรง ค่าไฟ ฯลฯ ต่อเดือน และต้นทุนวัตถุดิบ (%) ด้านล่าง แล้วระบบจะบอกว่าต้องขายเท่าไรถึงไม่ขาดทุน และเดือนนี้จะผ่านไหม</p>`;
+    $('#beKpi').innerHTML = ''; $('#beChart').innerHTML = ''; $('#beNotes').innerHTML = ''; return;
+  }
+  const pass = b.projected >= b.be, already = b.soldNow >= b.be;
+  top.className = 'verdict ' + (pass ? 'up' : 'down');
+  top.innerHTML = already ? `<h2>✅ ${mName} ผ่านจุดคุ้มทุนแล้ว</h2><p>ขายแล้ว <b>${baht(b.soldNow)}</b> เกินจุดคุ้มทุน ${baht(b.be)} · ยอดที่ขายต่อจากนี้เป็นกำไร (หลังหักต้นทุนวัตถุดิบ ${b.foodPct}%) · คาดกำไรทั้งเดือน ~<b>${baht(b.profit)}</b></p>`
+    : pass ? `<h2>📈 ${mName} คาดว่าจะผ่านจุดคุ้มทุน${b.cross ? ` วันที่ ${thDate(b.cross, { day: 'numeric', month: 'short' })}` : ''}</h2><p>คาดสิ้นเดือนขายได้ ~<b>${baht(b.projected)}</b> (จุดคุ้มทุน ${baht(b.be)}) · คาดกำไร ~<b>${baht(b.profit)}</b> · ยังต้องขายเฉลี่ยวันละ ${baht(b.need)} ในอีก ${b.leftDays} วันที่เปิด</p>`
+    : `<h2>⚠️ ${mName} มีแนวโน้มไม่ถึงจุดคุ้มทุน</h2><p>คาดสิ้นเดือน ~<b>${baht(b.projected)}</b> ขาดอีก ~<b>${baht(b.be - b.projected)}</b> · ต้องขายเฉลี่ย <b>วันละ ${baht(b.need)}</b> ในอีก ${b.leftDays} วันที่เปิด (ปกติคาดไว้วันละ ~${baht(Math.round((b.projected - b.soldNow) / Math.max(1, b.leftDays)))})</p>`;
+  $('#beKpi').innerHTML = `
+    <div><span>จุดคุ้มทุน / เดือน</span><b>${baht(b.be)}</b><small>ค่าคงที่ ${baht(b.fixed)} ÷ (1 − ${b.foodPct}%)</small></div>
+    <div><span>ต้องขายต่อวันที่เปิด</span><b>${baht(b.beDay)}</b><small>เดือนนี้เปิด ~${b.openDays} วัน</small></div>
+    <div><span>ขายแล้วเดือนนี้</span><b>${baht(b.soldNow)}</b><small>${Math.round(b.soldNow / b.be * 100)}% ของจุดคุ้มทุน</small></div>
+    <div><span>คาดสิ้นเดือน</span><b>${baht(b.projected)}</b><small>กำไร ~${baht(b.profit)}</small></div>
+    <div><span>เดือนที่แล้ว</span><b>${baht(b.lastMonth.sales)}</b><small>${b.lastMonth.profit >= 0 ? 'กำไร' : 'ขาดทุน'} ~${baht(Math.abs(b.lastMonth.profit))}</small></div>`;
+  const ti = b.series.findIndex(x => x.kind === 'today');
+  $('#beChart').innerHTML = lineChart([
+    { pts: b.series.map((x, i) => [i, i <= ti ? (i === ti ? b.soldNow : x.cum) : null]), cls: 'a', dot: true },
+    { pts: b.series.map((x, i) => [i, i < ti ? null : i === ti ? b.soldNow : x.cum]), cls: 'e', dash: true }],
+    b.series.map(x => String(+x.date.slice(8))), { hline: b.be, h: 210 });
+  $('#beNotes').innerHTML = [
+    `<li><b>จุดคุ้มทุน</b> = ยอดขายที่พอจ่ายค่าใช้จ่ายคงที่ทั้งเดือน หลังหักต้นทุนวัตถุดิบ ${b.foodPct}% · ขายเกินจากนี้คือกำไร</li>`,
+    `<li><b>คาดสิ้นเดือน</b> = ขายแล้ว + วันนี้ (คาดยอดปิดวัน) + พยากรณ์ของวันที่เหลือ (วันที่ร้านปิดประจำไม่นับ)</li>`,
+    `<li>ทุก 1,000 ฿ ที่ขายได้ เหลือจ่ายค่าคงที่/เป็นกำไร ~${baht(1000 * (1 - b.foodPct / 100))} ฿</li>`,
+    b.lastMonth.profit != null ? `<li>เดือนที่แล้วขาย ${baht(b.lastMonth.sales)} ${b.lastMonth.sales >= b.be ? '✅ ผ่าน' : '❌ ไม่ถึง'}จุดคุ้มทุน (ถ้าค่าใช้จ่ายเท่าเดือนนี้)</li>` : '',
+    `<li>ตัวเลขเป็นค่าประมาณ ใส่ค่าใช้จ่ายให้ครบ (รวมค่าแรงเจ้าของถ้าต้องการ) จะใกล้ความจริงขึ้น</li>`].join('');
+}
+function renderBeRows() {
+  $('#beRows').innerHTML = beDraft.fixed.map((x, i) => `<div class="berow"><input data-bf="name" data-i="${i}" value="${esc(x.name)}" placeholder="เช่น ค่าเช่า">
+    <input class="num" data-bf="amt" data-i="${i}" type="number" inputmode="numeric" min="0" value="${x.amt === '' ? '' : x.amt}" placeholder="บาท/เดือน">
+    <button class="btn" data-bdel="${i}" aria-label="ลบ">✕</button></div>`).join('');
+  $('#beFood').value = beDraft.foodPct;
+  $('#beSum').textContent = baht(beDraft.fixed.reduce((s, x) => s + (+x.amt || 0), 0)) + ' ฿';
+}
+$('#beRows').addEventListener('input', e => { const t = e.target.dataset.bf; if (!t) return; beDraft.fixed[+e.target.dataset.i][t] = e.target.value;
+  $('#beSum').textContent = baht(beDraft.fixed.reduce((s, x) => s + (+x.amt || 0), 0)) + ' ฿'; });
+$('#beRows').addEventListener('click', e => { const b = e.target.closest('[data-bdel]'); if (!b) return; beDraft.fixed.splice(+b.dataset.bdel, 1); renderBeRows(); });
+$('#beAdd').onclick = () => { beDraft.fixed.push({ name: '', amt: '' }); renderBeRows(); $('#beRows .berow:last-child input').focus(); };
+$('#beFood').addEventListener('input', e => { beDraft.foodPct = e.target.value; });
+$('#beSave').onclick = async () => {
+  try { be = await api('/api/finance', { fixed: beDraft.fixed.map(x => ({ name: x.name, amt: +x.amt || 0 })), foodPct: +beDraft.foodPct || 0 }); beDraft = null; renderBe(); toast('บันทึกแล้ว'); }
+  catch (err) { toast(err.message, true); }
+};
+
+// ================= วัตถุดิบที่ใช้ (ช่วงที่เลือก) =================
+function renderUsage() {
+  const u = usage, box = $('#useList');
+  if (!u || !u.list.length) { box.innerHTML = '<p class="note" style="margin:0">ยังไม่ได้ตั้งวัตถุดิบ · ตั้งที่ <a href="admin.html#ingredients">หลังร้าน › วัตถุดิบ</a> เช่น ปลาเผา 1 จาน ใช้ปลากะพง 1 ตัว แล้วจะเห็นว่าใช้ไปเท่าไร</p>'; $('#useNote').textContent = ''; return; }
+  $('#useNote').textContent = `${u.days} วันที่เปิด`;
+  box.innerHTML = `<table class="t"><thead><tr><th>วัตถุดิบ</th><th class="num">ใช้ไป</th><th class="num">เฉลี่ย/วัน</th></tr></thead><tbody>${u.list.map(x => `<tr><td>${esc(x.name)}${x.by.length ? `<div class="optl">${x.by.map(([n, q]) => `${esc(n)} <b>${amtTxt(q, x.unit)}</b>`).join(' · ')}</div>` : ''}</td>
+    <td class="num">${amtTxt(x.total, x.unit)}</td><td class="num">${amtTxt(x.perDay, x.unit)}</td></tr>`).join('')}</tbody></table>`;
+}
+
 // ================= พยากรณ์ =================
 const FC_TAG = { busy: ['🔥', 'ยุ่ง/ขายดีกว่าปกติ'], quiet: ['🧊', 'เงียบกว่าปกติ'], normal: ['➖', 'ใกล้เคียงปกติ'] };
 const FC_CONF = { high: 'สูง', mid: 'กลาง', low: 'ต่ำ' };
 async function loadForecast() {
-  try { fc = await api('/api/forecast'); fcAt = Date.now(); renderForecast(); }
+  try { [fc, wx] = await Promise.all([api('/api/forecast'), api('/api/weather').catch(() => null)]); fcAt = Date.now(); renderForecast(); renderWx(); }
   catch (err) { $('#fcTop').innerHTML = `<h2>คำนวณไม่ได้</h2><p>${esc(err.message)}</p>`; }
 }
 const fcDayName = (d, i) => i === 0 ? `พรุ่งนี้ (วัน${DOW_L[d.dow]} ${thDate(d.date, { day: 'numeric', month: 'short' })})` : `วัน${DOW_L[d.dow]} ${thDate(d.date, { day: 'numeric', month: 'short' })}`;
@@ -886,12 +1096,13 @@ function renderForecast() {
   // ---------- 7 วัน ----------
   const max = Math.max(...f.days.map(d => d.high || 0), N.sales) * 1.05, P = v => (v / max * 100).toFixed(1) + '%';
   $('#fcWeek').innerHTML = f.days.map((d, i) => {
-    const dl = `<span class="dl"><b>${DOW_L[d.dow]}</b><small>${thDate(d.date, { day: 'numeric', month: 'short' })}${i === 0 ? ' · พรุ่งนี้' : ''}</small></span>`;
+    const w = d.wx ? ` · ${d.wx.icon || ''}${d.wx.prob != null ? d.wx.prob + '%' : ''}` : '';
+    const dl = `<span class="dl"><b>${DOW_L[d.dow]}</b><small>${thDate(d.date, { day: 'numeric', month: 'short' })}${i === 0 ? ' · พรุ่งนี้' : ''}${w}</small></span>`;
     if (d.none || d.closed) return `<div class="fcd off">${dl}<span class="track"><i class="norm" style="left:${P(N.sales)}"></i></span><span class="v"><small>${d.closed ? '💤 ปกติร้านปิด' : 'ข้อมูลไม่พอ'}</small></span></div>`;
     const [ic, tx] = FC_TAG[d.tag];
     return `<button class="fcd ${d.tag}" data-i="${i}" aria-pressed="${i === fcSel}">${dl}
       <span class="track" aria-hidden="true"><i class="rng" style="left:${P(d.low)};width:${P(d.high - d.low)}"></i><i class="bar" style="width:${P(d.sales)}"></i><i class="norm" style="left:${P(N.sales)}"></i></span>
-      <span class="v"><b>~${baht(d.sales)}</b><small>${ic} ${sgn(d.pct)}% · ${tx}</small></span></button>`;
+      <span class="v"><b>~${baht(d.sales)}</b><small>${ic} ${sgn(d.pct)}% · ${tx}${d.wxAdj ? ` · 🌧 ${sgn(d.wxAdj)}%` : ''}</small></span></button>`;
   }).join('');
   const open = f.days.filter(d => !d.none && !d.closed), best = [...open].sort((a, b) => b.sales - a.sales)[0];
   const busy = open.filter(d => d.tag === 'busy'), quiet = open.filter(d => d.tag === 'quiet');
@@ -899,7 +1110,8 @@ function renderForecast() {
     + (busy.length ? ` · 🔥 วันยุ่ง <b>${busy.map(d => DOW_S[d.dow]).join(' ')}</b> เตรียมของ/คนเพิ่ม` : '')
     + (quiet.length ? ` · 🧊 วันเงียบ <b>${quiet.map(d => DOW_S[d.dow]).join(' ')}</b> ลดของสด/ทำโปรได้` : '')
     + (best ? ` · ขายดีสุด <b>วัน${DOW_L[best.dow]}</b>` : '')
-    + (Math.abs(f.trend) >= 3 ? ` · ช่วงนี้ขาย${f.trend > 0 ? 'ดีขึ้น' : 'ลดลง'} ${Math.abs(f.trend)}% (นับรวมในตัวเลขแล้ว)` : '');
+    + (Math.abs(f.trend) >= 3 ? ` · ช่วงนี้ขาย${f.trend > 0 ? 'ดีขึ้น' : 'ลดลง'} ${Math.abs(f.trend)}% (นับรวมในตัวเลขแล้ว)` : '')
+    + (f.rain?.pct != null ? ` · 🌧 วันฝนตกร้านขายได้${f.rain.pct < 0 ? 'น้อยลง' : 'มากขึ้น'} ~${Math.abs(f.rain.pct)}% (จาก ${f.rain.n} วันที่ฝนตก · คิดในพยากรณ์แล้ว)` : '');
   if (f.days[fcSel]?.none || f.days[fcSel]?.closed) fcSel = f.days.findIndex(d => !d.none && !d.closed);
   renderFcDay();
   // ---------- ความแม่นย้อนหลัง ----------
@@ -914,12 +1126,20 @@ function renderFcDay() {
   const f = fc, d = f.days[fcSel], N = f.normal;
   $$('#fcWeek .fcd[data-i]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.i === fcSel));
   if (!d || d.none || d.closed) return;
+  // วัตถุดิบที่ควรเตรียม (ตั้งที่ หลังร้าน › วัตถุดิบ)
+  $('#fcUseDay').textContent = '· ' + fcDayName(d, fcSel);
+  $('#fcUse').innerHTML = (S.ingredients || []).length || (d.use || []).length
+    ? (d.use || []).length ? `<div class="tscroll"><table class="t"><thead><tr><th>วัตถุดิบ</th><th class="num">คาดว่าใช้</th><th class="num">เผื่อ</th></tr></thead><tbody>
+      ${d.use.map(u => `<tr><td>${esc(u.name)}</td><td class="num">~${amtTxt(u.qty, u.unit)}</td><td class="num"><b>${amtTxt(Math.max(u.hi, u.qty), u.unit, true)}</b></td></tr>`).join('')}</tbody></table></div>`
+      : '<p class="note" style="margin:0">วันนี้ของสัปดาห์ยังไม่เคยขายเมนูที่ใช้วัตถุดิบที่ตั้งไว้</p>'
+    : '<p class="note" style="margin:0">ยังไม่ได้ตั้งวัตถุดิบ · ตั้งที่ <a href="admin.html#ingredients">หลังร้าน › วัตถุดิบ</a> (เช่น ปลาเผา 1 จาน ใช้ปลากะพง 1 ตัว) แล้วจะคำนวณว่าต้องเตรียมเท่าไร</p>';
   const [ic, tx] = FC_TAG[d.tag];
   $('#fcTop').className = 'verdict ' + d.tag;
   $('#fcTop').innerHTML = `<h2>${esc(fcDayName(d, fcSel))} คาดว่าขาย ~${baht(d.sales)}</h2>
     <p>น่าจะอยู่ระหว่าง <b>${baht(d.low)} – ${baht(d.high)}</b> · ${ic} ${tx} <b>${sgn(d.pct)}%</b> (ปกติ ${baht(N.sales)}/วัน)</p>
     <div class="fcfacts"><span>🧾 ~<b>${d.bills}</b> บิล</span><span>🍽 ~<b>${d.dishes}</b> จาน${d.dpct ? ` (${sgn(d.dpct)}% จากปกติ)` : ''}</span>
       ${d.peak?.v ? `<span>⏰ ช่วงยุ่ง <b>${d.peak.from}:00–${d.peak.to}:59</b> (~${d.peak.share}% ของยอด)</span>` : ''}
+      ${d.wx ? `<span>${d.wx.icon || '🌤'} ${d.wx.prob != null ? `โอกาสฝน <b>${d.wx.prob}%</b>` : d.wx.rain != null ? `ฝน ${d.wx.rain} มม.` : ''}${d.wx.tmax != null ? ` · ${Math.round(d.wx.tmax)}°` : ''}${d.wxAdj ? ` (ปรับยอด ${sgn(d.wxAdj)}%)` : ''}</span>` : ''}
       <span>🎯 ความแม่น <b>${FC_CONF[d.conf]}</b></span></div>
     <p class="note">${d.basis === 'dow' ? `ดูจากวัน${DOW_L[d.dow]} ${d.n} สัปดาห์ก่อน: ${d.samples.slice(0, 4).map(x => `${shortDay(x.date)} ${baht(x.subtotal)}`).join(' · ')}${d.samples.length > 4 ? ' …' : ''}` : 'ข้อมูลวันนี้ของสัปดาห์ยังน้อย ใช้ค่าเฉลี่ยทุกวันใน 4 สัปดาห์ล่าสุดแทน'}</p>`;
   // เตรียมของ: รายการที่ตั้งนับไว้ใน หลังร้าน > สรุปยอดเข้า LINE

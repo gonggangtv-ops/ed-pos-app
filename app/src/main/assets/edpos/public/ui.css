@@ -438,3 +438,14 @@ details.va { margin: 4px 0 8px; } details.va summary { cursor: pointer; color: v
 details.va ul { list-style: none; margin: 4px 0 0; padding: 0; }
 details.va li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 15px; }
 details.va li .btn { padding: 4px 12px; min-height: 0; }
+/* หลังร้าน > วัตถุดิบ */
+.ingcard { padding: 16px 18px; }
+.ingtop { display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; gap: 8px; margin-bottom: 10px; }
+.ingtop input { font-weight: 600; }
+.inghead { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin: 4px 50px 6px 0; }
+.ingrow { display: grid; grid-template-columns: 100px minmax(0, 1fr) 110px 40px; gap: 8px; margin-bottom: 8px; }
+.ingtop input, .ingtop select, .ingrow input, .ingrow select { font: inherit; font-size: 15px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); min-width: 0; }
+.ingrow button, .ingtop button { padding: 0 12px; }
+@media (max-width: 620px) { .ingrow { grid-template-columns: 88px minmax(0, 1fr) 80px 36px; gap: 6px; } }
+
+.ingcard .linkbtn { background: none; border: 0; color: var(--jade); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; padding: 4px 0; }

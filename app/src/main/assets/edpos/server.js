@@ -1226,7 +1226,8 @@ function fcStat(S, f) {
   const W = S.reduce((a, x) => a + x.w, 0), m = S.reduce((a, x) => a + x.w * f(x.d), 0) / W;
   return { m, sd: Math.sqrt(S.reduce((a, x) => a + x.w * (f(x.d) - m) ** 2, 0) / W) };
 }
-function forecastDay(k, asOf = dayKey(Date.now()), day = fcDays(), first = fcFirstDay(), trend = fcTrend(asOf, day, first)) {
+// lite = เอาแค่ยอด (ใช้ตอนวิเคราะห์ย้อนหลังหลายวัน เช่น ความแม่น ผลของฝน) ไม่คิดเมนู/เตรียมของ/วัตถุดิบ
+function forecastDay(k, asOf = dayKey(Date.now()), day = fcDays(), first = fcFirstDay(), trend = fcTrend(asOf, day, first), lite = false) {
   if (!first) return null;
   let S = [], closed = 0, basis = 'dow';
   for (let w = 1; w <= FC_WEEKS + 6 && S.length + closed < FC_WEEKS; w++) {
@@ -1251,6 +1252,7 @@ function forecastDay(k, asOf = dayKey(Date.now()), day = fcDays(), first = fcFir
   // ช่วงที่น่าจะเป็น: ±1 ส่วนเบี่ยงเบน · อย่างน้อย ±10% · ข้อมูลน้อยกว่า 4 ครั้งกว้างขึ้น
   const spread = Math.max(sales.sd, sales.m * 0.1) * (n < 4 ? 1.3 : 1), cv = sales.m ? sales.sd / sales.m : 1;
   const conf = basis === 'dow' && n >= 4 && cv <= 0.2 ? 'high' : basis === 'dow' && n >= 3 && cv <= 0.35 ? 'mid' : 'low';
+  if (lite) return { date: k, dow, closed: false, basis, n, conf, sales: Math.round(sales.m), low: Math.max(0, Math.round(sales.m - spread)), high: Math.round(sales.m + spread) };
   // เมนู: จำนวนเฉลี่ยต่อวัน (วันที่ไม่ได้ขาย = 0) · hi = เผื่อ (เฉลี่ย + 1 ส่วนเบี่ยงเบน ปัดขึ้น)
   const names = new Set(S.flatMap(x => Object.keys(x.d.items)));
   const items = [...names].map(nm => {
@@ -1280,7 +1282,15 @@ function forecastDay(k, asOf = dayKey(Date.now()), day = fcDays(), first = fcFir
   return { date: k, dow, closed: false, basis, n, trend: Math.round((trend - 1) * 100), conf,
     sales: Math.round(sales.m), low: Math.max(0, Math.round(sales.m - spread)), high: Math.round(sales.m + spread),
     bills: Math.round(bills.m), dishes: Math.round(dishes.m), hours, peak,
-    items: items.slice(0, 15).map(({ raw, ...x }) => x), prep, samples: S.map(x => ({ date: x.d.date, subtotal: x.d.subtotal })) };
+    items: items.slice(0, 15).map(({ raw, ...x }) => x), prep, use: fcUse(S, trend), samples: S.map(x => ({ date: x.d.date, subtotal: x.d.subtotal })) };
+}
+// วัตถุดิบที่น่าจะใช้ (เฉลี่ยจากวันอ้างอิงเดียวกับยอดขาย) · hi = เผื่อ
+function fcUse(S, trend) {
+  const ings = data.ingredients || [];
+  if (!ings.length) return [];
+  const per = S.map(x => ({ w: x.w, u: usageOf(x.d) }));
+  return ings.map(g => { const q = fcStat(per.map(p => ({ w: p.w, d: p.u[g.id] || 0 })), v => v);
+    return { id: g.id, name: g.name, unit: g.unit, qty: q.m * trend, hi: (q.m + q.sd) * trend }; }).filter(x => x.qty > 0);
 }
 // ยอด "ปกติ" = เฉลี่ยต่อวันที่เปิดใน 4 สัปดาห์ก่อน asOf
 function fcNormal(asOf, day, first) {
@@ -1289,11 +1299,13 @@ function fcNormal(asOf, day, first) {
   return n ? { sales: Math.round(s / n), dishes: Math.round(b / n), n } : null;
 }
 // พยากรณ์หลายวัน + ติดป้าย ยุ่ง/เงียบ เทียบกับปกติ
-function forecastRange(start, days, asOf = dayKey(Date.now())) {
+function forecastRange(start, days, asOf = dayKey(Date.now()), lite = false) {
   const day = fcDays(), first = fcFirstDay(), trend = fcTrend(asOf, day, first), normal = first ? fcNormal(asOf, day, first) : null;
+  const rain = first ? rainEffect(asOf, day, first) : null;
   const list = [];
   for (let i = 0; i < days; i++) {
-    const f = forecastDay(addDays(start, i), asOf, day, first, trend);
+    const f = forecastDay(addDays(start, i), asOf, day, first, trend, lite);
+    if (f && !f.closed) wxApply(f, rain);
     if (f && !f.closed && normal) {
       f.pct = Math.round((f.sales - normal.sales) / normal.sales * 100);
       f.dpct = normal.dishes ? Math.round((f.dishes - normal.dishes) / normal.dishes * 100) : 0;
@@ -1302,7 +1314,7 @@ function forecastRange(start, days, asOf = dayKey(Date.now())) {
     }
     list.push(f || { date: addDays(start, i), dow: new Date(addDays(start, i) + 'T00:00:00').getDay(), none: true });
   }
-  return { asOf, normal, trend: Math.round((trend - 1) * 100), days: list };
+  return { asOf, normal, trend: Math.round((trend - 1) * 100), rain, days: list };
 }
 // ความแม่นย้อนหลัง: พยากรณ์วันที่ผ่านมาแล้วแต่ละวัน (ใช้แค่ข้อมูลก่อนวันนั้น) แล้วเทียบกับยอดจริง
 function fcAccuracy(asOf = dayKey(Date.now()), back = 14) {
@@ -1311,7 +1323,7 @@ function fcAccuracy(asOf = dayKey(Date.now()), back = 14) {
   for (let i = back; i >= 1; i--) {
     const k = addDays(asOf, -i), real = day(k);
     if (k < first || !real.bills) continue;
-    const f = forecastDay(k, k, day, first);
+    const f = forecastDay(k, k, day, first, undefined, true);
     if (!f || f.closed) continue;
     out.push({ date: k, fc: f.sales, low: f.low, high: f.high, real: real.subtotal, err: Math.round((f.sales - real.subtotal) / real.subtotal * 100) });
   }
@@ -1320,6 +1332,230 @@ function fcAccuracy(asOf = dayKey(Date.now()), back = 14) {
   const inRange = Math.round(out.filter(x => x.real >= x.low && x.real <= x.high).length / out.length * 100);
   return { n: out.length, mape, inRange, days: out };
 }
+// ================= อากาศ (Open-Meteo · ฟรี ไม่ต้องสมัคร · เครื่องหลักต้องต่อเน็ต) =================
+// settings.weather = {on, lat, lon, place} · weather.json (แยกจาก data.json ไม่ซิงก์) = {daily: {วันที่: {rain มม., prob %, tmax °C, code}}, at, err}
+// ดึงทุก 3 ชั่วโมง: พยากรณ์ 8 วัน + ย้อนหลัง 31 วัน · ย้อนหลังนานกว่านั้น (archive) วันละครั้ง
+const WEATHER_FILE = path.join(__dirname, 'weather.json');
+let weather = { daily: {}, at: 0, err: '', archAt: 0 };
+try { weather = { ...weather, ...JSON.parse(fs.readFileSync(WEATHER_FILE, 'utf8')) }; } catch {}
+const wxCfg = () => ({ on: false, lat: 13.7563, lon: 100.5018, place: 'กรุงเทพฯ', ...(data.settings.weather || {}) });
+function httpsJSON(u) {
+  return new Promise((ok, fail) => {
+    const req = https.get(u, { timeout: 10000 }, res => {
+      let t = ''; res.on('data', c => (t += c));
+      res.on('end', () => { if (res.statusCode !== 200) return fail(new Error('อากาศ: ตอบกลับ ' + res.statusCode)); try { ok(JSON.parse(t)); } catch { fail(new Error('อากาศ: ข้อมูลอ่านไม่ได้')); } });
+    });
+    req.on('timeout', () => req.destroy(new Error('ดึงข้อมูลอากาศไม่ได้ (เครื่องหลักต่อเน็ตหรือยัง?)')));
+    req.on('error', e => fail(e.code ? new Error('ดึงข้อมูลอากาศไม่ได้ (เครื่องหลักต่อเน็ตหรือยัง?) · ' + e.code) : e));
+  });
+}
+function wxPut(j) {
+  const d = j?.daily; if (!d?.time) return;
+  d.time.forEach((t, i) => {
+    const o = weather.daily[t] || (weather.daily[t] = {});
+    if (d.precipitation_sum?.[i] != null) o.rain = d.precipitation_sum[i];
+    if (d.precipitation_probability_max?.[i] != null) o.prob = d.precipitation_probability_max[i];
+    if (d.temperature_2m_max?.[i] != null) o.tmax = d.temperature_2m_max[i];
+    if (d.weather_code?.[i] != null) o.code = d.weather_code[i];
+  });
+}
+let wxBusy = false;
+async function fetchWeather(force) {
+  const c = wxCfg();
+  if (!c.on || wxBusy) return;
+  wxBusy = true;
+  try {
+    const q = `latitude=${c.lat}&longitude=${c.lon}&timezone=Asia%2FBangkok`;
+    let j;
+    try { j = await httpsJSON(`https://api.open-meteo.com/v1/forecast?${q}&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,weather_code&past_days=31&forecast_days=8`); }
+    catch (e) { if (!/ตอบกลับ/.test(e.message)) throw e;   // เน็ตไม่มี → ไม่ต้องลองแบบสั้นซ้ำ
+      j = await httpsJSON(`https://api.open-meteo.com/v1/forecast?${q}&daily=precipitation_sum,temperature_2m_max,weather_code&forecast_days=7`); }
+    wxPut(j);
+    // ย้อนหลังถึงวันแรกที่มีข้อมูลขาย (ไม่เกิน 1 ปี) ไว้ดูว่าวันฝนตกขายได้เท่าไร
+    if (force || Date.now() - (weather.archAt || 0) > 86400000) {
+      const today = dayKey(Date.now()), first = fcFirstDay() || addDays(today, -60);
+      const start = first > addDays(today, -365) ? first : addDays(today, -365), end = addDays(today, -3);
+      if (start < end) {
+        try { wxPut(await httpsJSON(`https://archive-api.open-meteo.com/v1/archive?${q}&start_date=${start}&end_date=${end}&daily=precipitation_sum,temperature_2m_max,weather_code`)); weather.archAt = Date.now(); } catch {}
+      }
+    }
+    const keep = addDays(dayKey(Date.now()), -400);
+    for (const k of Object.keys(weather.daily)) if (k < keep) delete weather.daily[k];
+    weather.at = Date.now(); weather.err = ''; rainCache = null;
+  } catch (e) { weather.err = e.message; weather.at = Date.now() - 2.5 * 3600e3; }   // พังแล้วลองใหม่ใน ~30 นาที
+  finally {
+    wxBusy = false;
+    try { fs.writeFileSync(WEATHER_FILE, JSON.stringify(weather)); } catch {}
+  }
+}
+setInterval(() => { if (role.role === 'main' && wxCfg().on && Date.now() - weather.at > 3 * 3600e3) fetchWeather(); }, 60000);
+// ฝนตก = 5 มม.ขึ้นไป · พยากรณ์: โอกาสฝน ≥ 60% หรือ 5 มม.ขึ้นไป
+const wxRainy = w => w && (w.rain >= 5);
+const wxIcon = c => c == null ? '' : c === 0 ? '☀️' : c <= 3 ? '⛅' : c <= 48 ? '🌫' : c <= 67 ? '🌧' : c <= 77 ? '🌨' : c <= 82 ? '🌦' : '⛈';
+// ผลของฝนต่อยอดขาย: วันฝนตกขายได้เทียบกับที่ควรขาย (ค่าพยากรณ์จากวันก่อนหน้า) ต่างจากวันแห้งกี่ % · ต้องมีวันฝนตก ≥ 3 วัน
+let rainCache = null;
+function rainEffect(asOf, day, first) {
+  if (!wxCfg().on) return null;
+  const key = asOf + '|' + weather.at + '|' + (data.rev || 0);
+  if (rainCache?.key === key) return rainCache.v;
+  const wet = [], dry = [];
+  for (let i = 1; i <= 180; i++) {
+    const k = addDays(asOf, -i); if (k < first) break;
+    const w = weather.daily[k], d = day(k);
+    if (!w || w.rain == null || !d.bills) continue;
+    const f = forecastDay(k, k, day, first, undefined, true);
+    if (!f || f.closed || !f.sales) continue;
+    (wxRainy(w) ? wet : w.rain < 1 ? dry : []).push(d.subtotal / f.sales);
+  }
+  const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const v = wet.length >= 3 && dry.length >= 5
+    ? { n: wet.length, dry: dry.length, pct: Math.max(-50, Math.min(30, Math.round((avg(wet) / avg(dry) - 1) * 100))) }
+    : { n: wet.length, dry: dry.length, pct: null };
+  rainCache = { key, v };
+  return v;
+}
+// ใส่อากาศของวันนั้น + ปรับยอดตามโอกาสฝน (เฉพาะเมื่อรู้ผลของฝนจากข้อมูลร้านแล้ว และต่างกันเกิน 5%)
+function wxApply(f, rain) {
+  const w = wxCfg().on && weather.daily[f.date];
+  if (!w) return;
+  f.wx = { rain: w.rain, prob: w.prob, tmax: w.tmax, code: w.code, icon: wxIcon(w.code) };
+  const chance = w.prob != null ? w.prob / 100 : w.rain >= 5 ? 0.8 : w.rain >= 1 ? 0.4 : 0;
+  if (!rain || rain.pct == null || Math.abs(rain.pct) < 5 || chance < 0.5) return;
+  const k = 1 + rain.pct / 100 * chance;
+  f.wxAdj = Math.round((k - 1) * 100);
+  for (const x of ['sales', 'low', 'high', 'bills', 'dishes']) if (f[x] != null) f[x] = Math.round(f[x] * k);
+  for (const h in f.hours || {}) f.hours[h] = Math.round(f.hours[h] * k);
+  for (const it of f.items || []) { it.qty = Math.round(it.qty * k); it.hi = Math.ceil(it.hi * k); }
+  for (const p of f.prep || []) { p.qty = Math.round(p.qty * k); p.hi = Math.ceil(p.hi * k); }
+  for (const u of f.use || []) { u.qty *= k; u.hi *= k; }
+}
+function weatherInfo() {
+  const c = wxCfg(), today = dayKey(Date.now());
+  const next = [...Array(8).keys()].map(i => addDays(today, i)).map(k => ({ date: k, ...(weather.daily[k] || {}), icon: wxIcon(weather.daily[k]?.code) })).filter(x => x.code != null || x.rain != null);
+  const day = fcDays(), first = fcFirstDay();
+  return { cfg: c, at: weather.at, err: weather.err, days: Object.keys(weather.daily).length, next, rain: first ? rainEffect(today, day, first) : null };
+}
+
+// ================= ยอดวันนี้ตอนนี้ เทียบที่คาด =================
+// ยอดบิลที่ปิดแล้ว สะสมรายชั่วโมง เทียบเส้นที่คาด (ยอดรายชั่วโมงเฉลี่ยของวันเดียวกันในสัปดาห์) · คาดยอดปิดวัน
+function paceToday() {
+  const today = dayKey(Date.now()), r = forecastRange(today, 1, today), f = r.days[0], d = dayOf(today), lw = dayOf(addDays(today, -7));
+  const now = new Date(), nh = now.getHours(), frac = now.getMinutes() / 60, ok = f && !f.none && !f.closed;
+  const exp = ok ? f.hours || {} : {};
+  const hrs = [...new Set([...Object.keys(exp), ...Object.keys(d.byHour), ...Object.keys(lw.byHour), String(nh)].map(Number))]
+    .filter(h => (exp[h] || d.byHour[h] || lw.byHour[h] || h === nh)).sort((a, b) => relH(a) - relH(b));
+  let ce = 0, ca = 0, cl = 0, expNow = 0, lwNow = 0;
+  const series = hrs.map(h => {
+    const past = relH(h) < relH(nh), cur = h === nh;
+    ce += exp[h] || 0; ca += d.byHour[h] || 0; cl += lw.byHour[h] || 0;
+    if (past) { expNow += exp[h] || 0; lwNow += lw.byHour[h] || 0; }
+    if (cur) { expNow += (exp[h] || 0) * frac; lwNow += (lw.byHour[h] || 0) * frac; }
+    return { h, exp: Math.round(ce), act: past || cur ? Math.round(ca) : null, lw: Math.round(cl) };
+  });
+  const act = d.subtotal, open = data.orders.filter(o => o.status === 'open');
+  const openDue = r2(open.reduce((s, o) => s + data.items.filter(i => i.orderId === o.id && i.status !== 'cancelled').reduce((a, i) => a + i.price * i.qty, 0), 0));
+  const pace = expNow >= 50 ? Math.round((act / expNow - 1) * 100) : null;
+  // คาดยอดปิดวัน: ส่วนที่เหลือของวันตามที่คาด ปรับตามความเร็วตอนนี้ (ครึ่งเดียว กันแกว่ง)
+  let projected = ok ? f.sales : null;
+  if (ok && expNow >= f.sales * 0.05) {
+    const k = Math.min(1.6, Math.max(0.5, act / expNow));
+    projected = Math.round(act + Math.max(0, f.sales - expNow) * (1 + (k - 1) * 0.6));
+  }
+  return { date: today, now: `${String(nh).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`, closed: !!f?.closed, none: !ok,
+    actual: act, bills: d.bills, openDue, openTables: open.length, expected: Math.round(expNow), pace, projected,
+    forecast: ok ? f.sales : null, low: ok ? f.low : null, high: ok ? f.high : null, wx: ok ? f.wx || null : null, wxAdj: ok ? f.wxAdj || 0 : 0,
+    normal: r.normal?.sales || null, lastWeek: lw.subtotal, lastWeekNow: Math.round(lwNow), series };
+}
+
+// ================= จุดคุ้มทุน =================
+// settings.finance = {fixed: [{name, amt}] ค่าใช้จ่ายคงที่ต่อเดือน, foodPct = ต้นทุนวัตถุดิบ % ของยอดขาย}
+// คุ้มทุน (ต่อเดือน) = ค่าคงที่ ÷ (1 − ต้นทุนวัตถุดิบ%) · คาดสิ้นเดือน = ขายแล้ว + วันนี้ (คาดปิดวัน) + พยากรณ์วันที่เหลือ
+const finCfg = () => ({ fixed: [], foodPct: 35, ...(data.settings.finance || {}) });
+function breakEven() {
+  const c = finCfg(), today = dayKey(Date.now()), m0 = today.slice(0, 8) + '01';
+  const mEnd = addDays(addDays(m0, 32).slice(0, 8) + '01', -1);
+  const fixed = c.fixed.reduce((s, x) => s + (+x.amt || 0), 0), food = Math.min(95, Math.max(0, +c.foodPct || 0)) / 100;
+  const be = fixed ? Math.round(fixed / (1 - food)) : 0;
+  const series = [];
+  let sold = 0, openPast = 0, cum = 0;
+  for (let k = m0; k < today; k = addDays(k, 1)) { const d = dayOf(k); sold += d.subtotal; cum += d.subtotal; if (d.bills) openPast++; series.push({ date: k, v: d.subtotal, cum: Math.round(cum), kind: 'actual' }); }
+  const p = paceToday();
+  const todayAct = p.actual, todayProj = Math.max(todayAct, p.projected ?? todayAct), todayOpen = !p.closed || todayAct > 0;
+  cum += todayProj; series.push({ date: today, v: Math.round(todayProj), act: Math.round(todayAct), cum: Math.round(cum), kind: 'today' });
+  let future = 0, openFuture = 0;
+  if (today < mEnd) {
+    const n = Math.round((new Date(mEnd + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+    const fr = forecastRange(addDays(today, 1), n, today, true);
+    for (const f of fr.days) {
+      const v = f.none || f.closed ? 0 : f.sales;
+      future += v; if (v) openFuture++; cum += v;
+      series.push({ date: f.date, v: Math.round(v), cum: Math.round(cum), kind: f.closed ? 'closed' : 'fc' });
+    }
+  }
+  const soldNow = Math.round(sold + todayAct), projected = Math.round(sold + todayProj + future);
+  const openDays = openPast + (todayOpen ? 1 : 0) + openFuture, leftDays = (todayOpen ? 1 : 0) + openFuture;
+  const cross = be ? series.find(x => x.cum >= be)?.date || null : null;
+  // เดือนที่แล้ว
+  const lm0 = addDays(m0, -1).slice(0, 8) + '01'; let last = 0;
+  for (let k = lm0; k < m0; k = addDays(k, 1)) last += dayOf(k).subtotal;
+  return { month: m0.slice(0, 7), cfg: c, fixed, foodPct: Math.round(food * 100), be, beDay: be && openDays ? Math.round(be / openDays) : 0,
+    soldNow, projected, openDays, leftDays, need: be && leftDays ? Math.max(0, Math.round((be - soldNow) / leftDays)) : 0,
+    profit: be || fixed ? Math.round(projected * (1 - food) - fixed) : null, cross,
+    lastMonth: { sales: Math.round(last), profit: fixed ? Math.round(last * (1 - food) - fixed) : null }, series };
+}
+
+// ================= วัตถุดิบตามยอดขาย =================
+// data.ingredients = [{id, name, unit, uses: [{t: 'm' (เมนู) | 'c' (ตัวเลือก ชื่อเดียวกันทุกเมนู), r: menuId | ชื่อตัวเลือก, q: ปริมาณต่อจาน}]}]
+// ใช้ = Σ จำนวนจานของเมนู × q + Σ จำนวนจานที่เลือกตัวเลือกนั้น × q (ดูจากข้อความตัวเลือกของจาน "หมู S เผ็ดน้อย")
+const ING_UNITS = ['กรัม', 'กก.', 'มล.', 'ลิตร', 'ชิ้น', 'ตัว', 'ฟอง', 'ถุง', 'ขวด', 'กล่อง', 'แพ็ค'];
+function usageOf(d) {
+  const out = {}, byName = new Map(data.menu.map(m => [m.id, m.name]));
+  for (const g of data.ingredients || []) {
+    let a = 0;
+    for (const u of g.uses || []) {
+      if (u.t === 'm') { const it = d.items[byName.get(u.r)]; if (it) a += it.qty * u.q; }
+      else for (const it of Object.values(d.items)) for (const [o, oq] of Object.entries(it.opts || {})) if (o.split(' ').includes(u.r)) a += oq * u.q;
+    }
+    if (a) out[g.id] = a;
+  }
+  return out;
+}
+function cleanIngredients(list) {
+  if (!Array.isArray(list)) throw new Error('รูปแบบไม่ถูกต้อง');
+  const ids = new Set(data.menu.map(m => m.id));
+  return list.slice(0, 100).map((g, i) => ({
+    id: /^ing\w{1,20}$/.test(g.id) ? g.id : 'ing' + Date.now().toString(36) + i,
+    name: String(g.name || '').trim().slice(0, 40), unit: String(g.unit || 'กรัม').trim().slice(0, 10) || 'กรัม',
+    uses: (Array.isArray(g.uses) ? g.uses : []).slice(0, 200).map(u => ({ t: u.t === 'c' ? 'c' : 'm', r: String(u.r || '').trim().slice(0, 40), q: Math.max(0, Math.round((+u.q || 0) * 100) / 100) }))
+      .filter(u => u.q > 0 && u.r && (u.t === 'c' || ids.has(u.r))),
+  })).filter(g => g.name);
+}
+function usageReport(from, to) {
+  const tot = {}, nDays = { n: 0 }, by = {};
+  const byName = new Map(data.menu.map(m => [m.id, m.name]));
+  for (let k = from; k <= to; k = addDays(k, 1)) {
+    const d = dayOf(k); if (!d.bills) continue; nDays.n++;
+    const u = usageOf(d); for (const id in u) tot[id] = (tot[id] || 0) + u[id];
+    // แยกว่ามาจากเมนู/ตัวเลือกไหน
+    for (const g of data.ingredients || []) for (const x of g.uses || []) {
+      let a = 0;
+      if (x.t === 'm') { const it = d.items[byName.get(x.r)]; if (it) a = it.qty * x.q; }
+      else for (const it of Object.values(d.items)) for (const [o, oq] of Object.entries(it.opts || {})) if (o.split(' ').includes(x.r)) a += oq * x.q;
+      if (a) { const key = (x.t === 'm' ? byName.get(x.r) : 'ตัวเลือก ' + x.r); const b = (by[g.id] ||= {}); b[key] = (b[key] || 0) + a; }
+    }
+  }
+  return { from, to, days: nDays.n, list: (data.ingredients || []).map(g => ({ id: g.id, name: g.name, unit: g.unit, total: tot[g.id] || 0,
+    perDay: nDays.n ? (tot[g.id] || 0) / nDays.n : 0, by: Object.entries(by[g.id] || {}).sort((a, b) => b[1] - a[1]).slice(0, 8) })) };
+}
+// "2,400 กรัม" → "2.4 กก." · "1,500 มล." → "1.5 ลิตร"
+// นับเป็นชิ้น (ตัว ขวด ฟอง …) → จำนวนเต็ม · เผื่อ (up) ปัดขึ้น
+function amtTxt(q, unit, up) {
+  if (!['กรัม', 'กก.', 'มล.', 'ลิตร'].includes(unit)) return (up ? Math.ceil(q - 0.05) : Math.max(q > 0 ? 1 : 0, Math.round(q))).toLocaleString('en-US') + ' ' + unit;
+  if (unit === 'กรัม' && q >= 1000) return (Math.round(q / 100) / 10).toLocaleString('en-US') + ' กก.';
+  if (unit === 'มล.' && q >= 1000) return (Math.round(q / 100) / 10).toLocaleString('en-US') + ' ลิตร';
+  return (q >= 10 ? Math.round(q) : Math.round(q * 10) / 10).toLocaleString('en-US') + ' ' + unit;
+}
+
 const FC_CONF = { high: 'สูง', mid: 'กลาง', low: 'ต่ำ' };
 // ข้อความ LINE: พรุ่งนี้ + รายการเตรียมของ
 function forecastLines(k) {
@@ -1332,6 +1568,7 @@ function forecastLines(k) {
   const L = [head, `คาดว่าขาย ~${fmt(f.sales)} ฿ (${fmt(f.low)}–${fmt(f.high)}) · ~${f.bills} บิล · ~${f.dishes} จาน`];
   if (f.tag && f.tag !== 'normal') L.push(`${f.tag === 'busy' ? '🔥 ยุ่ง/ขายดีกว่าปกติ' : '🧊 เงียบกว่าปกติ'} ${Math.abs(f.pct)}% (ปกติ ${fmt(r.normal.sales)} ฿/วัน)`);
   if (f.peak?.v) L.push(`⏰ ช่วงยุ่ง ${f.peak.from}:00–${f.peak.to}:59 (~${f.peak.share}% ของยอด)`);
+  if (f.wx) L.push(`${f.wx.icon || '🌤'} ${f.wx.prob != null ? `ฝน ${f.wx.prob}%` : f.wx.rain != null ? `ฝน ${f.wx.rain} มม.` : ''}${f.wx.tmax != null ? ` · ${Math.round(f.wx.tmax)}°` : ''}${f.wxAdj ? ` · วันฝนตกปกติยอด${r.rain.pct < 0 ? 'ลด' : 'เพิ่ม'} ${Math.abs(r.rain.pct)}% (คิดรวมแล้ว ${f.wxAdj > 0 ? '+' : ''}${f.wxAdj}%)` : ''}`);
   const prep = f.prep.length ? f.prep : f.items.slice(0, 6).map(x => ({ name: x.name, qty: x.qty, hi: x.hi, by: {} }));
   if (prep.length) {
     L.push('🧺 เตรียมของ (คาด · เผื่อ)');
@@ -1341,6 +1578,7 @@ function forecastLines(k) {
       L.push(`• ${p.name} ~${p.qty}${p.hi > p.qty ? ` · เผื่อ ${p.hi}` : ''}${detail}`);
     }
   }
+  if (f.use?.length) L.push('🥬 วัตถุดิบ', ...f.use.map(u => `• ${u.name} ~${amtTxt(u.qty, u.unit)}${u.hi > u.qty * 1.05 ? ` · เผื่อ ${amtTxt(u.hi, u.unit, true)}` : ''}`));
   const acc = fcAccuracy(asOf);
   L.push(`ความแม่น${FC_CONF[f.conf]}${acc?.mape != null ? ` (ย้อนหลัง ${acc.n} วัน คลาดเฉลี่ย ±${acc.mape}%)` : ''} · ${f.basis === 'dow' ? `ดูจากวัน${TH_DAY[f.dow]} ${f.n} สัปดาห์ก่อน` : 'ข้อมูลวันนี้ของสัปดาห์ยังน้อย ใช้ค่าเฉลี่ยทุกวัน'}${Math.abs(f.trend) >= 3 ? ` · ช่วงนี้ขาย${f.trend > 0 ? 'ดีขึ้น' : 'ลดลง'} ${Math.abs(f.trend)}%` : ''}`);
   return L;
@@ -1977,6 +2215,36 @@ const routes = {
     data.settings.voiceAliases = (data.settings.voiceAliases || []).filter(a => a.p !== p);
   },
 
+  // ยอดวันนี้ตอนนี้ เทียบที่คาด
+  'GET /api/pace': () => paceToday(),
+  // จุดคุ้มทุน
+  'GET /api/breakeven': () => breakEven(),
+  'POST /api/finance': b => {
+    const fixed = (Array.isArray(b.fixed) ? b.fixed : []).slice(0, 30).map(x => ({ name: String(x.name || '').trim().slice(0, 40), amt: Math.max(0, Math.round(+x.amt || 0)) })).filter(x => x.name || x.amt);
+    data.settings.finance = { fixed, foodPct: Math.min(95, Math.max(0, Math.round((+b.foodPct || 0) * 10) / 10)) };
+    return breakEven();
+  },
+  // วัตถุดิบ
+  'POST /api/ingredients': b => { data.ingredients = cleanIngredients(b.list); return { ok: true, list: data.ingredients }; },
+  'GET /api/usage': (b, q) => {
+    const ok = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+    const to = ok(q.get('to')) ? q.get('to') : dayKey(Date.now()), from = ok(q.get('from')) ? q.get('from') : to;
+    return usageReport(from, to);
+  },
+  // อากาศ
+  'GET /api/weather': () => weatherInfo(),
+  'POST /api/weather': async b => {
+    const lat = +b.lat, lon = +b.lon;
+    if (b.on && !(lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180)) throw new Error('พิกัดไม่ถูกต้อง');
+    const old = wxCfg();
+    data.settings.weather = { on: !!b.on, lat: lat || 13.7563, lon: lon || 100.5018, place: String(b.place || '').trim().slice(0, 40) || 'ร้าน' };
+    // ย้ายที่ตั้ง → ข้อมูลอากาศเดิมใช้ไม่ได้ ดึงใหม่ทั้งหมด
+    if (Math.abs(old.lat - data.settings.weather.lat) > 0.01 || Math.abs(old.lon - data.settings.weather.lon) > 0.01) { weather.daily = {}; weather.archAt = 0; }
+    rainCache = null;
+    if (b.on) { weather.at = 0; await fetchWeather(true); }
+    return weatherInfo();
+  },
+
   // พยากรณ์: 7 วันถัดไป (เริ่มพรุ่งนี้) + ความแม่นย้อนหลัง 14 วัน
   'GET /api/forecast': () => {
     const today = dayKey(Date.now());
@@ -2017,7 +2285,7 @@ const routes = {
       // โทเค็น LINE ไม่ส่งออกไปหน้าเว็บ (หน้าสั่งอาหารก็อ่าน /api/state ได้)
       line: { ...(data.settings.line || {}), token: undefined, hasToken: !!data.settings.line?.token, counts: lineCountsOf() },
       presetModified: presetModified() };
-    return { rev: data.rev || 0, settings, menu: data.menu, categories: data.categories, optionSets: data.optionSets, orders,
+    return { rev: data.rev || 0, settings, menu: data.menu, categories: data.categories, optionSets: data.optionSets, ingredients: data.ingredients || [], orders,
              items: data.items.filter(i => ids.has(i.orderId)), events: data.events, now: Date.now() };
   },
 
