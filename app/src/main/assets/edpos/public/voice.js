@@ -15,8 +15,10 @@ const VOICE = (() => {
   // ไทย/ไท (ผัดไท) · พัด/ผัด (พัดไทย)
   const SPELL = [[/กระเพราะ|กะเพราะ|กระเพรา|กะเพา|กระเพา/g, 'กะเพรา'], [/ซีอิ้ว|ซีอิว/g, 'ซีอิ๊ว'], [/กระหรี่/g, 'กะหรี่'], [/ไซซ์|ไซต์|ไซด์|ไซ้ส์/g, 'ไซส์'],
     [/ไทย/g, 'ไท'], [/พัด/g, 'ผัด']];
+  // ตัวอักษรที่มองไม่เห็น (ชื่อเมนูที่คัดลอกมาจากที่อื่น) · ำ แบบแยกสองตัว (ํ+า) · วรรณยุกต์พิมพ์ก่อนสระบน (ไ่ม → ไม่ แบบเดียวกัน)
   const norm = s => SPELL.reduce((t, [re, to]) => t.replace(re, to),
-    String(s || '').toLowerCase().replace(/[๐-๙]/g, d => TH_DIG.indexOf(d)).replace(/[\s.,!?'"“”()\-ๆ]/g, ''));
+    String(s || '').normalize('NFC').replace(/[\u200B-\u200D\uFEFF\u00AD]/g, '').replace(/\u0E4D\u0E32/g, '\u0E33')
+      .replace(/([\u0E48-\u0E4B])([\u0E31\u0E34-\u0E37\u0E47])/g, '$2$1').toLowerCase().replace(/[๐-๙]/g, d => TH_DIG.indexOf(d)).replace(/[\s.,!?'"“”()\-ๆ]/g, ''));
   // คำพูดที่หมายถึงตัวเลือก (ใช้เมื่อเมนูนั้นไม่มีตัวเลือกชื่อนี้ตรงๆ) เช่น "ที่เล็ก" = ขนาด S · "ไม่เผ็ด" = ไม่พริก
   const SYN = {
     s: ['เล็ก', 'ไซส์เล็ก', 'ขนาดเล็ก', 'เอส', 'ไซส์เอส', 'ไซส์s'],
@@ -214,7 +216,8 @@ const VOICE = (() => {
   const contBase = new WeakMap();
   const cont0 = c => contBase.get(c) || { choices: 0, notes: 0, ta: false };
   // ตัวแปลงเสียงให้คำที่เป็นไปได้หลายแบบ → เลือกแบบที่จับเมนู/จำนวนได้มากสุด (คำที่ไม่รู้จักหักคะแนนเล็กน้อย)
-  const bestParse = alts => alts.map(parse).sort((a, b) => b.score - a.score)[0];
+  // (ห้ามส่ง parse ให้ map ตรงๆ: map ส่งเลขลำดับมาเป็นอาร์กิวเมนต์ที่ 2 → parse เข้าใจว่าเป็น "จานล่าสุด" แล้วพัง · บั๊ก test-1.27–1.41)
+  const bestParse = alts => alts.map(a => parse(a)).sort((a, b) => b.score - a.score)[0];
 
   // เมนูที่ใกล้เคียงกับคำที่ไม่รู้จัก (ชื่อมีคำนั้น/คำนั้นมีชื่อเมนู หรือตัวอักษรคล้ายกัน)
   const pairs = s => { const p = new Set(); for (let i = 0; i < s.length - 1; i++) p.add(s.slice(i, i + 2)); return p; };
@@ -674,7 +677,10 @@ const VOICE = (() => {
     else if (ev.type === 'level') { st.level = ev.v || 0; if (st.level > 0.3) ses.loud = true; paintLevel(); return; }
     else if (ev.type === 'partial') { st.live = ev.text || ''; if (st.live) { ses.last = Date.now(); ses.heard = true; } paintLive(); return; }
     else if (ev.type === 'result') {
+      // ผลสุดท้ายว่าง (บางเครื่องส่งข้อความมาแค่ระหว่างพูด) → ใช้ข้อความที่ได้ยินล่าสุด
       const alts = (ev.alts || []).filter(Boolean);
+      if (!alts.length && st.live) alts.push(st.live);
+      st.live = '';
       if (alts.length && ses.base) { ses.segs.push(bestParse(alts).text); ses.last = Date.now(); ses.heard = true; reparse(); }
     } else if (ev.type === 'error') {
       // ไม่ได้ยินระหว่างที่ยังรอได้ = ปกติ (เดี๋ยวฟังใหม่เอง) · หมดเวลารอแล้วค่อยบอก
