@@ -290,7 +290,8 @@ public class MainActivity extends Activity {
     private void followRole() {
         String mode = serverMode();
         if (!"main".equals(mode) && !"standby".equals(mode)) return;
-        String r = httpGet(LOCAL + "/api/role", 1500);
+        String gw = Net.gateway(this);   // บอกเซิร์ฟเวอร์ IP เราเตอร์ (ใช้ตรวจว่าเราเตอร์ดับก่อนให้สลับเครื่อง)
+        String r = httpGet(LOCAL + "/api/role" + (gw.isEmpty() ? "" : "?gw=" + gw), 1500);
         if (r == null) return;
         String now = roleOf(r);
         if (now.equals(mode) || (!"main".equals(now) && !"standby".equals(now))) return;
@@ -671,6 +672,12 @@ public class MainActivity extends Activity {
                 js("window.edposFound && window.edposFound(" + org.json.JSONObject.quote(f == null ? "" : f) + ","
                     + org.json.JSONObject.quote(r[1] == null ? "" : r[1]) + ")");
             }, "find-main").start();
+        }
+
+        /** ตรวจ Wi-Fi/เราเตอร์ของเครื่องนี้ แล้วตอบกลับ window.edposNet({wifi, ip, gw, gwOk}) (ดู Net.java) */
+        @JavascriptInterface
+        public void netCheck() {
+            new Thread(() -> js("window.edposNet && window.edposNet(" + Net.check(MainActivity.this) + ")"), "net-check").start();
         }
 
         // ----- สั่งอาหารด้วยเสียง (ดู Voice.java) -----

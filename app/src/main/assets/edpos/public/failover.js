@@ -17,9 +17,12 @@
   const ask = async (base, path = '/api/role', opt = {}) => {
     const r = await fetch(base + path, { ...opt, signal: AbortSignal.timeout(2500), cache: 'no-store' });
     const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'ผิดพลาด');
+    if (!r.ok) { const e = new Error(j.error || 'ผิดพลาด'); e.router = j.router; throw e; }
     return j;
   };
+  const R = () => window.edposRouter;   // หน้าจอเต็มจอ เราเตอร์ดับ / ตรวจก่อนสลับ (router.js)
+  const local = /^https?:\/\/(127\.0\.0\.1|localhost)(:|$)/.test(here);   // หน้านี้เปิดจากเซิร์ฟเวอร์ในเครื่องนี้ (แท็บเล็ตเครื่องหลัก/สำรอง)
+  let watching = false, mergeShown = '';
   const go = base => {
     if (!base || base === here) return;
     const carry = window.edposCarry ? window.edposCarry() : '';   // เช่น รายการที่ยังไม่ส่ง
@@ -117,6 +120,9 @@
     try {
       const me = await ask(here);
       fails = 0; notFound = false; shop.set(me.shop);
+      if (R()?.shown() === 'client') R().back();   // ต่อได้แล้ว
+      // แท็บเล็ตเครื่องหลัก/สำรอง: เซิร์ฟเวอร์อยู่ในเครื่อง ต่อได้เสมอ → ตรวจ Wi-Fi/เราเตอร์แยก
+      if (local && !watching && R()) { watching = true; R().watch(me.role === 'main' ? 'main' : 'standby'); }
       // จำที่อยู่ของทั้งสองเครื่องไว้ เผื่อเครื่องนี้ดับ
       const list = [...new Set([...(me.me || []), me.peer, me.standby, me.nodes?.main, me.nodes?.standby].filter(Boolean))];
       if (!list.includes(here)) list.unshift(here);
@@ -127,12 +133,18 @@
         try { const p = await ask(me.peer); if (p.role === 'main') return go(me.peer); } catch {}
         if (me.finding) { showBar('เครื่องนี้เป็นเครื่องสำรอง', 'กำลังค้นหาเครื่องหลักในวง Wi-Fi (IP อาจเปลี่ยน)…'); return; }
         showBar('เครื่องนี้เป็นเครื่องสำรอง', 'ติดต่อเครื่องหลักไม่ได้', 'ใช้เครื่องนี้แทน');
-        bar.querySelector('#foPromote').onclick = () => promote(here);
+        bar.querySelector('#foPromote').onclick = () => switchTo(here);
         return;
       }
+      if (me.merge && showMerge(me.merge)) return;
       hideBar();
     } catch {
       if (++fails < 3) return;          // พลาดครั้งสองครั้งอาจเป็น Wi-Fi สะดุด
+      // เครื่องนี้หลุด Wi-Fi / เราเตอร์ไม่ตอบ → หน้าจอเต็มจอ "รอ" (ไม่ต้องค้นหา ไม่ให้สลับเครื่อง)
+      if (R()) {
+        const n = await R().check();
+        if (R().bad(n)) { hideBar(); R().down('client', R().whyOf(n)); return; }
+      }
       let standby = '';
       for (const o of [...new Set([...others(), foundSb].filter(u => u && u !== here))]) {
         try {
@@ -148,7 +160,7 @@
       }
       if (standby) {
         showBar('ไม่เจอเครื่องหลัก', `มีเครื่องสำรองที่ ${standby.replace(/^https?:\/\//, '')}`, 'ใช้เครื่องสำรอง');
-        bar.querySelector('#foPromote').onclick = () => promote(standby);
+        bar.querySelector('#foPromote').onclick = () => switchTo(standby);
         return;
       }
       showBar(others().length ? 'ติดต่อเครื่องหลักและเครื่องสำรองไม่ได้' : 'ติดต่อเครื่องหลักไม่ได้',
@@ -157,17 +169,37 @@
     } finally { busy = false; }
   }
 
-  async function promote(base) {
-    const b = bar.querySelector('#foPromote');
-    b.disabled = true; b.textContent = 'กำลังสลับ…';
+  // กดสลับ → หน้าจอเต็มจอ "ตรวจเราเตอร์ก่อน" (เราเตอร์ดับ = ไม่ให้สลับ) → ยืนยันแล้วค่อยสลับ
+  async function switchTo(base) {
+    if (R() && !(await R().confirmSwitch())) return;
+    promote(base);
+  }
+  async function promote(base, skip) {
+    const b = bar?.querySelector('#foPromote');
+    if (b) { b.disabled = true; b.textContent = 'กำลังสลับ…'; }
     try {
-      await ask(base, '/api/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      await ask(base, '/api/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(skip ? { router: 'skip' } : {}) });
       showBar('สลับเครื่องเรียบร้อย', 'กำลังเปิดหน้าใหม่…', '', 'ok');
       setTimeout(() => (base === here ? location.reload() : go(base)), 800);
     } catch (e) {
-      b.disabled = false; b.textContent = 'ลองอีกครั้ง';
-      alert(e.message);
+      if (b) { b.disabled = false; b.textContent = 'ลองอีกครั้ง'; }
+      // เครื่องสำรองตรวจแล้วเราเตอร์ไม่ตอบ → ไม่ให้สลับ (มีทางยืนยันเองถ้าเราเตอร์ปกติจริง)
+      if (e.router && R()) R().down('blocked', e.router === 'wifi' ? 'wifi' : 'router', { force: () => promote(base, true) });
+      else alert(e.message);
     }
+  }
+
+  // เครื่องหลักเดิมกลับมาแล้วส่งออเดอร์มารวม → แจ้งครั้งเดียวต่อการรวม
+  function showMerge(m) {
+    let seen = ''; try { seen = localStorage.getItem('edpos-merge-seen') || ''; } catch {}
+    if (seen === m.id) return false;
+    if (mergeShown === m.id && bar) return true;
+    mergeShown = m.id;
+    const parts = [m.items ? `${m.items} จาน` : '', m.bills ? `${m.bills} บิล` : '', m.tables?.length ? `โต๊ะ ${m.tables.join(', ')}` : ''].filter(Boolean).join(' · ');
+    const rv = m.review?.length ? `<br>⚠ ต้องตรวจ: ${m.review.slice(0, 3).map(x => x.replace(/[<&]/g, '')).join('<br>⚠ ')}` : '';
+    showBar('รวมออเดอร์จากเครื่องหลักเดิมแล้ว', (parts || 'ไม่มีรายการใหม่') + rv, 'รับทราบ', 'ok');
+    bar.querySelector('#foPromote').onclick = () => { try { localStorage.setItem('edpos-merge-seen', m.id); } catch {} hideBar(); };
+    return true;
   }
 
   window.edposFailover = { check, promote };

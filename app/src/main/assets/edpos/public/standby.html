@@ -63,6 +63,7 @@
   <p class="note" id="note"></p>
   <p class="note"><a href="#" id="peerLink">เปลี่ยน IP เครื่องหลัก</a></p>
 </main>
+<script src="router.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 let info = null;
@@ -135,14 +136,24 @@ $('#peerBox').onsubmit = async e => {
   } catch (err) { $('#peerErr').textContent = err.message; }
   finally { $('#peerBtn').disabled = false; $('#peerBtn').textContent = 'เชื่อมต่อเครื่องหลัก'; }
 };
-$('#promote').onclick = async () => {
-  if (!confirm('ให้เครื่องนี้รับงานแทนเครื่องหลัก?')) return;
+// กดรับงานแทน → หน้าจอเต็มจอ ตรวจเราเตอร์ก่อน (router.js) · เราเตอร์ดับ = ไม่ให้สลับ ให้รอ
+async function promote(skip) {
   $('#promote').disabled = true; $('#promote').textContent = 'กำลังสลับ…';
-  const r = await fetch('/api/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  const r = await fetch('/api/promote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(skip ? { router: 'skip' } : {}) });
   const j = await r.json();
-  if (!r.ok) { alert(j.error); $('#promote').textContent = 'ใช้เครื่องนี้เป็นเครื่องหลัก'; tick(); return; }
+  if (!r.ok) {
+    $('#promote').textContent = 'ใช้เครื่องนี้เป็นเครื่องหลัก'; tick();
+    if (j.router && window.edposRouter) edposRouter.down('blocked', j.router === 'wifi' ? 'wifi' : 'router', { force: () => promote(true) });
+    else alert(j.error);
+    return;
+  }
   location.href = '/';
+}
+$('#promote').onclick = async () => {
+  if (window.edposRouter ? !(await edposRouter.confirmSwitch()) : !confirm('ให้เครื่องนี้รับงานแทนเครื่องหลัก?')) return;
+  promote();
 };
+window.edposRouter?.watch('standby');   // เครื่องสำรองหลุด Wi-Fi หรือเราเตอร์ดับ = ขึ้นหน้าจอเต็มจอให้รอ
 tick(); setInterval(tick, 2000);
 </script>
 </body>

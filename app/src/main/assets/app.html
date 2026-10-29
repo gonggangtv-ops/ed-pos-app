@@ -153,7 +153,8 @@
   <section id="v-offline" hidden>
     <div class="center">
       <div class="pulse"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M2 8.8a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16.2a5 5 0 0 1 6 0"/><path d="M3 3l18 18"/></svg></div>
-      <h1>ติดต่อเซิร์ฟเวอร์ไม่ได้</h1>
+      <h1 id="offTitle">ติดต่อเซิร์ฟเวอร์ไม่ได้</h1>
+      <p id="offRouter" hidden style="font-size:22px;font-weight:700;color:#c83a2f;margin:4px 0 2px"></p>
       <p id="offWhere"></p>
       <p id="offHint">ค้นหาในวง Wi-Fi นี้แล้วไม่เจอเครื่องหลัก · ตรวจว่าแท็บเล็ตเครื่องหลักเปิดอยู่ แอป MAMA POS ยังทำงาน และต่อ Wi-Fi ร้านเดียวกัน</p>
       <pre class="log" id="offLog" hidden style="text-align:left"></pre>
@@ -300,6 +301,18 @@ function startCountdown() {
   $('#offWhere').textContent = cfg.server === 'main' ? 'เซิร์ฟเวอร์ในเครื่องนี้ยังไม่ตอบ'
     : 'ลองแล้ว: ' + [cfg.main, cfg.server === 'standby' ? 'เครื่องนี้' : cfg.standby].filter(Boolean).map(short).join(' และ ');
   if (cfg.server === 'main' && A) { $('#offHint').textContent = 'บันทึกเซิร์ฟเวอร์ด้านล่าง (ส่งรูปหน้าจอนี้ให้ผู้ดูแลได้)'; $('#offLog').hidden = false; $('#offLog').textContent = A.serverLog() || '(ยังไม่มีบันทึก)'; }
+  // เครื่องนี้หลุด Wi-Fi / เราเตอร์ไม่ตอบ → บอกตัวใหญ่ให้รอ (เครื่องหลักไม่ได้พัง อย่าสลับเครื่อง)
+  if (A && A.netCheck && cfg.server !== 'main') {
+    window.edposNet = r => {
+      const wifi = r && r.wifi === false, bad = wifi || (r && r.gwOk === false);
+      $('#offTitle').textContent = bad ? (wifi ? 'เครื่องนี้ไม่ได้ต่อ Wi-Fi' : 'เราเตอร์ / Wi-Fi ดับ') : 'ติดต่อเซิร์ฟเวอร์ไม่ได้';
+      $('#offRouter').hidden = !bad;
+      $('#offRouter').textContent = wifi ? 'เปิด Wi-Fi แล้วต่อ Wi-Fi ของร้าน' : 'รอสักครู่ แอปจะต่อกลับเอง · อย่าสลับไปเครื่องสำรอง';
+      if (bad) $('#offHint').textContent = wifi ? 'ถ้าเครื่องอื่นในร้านก็ต่อไม่ได้เหมือนกัน = เราเตอร์ดับ ให้รอ'
+        : 'ข้อมูลร้านไม่หาย · เกิน 3 นาที: ดูไฟเราเตอร์ ถอดปลั๊ก 10 วินาที แล้วเสียบใหม่';
+    };
+    try { A.netCheck(); } catch {}
+  }
   let n = 5; clearInterval(cd);
   const tick = () => { $('#offCount').textContent = `ลองเชื่อมต่อใหม่ใน ${n} วินาที…`; if (n-- <= 0) { clearInterval(cd); $('#offCount').textContent = 'กำลังเชื่อมต่อ…'; A && A.retry(); } };
   tick(); cd = setInterval(tick, 1000);

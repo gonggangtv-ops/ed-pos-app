@@ -355,7 +355,7 @@
 </main>
 
 <script src="common.js"></script>
-<script src="failover.js"></script>
+<script src="router.js"></script><script src="failover.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -1355,6 +1355,10 @@ function evText(e) {
     case 'printer': return e.ok ? ['ok', `เครื่องพิมพ์ ${pn(e.p)} กลับมาพิมพ์ได้`] : ['bad', `เครื่องพิมพ์ ${pn(e.p)} พิมพ์ไม่ออก · ${e.err || ''}`];
     case 'standby': return e.ok ? ['ok', 'เครื่องสำรองกลับมาเชื่อม'] : ['bad', 'เครื่องสำรองหลุด (ไม่ได้คัดลอกข้อมูลเกิน 2 นาที)'];
     case 'takeover': return ['bad', 'เครื่องนี้รับงานแทนเครื่องหลัก'];
+    case 'merge': return [e.review?.length ? 'bad' : 'ok', `รวมออเดอร์จากเครื่องหลักเดิม ${e.items || 0} จาน · ${e.bills || 0} บิล`
+      + (e.review?.length ? ` · ⚠ ต้องตรวจ: ${e.review.map(esc).join(' / ')}` : '')];
+    case 'yield': return [e.ok ? '' : 'bad', `เครื่องนี้กลับมาเจอเครื่องหลักใหม่ (${esc(e.to || '')}) → เป็นเครื่องสำรอง · `
+      + (e.ok ? `ส่งออเดอร์ไปรวม ${e.items || 0} จาน · ${e.bills || 0} บิล` : `ส่งออเดอร์ไปรวมไม่สำเร็จ · ข้อมูลเดิมอยู่ในไฟล์สำรอง ${esc(e.file || '')}`)];
     case 'line': return ['bad', `ส่ง LINE ไม่สำเร็จ · ${e.err || ''}`];
     case 'battery': return ['bad', `แบตเครื่องหลักต่ำ ${e.pct}% และไม่ได้ชาร์จ`];
     case 'unplug': return ['bad', `ถอดสายชาร์จเครื่องหลัก (แบต ${e.pct}%)`];

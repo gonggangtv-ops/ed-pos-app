@@ -655,8 +655,11 @@ try {
 } catch {}
 // ค้นหาเครื่องของร้านนี้ในวง: ตะโกนถามก่อน · ไม่เจอที่ต้องการ → ไล่ถาม /api/role ทุกเลขในวง (x.x.x.1–254)
 // คืนรายการ [{ url, role, epoch }] ของร้านเดียวกัน (ไม่รวมเครื่องนี้) · stop(j) = เจอเครื่องที่ต้องการแล้ว หยุดค้น
+// การ์ดเครือข่ายในวง Wi-Fi/LAN ของร้าน (ไม่นับเน็ตมือถือ rmnet/ccmni)
+const lanIfs = () => Object.entries(os.networkInterfaces()).filter(([n]) => !/^(rmnet|ccmni|pdp|v4-rmnet|dummy|tun)/.test(n))
+  .flatMap(([, l]) => l || []).filter(i => i && i.family === 'IPv4' && !i.internal && /^(10|172\.(1[6-9]|2\d|3[01])|192\.168)\./.test(i.address));
 async function discover(shop, stop) {
-  const lan = Object.values(os.networkInterfaces()).flat().filter(i => i && i.family === 'IPv4' && !i.internal && /^(10|172\.(1[6-9]|2\d|3[01])|192\.168)\./.test(i.address));
+  const lan = lanIfs();
   const mine = new Set(lan.map(i => i.address)), seen = new Map();
   const add = (ip, j) => {
     if (!j || !j.role || mine.has(ip) || (shop && j.shop !== shop)) return false;
@@ -691,6 +694,32 @@ async function discover(shop, stop) {
 }
 const discoverMain = async shop => (await discover(shop, j => j.role === 'main')).find(j => j.role === 'main')?.url || null;
 
+// ================= ตรวจเราเตอร์ / Wi-Fi =================
+// เครื่องในวงตอบ = ต่อ TCP ได้ หรือถูกปฏิเสธทันที (ECONNREFUSED = มีเครื่องอยู่ แค่ไม่ได้เปิดพอร์ตนั้น)
+const tcpAlive = (host, port, ms = 800) => new Promise(done => {
+  let fin = false;
+  const s = net.connect({ host, port });
+  const end = v => { if (fin) return; fin = true; clearTimeout(t); s.destroy(); done(v); };
+  s.on('connect', () => end(true));
+  s.on('error', e => end(e.code === 'ECONNREFUSED'));
+  const t = setTimeout(() => end(false), ms);
+});
+let netHint = { gw: '', at: 0 };   // แอปในเครื่องนี้บอก IP เราเตอร์ตัวจริง (ส่งมากับ /api/role?gw=)
+// ok = เครื่องนี้ต่อ Wi-Fi อยู่ และมีอย่างน้อยหนึ่งเครื่องในวงตอบ (เราเตอร์ .1/.254 · IP เราเตอร์ที่แอปบอก · เครื่องพิมพ์)
+async function netProbe() {
+  const lan = lanIfs();
+  if (!lan.length) return { ok: false, why: 'wifi' };
+  const sub = a => a.split('.').slice(0, 3).join('.');
+  const subs = new Set(lan.map(i => sub(i.address))), mine = new Set(lan.map(i => i.address)), hosts = new Map();
+  const add = (h, ports) => { if (h && subs.has(sub(h)) && !mine.has(h)) hosts.set(h, [...new Set([...(hosts.get(h) || []), ...ports])]); };
+  if (netHint.gw && Date.now() - netHint.at < 15 * 60000) add(netHint.gw, [80, 53, 443]);
+  for (const p of subs) { add(p + '.1', [80, 53, 443]); add(p + '.254', [80, 53, 443]); }
+  for (const pr of data.settings.printers || []) if (pr.ip) add(String(pr.ip).trim(), [+pr.port || 9100]);
+  const tries = [...hosts].flatMap(([h, ps]) => ps.map(pt => tcpAlive(h, pt)));
+  const ok = tries.length ? (await Promise.all(tries)).some(Boolean) : true;
+  return { ok, why: ok ? '' : 'router' };
+}
+
 // เครื่องสำรอง: ดึงข้อมูลล่าสุด
 async function syncTick() {
   if (role.role !== 'standby') return;
@@ -707,7 +736,7 @@ async function syncTick() {
     repl.needPair = false;
     if (j.role !== 'main') { repl.syncErr = 'เครื่องที่ตั้งไว้ไม่ได้เป็นเครื่องหลัก'; return; }
     if (j.data) {
-      data = j.data; saveRaw(); broadcast();
+      data = j.data; data.syncedAt = Date.now(); saveRaw(); broadcast();
       if (role.key) { delete role.key; saveRole(); }   // ข้อมูลชุดนี้มีกุญแจของเครื่องหลักแล้ว
     }
     repl.lastSync = Date.now(); repl.syncErr = ''; repl.failSince = 0;
@@ -739,11 +768,132 @@ async function peerTick() {
     repl.conflict = j.role === 'main' && j.epoch === data.epoch;
     if (j.role === 'main' && j.epoch > data.epoch) {
       console.log(`เครื่อง ${peer} รับงานแทนแล้ว → เครื่องนี้เปลี่ยนเป็นเครื่องสำรอง`);
-      role = { role: 'standby', peer }; saveRole(); broadcast(); syncTick();
+      await yieldTo(peer);
     }
   } catch { repl.peerRole = null; }
 }
 setInterval(peerTick, 5000);
+
+// ================= เครื่องหลักเดิมกลับมา: ส่งออเดอร์ที่ทำระหว่างแยกกันไปรวม แล้วเป็นเครื่องสำรอง =================
+// (เช่น แท็บเล็ตเครื่องหลักหลุด Wi-Fi แต่พนักงานยังสั่งที่เครื่องนี้ ขณะที่อีกเครื่องรับงานแทนไปแล้ว)
+// 1) เก็บข้อมูลทั้งหมดของเครื่องนี้ไว้ใน backup/data-split-*.json ก่อน (กู้คืนเองได้ที่ หลังร้าน > สำรองข้อมูล)
+// 2) ส่งบิลที่เปิดอยู่/ปิดภายใน 24 ชม. ไปให้เครื่องหลักตัวใหม่รวม (POST /api/merge) · เครื่องนั้นเลือกเองว่าอะไรใหม่
+// 3) เปลี่ยนเป็นเครื่องสำรอง → ข้อมูลเครื่องนี้ถูกแทนด้วยของเครื่องหลักตัวใหม่ (ที่รวมแล้ว)
+let yielding = false;
+async function yieldTo(url) {
+  if (yielding || role.role !== 'main') return;
+  yielding = true;
+  try {
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
+    try { fs.mkdirSync(BACKUP_DIR, { recursive: true }); fs.writeFileSync(path.join(BACKUP_DIR, `data-split-${stamp}.json`), JSON.stringify(data)); } catch {}
+    const since = Date.now() - 24 * 3600000;
+    const orders = data.orders.filter(o => o.status === 'open' || o.createdAt >= since || (o.paidAt || o.voidedAt || 0) >= since);
+    const ids = new Set(orders.map(o => o.id));
+    const body = JSON.stringify({ mergeId: crypto.randomBytes(8).toString('hex'), from: myUrls()[0] || '', orders, items: data.items.filter(i => ids.has(i.orderId)) });
+    let res = null;
+    for (let t = 0; t < 3 && !res; t++) {
+      try {
+        const r = await fetch(`${url}/api/merge`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Sync-Key': syncKey() }, body, signal: AbortSignal.timeout(10000) });
+        const j = await r.json();
+        if (r.ok) res = j; else if (r.status < 500) break;
+      } catch { await new Promise(z => setTimeout(z, 1500)); }
+    }
+    console.log(res ? `ส่งออเดอร์ไปรวมที่ ${url} แล้ว: ${res.items || 0} จาน · ${res.bills || 0} บิล · ต้องตรวจ ${res.review?.length || 0}`
+      : `ส่งออเดอร์ไปรวมที่ ${url} ไม่สำเร็จ · ข้อมูลเดิมเก็บไว้ที่ backup/data-split-${stamp}.json`);
+    healthEvent('yield', { to: url, ok: !!res, items: res?.items || 0, bills: res?.bills || 0, file: `data-split-${stamp}.json` });
+    if (role.role !== 'main') return;
+    role = { role: 'standby', peer: url }; saveRole(); broadcast(); syncTick();
+  } finally { yielding = false; }
+}
+
+// รวมออเดอร์จากเครื่องหลักเดิม (b = { mergeId, from, orders, items } ของเครื่องนั้น)
+// ของเครื่องนี้ตั้งแต่ก่อนแยก (splitAt) มีอยู่แล้ว → รวมเฉพาะที่ทำที่เครื่องเดิมหลังแยก:
+//  · จานที่สั่งเพิ่ม → เข้าบิลเปิดของโต๊ะเดียวกัน (ไม่มี = เปิดบิลใหม่) · ไม่พิมพ์ซ้ำ
+//  · บิลที่ปิด (จ่ายเงิน/ยกเลิกทั้งโต๊ะ) ที่เครื่องเดิม → ปิดที่นี่ด้วย ถ้าที่นี่ไม่ได้แตะโต๊ะนั้น · ทั้งสองเครื่องแตะ → ใส่รายการ "ต้องตรวจ"
+// จานกับบิลจับคู่กันด้วย รหัส+เวลาสร้าง (หลังแยก ทั้งสองเครื่องออกรหัสเลขเดียวกันได้)
+function mergeFrom(b) {
+  const log = (data.mergeLog ||= []);
+  const seen = log.find(x => x.id === b.mergeId);
+  if (seen) return seen;   // ส่งซ้ำ (เช่น รอบก่อนหมดเวลา) → ไม่รวมซ้ำ
+  const cut = (data.splitAt || 0) - 10000;
+  const key = x => x.id + '@' + x.createdAt;
+  const myItems = new Map(data.items.map(i => [key(i), i])), myOrders = new Map(data.orders.map(o => [key(o), o]));
+  const out = { id: b.mergeId, at: Date.now(), from: String(b.from || ''), items: 0, bills: 0, tables: [], review: [] };
+  const tables = new Set();
+  const used = new Set();
+  for (const o of data.orders) { if (o.receiptNo) used.add(o.receiptNo); for (const p of o.payments || []) if (p.receiptNo) used.add(p.receiptNo); }
+  // เลขใบเสร็จชนกับที่นี่ → ออกเลขใหม่ · เลขที่พิมพ์ไปแล้วที่เครื่องเดิมเก็บไว้ใน receiptNoOld (ค้นใบเสร็จเดิมได้)
+  const renum = o => {
+    if (!o.receiptNo) return o;
+    if (used.has(o.receiptNo)) { o.receiptNoOld = o.receiptNo; o.receiptNo = nextReceiptNo(); }
+    used.add(o.receiptNo); return o;
+  };
+  const aItems = Array.isArray(b.items) ? b.items : [];
+  const money = n => '฿' + (Math.round((+n || 0) * 100) / 100).toLocaleString('en-US');
+  const copyItems = (list, order, idMap) => list.forEach(i => {
+    const n = { ...i, id: newId('i'), orderId: order.id, merged: true };
+    idMap[i.id] = n.id; data.items.push(n); out.items++;
+  });
+  const mapPays = (pays, idMap) => (pays || []).map(p => renum({ ...p, lines: p.lines?.map(l => ({ ...l, id: idMap[l.id] || l.id })) }));
+  for (const oa of Array.isArray(b.orders) ? b.orders : []) {
+    if (!oa || !oa.id || !oa.table) continue;
+    const its = aItems.filter(i => i && i.orderId === oa.id);
+    const fresh = its.filter(i => i.createdAt >= cut && !myItems.has(key(i)));
+    const closedAt = oa.status === 'paid' ? oa.paidAt : oa.status === 'void' ? oa.voidedAt : 0;
+    const closedThere = oa.status !== 'open' && closedAt >= cut;
+    const mine = myOrders.get(key(oa));
+    if (!fresh.length && !closedThere) continue;   // ไม่ได้ทำอะไรที่เครื่องเดิมหลังแยก
+    const idMap = {};
+    if (oa.status === 'open') {
+      let t = mine && mine.status === 'open' ? mine : data.orders.find(o => o.table === oa.table && o.status === 'open');
+      if (!t) { t = { ...oa, id: newId('o'), payments: undefined, merged: true }; data.orders.push(t); }
+      copyItems(fresh, t, idMap);
+      t.kdsCleared = false; t.kdsDone = false; t.kdsDoneOn = {};
+      tables.add(oa.table);
+      const paidThere = (oa.payments || []).filter(p => p.at >= cut);
+      if (paidThere.length) out.review.push(`โต๊ะ ${oa.table}: รับเงินบางส่วนที่เครื่องเดิม ${money(paidThere.reduce((s, p) => s + (p.total || p.amount || 0), 0))} · ตรวจยอดที่ค้างอีกครั้ง`);
+      continue;
+    }
+    // บิลปิดที่เครื่องเดิม
+    const what = oa.status === 'paid' ? `ชำระเงิน ${money(oa.total)}` : 'ยกเลิกทั้งโต๊ะ';
+    if (!mine) {
+      // บิลใหม่ที่เปิดและปิดที่เครื่องเดิม (หรือที่นี่ไม่มีบิลนี้) → นำเข้าทั้งบิล
+      if (oa.createdAt < cut) { out.review.push(`โต๊ะ ${oa.table}: ${what} ที่เครื่องเดิม แต่ที่นี่ไม่มีบิลนี้ · ตรวจด้วย`); continue; }
+      const n = { ...oa, id: newId('o'), merged: true };
+      copyItems(its, n, idMap);
+      n.payments = oa.payments ? mapPays(oa.payments, idMap) : undefined;
+      renum(n);
+      data.orders.push(n); out.bills++; tables.add(oa.table);
+      continue;
+    }
+    if (mine.status !== 'open') {
+      // ปิดที่นี่ด้วย: ถ้าปิดแบบเดียวกัน = ปิดก่อนแยก (มีอยู่แล้ว) · ไม่เหมือน = ต้องตรวจ
+      if (!(mine.status === oa.status && Math.abs((mine.total || 0) - (oa.total || 0)) < 0.01))
+        out.review.push(`โต๊ะ ${oa.table}: ปิดบิลทั้งสองเครื่อง (เครื่องเดิม ${what}) · ตรวจว่ารับเงินซ้ำไหม`);
+      continue;
+    }
+    // ที่นี่ยังเปิดอยู่: ที่นี่สั่งเพิ่ม/รับเงินหลังแยกไหม
+    const busyHere = data.items.some(i => i.orderId === mine.id && i.createdAt >= cut && !its.some(x => key(x) === key(i)))
+      || (mine.payments || []).some(p => p.at >= cut);
+    if (busyHere) { copyItems(fresh, mine, idMap); tables.add(oa.table); out.review.push(`โต๊ะ ${oa.table}: เครื่องเดิม${what} แต่ที่นี่มีการสั่ง/รับเงินเพิ่ม · บิลยังเปิดอยู่ ตรวจแล้วปิดเอง`); continue; }
+    copyItems(fresh, mine, idMap);
+    // จานเดิมของบิล: ใช้สถานะจากเครื่องเดิม (เช่น ยกเลิกก่อนจ่าย)
+    for (const i of its) { const m = myItems.get(key(i)); if (m && m.orderId === mine.id) Object.assign(m, { status: i.status, qty: i.qty, price: i.price, doneAt: i.doneAt, cancelledAt: i.cancelledAt, cancelledBy: i.cancelledBy }); }
+    const { id, createdAt, payments, ...close } = oa;
+    Object.assign(mine, close, { payments: payments ? mapPays(payments, idMap) : undefined, merged: true });
+    renum(mine);
+    out.bills++; tables.add(oa.table);
+  }
+  out.tables = [...tables];
+  log.push(out); if (log.length > 10) log.splice(0, log.length - 10);
+  if (out.items || out.bills || out.review.length) {
+    const txt = `รวมออเดอร์จากเครื่องหลักเดิม: ${out.items} จาน · ${out.bills} บิล${out.tables.length ? ` (โต๊ะ ${out.tables.join(', ')})` : ''}`;
+    addEvent('merge', txt);
+    healthEvent('merge', { items: out.items, bills: out.bills, review: out.review });
+    lineAlert('takeover', `🔀 ${txt}${out.review.length ? '\n⚠ ต้องตรวจ:\n· ' + out.review.join('\n· ') : ''}`);
+  }
+  return out;
+}
 
 // เครื่องหลักที่เพิ่งกลับมา (เช่น เราเตอร์ดับ แจก IP ใหม่ให้ทุกเครื่อง) อาจติดต่อเครื่องที่รับงานแทนที่อยู่เดิมไม่ได้
 // → ค้นหาในวง Wi-Fi ว่ามีเครื่องหลักของร้านเดียวกันที่ใหม่กว่า (epoch สูงกว่า) ไหม · เจอ → ลดตัวเองเป็นเครื่องสำรองของเครื่องนั้น
@@ -760,8 +910,7 @@ async function rivalTick() {
     const newer = list.filter(j => j.role === 'main' && j.epoch > data.epoch && !mine.has(j.url)).sort((a, b) => b.epoch - a.epoch)[0];
     if (newer) {
       console.log(`เจอเครื่องหลักที่ใหม่กว่าที่ ${newer.url} (รับงานแทนไปแล้ว) → เครื่องนี้เปลี่ยนเป็นเครื่องสำรอง`);
-      healthEvent('standby', { ok: true, demoted: newer.url });
-      role = { role: 'standby', peer: newer.url }; saveRole(); broadcast(); syncTick();
+      await yieldTo(newer.url);
       return;
     }
     // จำที่อยู่เครื่องสำรองที่เจอไว้ (ให้หน้าจออื่นรู้จัก เผื่อเครื่องนี้ดับ)
@@ -773,6 +922,8 @@ setTimeout(rivalTick, 1500);
 setInterval(rivalTick, 10000);
 
 function noteBattery(q, req) {
+  const gw = String(q?.get('gw') || '');
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(gw) && /^(::1|127\.|::ffff:127\.)/.test(String(req.socket.remoteAddress || ''))) netHint = { gw, at: Date.now() };
   const pct = Number(q?.get('bat'));
   if (!q?.has('bat') || !(pct >= 0 && pct <= 100)) return;
   const ip = String(req.socket.remoteAddress || '');
@@ -825,6 +976,8 @@ function roleInfo() {
     standbySeen: repl.standbySeen, standbyIp: repl.standbyIp, peerRole: repl.peerRole, peerSeen: repl.peerSeen,
     // hasData = มีข้อมูลร้านแล้ว (เคยคัดลอก/ตั้งรหัส)
     finding: !!repl.finding,   // เครื่องสำรองกำลังค้นหาเครื่องหลักในวง Wi-Fi
+    // รวมออเดอร์จากเครื่องหลักเดิมล่าสุด (2 ชม.) → หน้าจอขึ้นการ์ดแจ้งครั้งเดียว
+    merge: (() => { const m = (data.mergeLog || []).at(-1); return m && Date.now() - m.at < 7200000 && (m.items || m.bills || m.review.length) ? m : null; })(),
     conflict: repl.conflict, now: Date.now(), hasData: !!data.auth.admin, tz: new Date().getTimezoneOffset(), needPair: repl.needPair, app: !!process.env.EDPOS_APP, startupWarn,
     pairAsk: Date.now() - repl.pairAsk < 15000 ? repl.pairAskIp : '',
     openTables: data.orders.filter(o => o.status === 'open').length };
@@ -2158,14 +2311,32 @@ const routes = {
     return { ok: true, peer, needPair: repl.needPair };
   },
   // ให้เครื่องสำรองรับงานแทน (ห้ามถ้ายังติดต่อเครื่องหลักได้ กันข้อมูลแยกเป็นสองชุด)
-  'POST /api/promote': b => {
+  // เครื่องหลักเดิมส่งออเดอร์ที่ทำระหว่างแยกกันมารวม (ต้องมีกุญแจคัดลอกข้อมูล = เครื่องของร้านเดียวกัน)
+  'POST /api/merge': (b, q, req) => {
+    if (!syncKeyOk(req.headers['x-sync-key'])) throw new Error('กุญแจไม่ถูกต้อง');
+    if (role.role !== 'main') throw new Error('เครื่องนี้ไม่ใช่เครื่องหลัก');
+    return mergeFrom(b);
+  },
+  'POST /api/promote': async (b, q, req) => {
     if (role.role === 'main') return { ok: true, already: true };
+    // กดจากหน้าจอเครื่องสำรองเอง: ตรวจก่อนว่า Wi-Fi/เราเตอร์ยังอยู่ไหม · เราเตอร์ดับ = เครื่องหลักไม่ได้พัง แค่คุยกันไม่ได้ ห้ามสลับ
+    // (กดจากมือถือเครื่องอื่น = มือถือคุยกับเครื่องนี้ได้ แปลว่าเราเตอร์ทำงานอยู่)
+    if (/^(::1|127\.|::ffff:127\.)/.test(String(req.socket.remoteAddress || '')) && b.router !== 'skip') {
+      const n = await netProbe();
+      if (!n.ok) {
+        const e = new Error(n.why === 'wifi' ? 'เครื่องนี้ไม่ได้ต่อ Wi-Fi · ต่อ Wi-Fi ร้านก่อน ห้ามสลับเครื่อง'
+          : 'เราเตอร์ไม่ตอบ · เครื่องหลักน่าจะยังทำงาน แค่ Wi-Fi ดับ รอเราเตอร์กลับมาก่อน ห้ามสลับเครื่อง');
+        e.router = n.why; throw e;
+      }
+    }
     // ยังไม่เคยคัดลอกข้อมูลร้าน (ไม่มีรหัส/บิล) → รับงานแทนจะได้ร้านเปล่า
     if (!data.auth.admin) throw new Error('เครื่องสำรองนี้ยังไม่เคยคัดลอกข้อมูลจากเครื่องหลัก รับงานแทนไม่ได้ · จับคู่ที่หน้าเครื่องสำรอง (standby.html) ก่อน');
     const ago = Date.now() - repl.lastSync;
     if (repl.lastSync && ago < 8000 && !b.force)
       throw new Error(`เครื่องหลักยังทำงานอยู่ (ซิงก์ล่าสุด ${Math.round(ago / 1000)} วินาทีที่แล้ว) ใช้เครื่องหลักต่อได้เลย`);
     data.epoch = (data.epoch || 1) + 1;
+    // จุดแยก: ข้อมูลที่เครื่องนี้มี = ของเครื่องหลักเดิม ณ เวลานี้ · ถ้าเครื่องเดิมกลับมา จะส่งออเดอร์หลังจุดนี้มารวม (ดู mergeFrom)
+    data.splitAt = repl.lastSync || data.syncedAt || 0;
     role = { role: 'main', peer: role.peer };   // จำเครื่องเก่าไว้ ถ้ากลับมาจะให้มันเป็นเครื่องสำรอง
     saveRole();
     console.log('เครื่องนี้เป็นเครื่องหลักแล้ว');
@@ -2826,7 +2997,7 @@ const routes = {
 
 // ใช้ได้โดยไม่ต้องใส่รหัส: จอครัว (KDS) การสลับเครื่องสำรอง และหน้าใส่รหัสเอง
 const PUBLIC_ROUTES = new Set(['GET /api/auth', 'POST /api/auth/setup', 'POST /api/login', 'GET /api/auth/me',
-  'GET /api/role', 'GET /api/sync', 'POST /api/promote', 'POST /api/sync/key', 'POST /api/standby/pair', 'POST /api/standby/peer',
+  'GET /api/role', 'GET /api/sync', 'POST /api/promote', 'POST /api/merge', 'POST /api/sync/key', 'POST /api/standby/pair', 'POST /api/standby/peer',
   'GET /api/orders', 'POST /api/dish/complete', 'POST /api/order/complete', 'POST /api/kds/clear', 'POST /api/events/clear']);
 // หน้าสั่งอาหาร (รหัสพนักงาน หรือรหัสเจ้าของร้าน)
 const STAFF_ROUTES = new Set(['GET /api/state', 'GET /api/rev', 'GET /api/history', 'POST /api/order', 'POST /api/item/status', 'POST /api/item/cancel',
@@ -2905,7 +3076,7 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify(result || { ok: true }));
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: e.message, ...(e.needApprove ? { needApprove: true } : {}) }));
+        res.end(JSON.stringify({ error: e.message, ...(e.needApprove ? { needApprove: true } : {}), ...(e.router ? { router: e.router } : {}) }));
       }
     });
     return;

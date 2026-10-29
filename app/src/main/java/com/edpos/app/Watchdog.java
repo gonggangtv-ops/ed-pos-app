@@ -64,7 +64,9 @@ public class Watchdog extends BroadcastReceiver {
 
     private static void check(Context c) {
         SharedPreferences p = prefs(c);
-        boolean ok = MainActivity.httpGet(MainActivity.LOCAL + "/api/role" + battery(c), 4000) != null;
+        String q = battery(c), gw = Net.gateway(c);   // + IP เราเตอร์ (เซิร์ฟเวอร์ใช้ตรวจว่าเราเตอร์ดับก่อนให้สลับเครื่อง)
+        if (!gw.isEmpty()) q += (q.isEmpty() ? "?" : "&") + "gw=" + gw;
+        boolean ok = MainActivity.httpGet(MainActivity.LOCAL + "/api/role" + q, 4000) != null;
         int fails = p.getInt("wdFails", 0);
         if (ok) {
             if (fails > 0) {
