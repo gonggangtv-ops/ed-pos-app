@@ -264,110 +264,172 @@ const VOICE = (() => {
   const ICON_MIC = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="2.5" width="7" height="12" rx="3.5" fill="currentColor"/><path d="M5 11.5a7 7 0 0 0 14 0M12 18.5v3M8.5 21.5h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   const ICON_STOP = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5" fill="currentColor"/></svg>';
   const ICON_X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+  const ICON_TUNE = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h9M19 7h1M4 17h3M13 17h7"/><circle cx="16" cy="7" r="2.5"/><circle cx="10" cy="17" r="2.5"/></svg>';
+  const ICON_EDIT = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>';
+  const ICON_SWAP = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4"/></svg>';
+  const ICON_TRASH = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>';
   function css() {
     const s = document.createElement('style');
+    // สีทั้งหมดมาจากธีมของหน้าสั่งอาหาร (classic/green/blue/pink/dark) · เวทีฟังเสียง = สีหลักผสมพื้นการ์ด
     s.textContent = `
-      /* ----- ปุ่มไมค์ลอย (ลากย้ายได้) ----- */
-      .vfab { position: fixed; z-index: 25; width: 64px; height: 64px; border-radius: 50%; padding: 0; display: grid; place-items: center;
-        background: var(--accent); color: var(--accent-ink); border: 3px solid rgba(255,255,255,.92);
-        box-shadow: 0 10px 24px rgba(0,0,0,.28), 0 2px 6px rgba(0,0,0,.18); touch-action: none; user-select: none; -webkit-user-select: none;
+      .vfab, .vsh { --vs-stage: var(--bg); --vs-ring: rgba(0,0,0,.12); --vs-warn-bg: rgba(201,138,0,.12); --vs-bad-bg: rgba(192,57,43,.1); --vs-ok-bg: rgba(47,125,79,.12); }
+      @supports (background: color-mix(in srgb, red 10%, blue)) {
+        .vfab, .vsh { --vs-stage: color-mix(in srgb, var(--accent) 13%, var(--card));
+          --vs-ring: color-mix(in srgb, var(--accent) 26%, transparent);
+          --vs-warn-bg: color-mix(in srgb, var(--warn, #c98a00) 13%, var(--card));
+          --vs-bad-bg: color-mix(in srgb, var(--bad, #c0392b) 12%, var(--card));
+          --vs-ok-bg: color-mix(in srgb, var(--ok, #2f7d4f) 14%, var(--card)); }
+      }
+      /* ----- ปุ่มไมค์ลอย (ลากย้ายได้) · จอกว้างมีคำว่า "สั่งด้วยเสียง" ----- */
+      .vfab { position: fixed; z-index: 25; height: 64px; min-width: 64px; border-radius: 32px; padding: 0; border: 0;
+        display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+        background: var(--accent); color: var(--accent-ink, #fff); font: inherit;
+        box-shadow: 0 0 0 5px var(--vs-ring), 0 10px 26px rgba(0,0,0,.32);
+        touch-action: none; user-select: none; -webkit-user-select: none;
         transition: transform .15s, box-shadow .15s, left .25s cubic-bezier(.2,.8,.2,1), top .25s cubic-bezier(.2,.8,.2,1); }
-      .vfab::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(160deg, rgba(255,255,255,.32), rgba(255,255,255,0) 55%); pointer-events: none; }
-      .vfab svg { width: 30px; height: 30px; position: relative; }
-      .vfab:active { transform: scale(.94); }
-      .vfab.drag { transform: scale(1.1); box-shadow: 0 16px 34px rgba(0,0,0,.35); transition: transform .15s, box-shadow .15s; cursor: grabbing; }
+      .vfab svg { width: 30px; height: 30px; flex: none; }
+      .vfab span { display: none; font-size: 17px; font-weight: 700; white-space: nowrap; }
+      @media (min-width: 821px) { .vfab { padding: 0 24px 0 20px; } .vfab span { display: inline; } }
+      .vfab:active { transform: scale(.95); }
+      .vfab.drag { transform: scale(1.08); box-shadow: 0 0 0 5px var(--vs-ring), 0 18px 36px rgba(0,0,0,.38); transition: transform .15s, box-shadow .15s; cursor: grabbing; }
       .vfab[hidden] { display: none; }
-      :root[data-ot=dark] .vfab { border-color: rgba(255,255,255,.18); }
       .vtip { position: fixed; z-index: 26; background: var(--ink); color: var(--card); font-size: 14px; padding: 8px 12px; border-radius: 10px; pointer-events: none;
         box-shadow: 0 6px 16px rgba(0,0,0,.25); opacity: 0; transition: opacity .3s; white-space: nowrap; }
       .vtip.on { opacity: 1; }
-      /* ----- แผ่นสั่งด้วยเสียง ----- */
-      .vbg { position: fixed; inset: 0; background: rgba(10,10,12,.55); z-index: 45; display: flex; align-items: flex-end; justify-content: center; animation: vfade .18s; }
+
+      /* ----- แผ่นสั่งด้วยเสียง: หัว · เวทีฟังเสียง · ใบรายการ (ขอบหยักแบบใบสั่ง) · ปุ่มล่าง ----- */
+      .vbg { position: fixed; inset: 0; z-index: 45; display: flex; align-items: flex-end; justify-content: center; background: rgba(8,9,11,.6); animation: vfade .18s; }
       @keyframes vfade { from { opacity: 0; } }
-      @keyframes vup { from { transform: translateY(24px); opacity: .4; } }
-      .vsh { background: var(--card); width: min(560px, 100%); max-height: 92vh; max-height: 92dvh; overflow: auto; border-radius: 22px 22px 0 0;
-        padding: 10px 18px 0; display: flex; flex-direction: column; box-shadow: 0 -12px 40px rgba(0,0,0,.25); }
-      .vbg.enter .vsh { animation: vup .22s cubic-bezier(.2,.8,.2,1); }
-      .vsh::before { content: ""; width: 42px; height: 5px; border-radius: 3px; background: var(--line); align-self: center; margin-bottom: 8px; }
-      @media (min-width: 821px) { .vbg { align-items: center; } .vsh { border-radius: 20px; padding-top: 18px; } .vsh::before { display: none; } }
-      .vtop { display: flex; align-items: center; gap: 10px; }
-      .vtop .vbadge { width: 34px; height: 34px; border-radius: 10px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; flex: none; }
-      .vtop .vbadge svg { width: 19px; height: 19px; }
-      .vtop h2 { margin: 0; font-size: 18px; font-weight: 700; flex: 1; line-height: 1.25; }
-      .vtop h2 small { display: block; font-size: 13.5px; font-weight: 500; color: var(--muted); }
-      .vclose { width: 38px; height: 38px; padding: 0; border-radius: 50%; display: grid; place-items: center; color: var(--muted); background: var(--bg); border-color: transparent; }
-      .vclose svg { width: 18px; height: 18px; }
-      /* ไมค์ใหญ่ + วงคลื่นตอนฟัง */
-      .vhero { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px 0 8px; }
-      .vhero.small { flex-direction: row; padding: 14px 0 4px; gap: 16px; }
-      .vbtn { --lv: 0; position: relative; width: 84px; height: 84px; border-radius: 50%; padding: 0; display: grid; place-items: center; flex: none;
-        background: var(--accent); color: var(--accent-ink); border: 0; box-shadow: 0 10px 24px rgba(0,0,0,.22); }
-      .vhero.small .vbtn { width: 62px; height: 62px; }
-      .vbtn svg { width: 36px; height: 36px; position: relative; z-index: 1; } .vhero.small .vbtn svg { width: 28px; height: 28px; }
-      .vbtn::before, .vbtn::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--accent); opacity: 0; }
-      .vbtn.on::before { opacity: .22; transform: scale(calc(1.15 + var(--lv) * .45)); transition: transform .1s linear; }
-      .vbtn.on::after { animation: vring 1.6s ease-out infinite; }
-      @keyframes vring { 0% { opacity: .35; transform: scale(1); } 100% { opacity: 0; transform: scale(1.9); } }
-      @media (prefers-reduced-motion: reduce) { .vbtn.on::after { animation: none; } }
-      .vstat { text-align: center; } .vhero.small .vstat { text-align: left; flex: 1; min-width: 0; }
-      .vstat b { display: block; font-size: 17px; font-weight: 700; }
-      .vstat span { font-size: 14.5px; color: var(--muted); line-height: 1.5; }
-      .vwave { display: inline-flex; gap: 3px; align-items: center; height: 18px; vertical-align: -3px; margin-left: 6px; }
-      .vwave i { width: 3px; border-radius: 2px; background: var(--accent); height: 4px; transition: height .1s; }
-      .vlive { background: var(--bg); border-radius: 14px; padding: 12px 14px; font-size: 17px; line-height: 1.5; margin: 4px 0 2px; min-height: 48px; }
-      .vlive.ph { color: var(--muted); font-size: 15px; }
-      .vex { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-      .vex span { font-size: 13.5px; padding: 4px 10px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); color: var(--ink); }
-      .vmsg.ok { color: var(--ok, #1f8a5b); background: rgba(31,138,91,.10); }
-      .vmsg { display: flex; gap: 8px; align-items: flex-start; color: var(--bad); font-size: 15px; margin: 8px 0 0; padding: 10px 12px; border-radius: 12px; background: rgba(192,57,43,.08); }
-      .vheard { font-size: 13.5px; color: var(--muted); margin: 10px 0 2px; }
-      .vsec { font-size: 13px; font-weight: 700; letter-spacing: .3px; color: var(--muted); margin: 14px 0 4px; display: flex; justify-content: space-between; }
+      @keyframes vup { from { transform: translateY(28px); opacity: .5; } }
+      .vsh { position: relative; width: min(560px, 100%); max-height: 94vh; max-height: 94dvh; display: flex; flex-direction: column;
+        background: var(--card); color: var(--ink); border-radius: 24px 24px 0 0; overflow: hidden; box-shadow: 0 -16px 48px rgba(0,0,0,.35); }
+      .vbg.enter .vsh { animation: vup .24s cubic-bezier(.2,.8,.2,1); }
+      .vsh button { font-family: inherit; }
+      .vhd { display: flex; align-items: center; gap: 10px; padding: 14px 10px 12px 20px; flex: none; }
+      .vhd h2 { margin: 0; font-size: 18px; font-weight: 700; }
+      .vtbl { font-size: 15px; font-weight: 600; padding: 3px 11px; border-radius: 999px; background: var(--bg); }
+      .vhd .vsp { flex: 1; }
+      .vico { width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 0; display: grid; place-items: center; background: transparent; color: var(--muted); flex: none; }
+      .vico svg { width: 22px; height: 22px; }
+      .vico[aria-expanded="true"] { background: var(--bg); color: var(--ink); }
+      .vbody { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+
+      /* เวทีฟังเสียง: คำที่ได้ยินตัวใหญ่ + คลื่นเสียงตามความดังจริง + ปุ่มไมค์ */
+      .vstage { position: relative; margin: 0 12px; padding: 22px 20px 26px; border-radius: 20px 20px 0 0; background: var(--vs-stage); display: flex; flex-direction: column; }
+      /* ขอบบนของใบรายการหยักแบบใบสั่งที่ฉีกออกมา */
+      .vstage::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 9px; background: var(--card);
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='9'%3E%3Cpath d='M0 9 8 1 16 9Z'/%3E%3C/svg%3E") 0 100% / 16px 9px repeat-x;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='9'%3E%3Cpath d='M0 9 8 1 16 9Z'/%3E%3C/svg%3E") 0 100% / 16px 9px repeat-x; }
+      .vlive { font-size: clamp(24px, 6.8vw, 30px); line-height: 1.3; font-weight: 600; min-height: 2.6em; overflow-wrap: anywhere; }
+      .vlive.ph { color: var(--muted); font-weight: 500; }
+      .vstage.on .vlive:not(.ph)::after { content: ""; display: inline-block; width: 3px; height: 1.05em; margin-left: 4px; vertical-align: -.16em; border-radius: 2px; background: var(--accent); animation: vblink 1s steps(1) infinite; }
+      @keyframes vblink { 50% { opacity: 0; } }
+      .vheard2 { font-size: 15px; color: var(--muted); margin: 6px 0 0; overflow-wrap: anywhere; }
+      .vwave { display: flex; align-items: center; justify-content: space-between; height: 46px; margin: 14px 2px 10px; }
+      .vwave i { width: 4px; height: 4px; border-radius: 2px; background: var(--accent); transition: height .12s ease-out; }
+      .vstage.on:not(.lv) .vwave i { animation: vidle 1.3s ease-in-out infinite; animation-delay: calc(var(--i) * -.09s); }
+      @keyframes vidle { 50% { height: 14px; } }
+      .vex { margin: 10px 0 4px; font-size: 16px; line-height: 1.7; color: var(--muted); }
+      .vex q { color: var(--ink); white-space: nowrap; margin-right: 6px; quotes: "“" "”"; }
+      .vex q::before, .vex q::after { color: var(--accent); }
+      .vbtn { --lv: 0; position: relative; align-self: center; width: 88px; height: 88px; margin-top: 14px; border-radius: 50%; border: 0; padding: 0; display: grid; place-items: center; flex: none;
+        background: var(--accent); color: var(--accent-ink, #fff);
+        box-shadow: 0 0 0 calc(6px + var(--lv) * 16px) var(--vs-ring), 0 10px 22px rgba(0,0,0,.28); transition: box-shadow .12s linear, transform .15s; }
+      .vbtn:active { transform: scale(.95); }
+      .vbtn svg { width: 38px; height: 38px; }
+      .vstat { margin: 16px 0 0; text-align: center; font-size: 15px; color: var(--muted); }
+      .vstat b { color: var(--ink); font-weight: 600; }
+      /* มีรายการแล้ว (มือถือ): เวทีย่อ ไมค์อยู่ซ้าย */
+      .vstage.compact { flex-direction: row; align-items: center; gap: 16px; padding: 14px 16px 22px; }
+      .vstage.compact .vbtn { width: 62px; height: 62px; margin: 0; }
+      .vstage.compact .vbtn svg { width: 28px; height: 28px; }
+      .vcue { min-width: 0; flex: 1; } .vcue b { display: block; font-size: 17px; font-weight: 700; }
+      .vcue span { display: block; font-size: 14px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+
+      /* ข้อความแจ้ง */
+      .vmsg { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0 0; padding: 12px 14px; border-radius: 12px; font-size: 15px; line-height: 1.45; color: var(--bad, #c0392b); background: var(--vs-bad-bg); }
+      .vmsg.ok { color: var(--ok, #2f7d4f); background: var(--vs-ok-bg); }
+      .vmsg > span:first-child { font-weight: 700; }
+      .vsug { display: grid; gap: 10px; margin: 14px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--card); font-size: 15px; }
+      .vsug button { min-height: 46px; border-radius: 12px; }
+
+      /* ใบรายการ */
+      .vticket { padding: 18px 20px 6px; }
+      .vthead { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 0 0 4px; }
+      .vthead b { font-size: 16px; font-weight: 700; } .vthead span { font-size: 14px; color: var(--muted); }
       .vlist { list-style: none; margin: 0; padding: 0; }
-      .vlist li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 11px 0; border-top: 1px solid var(--line); }
+      .vlist li { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-items: start; padding: 12px 0 12px 14px; border-top: 1px dashed var(--line); }
       .vlist li:first-child { border-top: 0; }
-      .vlist li b { font-size: 17px; font-weight: 600; }
-      .vlist li small { display: block; color: var(--muted); font-size: 14px; margin-top: 1px; }
-      .vlist li.out b { text-decoration: line-through; color: var(--muted); }
-      .vlist li small.bad { color: var(--bad); }
-      .vlist li small.ask { color: var(--warn); font-weight: 600; }
+      .vlist li::before { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 4px; border-radius: 2px; background: var(--line); }
+      .vlist li.fresh::before { background: var(--accent); }
+      .vlist li.land { animation: vland .7s ease-out; }
+      @keyframes vland { from { background: var(--vs-stage); transform: translateY(-4px); } }
+      .vrow { display: block; width: 100%; text-align: left; padding: 0; border: 0; background: none; color: inherit; min-height: 44px; cursor: pointer; }
+      .vname { display: block; font-size: 19px; font-weight: 700; line-height: 1.3; }
+      .vlist li.out .vname { text-decoration: line-through; color: var(--muted); }
+      .vopts { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+      .vopts i { font-style: normal; font-size: 14px; font-weight: 500; line-height: 1.5; padding: 1px 9px; border-radius: 7px; background: var(--bg); }
+      .vopts i.ta { background: var(--vs-stage); color: var(--accent); font-weight: 600; }
+      .vnote { display: block; margin-top: 6px; font-size: 14px; font-weight: 600; color: var(--warn, #c98a00); }
+      .vnote.bad { color: var(--bad, #c0392b); }
       .vq { display: flex; align-items: center; background: var(--bg); border-radius: 999px; padding: 3px; }
-      .vq button { width: 36px; height: 36px; padding: 0; border-radius: 50%; border: 0; background: var(--card); font-size: 18px; font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
-      .vq span { min-width: 34px; text-align: center; font-weight: 700; font-size: 18px; color: var(--accent); }
-      .vx { width: 36px; height: 36px; padding: 0; border-radius: 50%; display: grid; place-items: center; color: var(--muted); background: transparent; border-color: transparent; }
-      .vx svg { width: 16px; height: 16px; }
-      .vunk { margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: rgba(201,138,0,.10); border: 1px solid rgba(201,138,0,.28); }
-      .vunk p { margin: 0 0 8px; font-size: 15px; }
-      .vunk .vc { display: flex; flex-wrap: wrap; gap: 6px; } .vunk .vc button { padding: 8px 14px; font-size: 15px; border-radius: 999px; }
-      .vunk .vc button.no { color: var(--muted); background: transparent; }
-      .vlearn { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); margin: 10px 0 0; }
-      .vfoot { position: sticky; bottom: 0; background: var(--card); display: flex; gap: 10px; padding: 12px 0 max(14px, env(safe-area-inset-bottom)); margin-top: 12px; border-top: 1px solid var(--line); }
-      .vfoot button { flex: 1; min-height: 52px; border-radius: 14px; }
-      .vfoot button.primary { flex: 2; }
-      .vempty { color: var(--muted); font-size: 15px; margin: 8px 0; }
-      .vhold { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 13.5px; color: var(--muted); }
-      .vhold span { margin-right: 2px; }
-      .vhold button { padding: 4px 11px; font-size: 13.5px; border-radius: 999px; min-height: 0; }
-      .vhold button[aria-pressed="true"] { background: var(--ink); color: var(--card); border-color: var(--ink); }
-      .vq button:disabled, .vx:disabled { opacity: .35; }
-      .vsug { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 0; padding: 12px; border-radius: 12px; background: var(--bg); font-size: 14.5px; }
-      .vsug button { min-height: 44px; border-radius: 12px; }
-      .vset { margin: 8px 0 0; } .vset summary { cursor: pointer; font-size: 13.5px; color: var(--muted); padding: 4px 0; }
-      .vlist li .vacts, .vlist li .vswap { grid-column: 1 / -1; }
-      .vacts { display: flex; gap: 6px; margin-top: -2px; }
-      .vacts button { padding: 5px 12px; font-size: 14px; border-radius: 999px; min-height: 0; color: var(--ink); background: var(--bg); border-color: transparent; }
-      .vlist li .vacts button[aria-expanded="true"] { background: var(--accent); color: var(--accent-ink, #fff); border-color: var(--accent); }
+      .vq button { width: 38px; height: 38px; padding: 0; border-radius: 50%; border: 0; background: var(--card); color: var(--ink); font-size: 20px; font-weight: 700; line-height: 1; box-shadow: 0 1px 2px rgba(0,0,0,.14); }
+      .vq span { min-width: 32px; text-align: center; font-weight: 700; font-size: 19px; color: var(--accent); font-variant-numeric: tabular-nums; }
+      .vq button:disabled { opacity: .35; }
+      .vacts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+      .vacts button { min-height: 40px; padding: 0 14px; border-radius: 10px; border: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 15px; background: var(--bg); color: var(--ink); }
+      .vacts button svg { width: 17px; height: 17px; flex: none; }
+      .vacts button.del { color: var(--bad, #c0392b); margin-left: auto; width: 44px; padding: 0; justify-content: center; }
+      .vacts button.del svg { width: 20px; height: 20px; }
+      .vacts button[aria-expanded="true"] { background: var(--accent); color: var(--accent-ink, #fff); }
       .vacts button:disabled { opacity: .4; }
-      .vlist li.fresh { background: var(--bg); border-radius: 14px; padding: 12px; margin: 6px 0; border: 2px solid var(--accent); }
-      .vlist li.fresh + li { border-top: 0; }
-      .vnew { display: inline-block; font-style: normal; font-size: 12px; font-weight: 700; color: var(--accent-ink); background: var(--accent); border-radius: 999px; padding: 1px 8px; margin: 0 6px 4px 0; vertical-align: 2px; }
-      .vlist li.fresh .vq { background: var(--card); } .vlist li.fresh .vacts button { background: var(--card); }
-      .vswap { background: var(--bg); border-radius: 12px; padding: 10px; }
-      .vlist li.fresh .vswap { background: var(--card); }
-      .vswap input { width: 100%; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); font: inherit; font-size: 16px; margin-bottom: 8px; background: var(--card); color: var(--ink); }
-      .vswap .vsaid { margin: 6px 0 0; font-size: 15px; } .vswap .vlearn { margin-top: 12px; justify-content: flex-start; text-align: left; }
-      .vswap .vlearn input[type=checkbox] { width: 20px; height: 20px; margin: 0; padding: 0; flex: none; accent-color: var(--accent); }
-      .vswap .vc { display: flex; flex-wrap: wrap; gap: 6px; } .vswap .vc button { padding: 7px 12px; font-size: 15px; border-radius: 999px; }
-      .vnone { color: var(--muted); font-size: 14px; }`;
+      .vswap { grid-column: 1 / -1; margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--bg); }
+      .vswap input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); font: inherit; font-size: 16px; background: var(--card); color: var(--ink); }
+      .vswap input[type=search] { margin-bottom: 10px; }
+      .vswap .vc { display: flex; flex-wrap: wrap; gap: 8px; }
+      .vc button { min-height: 40px; padding: 0 14px; border-radius: 10px; font-size: 15px; background: var(--card); border: 1px solid var(--line); color: var(--ink); }
+      .vc button.no { background: transparent; color: var(--muted); border-style: dashed; }
+      .vswap .vsaid { margin-top: 8px; font-size: 15px; }
+      .vlearn { display: flex; align-items: center; gap: 10px; min-height: 40px; margin: 10px 0 0; font-size: 14.5px; color: var(--muted); }
+      .vlearn input[type=checkbox] { width: 20px; height: 20px; margin: 0; padding: 0; flex: none; accent-color: var(--accent); }
+      .vunk { margin: 12px 0 0; padding: 14px 16px; border-radius: 14px; background: var(--vs-warn-bg); }
+      .vunk p { margin: 0 0 10px; font-size: 15.5px; } .vunk p b { font-weight: 700; }
+      .vunk .vc { display: flex; flex-wrap: wrap; gap: 8px; }
+      .vempty { color: var(--muted); font-size: 15px; margin: 6px 0; }
+      .vwait { color: var(--muted); font-size: 16px; text-align: center; margin: auto 0; padding: 30px 10px; }
+      .vnone { color: var(--muted); font-size: 14px; }
+
+      /* ตั้งค่าการฟัง (แผงลอยใต้ปุ่มปรับ) */
+      .vset { position: absolute; z-index: 3; top: 62px; left: 12px; right: 12px; max-width: 460px; margin-left: auto; padding: 16px; border-radius: 16px;
+        background: var(--card); border: 1px solid var(--line); box-shadow: 0 16px 40px rgba(0,0,0,.35); display: grid; gap: 14px; }
+      .vset .vrowset { display: grid; gap: 7px; } .vset .vrowset > span { font-size: 14px; color: var(--muted); }
+      .vseg { display: flex; flex-wrap: wrap; gap: 6px; }
+      .vseg button { min-height: 40px; padding: 0 14px; border-radius: 999px; font-size: 15px; background: var(--card); border: 1px solid var(--line); color: var(--ink); }
+      .vseg button[aria-pressed="true"] { background: var(--ink); color: var(--card); border-color: var(--ink); font-weight: 600; }
+      .vset .vsvc { font-size: 13.5px; color: var(--muted); margin: 0; }
+
+      /* ปุ่มล่าง */
+      .vfoot { flex: none; display: flex; gap: 10px; padding: 12px 16px max(14px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--card); }
+      .vfoot button { flex: 1; min-height: 54px; border-radius: 14px; font-size: 17px; }
+      .vfoot button.primary { flex: 2; font-weight: 700; }
+      .vfoot button.primary:disabled { opacity: .45; }
+
+      /* แท็บเล็ต/จอกว้าง: เวทีฟังเสียงซ้าย · ใบรายการขวา */
+      @media (min-width: 900px) {
+        .vbg { align-items: center; }
+        .vsh { width: min(980px, 94vw); height: min(680px, 90vh); border-radius: 24px; display: grid;
+          grid-template-columns: 400px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: "hd hd" "stage ticket" "stage foot"; }
+        .vhd { grid-area: hd; padding-left: 24px; }
+        .vbody { display: contents; }
+        .vstage { grid-area: stage; margin: 0 0 18px 18px; border-radius: 20px; justify-content: center; overflow-y: auto; }
+        .vstage::after { display: none; }
+        .vticket { grid-area: ticket; overflow-y: auto; padding: 4px 24px 12px; display: flex; flex-direction: column; }
+        .vfoot { grid-area: foot; border-top: 0; padding: 10px 24px 18px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .vbg, .vbg.enter .vsh, .vlist li.land, .vstage.on .vlive:not(.ph)::after, .vstage.on:not(.lv) .vwave i { animation: none !important; }
+        .vbtn, .vwave i { transition: none; }
+      }`;
     document.head.appendChild(s);
   }
 
@@ -376,12 +438,13 @@ const VOICE = (() => {
   let pos = null;   // {side: 'l'|'r', y: 0–1 (ตำแหน่งจากบนเทียบความสูงจอ)} · null = มุมขวาล่าง
   try { pos = JSON.parse(localStorage.getItem(POS_KEY) || 'null'); } catch {}
   const mobile = () => innerWidth <= 820;
+  const fw = () => fab?.offsetWidth || SIZE, fh = () => fab?.offsetHeight || SIZE;   // ขนาดปุ่มจริง (จอกว้างเป็นปุ่มยาว)
   // ขอบที่วางได้: มือถือเว้นแถบล่าง (ยอด/ส่งออเดอร์) · จอกว้างฝั่งขวาเว้นบิล
   function bounds() {
     const bill = document.querySelector('.bill'), r = bill && !mobile() ? bill.getBoundingClientRect() : null;
     const top = (document.querySelector('header')?.getBoundingClientRect().bottom || 0) + 8;
-    const bottom = innerHeight - SIZE - (mobile() ? 86 : EDGE);
-    return { left: EDGE, right: (r ? r.left : innerWidth) - SIZE - EDGE, top, bottom };
+    const bottom = innerHeight - fh() - (mobile() ? 86 : EDGE);
+    return { left: EDGE, right: (r ? r.left : innerWidth) - fw() - EDGE, top, bottom };
   }
   function place() {
     const b = bounds(), first = !fab.dataset.placed;
@@ -394,7 +457,7 @@ const VOICE = (() => {
   function makeFab() {
     css();
     fab = document.createElement('button');
-    fab.className = 'vfab'; fab.innerHTML = ICON_MIC;
+    fab.className = 'vfab'; fab.innerHTML = ICON_MIC + '<span>สั่งด้วยเสียง</span>';
     fab.setAttribute('aria-label', 'สั่งด้วยเสียง (ลากเพื่อย้ายปุ่ม)');
     document.body.appendChild(fab);
     let drag = null, moved = false;
@@ -407,15 +470,15 @@ const VOICE = (() => {
       if (!drag) return;
       if (!moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 8) return;   // ขยับนิดเดียว = แตะ
       moved = true; fab.classList.add('drag'); hideTip();
-      fab.style.left = Math.min(innerWidth - SIZE, Math.max(0, e.clientX - drag.dx)) + 'px';
-      fab.style.top = Math.min(innerHeight - SIZE, Math.max(0, e.clientY - drag.dy)) + 'px';
+      fab.style.left = Math.min(innerWidth - fw(), Math.max(0, e.clientX - drag.dx)) + 'px';
+      fab.style.top = Math.min(innerHeight - fh(), Math.max(0, e.clientY - drag.dy)) + 'px';
     });
     const up = () => {
       if (!drag) return;
       drag = null; fab.classList.remove('drag');
       if (!moved) return;
       const r = fab.getBoundingClientRect(), b = bounds();
-      pos = { side: r.left + SIZE / 2 < (b.left + b.right + SIZE) / 2 ? 'l' : 'r', y: Math.round(Math.min(b.bottom, Math.max(b.top, r.top)) / innerHeight * 1000) / 1000 };
+      pos = { side: r.left + fw() / 2 < (b.left + b.right + fw()) / 2 ? 'l' : 'r', y: Math.round(Math.min(b.bottom, Math.max(b.top, r.top)) / innerHeight * 1000) / 1000 };
       try { localStorage.setItem(POS_KEY, JSON.stringify(pos)); } catch {}
       place();
     };
@@ -434,7 +497,7 @@ const VOICE = (() => {
     const t = tip = document.createElement('div'); t.className = 'vtip'; t.textContent = 'แตะเพื่อสั่งด้วยเสียง · ลากเพื่อย้ายปุ่ม';
     document.body.appendChild(t);
     const r = fab.getBoundingClientRect();
-    t.style.top = (r.top + SIZE / 2 - 18) + 'px';
+    t.style.top = (r.top + fh() / 2 - 18) + 'px';
     // ปุ่มชิดซ้าย → ป้ายอยู่ขวาของปุ่ม · ชิดขวา → ป้ายอยู่ซ้าย
     requestAnimationFrame(() => { t.style.left = (r.left < innerWidth / 2 ? r.right + 10 : Math.max(8, r.left - t.offsetWidth - 10)) + 'px'; t.classList.add('on'); });
     setTimeout(hideTip, 4500);
@@ -448,7 +511,8 @@ const VOICE = (() => {
     if (!fab.hidden) { place(); if (was) showTip(); } else hideTip();
   }
   function openSheet() {
-    Object.assign(st, { open: true, live: '', heard: '', msg: '', items: [], unk: [], allTa: false, thai: false, fresh: new Set(), swapK: null, q: '', setOpen: false, swLearn: true });
+    Object.assign(st, { open: true, live: '', heard: '', msg: '', items: [], unk: [], allTa: false, thai: false, fresh: new Set(), swapK: null, q: '', setOpen: false, swLearn: true,
+      openK: null, landed: new WeakSet(), gotLevel: false });
     // เลื่อนขึ้นเฉพาะตอนเปิดครั้งแรก (วาดใหม่ระหว่างฟังต้องไม่เด้ง)
     sheet = document.createElement('div'); sheet.className = 'vbg enter';
     setTimeout(() => sheet?.classList.remove('enter'), 400);
@@ -480,7 +544,7 @@ const VOICE = (() => {
     st.suggest = false;
     Object.assign(ses, { on: true, stop: false, push, segs: [], last: Date.now(), start: Date.now(), got: false, heard: false, miss: 0, loud: false, reopened: false, skipEnd: false,
       base: { items: st.items.slice(), unk: st.unk.slice(), allTa: st.allTa, thai: st.thai } });
-    st.msg = ''; st.live = ''; st.listening = true; st.swapK = null; draw();
+    st.msg = ''; st.live = ''; st.listening = true; st.swapK = null; st.setOpen = false; st.gotLevel = false; st.level = 0; draw();
     startRec();
   }
   function startRec() {
@@ -505,6 +569,8 @@ const VOICE = (() => {
     }
     st.fresh = new Set([...r.items, ...(r.cont ? [r.cont] : [])]);
     st.items = [...items, ...r.items]; st.unk = [...b.unk, ...r.unk];
+    const fr = st.items.filter(x => st.fresh.has(x));
+    st.openK = fr.length === 1 ? st.items.indexOf(fr[0]) : null;   // ได้ยินจานเดียว → เปิดปุ่มแก้ของจานนั้นไว้ให้ตรวจ
     st.allTa = b.allTa || r.allTa; st.thai = b.thai || r.thai;
     st.heard = text;
     ses.got = !!(r.items.length || r.cont || r.unk.length);
@@ -539,70 +605,103 @@ const VOICE = (() => {
     return ms.length ? ms.map(m => `<button data-v="swapto" data-k="${k}" data-m="${m.id}">${esc(m.name)}</button>`).join('') : '<span class="vnone">ไม่พบเมนู</span>';
   }
   const nAdd = () => st.items.filter(x => x.m.available !== false).length;
+  const wide = () => matchMedia('(min-width: 900px)').matches;
+  const WAVE_N = 26;
+  // ป้ายตัวเลือกของจาน: "ขนาด M" (ตัวย่อ) · "ไม่ใส่ไข่" (กลุ่มที่ขึ้นต้นด้วย ไม่) · หมายเหตุ · กลับบ้าน
+  const optChips = x => [
+    ...x.choices.map(c => { const g = groupsOf(x.m).find(g => g.choices.some(y => y.name === c)); return !g ? c : /^ไม่/.test(g.name) ? `${g.name}${c}` : /^[a-z0-9]{1,3}$/i.test(c) ? `${g.name} ${c}` : c; }).map(t => `<i>${esc(t)}</i>`),
+    ...x.notes.map(t => `<i>${esc(t)}</i>`),
+    ...(x.ta || st.allTa ? ['<i class="ta">กลับบ้าน</i>'] : [])].join('');
   function draw() {
     if (!sheet) return;
     const tbl = typeof tableName === 'function' ? tableName(current) : current;
-    const choiceTxt = x => [...x.choices.map(c => { const g = groupsOf(x.m).find(g => g.choices.some(y => y.name === c)); return !g ? c : /^ไม่/.test(g.name) ? `${g.name}${c}` : /^[a-z0-9]{1,3}$/i.test(c) ? `${g.name} ${c}` : c; }), ...x.notes, ...(x.ta || st.allTa ? ['กลับบ้าน'] : [])].join(' · ');
-    const small = st.items.length || st.unk.length;
-    const status = st.listening && engine === 'google' ? '<b>พูดในหน้าต่างของ Google</b><span>พูดจบแล้วจะกลับมาที่นี่ให้ตรวจ</span>'
-      : st.listening ? `<b>กำลังฟัง<span class="vwave">${'<i></i>'.repeat(5)}</span></b><span>${ses.push ? 'ปล่อยนิ้วเมื่อพูดจบ' : mode === 'one' ? 'พูดหนึ่งเมนู + ตัวเลือก + จำนวน · หยุดพูดแล้วไมค์จะหยุดให้ตรวจ' : hold ? `พูดต่อได้เรื่อยๆ · เงียบ ${hold / 1000} วินาที หรือแตะ ■ = จบ` : 'พูดต่อได้เรื่อยๆ · แตะ ■ เมื่อพูดจบ'}</span>`
-      : st.fresh.size ? '<b>ถูกไหม? ถ้าถูก แตะไมค์พูดเมนูถัดไป</b><span>ไม่ถูก แก้ที่รายการ (ตัวเลือก / เปลี่ยนเมนู / จำนวน) หรือพูดต่อ เช่น “ที่ใหญ่ เผ็ดน้อย”</span>'
-      : small ? '<b>แตะไมค์เพื่อพูดเพิ่ม</b><span>หรือตรวจรายการด้านล่างแล้วกดใส่รายการ</span>'
-      : `<b>แตะไมค์แล้วพูดได้เลย</b><span>${mode === 'one' ? 'พูดทีละเมนู พูดจบแล้วไมค์จะหยุดให้ตรวจ' : 'พูดต่อกันได้หลายเมนู'} · กดค้าง = พูดตลอดที่กด</span>`;
+    const has = st.items.length || st.unk.length;
+    const compact = !st.listening && has && !wide();
     const dis = st.listening ? 'disabled' : '';
     const sofar = st.listening ? liveText() : '';
-    const scroll = sheet.querySelector('.vsh')?.scrollTop || 0;
-    sheet.innerHTML = `<div class="vsh" role="dialog" aria-modal="true" aria-label="สั่งด้วยเสียง">
-      <div class="vtop"><span class="vbadge">${ICON_MIC}</span><h2>สั่งด้วยเสียง<small>${esc(tbl)}</small></h2><button class="vclose" data-v="close" aria-label="ปิด">${ICON_X}</button></div>
-      <div class="vhero ${small ? 'small' : ''}"><button class="vbtn ${st.listening ? 'on' : ''}" data-v="mic" aria-label="${st.listening ? 'หยุดฟัง' : 'พูด'}">${st.listening ? ICON_STOP : ICON_MIC}</button>
-        <div class="vstat" aria-live="polite">${status}</div></div>
-      ${st.listening || !small ? `<div class="vlive ${st.listening && (st.live || ses.segs.length) ? '' : 'ph'}">${sofar ? esc(sofar) : 'ตัวอย่าง'}${!st.listening && !small ? `<div class="vex"><span>ปลาเผา 2</span><span>ช้างใหญ่ 3</span><span>กะเพราไก่ที่เล็ก เผ็ดน้อย ราดข้าว</span><span>ข้าวสวย 4 กลับบ้าน</span></div>` : ''}</div>` : ''}
-      <details class="vset" ${st.setOpen ? 'open' : ''}><summary data-v="set">ตั้งค่าการฟัง · ${MODES.find(x => x[0] === mode)[1]} · เงียบ ${HOLDS.find(x => x[0] === hold)[1]}</summary>
-        ${hasDialog() ? `<div class="vhold"><span>วิธีฟัง</span>${ENGINES.map(([e, t]) => `<button data-v="engine" data-e="${e}" aria-pressed="${e === engine}">${t}</button>`).join('')}</div>` : ''}
-        <div class="vhold"><span>วิธีพูด</span>${MODES.map(([m, t]) => `<button data-v="mode" data-m="${m}" aria-pressed="${m === mode}">${t}</button>`).join('')}</div>
-        <div class="vhold"><span>หยุดฟังเองเมื่อเงียบ</span>${HOLDS.map(([ms, t]) => `<button data-v="hold" data-h="${ms}" aria-pressed="${ms === hold}">${t}</button>`).join('')}</div>
-        ${st.svc ? `<p class="vheard">ตัวแปลงเสียง: ${esc({ 'com.google.android.googlequicksearchbox': 'Google', 'com.google.android.tts': 'Google (ในเครื่อง)', 'com.google.android.as': 'Google (ในเครื่อง)' }[st.svc] || st.svc)}</p>` : ''}</details>
-      ${st.msg ? (/^จำแล้ว/.test(st.msg) ? `<p class="vmsg ok" role="status"><span>✓</span><span>${esc(st.msg)}</span></p>` : `<p class="vmsg" role="alert"><span>⚠</span><span>${esc(st.msg)}</span></p>`) : ''}
-      ${st.suggest && engine === 'app' && !st.listening ? `<div class="vsug"><span>ไมค์ได้ยินเสียง แต่แปลเป็นคำไม่ได้ · ลองใช้หน้าต่างฟังของ Google แทน (มักได้ผลกับเครื่องที่เป็นแบบนี้)</span><button class="primary" data-v="useg">ใช้หน้าต่าง Google</button></div>` : ''}
-      ${st.heard && !st.listening ? `<p class="vheard">ได้ยินว่า “${esc(st.heard)}”</p>` : ''}
-      ${st.items.length ? `<div class="vsec"><span>รายการที่ได้ยิน</span><span>${st.items.reduce((a, x) => a + (x.m.available === false ? 0 : x.qty), 0)} จาน</span></div><ul class="vlist">${st.items.map((x, k) => {
-        const out = x.m.available === false;
-        const ask = askOf(x);
-        const fresh = st.fresh.has(x) && !st.listening;
-        return `<li class="${out ? 'out' : ''} ${fresh ? 'fresh' : ''}"><div>${fresh ? '<em class="vnew">เพิ่งได้ยิน</em>' : ''}<b>${esc(x.m.name)}</b>${out ? '<small class="bad">หมด · จะไม่ใส่รายการ</small>' : choiceTxt(x) ? `<small>${esc(choiceTxt(x))}</small>` : ''}${!out && ask.length ? `<small class="ask">จะถาม: ${esc(ask.join(' · '))}</small>` : ''}</div>
-          <div class="vq">${out ? '' : `<button data-v="minus" data-k="${k}" aria-label="ลด" ${dis}>−</button><span>${x.qty}</span><button data-v="plus" data-k="${k}" aria-label="เพิ่ม" ${dis}>+</button>`}</div>
-          <button class="vx" data-v="del" data-k="${k}" aria-label="เอาออก" ${dis}>${ICON_X}</button>
-          <div class="vacts">${out ? '' : `<button data-v="opts" data-k="${k}" ${dis}>✎ แก้ตัวเลือก</button>`}<button data-v="swap" data-k="${k}" aria-expanded="${st.swapK === k}" ${dis}>⇄ เปลี่ยนเมนู</button></div>
-          ${st.swapK === k ? `<div class="vswap"><input type="search" data-v="q" placeholder="ค้นหาเมนู" value="${esc(st.q)}" autocomplete="off"><div class="vc" id="vswapList">${swapChips(x, k)}</div>
-            ${x.said ? `<label class="vlearn"><input type="checkbox" data-v="swlearn" ${st.swLearn ? 'checked' : ''}> จำไว้ ครั้งหน้าพูดคำนี้ = เมนูที่เลือก</label>
-              <input class="vsaid" data-v="said" value="${esc(x.said)}" aria-label="คำที่พูด (แก้ได้)" autocomplete="off">` : ''}</div>` : ''}</li>`; }).join('')}</ul>`
-        : !st.listening && st.heard && !st.unk.length ? '<p class="vempty">ไม่พบชื่อเมนูในที่พูด ลองพูดใหม่ช้าๆ ใกล้เครื่อง</p>' : ''}
-      ${st.unk.map((u, k) => { const c = candidates(u.text);
-        return `<div class="vunk"><p>ไม่แน่ใจ “<b>${esc(u.text)}</b>”${u.qty ? ` × ${u.qty}` : ''} หมายถึง</p>
-          <div class="vc">${c.map(m => `<button data-v="pick" data-k="${k}" data-m="${m.id}" ${dis}>${esc(m.name)}</button>`).join('')}
-          <button class="no" data-v="skip" data-k="${k}">${c.length ? 'ไม่ใช่ทั้งหมด' : 'ไม่พบเมนูที่ใกล้เคียง · ข้าม'}</button></div></div>`; }).join('')}
-      ${st.unk.length ? `<label class="vlearn"><input type="checkbox" data-v="learn" ${st.learn ? 'checked' : ''}> จำคำนี้ไว้ ครั้งหน้าพูดแบบเดิมจะรู้จักเลย</label>` : ''}
-      ${st.items.length ? `<p class="vheard">ตรวจรายการแล้วกด “ใส่รายการ” · เมนูที่ยังไม่ได้บอกตัวเลือก จะถามทีละจาน · ยังไม่ส่งครัวจนกว่าจะกดส่งออเดอร์</p>` : ''}
+    const scroll = sheet.querySelector('.vbody')?.scrollTop || 0, tscroll = sheet.querySelector('.vticket')?.scrollTop || 0;
+    // คำแนะนำบรรทัดเดียวตามสถานะ
+    const hint = st.listening ? (engine === 'google' ? '<b>พูดในหน้าต่างของ Google</b>' : ses.push ? 'ปล่อยนิ้วเมื่อพูดจบ'
+        : mode === 'one' ? 'หยุดพูดแล้วไมค์จะหยุดให้ตรวจ' : hold ? `พูดต่อได้หลายเมนู · เงียบ ${hold / 1000} วินาทีจะหยุดเอง` : 'พูดต่อได้หลายเมนู · แตะ ■ เมื่อจบ')
+      : 'กดค้างไว้ = พูดได้ตลอดที่กด';
+    const msg = st.msg ? (/^จำแล้ว/.test(st.msg) ? `<p class="vmsg ok" role="status"><span>✓</span><span>${esc(st.msg)}</span></p>`
+      : `<p class="vmsg" role="alert"><span>!</span><span>${esc(st.msg)}</span></p>`) : '';
+    const sug = st.suggest && engine === 'app' && !st.listening ? `<div class="vsug"><span>ไมค์ได้ยินเสียงแต่แปลเป็นคำไม่ได้ ลองใช้หน้าต่างฟังของ Google</span><button class="primary" data-v="useg">ใช้หน้าต่าง Google</button></div>` : '';
+    const mic = `<button class="vbtn ${st.listening ? 'on' : ''}" data-v="mic" aria-label="${st.listening ? 'หยุดฟัง' : 'แตะแล้วพูด'}">${st.listening ? ICON_STOP : ICON_MIC}</button>`;
+    // เวทีฟังเสียง
+    const stage = compact
+      ? `<section class="vstage compact">${mic}<div class="vcue" aria-live="polite"><b>แตะไมค์ พูดเมนูถัดไป</b>${st.heard ? `<span>ได้ยิน “${esc(st.heard)}”</span>` : ''}</div></section>`
+      : `<section class="vstage ${st.listening ? 'on' : ''} ${st.gotLevel ? 'lv' : ''}">
+          <div class="vlive ${st.listening ? (st.live || ses.segs.length ? '' : 'ph') : 'ph'}" aria-live="polite">${st.listening ? esc(sofar) : has ? 'แตะไมค์ พูดเมนูถัดไป' : 'แตะไมค์ แล้วพูดชื่อเมนู'}</div>
+          ${!st.listening && st.heard ? `<p class="vheard2">ได้ยิน “${esc(st.heard)}”</p>` : ''}
+          ${st.listening ? `<div class="vwave" aria-hidden="true">${Array.from({ length: WAVE_N }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div>`
+            : !has ? `<p class="vex">เช่น <q>ผัดไทยไก่ ที่ใหญ่ เผ็ดน้อย</q> <q>ข้าวสวย 2</q> <q>ช้างใหญ่ 3 กลับบ้าน</q></p>` : ''}
+          ${mic}<p class="vstat">${hint}</p>${msg}${sug}</section>`;
+    // ใบรายการ
+    const rows = st.items.map((x, k) => {
+      const out = x.m.available === false, ask = askOf(x);
+      const fresh = st.fresh.has(x) && !st.listening;
+      const land = fresh && !st.landed.has(x); if (land) st.landed.add(x);
+      const open = st.openK === k && !st.listening;
+      return `<li class="${out ? 'out' : ''} ${fresh ? 'fresh' : ''} ${land ? 'land' : ''}">
+        <button class="vrow" data-v="row" data-k="${k}" aria-expanded="${open}" ${dis}><span class="vname">${esc(x.m.name)}</span>
+          ${optChips(x) ? `<span class="vopts">${optChips(x)}</span>` : ''}
+          ${out ? '<span class="vnote bad">หมดแล้ว · ไม่ใส่รายการ</span>' : ask.length ? `<span class="vnote">ยังต้องเลือก: ${esc(ask.join(', '))}</span>` : ''}</button>
+        <div class="vq">${out ? '' : `<button data-v="minus" data-k="${k}" aria-label="ลดจำนวน" ${dis}>−</button><span>${x.qty}</span><button data-v="plus" data-k="${k}" aria-label="เพิ่มจำนวน" ${dis}>+</button>`}</div>
+        ${open ? `<div class="vacts">${out ? '' : `<button data-v="opts" data-k="${k}">${ICON_EDIT}แก้ตัวเลือก</button>`}<button data-v="swap" data-k="${k}" aria-expanded="${st.swapK === k}">${ICON_SWAP}เปลี่ยนเมนู</button><button class="del" data-v="del" data-k="${k}" aria-label="เอาออก" title="เอาออก">${ICON_TRASH}</button></div>` : ''}
+        ${open && st.swapK === k ? `<div class="vswap"><input type="search" data-v="q" placeholder="ค้นหาเมนู" value="${esc(st.q)}" autocomplete="off"><div class="vc" id="vswapList">${swapChips(x, k)}</div>
+          ${x.said ? `<label class="vlearn"><input type="checkbox" data-v="swlearn" ${st.swLearn ? 'checked' : ''}> จำไว้ ครั้งหน้าพูดคำนี้ = เมนูที่เลือก</label>
+            <input class="vsaid" data-v="said" value="${esc(x.said)}" aria-label="คำที่พูด (แก้ได้)" autocomplete="off">` : ''}</div>` : ''}</li>`; }).join('');
+    const unks = st.unk.map((u, k) => { const c = candidates(u.text);
+      return `<div class="vunk"><p>ไม่รู้จัก “<b>${esc(u.text)}</b>”${u.qty ? ` × ${u.qty}` : ''} ${c.length ? 'หมายถึงเมนูไหน' : ''}</p>
+        <div class="vc">${c.map(m => `<button data-v="pick" data-k="${k}" data-m="${m.id}" ${dis}>${esc(m.name)}</button>`).join('')}
+        <button class="no" data-v="skip" data-k="${k}">${c.length ? 'ไม่ใช่ทั้งหมด' : 'ไม่พบเมนูที่ใกล้เคียง · ข้าม'}</button></div></div>`; }).join('');
+    const n = st.items.reduce((a, x) => a + (x.m.available === false ? 0 : x.qty), 0);
+    const ticket = st.items.length || st.unk.length || (st.heard && !st.listening) || wide()
+      ? `<section class="vticket">
+          ${st.items.length ? `<div class="vthead"><b>รายการ ${n} จาน</b><span>ยังไม่ส่งครัว</span></div><ul class="vlist">${rows}</ul>`
+            : !st.listening && st.heard && !st.unk.length ? '<p class="vempty">ไม่พบชื่อเมนูในที่พูด ลองพูดใหม่ช้าๆ ใกล้เครื่อง</p>'
+            : !st.unk.length ? '<p class="vwait">เมนูที่พูดจะขึ้นที่นี่ ตรวจแล้วค่อยใส่รายการ</p>' : ''}
+          ${unks}
+          ${st.unk.length ? `<label class="vlearn"><input type="checkbox" data-v="learn" ${st.learn ? 'checked' : ''}> จำคำนี้ไว้ ครั้งหน้าพูดแบบเดิมจะรู้จักเลย</label>` : ''}
+          ${compact ? msg : ''}</section>` : '';
+    const settings = st.setOpen ? `<div class="vset" role="group" aria-label="ตั้งค่าการฟัง">
+        <div class="vrowset"><span>วิธีพูด</span><div class="vseg">${MODES.map(([m, t]) => `<button data-v="mode" data-m="${m}" aria-pressed="${m === mode}">${t}</button>`).join('')}</div></div>
+        <div class="vrowset"><span>หยุดฟังเองเมื่อเงียบ</span><div class="vseg">${HOLDS.map(([ms, t]) => `<button data-v="hold" data-h="${ms}" aria-pressed="${ms === hold}">${t}</button>`).join('')}</div></div>
+        ${hasDialog() ? `<div class="vrowset"><span>วิธีฟัง</span><div class="vseg">${ENGINES.map(([e, t]) => `<button data-v="engine" data-e="${e}" aria-pressed="${e === engine}">${t}</button>`).join('')}</div></div>` : ''}
+        ${st.svc ? `<p class="vsvc">ตัวแปลงเสียง: ${esc({ 'com.google.android.googlequicksearchbox': 'Google', 'com.google.android.tts': 'Google (ในเครื่อง)', 'com.google.android.as': 'Google (ในเครื่อง)' }[st.svc] || st.svc)}</p>` : ''}</div>` : '';
+    sheet.innerHTML = `<div class="vsh" role="dialog" aria-modal="true" aria-label="สั่งด้วยเสียง โต๊ะ ${esc(tbl)}">
+      <div class="vhd"><h2>สั่งด้วยเสียง</h2><span class="vtbl">${esc(tbl)}</span><span class="vsp"></span>
+        <button class="vico" data-v="set" aria-expanded="${!!st.setOpen}" aria-label="ตั้งค่าการฟัง">${ICON_TUNE}</button>
+        <button class="vico" data-v="close" aria-label="ปิด">${ICON_X}</button></div>
+      ${settings}
+      <div class="vbody">${stage}${ticket}</div>
       <div class="vfoot"><button data-v="close">ยกเลิก</button>
         <button class="primary" data-v="add" ${nAdd() && !st.listening ? '' : 'disabled'}>ใส่รายการ${nAdd() ? ` (${nAdd()})` : ''}</button></div></div>`;
-    const vsh = sheet.querySelector('.vsh'); if (vsh) vsh.scrollTop = scroll;
+    const b = sheet.querySelector('.vbody'); if (b) b.scrollTop = scroll;
+    const t = sheet.querySelector('.vticket'); if (t && wide()) t.scrollTop = tscroll;
     paintLevel();
   }
   // ข้อความที่ได้ยินระหว่างพูด: เปลี่ยนเฉพาะกล่องข้อความ (ไม่วาดทั้งแผ่น)
   function liveText() {
     const t = [...ses.segs, st.live].filter(Boolean).join(' ');
-    return t || (ses.miss >= 2 ? 'ยังไม่ได้ยินเสียงพูด · พูดใกล้ๆ เครื่อง และดูว่าเคสไม่ได้บังรูไมค์' : '…');
+    return t || (ses.miss >= 2 ? 'ยังไม่ได้ยินเสียงพูด · พูดใกล้ๆ เครื่อง และดูว่าเคสไม่ได้บังรูไมค์' : 'พูดได้เลย…');
   }
   function paintLive() {
     const el = sheet?.querySelector('.vlive'); if (!el) return draw();
     el.textContent = liveText(); el.classList.toggle('ph', !st.live && !ses.segs.length);
   }
-  // ความดังเสียง → วงรอบไมค์ขยาย + แท่งคลื่น 5 แท่ง (ไม่วาดทั้งแผ่นใหม่)
-  const WAVE = [0.55, 0.85, 1, 0.8, 0.6];
+  // ความดังเสียง → วงรอบไมค์ขยาย + คลื่นเสียง (ตรงกลางสูงกว่าขอบ) · ไม่วาดทั้งแผ่นใหม่
   function paintLevel() {
     if (!sheet) return;
-    sheet.querySelector('.vbtn')?.style.setProperty('--lv', st.level);
-    sheet.querySelectorAll('.vwave i').forEach((b, i) => { b.style.height = Math.round(4 + st.level * 14 * WAVE[(i + Math.round(Date.now() / 120)) % 5]) + 'px'; });
+    sheet.querySelector('.vbtn')?.style.setProperty('--lv', st.listening ? st.level : 0);
+    const bars = sheet.querySelectorAll('.vwave i'); if (!bars.length || !st.gotLevel) return;
+    const t = Date.now() / 140;
+    bars.forEach((b, i) => {
+      const env = Math.sin(Math.PI * (i + .5) / bars.length) ** .7;
+      const jit = .45 + .55 * Math.abs(Math.sin(t + i * 1.9) * Math.cos(t * .7 + i * .8));
+      b.style.height = Math.round(4 + st.level * 40 * env * jit) + 'px';
+    });
   }
   function onClick(e) {
     const b = e.target.closest('[data-v]'); if (!b || !sheet?.contains(b)) return;
@@ -622,7 +721,8 @@ const VOICE = (() => {
     if (st.listening && v !== 'add') return;   // ระหว่างฟังแก้รายการไม่ได้ (รายการยังเปลี่ยนตามที่พูด)
     if (v === 'minus') st.items[k].qty = Math.max(1, st.items[k].qty - 1);
     if (v === 'plus') st.items[k].qty = Math.min(99, st.items[k].qty + 1);
-    if (v === 'del') { st.items.splice(k, 1); st.swapK = null; }
+    if (v === 'del') { st.items.splice(k, 1); st.swapK = null; st.openK = null; }
+    if (v === 'row') { st.openK = st.openK === k ? null : k; st.swapK = null; }   // แตะจาน = เปิด/ปิดปุ่มแก้
     if (v === 'swap') { st.swapK = st.swapK === k ? null : k; st.q = ''; }
     if (v === 'swapto') {
       const x = st.items[k], m = S.menu.find(y => y.id === b.dataset.m);
@@ -709,7 +809,11 @@ const VOICE = (() => {
     if (!st.open || !ses.on) return;
     if (ev.type === 'ready' || ev.type === 'start') { if (st.listening) return; st.listening = true; }   // ฟังใหม่ต่อเนื่อง: ไม่ต้องวาดใหม่
     else if (ev.type === 'info') { st.svc = ev.svc || ''; return; }
-    else if (ev.type === 'level') { st.level = ev.v || 0; if (st.level > 0.3) ses.loud = true; paintLevel(); return; }
+    else if (ev.type === 'level') {
+      st.level = ev.v || 0; if (st.level > 0.3) ses.loud = true;
+      if (!st.gotLevel) { st.gotLevel = true; sheet?.querySelector('.vstage')?.classList.add('lv'); }   // มีความดังเสียงจริง → เลิกคลื่นวนเอง
+      paintLevel(); return;
+    }
     else if (ev.type === 'partial') { st.live = ev.text || ''; if (st.live) { ses.last = Date.now(); ses.heard = true; } paintLive(); return; }
     else if (ev.type === 'result') {
       // ผลสุดท้ายว่าง (บางเครื่องส่งข้อความมาแค่ระหว่างพูด) → ใช้ข้อความที่ได้ยินล่าสุด
