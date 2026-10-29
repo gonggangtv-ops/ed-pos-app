@@ -233,18 +233,19 @@ public class MainActivity extends Activity {
     // โหมดเซิร์ฟเวอร์: เครื่องหลักเปิดจากเครื่องนี้เลย (รอเซิร์ฟเวอร์ในเครื่องพร้อมได้ถึง 40 วินาที)
     //                เครื่องสำรองลองเครื่องหลักก่อน ไม่ได้ค่อยใช้เครื่องนี้
     private void openServer() {
-        final String mode = serverMode();
         foundStandby = null;
-        final List<String> tryList = new ArrayList<>();
-        if ("main".equals(mode)) tryList.add(LOCAL);
-        else {
-            if (!main().isEmpty()) tryList.add(main());
-            if ("standby".equals(mode)) tryList.add(LOCAL);
-            else if (!standby().isEmpty()) tryList.add(standby());
-        }
-        if ("main".equals(mode)) showPage("starting");
-        final String mainAddr = main();
+        if ("main".equals(serverMode())) showPage("starting");
         new Thread(() -> {
+            followRole();
+            final String mode = serverMode();
+            final List<String> tryList = new ArrayList<>();
+            if ("main".equals(mode)) tryList.add(LOCAL);
+            else {
+                if (!main().isEmpty()) tryList.add(main());
+                if ("standby".equals(mode)) tryList.add(LOCAL);
+                else if (!standby().isEmpty()) tryList.add(standby());
+            }
+            final String mainAddr = main();
             String ok = null;
             for (String b : tryList) {
                 // เครื่องอื่น: ลองซ้ำ (เครื่องสำรอง 3 ครั้ง · หน้าจออย่างเดียว 2 ครั้ง) เผื่อ Wi-Fi เพิ่งต่อ/เครื่องหลักกำลังเปิด
@@ -280,6 +281,29 @@ public class MainActivity extends Activity {
                 applyLock(true);
             });
         }).start();
+    }
+
+    /**
+     * เซิร์ฟเวอร์ในเครื่องนี้เปลี่ยนหน้าที่เอง (เครื่องสำรองถูกกด "รับงานแทน" / เครื่องหลักเก่ากลับมาแล้วลดเป็นเครื่องสำรอง)
+     * → ปรับค่าในหน้าตั้งค่าแอปให้ตรง ไม่ต้องไปเปลี่ยนเอง (เรียกจาก thread อื่น)
+     */
+    private void followRole() {
+        String mode = serverMode();
+        if (!"main".equals(mode) && !"standby".equals(mode)) return;
+        String r = httpGet(LOCAL + "/api/role", 1500);
+        if (r == null) return;
+        String now = roleOf(r);
+        if (now.equals(mode) || (!"main".equals(now) && !"standby".equals(now))) return;
+        if ("main".equals(now)) {
+            // เครื่องนี้รับงานแทนแล้ว · เครื่องหลักเดิมจำไว้เป็นเครื่องสำรอง
+            prefs.edit().putString("server", "main").putString("standby", main()).putString("main", "").apply();
+        } else {
+            String peer = "";
+            try { peer = normalize(new org.json.JSONObject(r).optString("peer")); } catch (Exception ignored) { }
+            prefs.edit().putString("server", "standby").putString("main", peer).apply();
+        }
+        Watchdog.log(this, "เครื่องนี้เปลี่ยนเป็น" + ("main".equals(now) ? "เครื่องหลัก" : "เครื่องสำรอง") + "แล้ว → ปรับหน้าตั้งค่าแอปให้ตรง");
+        ui.post(() -> { try { startService(new Intent(this, NodeService.class)); } catch (Exception ignored) { } });   // อัปเดตข้อความแจ้งเตือน
     }
 
     private static String roleOf(String json) {
@@ -534,6 +558,7 @@ public class MainActivity extends Activity {
     private class Bridge {
         @JavascriptInterface
         public String getConfig() {
+            followRole();   // เปิดหน้าตั้งค่า → แสดงหน้าที่จริงของเครื่องนี้ (อาจเพิ่งสลับเครื่อง)
             try {
                 JSONObject o = new JSONObject();
                 o.put("main", main());

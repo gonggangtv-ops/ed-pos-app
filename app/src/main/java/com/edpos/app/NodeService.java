@@ -96,6 +96,8 @@ public class NodeService extends Service {
             Process.killProcess(Process.myPid());
             return START_STICKY;
         }
+        // แอปขอ (เช่น เครื่องนี้เปลี่ยนเป็นเครื่องหลัก/สำรอง) → เขียนข้อความแจ้งเตือนใหม่ให้ตรง
+        if (started) { try { getSystemService(NotificationManager.class).notify(NOTIF_ID, notification()); } catch (Exception ignored) { } }
         if (!started) {
             started = true;
             holdLocks();
