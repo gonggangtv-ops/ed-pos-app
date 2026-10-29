@@ -44,7 +44,7 @@ const VOICE = (() => {
     return (a ? NUM[a] : 1) * 10 + (b ? NUM[b] : 0);
   };
   // ลักษณนาม (ตามหลังจำนวน) และคำเชื่อม/คำสุภาพที่ข้ามได้
-  const UNIT = ['ที่', 'จาน', 'แก้ว', 'ขวด', 'ชุด', 'ถ้วย', 'ชาม', 'ตัว', 'อัน', 'กล่อง', 'ห่อ', 'ถุง', 'ลูก', 'ไม้', 'เหยือก', 'ชิ้น', 'โถ', 'หม้อ', 'ถาด', 'กระป๋อง', 'ทาวเวอร์'];
+  const UNIT = ['ที่', 'จาน', 'แก้ว', 'ขวด', 'ชุด', 'ถ้วย', 'ชาม', 'ตัว', 'อัน', 'กล่อง', 'ห่อ', 'ถุง', 'ลูก', 'ไม้', 'เหยือก', 'ชิ้น', 'โถ', 'หม้อ', 'ถาด', 'กระป๋อง', 'ทาวเวอร์', 'ฟอง'];
   const FILL = ['แล้วก็', 'เอา', 'ขอ', 'ครับ', 'คับ', 'ค่ะ', 'คะ', 'จ้า', 'จ้ะ', 'นะ', 'ด้วย', 'แล้ว', 'และ', 'กับ', 'อีก', 'หน่อย', 'ให้', 'สั่ง', 'ก็'];
   const SKIP = [...UNIT, ...FILL].sort((a, b) => b.length - a.length);
   const NOTE_WORDS = ['ไม่เผ็ด', 'เผ็ดน้อย', 'เผ็ดมาก', 'ไม่ใส่ผัก', 'ไม่ผัก', 'ไม่หวาน', 'หวานน้อย', 'ไม่ใส่น้ำแข็ง', 'แยกน้ำแข็ง', 'ไม่ใส่ผงชูรส', 'พิเศษ'];
@@ -88,6 +88,10 @@ const VOICE = (() => {
         out.push({ key: k, choice: c.name, pri: 3 });
         const cut = k.replace(/\d.*$/, '');   // "ไข่เจียว1ฟอง" → พูดแค่ "ไข่เจียว" ก็ได้
         if (cut.length >= 2 && cut !== k) out.push({ key: cut, choice: c.name, pri: 2.5 });
+        // ชื่อตัวเลือกมีคำประกอบ: "ไข่ดาว (ฟรี)" "แถมไข่ดาว" "ไข่ดาวไม่คิดเงิน" → พูดแค่ "ไข่ดาว" ก็เป็นตัวเลือกนี้ (ไม่ใช่เมนูไข่ดาวที่สั่งแยก)
+        const core = norm(String(c.name).replace(/\(.*?\)|\[.*?\]/g, '')).replace(/^(แถม|เพิ่ม|ใส่|ฟรี)/, '')
+          .replace(/(ฟรี|แถม|ไม่คิดเงิน|ไม่เสียเงิน|ไม่คิดตังค์|ไม่ชาร์จ|\+?\d+บาท|\+?\d+)$/, '');
+        if (core.length >= 2 && core !== k && core !== cut) out.push({ key: core, choice: c.name, pri: 2.5 });
         for (const w of SYN[k] || []) out.push({ key: norm(w), choice: c.name, pri: 2.5 });
       }
     }
@@ -476,6 +480,12 @@ const VOICE = (() => {
     if (text && !r.items.length && items.length) {
       const r2 = parse(text, items[items.length - 1]);
       if (r2.cont) { items[items.length - 1] = r2.cont; r = r2; }
+    }
+    // พูดแค่ชื่อที่เป็นตัวเลือกของจานล่าสุด (เช่น "ไข่ดาว" หลังผัดกะเพรา ที่มีตัวเลือกไข่ดาว) → ใส่เป็นตัวเลือกของจานนั้น
+    // ไม่ใช่สั่งเมนูไข่ดาวแยก · พูดจำนวนด้วย ("ไข่ดาวสองฟอง") = สั่งแยกจริง
+    else if (text && r.items.length === 1 && !r.unk.length && items.length && !/\d|หนึ่ง|นึง|สอง|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|สิบ/.test(norm(text))) {
+      const last = items[items.length - 1], r2 = parse(text, last);
+      if (r2.cont && !r2.items.length && !r2.unk.length && r2.cont.choices.length > last.choices.length) { items[items.length - 1] = r2.cont; r = r2; }
     }
     st.fresh = new Set([...r.items, ...(r.cont ? [r.cont] : [])]);
     st.items = [...items, ...r.items]; st.unk = [...b.unk, ...r.unk];
