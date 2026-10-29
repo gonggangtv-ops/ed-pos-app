@@ -12,7 +12,9 @@ const VOICE = (() => {
   // ---------- แยกคำ ----------
   const TH_DIG = '๐๑๒๓๔๕๖๗๘๙';
   // สะกดต่างกันแต่หมายถึงคำเดียวกัน (ตัวแปลงเสียงสะกดได้หลายแบบ) → ทำให้เป็นแบบเดียวกันทั้งชื่อเมนูและคำที่ได้ยิน
-  const SPELL = [[/กระเพราะ|กะเพราะ|กระเพรา|กะเพา|กระเพา/g, 'กะเพรา'], [/ซีอิ้ว|ซีอิว/g, 'ซีอิ๊ว'], [/กระหรี่/g, 'กะหรี่'], [/ไซซ์|ไซต์|ไซด์|ไซ้ส์/g, 'ไซส์']];
+  // ไทย/ไท (ผัดไท) · พัด/ผัด (พัดไทย)
+  const SPELL = [[/กระเพราะ|กะเพราะ|กระเพรา|กะเพา|กระเพา/g, 'กะเพรา'], [/ซีอิ้ว|ซีอิว/g, 'ซีอิ๊ว'], [/กระหรี่/g, 'กะหรี่'], [/ไซซ์|ไซต์|ไซด์|ไซ้ส์/g, 'ไซส์'],
+    [/ไทย/g, 'ไท'], [/พัด/g, 'ผัด']];
   const norm = s => SPELL.reduce((t, [re, to]) => t.replace(re, to),
     String(s || '').toLowerCase().replace(/[๐-๙]/g, d => TH_DIG.indexOf(d)).replace(/[\s.,!?'"“”()\-ๆ]/g, ''));
   // คำพูดที่หมายถึงตัวเลือก (ใช้เมื่อเมนูนั้นไม่มีตัวเลือกชื่อนี้ตรงๆ) เช่น "ที่เล็ก" = ขนาด S · "ไม่เผ็ด" = ไม่พริก
@@ -22,6 +24,8 @@ const VOICE = (() => {
     l: ['ใหญ่', 'ไซส์ใหญ่', 'ขนาดใหญ่', 'แอล', 'ไซส์แอล', 'ไซส์l'],
     xl: ['ใหญ่พิเศษ', 'เอ็กซ์แอล', 'ไซส์xl'],
     ไม่พริก: ['ไม่เผ็ด', 'ไม่ใส่พริก', 'ไม่เอาพริก'],
+    เผ็ดน้อย: ['เผ็ดนิดหน่อย', 'เผ็ดนิดนึง', 'เผ็ดนิดเดียว', 'เผ็ดนิด', 'เผ็ดไม่มาก', 'เผ็ดอ่อน', 'เผ็ดอ่อนอ่อน'],
+    เผ็ดกลาง: ['เผ็ดปานกลาง', 'เผ็ดกลางกลาง'],
     เผ็ด: ['เผ็ดปกติ', 'เผ็ดธรรมดา'],
     เผ็ดมาก: ['เผ็ดจัด', 'เผ็ดสุด'],
     ราดข้าว: ['ข้าวราด', 'ราดข้าวสวย', 'โปะข้าว'],
@@ -59,14 +63,14 @@ const VOICE = (() => {
     }
     for (const a of S.settings.voiceAliases || []) {
       const m = S.menu.find(x => x.id === a.m);
-      if (m && a.p) D.push({ key: a.p, m, c: a.c || [], alias: true });
+      if (m && a.p) D.push({ key: norm(a.p), m, c: a.c || [], alias: true });
     }
     const KW = [
       ...['กลับบ้าน', 'ใส่กล่อง', 'ห่อกลับ', 'เทคอะเวย์', 'takeaway', 'takehome'].map(key => ({ key, kw: 'ta' })),
       ...['กลับบ้านทั้งหมด', 'ทั้งหมดกลับบ้าน', 'ใส่กล่องทั้งหมด', 'ทั้งหมดใส่กล่อง'].map(key => ({ key, kw: 'allta' })),
       ...['ราคาคนไทย', 'คนไทย'].map(key => ({ key, kw: 'thai' })),
       ...[...new Set([...quickNotes(), ...NOTE_WORDS])].map(n => ({ key: norm(n), kw: 'note', note: n })),
-    ].filter(e => e.key);
+    ].map(e => ({ ...e, key: norm(e.key) })).filter(e => e.key);
     dictRev = S.rev; dictCache = { D: D.filter(e => e.key), KW };
     return dictCache;
   }
@@ -86,6 +90,34 @@ const VOICE = (() => {
       }
     }
     return out.filter(e => e.key && !(e.pri === 2.5 && exact.has(e.key)));
+  }
+
+  // ชื่อเมนูที่สะกดต่างไปนิดเดียว (ตัวแปลงเสียงเขียนผิด 1–2 ตัว เช่น "ผัดไทไก" "กะเพาหมู") → ยังจับเป็นเมนูนั้นได้
+  // ใช้เฉพาะชื่อยาว 4 ตัวขึ้นไป (ชื่อสั้นผิดตัวเดียวก็กลายเป็นคำอื่นแล้ว) · ผิดได้ 1 ตัว (ชื่อยาว 8 ตัวขึ้นไป ผิดได้ 2)
+  function lev(a, b, max) {
+    if (Math.abs(a.length - b.length) > max) return max + 1;
+    let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i]; let low = i;
+      for (let j = 1; j <= b.length; j++) { cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); low = Math.min(low, cur[j]); }
+      if (low > max) return max + 1;
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+  function nearMenu(rest, D) {
+    let best = null;
+    for (const e of D) {
+      const k = e.key; if (k.length < 4 || e.skip || e.m?.available === false) continue;
+      const max = k.length >= 8 ? 2 : 1;
+      for (let L = k.length - max; L <= k.length + max; L++) {
+        if (L < 3 || L > rest.length) continue;
+        const d = lev(rest.slice(0, L), k, max);
+        if (d > max || d === 0) continue;
+        if (!best || d < best.d || (d === best.d && L > best.L)) best = { e, d, L };
+      }
+    }
+    return best;
   }
 
   // เศษคำที่ยาวพอจะเป็นคำ (ไม่นับสระบน/ล่าง วรรณยุกต์) → ถามว่าหมายถึงเมนูไหน
@@ -122,6 +154,16 @@ const VOICE = (() => {
       if (cur) for (const e of cur.ch) tryE(e, e.pri);
       for (const e of KW) tryE(e, 2);
       for (const e of D) tryE(e, 1);
+      // ไม่ตรงคำไหนเลย และเพิ่งเริ่มคำใหม่ → ลองชื่อเมนูที่สะกดต่างไปนิดเดียว
+      // (ตัวเลือกของจานล่าสุดก่อน: "หมูกอบ" หลังกะเพรา = ตัวเลือกหมูกรอบ ไม่ใช่เมนูหมูกรอบ)
+      if (!best && !buf) {
+        const c = cur ? nearMenu(rest, cur.ch) : null, n = nearMenu(rest, D);
+        const f = c && (!n || c.d <= n.d) ? c : n;
+        // มีชื่อเมนู/ตัวเลือกที่ตรงเป๊ะเริ่มอยู่ในช่วงนี้ → ใช้อันที่ตรง ("น้ำ|มะม่วงปั่น" ≠ ยำมะม่วง)
+        const exactIn = f && [...Array(f.L - 1)].some((_, j) => { const r = rest.slice(j + 1);
+          return D.some(e => e.key.length >= 3 && r.startsWith(e.key)) || cur?.ch.some(e => e.key.length >= 2 && r.startsWith(e.key)); });
+        if (f && !exactIn) { best = { e: { ...f.e, key: rest.slice(0, f.L) }, pri: 0.5 }; score -= 1.5 * f.d; }
+      }
       if (best) {
         const e = best.e;
         i += e.key.length; score += e.key.length;
