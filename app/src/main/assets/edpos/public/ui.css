@@ -434,6 +434,16 @@
   .pptools { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   @media (max-width: 860px) { .pprow { grid-template-columns: 1fr; } .pptools { justify-content: flex-start; } }
 /* หลังร้าน > หน้าสั่งอาหาร: คำที่ระบบจำไว้ (สั่งด้วยเสียง) */
+/* หลังร้าน > หน้าสั่งอาหาร > สอนคำสั่งเสียง */
+.vaadd { margin: 6px 0 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--sunk); }
+.vaadd > b { display: block; font-size: 16px; } .vaadd > span { display: block; font-size: 14px; color: var(--muted); margin: 2px 0 10px; }
+.vaform { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; }
+.vaform input { font: inherit; font-size: 15px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); min-width: 0; }
+@media (max-width: 560px) { .vaform { grid-template-columns: 1fr; } }
+.vahint { margin: 10px 0 4px; font-size: 13.5px; color: var(--muted); }
+.vacg { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; } .vacg > span { font-size: 13.5px; color: var(--muted); min-width: 64px; }
+.vachip { font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.vachip[aria-pressed="true"] { background: var(--jade); border-color: var(--jade); color: #fff; font-weight: 600; }
 details.va { margin: 4px 0 8px; } details.va summary { cursor: pointer; color: var(--muted); font-size: 14.5px; padding: 6px 0; }
 details.va ul { list-style: none; margin: 4px 0 0; padding: 0; }
 details.va li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 15px; }

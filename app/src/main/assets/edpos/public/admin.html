@@ -377,7 +377,21 @@
           <label class="sw"><input type="checkbox" id="ouAbroad"><i></i></label></div>
         <div class="rowline"><div class="txt"><b>🎤 สั่งด้วยเสียง</b><span>ปุ่มไมค์มุมขวาล่างของหน้าสั่งอาหาร · ใช้ได้ในแอป MAMA POS เท่านั้น เครื่องต้องต่อเน็ต · พูด "ปลาเผา 2 ข้าวสวย 3" แล้วตรวจก่อนใส่รายการ</span></div>
           <label class="sw"><input type="checkbox" id="ouVoice"><i></i></label></div>
-        <div id="vaBox"></div>
+        <div id="vaBox">
+          <!-- สอนคำสั่งเสียงเอง: พูดคำนี้ → สั่งเมนูนี้ (+ตัวเลือก) · ใช้กับเมนูชื่อใกล้กัน -->
+          <div class="vaadd">
+            <b>🎤 สอนคำสั่งเสียง</b>
+            <span>พูดคำนี้ → สั่งเมนูนี้ · ใช้กับเมนูชื่อใกล้กัน เช่น พูด “ก๋วยเตี๋ยวปลา” = ก๋วยเตี๋ยวน้ำลูกชิ้นปลา</span>
+            <div class="vaform">
+              <input id="vaP" placeholder="คำที่พูด เช่น ก๋วยเตี๋ยวปลา" autocomplete="off" maxlength="40">
+              <input id="vaM" list="vaMenus" placeholder="เมนู (พิมพ์ค้นหา)" autocomplete="off">
+              <button class="btn primary" id="vaAdd" type="button">เพิ่มคำ</button>
+            </div>
+            <datalist id="vaMenus"></datalist>
+            <div id="vaC"></div>
+          </div>
+          <div id="vaList"></div>
+        </div>
         <div class="actions"><button class="btn" id="ouReset">ค่าเริ่มต้น</button><button class="btn primary" id="ouSave">บันทึกหน้าสั่งอาหาร</button></div>
       </div>
     </section>
@@ -2002,12 +2016,44 @@ $('#ingSave').onclick = async () => {
 let ou = null;   // ค่าที่กำลังแก้ (ยังไม่บันทึก)
 const OU_SW = { ouShowEn: 'showEn', ouShowPrice: 'showPrice', ouShowSearch: 'showSearch', ouAbroad: 'abroad', ouVoice: 'voice' };
 // คำที่ระบบจำไว้ (สั่งด้วยเสียง) · พนักงานสอนตอนเลือกคำที่ระบบไม่แน่ใจ · ลบคำที่จำผิดได้ที่นี่
+let vaOpen = false;
 function renderVoiceAliases() {
   const list = S.settings.voiceAliases || [], name = id => S.menu.find(m => m.id === id)?.name || '(เมนูถูกลบ)';
-  $('#vaBox').innerHTML = !list.length ? '' : `<details class="va"><summary>คำที่ระบบจำไว้ (${list.length})</summary>
+  const dl = [...new Set(S.menu.map(m => m.name))].map(n => `<option value="${esc(n)}">`).join('');
+  if ($('#vaMenus').innerHTML !== dl) $('#vaMenus').innerHTML = dl;
+  $('#vaList').innerHTML = !list.length ? '' : `<details class="va" ${vaOpen ? 'open' : ''}><summary>คำที่ระบบจำไว้ (${list.length})</summary>
     <ul>${list.map((a, k) => `<li><span>“${esc(a.p)}” → <b>${esc(name(a.m))}</b>${a.c?.length ? ' ' + esc(a.c.join(' ')) : ''}</span><button class="btn" data-vadel="${k}">ลบ</button></li>`).join('')}</ul></details>`;
 }
+// เลือกเมนูแล้ว → ตัวเลือกของเมนูนั้นให้แตะเลือก (ไม่บังคับ · สูงสุด 5) เช่น พูด "เล็กปลา" = ก๋วยเตี๋ยวปลา + เส้นเล็ก
+let vaSel = [];
+const vaMenu = () => S.menu.find(m => m.name === $('#vaM').value.trim());
+function renderVaChoices() {
+  const m = vaMenu(), gs = m ? groupsOf(m).filter(g => g.choices?.length) : [];
+  vaSel = vaSel.filter(c => gs.some(g => g.choices.some(x => x.name === c)));
+  $('#vaC').innerHTML = !gs.length ? '' : `<p class="vahint">ตัวเลือกที่ใส่ให้เลยเมื่อพูดคำนี้ (ไม่ต้องเลือกก็ได้)</p>` + gs.map(g => `<div class="vacg"><span>${esc(g.name)}</span>
+    ${g.choices.map(c => `<button type="button" class="vachip" data-vac="${esc(c.name)}" aria-pressed="${vaSel.includes(c.name)}">${esc(c.name)}</button>`).join('')}</div>`).join('');
+}
+$('#vaM').addEventListener('input', renderVaChoices);
+$('#vaList').addEventListener('toggle', e => { if (e.target.matches('details.va')) vaOpen = e.target.open; }, true);
+$('#vaAdd').onclick = async () => {
+  const p = $('#vaP').value.trim(), m = vaMenu();
+  if (p.replace(/\s/g, '').length < 2) return toast('ใส่คำที่พูดก่อน (อย่างน้อย 2 ตัวอักษร)', true);
+  if (!m) return toast('เลือกเมนูจากรายการ (พิมพ์แล้วเลือกชื่อที่ขึ้นมา)', true);
+  try {
+    await api('/api/voice/alias', { p, m: m.id, c: vaSel });
+    const key = p.toLowerCase().replace(/[\s.,!?'"“”]/g, '').slice(0, 40);
+    S.settings.voiceAliases = [{ p: key, m: m.id, ...(vaSel.length ? { c: vaSel.slice(0, 5) } : {}) }, ...(S.settings.voiceAliases || []).filter(a => a.p !== key)];
+    toast(`จำแล้ว: พูด “${p}” = ${m.name}${vaSel.length ? ' ' + vaSel.join(' ') : ''}`);
+    $('#vaP').value = ''; $('#vaM').value = ''; vaSel = []; renderVaChoices(); vaOpen = true; renderVoiceAliases(); $('#vaP').focus();
+  } catch (err) { toast(err.message, true); }
+};
 $('#vaBox').addEventListener('click', async e => {
+  const ch = e.target.closest('[data-vac]');
+  if (ch) {
+    const c = ch.dataset.vac, on = vaSel.includes(c);
+    if (!on && vaSel.length >= 5) return toast('เลือกตัวเลือกได้สูงสุด 5 อย่าง', true);
+    vaSel = on ? vaSel.filter(x => x !== c) : [...vaSel, c]; ch.setAttribute('aria-pressed', !on); return;
+  }
   const b = e.target.closest('[data-vadel]'); if (!b) return;
   const a = (S.settings.voiceAliases || [])[+b.dataset.vadel]; if (!a) return;
   try { await api('/api/voice/alias/delete', { p: a.p }); S.settings.voiceAliases = S.settings.voiceAliases.filter(x => x !== a); renderVoiceAliases(); toast('ลบคำแล้ว'); }

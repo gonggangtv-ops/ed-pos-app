@@ -63,6 +63,15 @@ const VOICE = (() => {
       const en = typeof trEn === 'function' ? norm(trEn(m.name)) : '';
       if (en.length >= 3 && en !== norm(m.name)) D.push({ key: en, m });
     }
+    // ชื่อเมนูหนึ่งเป็นคำนำหน้าของที่พูด แต่ที่พูดคือเมนูอื่น: "ก๋วยเตี๋ยวน้ำ|ลูกชิ้นปลา" = ก๋วยเตี๋ยวลูกชิ้นปลา (น้ำ = คำขยาย)
+    // = ชื่อ A (คำร่วม + คำต่างไม่เกิน 4 ตัว) ตามด้วยท้ายชื่อ B · ไม่ใช้กับ "ข้าวผัด|ไก่|ปลา" (ข้าวผัดเป็นคำร่วมทั้งชื่อ ไม่มีคำต่าง)
+    const base = D.filter(e => !e.short && e.key === norm(e.m.name));
+    for (const A of base) for (const B of base) {
+      if (A.m === B.m) continue;
+      let p = 0; while (p < A.key.length && p < B.key.length && A.key[p] === B.key[p]) p++;
+      const g = A.key.length - p, tail = B.key.slice(p), k = A.key + tail;
+      if (p >= 3 && g >= 1 && g <= 4 && tail.length >= 2 && !names.has(k)) D.push({ key: k, m: B.m, joined: true });
+    }
     for (const a of S.settings.voiceAliases || []) {
       const m = S.menu.find(x => x.id === a.m);
       if (m && a.p) D.push({ key: norm(a.p), m, c: a.c || [], alias: true });
@@ -134,6 +143,7 @@ const VOICE = (() => {
     const t = norm(text), { D, KW } = dict();
     const items = [], unk = [];
     let cur = null, buf = '', pendQ = null, allTa = false, thai = false, score = 0;
+    let nameOpen = false;   // ยังอยู่ต่อจากชื่อเมนูล่าสุด (คำที่ไม่รู้จักตามหลังชื่อ = ส่วนหนึ่งของคำที่พูดเรียกจานนี้)
     if (cont) {
       const o = cont;
       cont = { ...o, choices: [...o.choices], notes: [...o.notes], qty0: o.qty, qty: null, ch: choiceEntries(o.m) };
@@ -141,6 +151,7 @@ const VOICE = (() => {
       cur = cont;
     }
     const flush = q => {
+      if (meaningful(buf) && nameOpen && cur && cur !== cont) cur.said += buf;
       if (meaningful(buf)) { unk.push({ text: buf, qty: q }); score -= buf.length * 0.5; }
       else if (q != null && cur && cur.qty == null) cur.qty = q;
       buf = '';
@@ -159,7 +170,7 @@ const VOICE = (() => {
       };
       if (cur) for (const e of cur.ch) tryE(e, e.pri);
       for (const e of KW) tryE(e, 2);
-      for (const e of D) tryE(e, 1);
+      for (const e of D) tryE(e, e.alias ? 1.5 : 1);   // คำที่ร้านสอน > ชื่อเมนู (ยาวเท่ากัน)
       // ไม่ตรงคำไหนเลย และเพิ่งเริ่มคำใหม่ → ลองชื่อเมนูที่สะกดต่างไปนิดเดียว
       // (ตัวเลือกของจานล่าสุดก่อน: "หมูกอบ" หลังกะเพรา = ตัวเลือกหมูกรอบ ไม่ใช่เมนูหมูกรอบ)
       if (!best && !buf) {
@@ -173,6 +184,7 @@ const VOICE = (() => {
       if (best) {
         const e = best.e;
         i += e.key.length; score += e.key.length;
+        if (!e.m || e.skip || e.kw) nameOpen = false;
         if (e.skip) { buf = ''; score -= e.key.length; }
         else if (e.choice) { if (!cur.choices.includes(e.choice)) cur.choices.push(e.choice); }
         else if (e.kw === 'ta') { if (cur) cur.ta = true; else allTa = true; }
@@ -188,13 +200,14 @@ const VOICE = (() => {
             score += buf.length; buf = '';
           }
           flush(null);
-          cur = { m: e.m, qty: pendQ, choices: [...(e.c || [])], notes: [], ta: false, ch: choiceEntries(e.m) };
-          items.push(cur); pendQ = null;
+          cur = { m: e.m, qty: pendQ, choices: [...(e.c || [])], notes: [], ta: false, ch: choiceEntries(e.m), said: e.key };
+          items.push(cur); pendQ = null; nameOpen = true;
         }
         continue;
       }
       const nm = rest.match(NUM_RE);
       if (nm) {
+        if (!meaningful(buf)) nameOpen = false;
         const n = Math.max(1, Math.min(99, numOf(nm)));
         i += nm[0].length; score += nm[0].length;
         const u = UNIT.find(w => t.startsWith(w, i)); if (u) i += u.length;
@@ -204,7 +217,7 @@ const VOICE = (() => {
         continue;
       }
       const sk = SKIP.find(w => rest.startsWith(w));
-      if (sk) { i += sk.length; if (meaningful(buf)) flush(null); else buf = ''; continue; }
+      if (sk) { i += sk.length; if (meaningful(buf)) flush(null); else buf = ''; nameOpen = false; continue; }
       buf += t[i]; i++;
     }
     flush(pendQ);
@@ -305,6 +318,7 @@ const VOICE = (() => {
       .vlive.ph { color: var(--muted); font-size: 15px; }
       .vex { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
       .vex span { font-size: 13.5px; padding: 4px 10px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); color: var(--ink); }
+      .vmsg.ok { color: var(--ok, #1f8a5b); background: rgba(31,138,91,.10); }
       .vmsg { display: flex; gap: 8px; align-items: flex-start; color: var(--bad); font-size: 15px; margin: 8px 0 0; padding: 10px 12px; border-radius: 12px; background: rgba(192,57,43,.08); }
       .vheard { font-size: 13.5px; color: var(--muted); margin: 10px 0 2px; }
       .vsec { font-size: 13px; font-weight: 700; letter-spacing: .3px; color: var(--muted); margin: 14px 0 4px; display: flex; justify-content: space-between; }
@@ -341,7 +355,7 @@ const VOICE = (() => {
       .vlist li .vacts, .vlist li .vswap { grid-column: 1 / -1; }
       .vacts { display: flex; gap: 6px; margin-top: -2px; }
       .vacts button { padding: 5px 12px; font-size: 14px; border-radius: 999px; min-height: 0; color: var(--ink); background: var(--bg); border-color: transparent; }
-      .vlist li .vacts button[aria-expanded="true"] { background: var(--ink); color: var(--card); }
+      .vlist li .vacts button[aria-expanded="true"] { background: var(--accent); color: var(--accent-ink, #fff); border-color: var(--accent); }
       .vacts button:disabled { opacity: .4; }
       .vlist li.fresh { background: var(--bg); border-radius: 14px; padding: 12px; margin: 6px 0; border: 2px solid var(--accent); }
       .vlist li.fresh + li { border-top: 0; }
@@ -350,6 +364,8 @@ const VOICE = (() => {
       .vswap { background: var(--bg); border-radius: 12px; padding: 10px; }
       .vlist li.fresh .vswap { background: var(--card); }
       .vswap input { width: 100%; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); font: inherit; font-size: 16px; margin-bottom: 8px; background: var(--card); color: var(--ink); }
+      .vswap .vsaid { margin: 6px 0 0; font-size: 15px; } .vswap .vlearn { margin-top: 12px; justify-content: flex-start; text-align: left; }
+      .vswap .vlearn input[type=checkbox] { width: 20px; height: 20px; margin: 0; padding: 0; flex: none; accent-color: var(--accent); }
       .vswap .vc { display: flex; flex-wrap: wrap; gap: 6px; } .vswap .vc button { padding: 7px 12px; font-size: 15px; border-radius: 999px; }
       .vnone { color: var(--muted); font-size: 14px; }`;
     document.head.appendChild(s);
@@ -432,7 +448,7 @@ const VOICE = (() => {
     if (!fab.hidden) { place(); if (was) showTip(); } else hideTip();
   }
   function openSheet() {
-    Object.assign(st, { open: true, live: '', heard: '', msg: '', items: [], unk: [], allTa: false, thai: false, fresh: new Set(), swapK: null, q: '', setOpen: false });
+    Object.assign(st, { open: true, live: '', heard: '', msg: '', items: [], unk: [], allTa: false, thai: false, fresh: new Set(), swapK: null, q: '', setOpen: false, swLearn: true });
     // เลื่อนขึ้นเฉพาะตอนเปิดครั้งแรก (วาดใหม่ระหว่างฟังต้องไม่เด้ง)
     sheet = document.createElement('div'); sheet.className = 'vbg enter';
     setTimeout(() => sheet?.classList.remove('enter'), 400);
@@ -462,7 +478,7 @@ const VOICE = (() => {
   const ses = { on: false, stop: false, push: false, segs: [], base: null, last: 0, start: 0, got: false };
   function listen(push = false) {
     st.suggest = false;
-    Object.assign(ses, { on: true, stop: false, push, segs: [], last: Date.now(), start: Date.now(), got: false, heard: false, miss: 0, loud: false,
+    Object.assign(ses, { on: true, stop: false, push, segs: [], last: Date.now(), start: Date.now(), got: false, heard: false, miss: 0, loud: false, reopened: false, skipEnd: false,
       base: { items: st.items.slice(), unk: st.unk.slice(), allTa: st.allTa, thai: st.thai } });
     st.msg = ''; st.live = ''; st.listening = true; st.swapK = null; draw();
     startRec();
@@ -546,7 +562,7 @@ const VOICE = (() => {
         <div class="vhold"><span>วิธีพูด</span>${MODES.map(([m, t]) => `<button data-v="mode" data-m="${m}" aria-pressed="${m === mode}">${t}</button>`).join('')}</div>
         <div class="vhold"><span>หยุดฟังเองเมื่อเงียบ</span>${HOLDS.map(([ms, t]) => `<button data-v="hold" data-h="${ms}" aria-pressed="${ms === hold}">${t}</button>`).join('')}</div>
         ${st.svc ? `<p class="vheard">ตัวแปลงเสียง: ${esc({ 'com.google.android.googlequicksearchbox': 'Google', 'com.google.android.tts': 'Google (ในเครื่อง)', 'com.google.android.as': 'Google (ในเครื่อง)' }[st.svc] || st.svc)}</p>` : ''}</details>
-      ${st.msg ? `<p class="vmsg" role="alert"><span>⚠</span><span>${esc(st.msg)}</span></p>` : ''}
+      ${st.msg ? (/^จำแล้ว/.test(st.msg) ? `<p class="vmsg ok" role="status"><span>✓</span><span>${esc(st.msg)}</span></p>` : `<p class="vmsg" role="alert"><span>⚠</span><span>${esc(st.msg)}</span></p>`) : ''}
       ${st.suggest && engine === 'app' && !st.listening ? `<div class="vsug"><span>ไมค์ได้ยินเสียง แต่แปลเป็นคำไม่ได้ · ลองใช้หน้าต่างฟังของ Google แทน (มักได้ผลกับเครื่องที่เป็นแบบนี้)</span><button class="primary" data-v="useg">ใช้หน้าต่าง Google</button></div>` : ''}
       ${st.heard && !st.listening ? `<p class="vheard">ได้ยินว่า “${esc(st.heard)}”</p>` : ''}
       ${st.items.length ? `<div class="vsec"><span>รายการที่ได้ยิน</span><span>${st.items.reduce((a, x) => a + (x.m.available === false ? 0 : x.qty), 0)} จาน</span></div><ul class="vlist">${st.items.map((x, k) => {
@@ -557,7 +573,9 @@ const VOICE = (() => {
           <div class="vq">${out ? '' : `<button data-v="minus" data-k="${k}" aria-label="ลด" ${dis}>−</button><span>${x.qty}</span><button data-v="plus" data-k="${k}" aria-label="เพิ่ม" ${dis}>+</button>`}</div>
           <button class="vx" data-v="del" data-k="${k}" aria-label="เอาออก" ${dis}>${ICON_X}</button>
           <div class="vacts">${out ? '' : `<button data-v="opts" data-k="${k}" ${dis}>✎ แก้ตัวเลือก</button>`}<button data-v="swap" data-k="${k}" aria-expanded="${st.swapK === k}" ${dis}>⇄ เปลี่ยนเมนู</button></div>
-          ${st.swapK === k ? `<div class="vswap"><input type="search" data-v="q" placeholder="ค้นหาเมนู" value="${esc(st.q)}" autocomplete="off"><div class="vc" id="vswapList">${swapChips(x, k)}</div></div>` : ''}</li>`; }).join('')}</ul>`
+          ${st.swapK === k ? `<div class="vswap"><input type="search" data-v="q" placeholder="ค้นหาเมนู" value="${esc(st.q)}" autocomplete="off"><div class="vc" id="vswapList">${swapChips(x, k)}</div>
+            ${x.said ? `<label class="vlearn"><input type="checkbox" data-v="swlearn" ${st.swLearn ? 'checked' : ''}> จำไว้ ครั้งหน้าพูดคำนี้ = เมนูที่เลือก</label>
+              <input class="vsaid" data-v="said" value="${esc(x.said)}" aria-label="คำที่พูด (แก้ได้)" autocomplete="off">` : ''}</div>` : ''}</li>`; }).join('')}</ul>`
         : !st.listening && st.heard && !st.unk.length ? '<p class="vempty">ไม่พบชื่อเมนูในที่พูด ลองพูดใหม่ช้าๆ ใกล้เครื่อง</p>' : ''}
       ${st.unk.map((u, k) => { const c = candidates(u.text);
         return `<div class="vunk"><p>ไม่แน่ใจ “<b>${esc(u.text)}</b>”${u.qty ? ` × ${u.qty}` : ''} หมายถึง</p>
@@ -589,6 +607,7 @@ const VOICE = (() => {
   function onClick(e) {
     const b = e.target.closest('[data-v]'); if (!b || !sheet?.contains(b)) return;
     const v = b.dataset.v, k = +b.dataset.k;
+    if (['q', 'said', 'learn', 'swlearn'].includes(v)) return;   // ช่องพิมพ์/ช่องติ๊ก: ไม่ต้องวาดใหม่ (วาดใหม่แล้วช่องหลุดโฟกัส/ติ๊กไม่ติด)
     if (v === 'close') return closeSheet();
     if (v === 'mic') { if (Date.now() - pushEnd < 350) return; if (st.listening) stopListen(); else listen(); return; }
     if (v === 'hold') { hold = +b.dataset.h; try { localStorage.setItem('edposMicHold', hold); } catch {} st.setOpen = true; draw(); return; }
@@ -612,6 +631,12 @@ const VOICE = (() => {
         const has = c => groupsOf(m).some(g => g.choices.some(y => y.name === c));
         const nx = { ...x, m, choices: x.choices.filter(has) };
         st.items[k] = nx; if (st.fresh.has(x)) { st.fresh.delete(x); st.fresh.add(nx); }
+        // ระบบเลือกเมนูผิด (ชื่อใกล้กัน) → จำว่าคำที่พูด = เมนูที่เลือก ครั้งหน้าไม่ผิดอีก
+        const said = norm(sheet.querySelector('.vsaid')?.value || '');
+        if (st.swLearn && said.length >= 2) {
+          st.msg = `จำแล้ว: พูด “${said}” = ${m.name}`;
+          api('/api/voice/alias', { p: said, m: m.id }).then(() => { dictRev = -1; }).catch(err => { st.msg = 'จำคำไม่สำเร็จ: ' + err.message; draw(); });
+        }
       }
       st.swapK = null;
     }
@@ -657,7 +682,7 @@ const VOICE = (() => {
     const box = sheet.querySelector('#vswapList'), x = st.items[st.swapK];
     if (box && x) box.innerHTML = swapChips(x, st.swapK);
   });
-  function onChange(e) { if (e.target.dataset?.v === 'learn') st.learn = e.target.checked; }
+  function onChange(e) { if (e.target.dataset?.v === 'learn') st.learn = e.target.checked; if (e.target.dataset?.v === 'swlearn') st.swLearn = e.target.checked; }
   // ใส่รายการทีละจาน: ตัวเลือกครบ → เพิ่มเลย · ขาด → เปิดหน้าต่างเลือก แล้วค่อยจานถัดไป
   function addAll() {
     const queue = st.items.filter(x => x.m.available !== false), before = cart.reduce((s, c) => s + c.qty, 0);
@@ -701,6 +726,17 @@ const VOICE = (() => {
       // ได้ยินเสียง 2 รอบแต่ไม่ได้คำเลย → หยุด แล้วชวนใช้หน้าต่าง Google (ไม่วนฟังต่อเรื่อยๆ)
       if (ev.code === 'nomatch' && ses.miss >= 2 && ses.loud && !ses.heard && engine === 'app' && hasDialog()) { st.suggest = true; ses.stop = true; return; }
       if (ev.code === 'nomatch' && (ses.heard || waitMore)) { paintLive(); return; }
+      // หน้าต่าง Google ปิดเองภายใน 3 วิ (ยังไม่ทันพูด) → เปิดใหม่ให้อีกครั้ง (ครั้งเดียว) · ครั้งที่สองยังปิดเร็ว = บอกวิธีแก้
+      if (ev.code === 'cancel' && ev.quick && engine === 'google' && !ses.stop) {
+        if (!ses.reopened) {
+          ses.reopened = true; ses.skipEnd = true; st.msg = 'ไมค์ปิดเร็วไป เปิดใหม่ให้แล้ว พูดได้เลย'; draw();
+          setTimeout(() => { if (ses.on && !ses.stop) startRec(); }, 350);
+          return;
+        }
+        ses.stop = true; onRecEnd();
+        st.msg = 'หน้าต่าง Google ปิดเองก่อนพูด · กดไมค์แล้วเริ่มพูดทันที หรือเปลี่ยนวิธีฟังเป็น “ฟังในแอป” (ตั้งค่าการฟัง)';
+        draw(); return;
+      }
       if (ev.code === 'cancel') { ses.stop = true; onRecEnd(); draw(); return; }   // ปิดหน้าต่าง Google เอง = ไม่ต้องเตือน
       if (ev.code !== 'nomatch') ses.stop = true;
       // ได้ยินเสียงแต่แปลเป็นคำไม่ได้ (รหัส 7 ซ้ำๆ) → ชวนเปลี่ยนไปใช้หน้าต่าง Google
@@ -709,7 +745,7 @@ const VOICE = (() => {
         nomatch: 'ไม่ได้ยินชัด ลองพูดอีกครั้ง ใกล้ๆ เครื่อง', net: 'แปลงเสียงไม่ได้ ต้องต่ออินเทอร์เน็ต', busy: 'ไมค์กำลังถูกใช้อยู่ ลองใหม่อีกครั้ง',
         lost: 'ตัวแปลงเสียงหลุด แตะไมค์อีกครั้ง · ถ้าเป็นบ่อย อัปเดตแอป Google ใน Play Store' }[ev.code] || 'ฟังไม่สำเร็จ ลองใหม่อีกครั้ง';
       if (ev.n != null) st.msg += ` (รหัส ${ev.n})`;   // ไว้แจ้งปัญหา
-    } else if (ev.type === 'end') { if (!ses.on) return; onRecEnd(); }
+    } else if (ev.type === 'end') { if (!ses.on) return; if (ses.skipEnd) { ses.skipEnd = false; return; } onRecEnd(); }
     draw();
   };
   document.addEventListener('click', onClick);

@@ -501,7 +501,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
-        if (req == Voice.DIALOG_REQ) { voice.onDialogResult(res == RESULT_OK, data); return; }
+        if (req == Voice.DIALOG_REQ) { voice.onDialogResult(res, data); return; }
         if (req == REQ_FILE && fileCb != null) {
             fileCb.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(res, data));
             fileCb = null;

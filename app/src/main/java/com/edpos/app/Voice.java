@@ -101,6 +101,7 @@ class Voice implements RecognitionListener {
             i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
             i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
             i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, act.getPackageName());
+            waitLonger(i);
             active = true;
             sr.startListening(i);
             emit("start", null);
@@ -116,23 +117,42 @@ class Voice implements RecognitionListener {
         try { return new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).resolveActivity(act.getPackageManager()) != null; }
         catch (Exception e) { return false; }
     }
+    private long dialogAt = 0;
+    /** ขอให้รอนานขึ้นก่อนตัด (ยังไม่ทันพูดก็ตัด) · ตัวแปลงเสียงบางรุ่นไม่สนค่าเหล่านี้ หน้าเว็บจึงเปิดใหม่ให้เองอีกชั้น */
+    private static void waitLonger(Intent i) {
+        i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 3000L);
+        i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L);
+        i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L);
+    }
     void dialog(String lang) {
         try {
+            // ตัวแปลงเสียงในแอปอาจยังจับไมค์อยู่ → ปล่อยไมค์ก่อน (ไม่งั้นหน้าต่าง Google ได้ยินแต่ความเงียบแล้วตัดทันที)
+            active = false;
+            if (sr != null) { try { sr.cancel(); sr.destroy(); } catch (Exception ignored) { } sr = null; }
             Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
             i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
             i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang);
             i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang);
             i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
             i.putExtra(RecognizerIntent.EXTRA_PROMPT, "พูดชื่อเมนู + ตัวเลือก + จำนวน");
-            dialogOn = true;
+            waitLonger(i);
+            dialogOn = true; dialogAt = android.os.SystemClock.elapsedRealtime();
             act.startActivityForResult(i, DIALOG_REQ);
             emit("start", null);
         } catch (Exception e) { dialogOn = false; error("other", e.toString(), -1); }
     }
-    void onDialogResult(boolean ok, Intent data) {
+    void onDialogResult(int res, Intent data) {
         if (!dialogOn) return;
         dialogOn = false;
+        long took = android.os.SystemClock.elapsedRealtime() - dialogAt;
         ArrayList<String> l = data == null ? null : data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+        boolean ok = res == android.app.Activity.RESULT_OK;
+        if (!ok || l == null || l.isEmpty()) {
+            // ไม่ได้ผล · quick = ปิดเองภายใน 3 วินาที (ยังไม่ทันพูด) → หน้าเว็บเปิดใหม่ให้หนึ่งครั้ง
+            try { JSONObject o = new JSONObject(); o.put("code", "cancel"); o.put("rc", res); o.put("quick", took < 3000); emit("error", o); } catch (Exception ignored) { }
+            emit("end", null);
+            return;
+        }
         if (ok && l != null && !l.isEmpty()) {
             try {
                 JSONObject o = new JSONObject(); JSONArray a = new JSONArray();
@@ -141,7 +161,7 @@ class Voice implements RecognitionListener {
                 emit("result", o);
             } catch (Exception ignored) { }
             emit("end", null);
-        } else error("cancel", "", -1);   // ปิดหน้าต่าง/ไม่ได้ยิน
+        }
     }
 
     void stop() { try { if (sr != null) sr.stopListening(); } catch (Exception ignored) { } }
