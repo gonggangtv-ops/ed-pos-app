@@ -647,39 +647,49 @@ try {
   const udp = dgram.createSocket({ type: 'udp4', reuseAddr: true });
   udp.on('message', (m, r) => {
     if (String(m).slice(0, 6) !== 'EDPOS?') return;
-    const out = Buffer.from(JSON.stringify({ edpos: 1, role: role.role, port: +PORT, shop: shopTag(), name: data.settings.shopName || '' }));
+    const out = Buffer.from(JSON.stringify({ edpos: 1, role: role.role, port: +PORT, shop: shopTag(), name: data.settings.shopName || '', epoch: data.epoch }));
     udp.send(out, r.port, r.address, () => {});
   });
   udp.on('error', e => console.log('ค้นหาเครื่อง (UDP) ใช้ไม่ได้: ' + e.message));
   udp.bind(+PORT, () => { try { udp.setBroadcast(true); } catch {} });
 } catch {}
-// ค้นหาเครื่องหลักของร้านนี้: ตะโกนถามก่อน · ไม่มีใครตอบ → ไล่ถาม /api/role ทุกเลขในวง (x.x.x.1–254)
-async function discoverMain(shop) {
+// ค้นหาเครื่องของร้านนี้ในวง: ตะโกนถามก่อน · ไม่เจอที่ต้องการ → ไล่ถาม /api/role ทุกเลขในวง (x.x.x.1–254)
+// คืนรายการ [{ url, role, epoch }] ของร้านเดียวกัน (ไม่รวมเครื่องนี้) · stop(j) = เจอเครื่องที่ต้องการแล้ว หยุดค้น
+async function discover(shop, stop) {
   const lan = Object.values(os.networkInterfaces()).flat().filter(i => i && i.family === 'IPv4' && !i.internal && /^(10|172\.(1[6-9]|2\d|3[01])|192\.168)\./.test(i.address));
-  const ok = j => j && j.role === 'main' && (!shop || j.shop === shop);
-  const viaUdp = await new Promise(done => {
-    let s; try { s = dgram.createSocket('udp4'); } catch { return done(null); }
-    const fin = v => { clearTimeout(t); clearInterval(iv); try { s.close(); } catch {} done(v); };
-    s.on('error', () => fin(null));
-    s.on('message', (m, r) => { try { const j = JSON.parse(String(m)); if (ok(j)) fin(`http://${r.address}:${j.port || PORT}`); } catch {} });
+  const mine = new Set(lan.map(i => i.address)), seen = new Map();
+  const add = (ip, j) => {
+    if (!j || !j.role || mine.has(ip) || (shop && j.shop !== shop)) return false;
+    const url = `http://${ip}:${j.port || PORT}`;
+    if (!seen.has(url)) seen.set(url, { url, role: j.role, epoch: +j.epoch || 0 });
+    return stop(seen.get(url));
+  };
+  let done = await new Promise(fin => {
+    let s; try { s = dgram.createSocket('udp4'); } catch { return fin(false); }
+    let over = false;
+    const end = v => { if (over) return; over = true; clearTimeout(t); clearInterval(iv); try { s.close(); } catch {} fin(v); };
+    s.on('error', () => end(false));
+    s.on('message', (m, r) => { try { if (add(r.address, JSON.parse(String(m)))) end(true); } catch {} });
     const q = Buffer.from('EDPOS?');
     const targets = ['255.255.255.255', ...lan.map(i => i.address.split('.').map((x, k) => (+x | (~i.netmask.split('.')[k] & 255))).join('.'))];
-    const send = () => targets.forEach(a => s.send(q, +PORT, a, () => {}));
+    const send = () => targets.forEach(a => { try { s.send(q, +PORT, a, () => {}); } catch {} });
     s.bind(() => { try { s.setBroadcast(true); } catch {} send(); });
-    const iv = setInterval(send, 600), t = setTimeout(() => fin(null), 1800);
+    const iv = setInterval(send, 600), t = setTimeout(() => end(false), 1800);
   });
-  if (viaUdp) return viaUdp;
-  const mine = new Set(lan.map(i => i.address)), hosts = [];
-  for (const i of lan) { const p = i.address.split('.').slice(0, 3).join('.'); for (let x = 1; x <= 254; x++) if (!mine.has(`${p}.${x}`)) hosts.push(`${p}.${x}`); }
-  let found = null, k = 0;
-  await Promise.all(Array.from({ length: 32 }, async () => {
-    while (!found && k < hosts.length) {
-      const h = hosts[k++];
-      try { const r = await fetch(`http://${h}:${PORT}/api/role`, { signal: AbortSignal.timeout(700) }); if (ok(await r.json())) found = `http://${h}:${PORT}`; } catch {}
-    }
-  }));
-  return found;
+  if (!done) {
+    const hosts = [];
+    for (const i of lan) { const p = i.address.split('.').slice(0, 3).join('.'); for (let x = 1; x <= 254; x++) if (!mine.has(`${p}.${x}`)) hosts.push(`${p}.${x}`); }
+    let k = 0;
+    await Promise.all(Array.from({ length: 32 }, async () => {
+      while (!done && k < hosts.length) {
+        const h = hosts[k++];
+        try { const r = await fetch(`http://${h}:${PORT}/api/role`, { signal: AbortSignal.timeout(700) }); if (add(h, await r.json())) done = true; } catch {}
+      }
+    }));
+  }
+  return [...seen.values()];
 }
+const discoverMain = async shop => (await discover(shop, j => j.role === 'main')).find(j => j.role === 'main')?.url || null;
 
 // เครื่องสำรอง: ดึงข้อมูลล่าสุด
 async function syncTick() {
@@ -688,7 +698,7 @@ async function syncTick() {
     // ลองกุญแจจากข้อมูลของเครื่องนี้ก่อน ไม่ผ่านค่อยใช้กุญแจที่ได้ตอนจับคู่ (ซึ่งต้องดึงข้อมูลทั้งชุด rev=-1)
     let j = null;
     for (const k of [...new Set([syncKey(), role.key].filter(Boolean))]) {
-      j = await getJSON(`${role.peer}/api/sync?rev=${k === syncKey() ? data.rev || 0 : -1}`, { headers: { 'X-Sync-Key': k } });
+      j = await getJSON(`${role.peer}/api/sync?rev=${k === syncKey() ? data.rev || 0 : -1}`, { headers: { 'X-Sync-Key': k, 'X-Me': myUrls()[0] || '' } });
       if (!j.auth) break;
     }
     if (j.role === 'main' && j.auth) {
@@ -734,6 +744,33 @@ async function peerTick() {
   } catch { repl.peerRole = null; }
 }
 setInterval(peerTick, 5000);
+
+// เครื่องหลักที่เพิ่งกลับมา (เช่น เราเตอร์ดับ แจก IP ใหม่ให้ทุกเครื่อง) อาจติดต่อเครื่องที่รับงานแทนที่อยู่เดิมไม่ได้
+// → ค้นหาในวง Wi-Fi ว่ามีเครื่องหลักของร้านเดียวกันที่ใหม่กว่า (epoch สูงกว่า) ไหม · เจอ → ลดตัวเองเป็นเครื่องสำรองของเครื่องนั้น
+// ค้นตอนเปิดเครื่อง และทุก 90 วินาทีระหว่างที่ติดต่อเครื่องคู่ไม่ได้ (ติดต่อได้อยู่แล้ว peerTick ดูแลให้)
+let rivalBusy = false, rivalAt = 0;
+async function rivalTick() {
+  if (role.role !== 'main' || !data.auth.admin || rivalBusy) return;
+  if (rivalAt && (repl.peerRole && Date.now() - repl.peerSeen < 15000 || Date.now() - rivalAt < 90000)) return;
+  rivalBusy = true; rivalAt = Date.now();
+  try {
+    const mine = new Set(myUrls());
+    const list = await discover(shopTag(), j => j.role === 'main' && j.epoch > data.epoch);
+    if (role.role !== 'main') return;
+    const newer = list.filter(j => j.role === 'main' && j.epoch > data.epoch && !mine.has(j.url)).sort((a, b) => b.epoch - a.epoch)[0];
+    if (newer) {
+      console.log(`เจอเครื่องหลักที่ใหม่กว่าที่ ${newer.url} (รับงานแทนไปแล้ว) → เครื่องนี้เปลี่ยนเป็นเครื่องสำรอง`);
+      healthEvent('standby', { ok: true, demoted: newer.url });
+      role = { role: 'standby', peer: newer.url }; saveRole(); broadcast(); syncTick();
+      return;
+    }
+    // จำที่อยู่เครื่องสำรองที่เจอไว้ (ให้หน้าจออื่นรู้จัก เผื่อเครื่องนี้ดับ)
+    const sb = list.find(j => j.role === 'standby');
+    if (sb && !repl.standbyIp) repl.standbyFound = sb.url;
+  } catch {} finally { rivalBusy = false; }
+}
+setTimeout(rivalTick, 1500);
+setInterval(rivalTick, 10000);
 
 function noteBattery(q, req) {
   const pct = Number(q?.get('bat'));
@@ -781,6 +818,10 @@ function healthReport(from, to) {
 function roleInfo() {
   return { role: role.role, shop: shopTag(), name: data.settings.shopName || '', epoch: data.epoch, rev: data.rev || 0, peer: peerUrl(), me: myUrls().slice(0, -2),
     nodes: data.settings.nodes || {}, lastSync: repl.lastSync, syncErr: repl.syncErr,
+    // ที่อยู่เครื่องสำรองที่คัดลอกจากเครื่องนี้อยู่ (ไม่ต้องตั้งเอง) · หน้าจออื่นจำไว้ ใช้ขึ้นปุ่ม "ใช้เครื่องสำรอง" ตอนเครื่องนี้ดับ
+    standby: role.role !== 'main' ? '' : repl.standbySeen && Date.now() - repl.standbySeen < 600000
+      ? repl.standbyUrl || (/^\d+\.\d+\.\d+\.\d+$/.test(repl.standbyIp) && !/^127\./.test(repl.standbyIp) ? `http://${repl.standbyIp}:${PORT}` : '') || repl.standbyFound || ''
+      : repl.standbyFound || '',
     standbySeen: repl.standbySeen, standbyIp: repl.standbyIp, peerRole: repl.peerRole, peerSeen: repl.peerSeen,
     // hasData = มีข้อมูลร้านแล้ว (เคยคัดลอก/ตั้งรหัส)
     finding: !!repl.finding,   // เครื่องสำรองกำลังค้นหาเครื่องหลักในวง Wi-Fi
@@ -2068,6 +2109,9 @@ const routes = {
       return { role: 'main', auth: 'sync' };
     }
     repl.standbySeen = Date.now(); repl.standbyIp = String(req.socket.remoteAddress || '').replace('::ffff:', '');
+    // เครื่องสำรองบอกที่อยู่ของตัวเองมาด้วย (แม่นกว่า IP ที่เห็นจากการเชื่อมต่อ และรู้พอร์ต)
+    const me = String(req.headers['x-me'] || '');
+    repl.standbyUrl = /^http:\/\/\d+\.\d+\.\d+\.\d+:\d+$/.test(me) && !/^http:\/\/127\./.test(me) ? me : '';
     if (Number(q.get('rev')) === (data.rev || 0)) return { role: 'main', same: true };
     return { role: 'main', data };
   },

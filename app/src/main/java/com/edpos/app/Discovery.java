@@ -27,14 +27,25 @@ import java.util.concurrent.atomic.AtomicReference;
 class Discovery {
     static final int PORT = 3000;
 
-    /** คืน "http://192.168.1.50:3000" หรือ null · ใช้เวลาไม่เกินประมาณ 6 วินาที · ห้ามเรียกบน UI thread */
-    static String findMain(String shop) {
-        String u = udp(shop);
-        return u != null ? u : scan(shop);
+    /** คืน "http://192.168.1.50:3000" หรือ null · ใช้เวลาไม่เกินประมาณ 10 วินาที · ห้ามเรียกบน UI thread */
+    static String findMain(String shop) { return find(shop)[0]; }
+
+    /** คืน { เครื่องหลัก, เครื่องสำรอง } (ไม่เจอ = null) · เจอเครื่องหลักแล้วหยุดค้น · เครื่องสำรองที่เจอระหว่างทางเก็บไว้ (ใช้ขึ้นปุ่มให้รับงานแทน) */
+    static String[] find(String shop) {
+        AtomicReference<String> sb = new AtomicReference<>();
+        String u = udp(shop, sb);
+        if (u == null) u = scan(shop, sb);
+        return new String[]{ u, sb.get() };
     }
 
+    private static boolean sameShop(JSONObject j, String shop) {
+        return j != null && (shop == null || shop.isEmpty() || shop.equals(j.optString("shop")));
+    }
     private static boolean match(JSONObject j, String shop) {
-        return j != null && "main".equals(j.optString("role")) && (shop == null || shop.isEmpty() || shop.equals(j.optString("shop")));
+        return sameShop(j, shop) && "main".equals(j.optString("role"));
+    }
+    private static void noteStandby(JSONObject j, String shop, String url, AtomicReference<String> sb) {
+        if (sameShop(j, shop) && "standby".equals(j.optString("role")) && j.optBoolean("hasData", true)) sb.compareAndSet(null, url);
     }
 
     /** IPv4 ของเครื่องนี้ใน Wi-Fi/LAN พร้อม broadcast address */
@@ -50,7 +61,7 @@ class Discovery {
         return out;
     }
 
-    private static String udp(String shop) {
+    private static String udp(String shop, AtomicReference<String> sb) {
         try (DatagramSocket s = new DatagramSocket()) {
             s.setBroadcast(true);
             s.setSoTimeout(400);
@@ -69,7 +80,9 @@ class Discovery {
                     DatagramPacket p = new DatagramPacket(buf, buf.length);
                     s.receive(p);
                     JSONObject j = new JSONObject(new String(p.getData(), 0, p.getLength(), StandardCharsets.UTF_8));
-                    if (match(j, shop)) return "http://" + p.getAddress().getHostAddress() + ":" + j.optInt("port", PORT);
+                    String url = "http://" + p.getAddress().getHostAddress() + ":" + j.optInt("port", PORT);
+                    if (match(j, shop)) return url;
+                    noteStandby(j, shop, url, sb);
                 } catch (SocketTimeoutException ignored) {
                 } catch (Exception ignored) { }
             }
@@ -77,7 +90,7 @@ class Discovery {
         return null;
     }
 
-    private static String scan(String shop) {
+    private static String scan(String shop, AtomicReference<String> sb) {
         List<String> hosts = new ArrayList<>();
         List<String> mine = new ArrayList<>();
         for (InterfaceAddress a : lan()) {
@@ -98,7 +111,10 @@ class Discovery {
             String base = "http://" + h + ":" + PORT;
             String r = MainActivity.httpGet(base + "/api/role", 700);
             if (r == null) return;
-            try { if (match(new JSONObject(r), shop)) found.compareAndSet(null, base); } catch (Exception ignored) { }
+            try {
+                JSONObject j = new JSONObject(r);
+                if (match(j, shop)) found.compareAndSet(null, base); else noteStandby(j, shop, base, sb);
+            } catch (Exception ignored) { }
         });
         pool.shutdown();
         try {

@@ -234,6 +234,7 @@ public class MainActivity extends Activity {
     //                เครื่องสำรองลองเครื่องหลักก่อน ไม่ได้ค่อยใช้เครื่องนี้
     private void openServer() {
         final String mode = serverMode();
+        foundStandby = null;
         final List<String> tryList = new ArrayList<>();
         if ("main".equals(mode)) tryList.add(LOCAL);
         else {
@@ -268,6 +269,8 @@ public class MainActivity extends Activity {
                 }
             }
             if (ok == null && !"main".equals(mode) && mainAddr.isEmpty()) ok = findMainNow();   // ยังไม่เคยตั้ง IP เครื่องหลัก
+            // ไม่เจอเครื่องหลัก แต่ค้นเจอเครื่องสำรองของร้าน → เปิดหน้าของเครื่องสำรอง (มีปุ่ม "ใช้เครื่องนี้เป็นเครื่องหลัก")
+            if (ok == null && !"main".equals(mode) && foundStandby != null) ok = foundStandby;
             final String found = ok;
             ui.post(() -> {
                 if (found == null) { showPage("offline"); return; }
@@ -283,9 +286,12 @@ public class MainActivity extends Activity {
         try { return new org.json.JSONObject(json).optString("role"); } catch (Exception e) { return ""; }
     }
     /** ค้นหาเครื่องหลักของร้านนี้ในวง Wi-Fi (เรียกจาก thread อื่น) · เจอ → จำ IP ใหม่ไว้เปิดครั้งหน้า */
+    private volatile String foundStandby = null;
     private String findMainNow() {
         ui.post(() -> { if (!onServer) showPage("searching"); });
-        String f = Discovery.findMain(prefs.getString("shop", ""));
+        String[] r = Discovery.find(prefs.getString("shop", ""));
+        String f = r[0];
+        foundStandby = r[1];
         if (f != null && !f.equals(main()) && !"main".equals(serverMode())) {
             prefs.edit().putString("main", f).apply();
             Watchdog.log(this, "ค้นหาเจอเครื่องหลักที่ IP ใหม่: " + f);
@@ -630,13 +636,15 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void retry() { ui.post(MainActivity.this::openServer); }
 
-        /** หน้าเว็บติดต่อเครื่องหลักไม่ได้ → ค้นหาในวง Wi-Fi แล้วตอบกลับ window.edposFound("http://…:3000" หรือ "") */
+        /** หน้าเว็บติดต่อเครื่องหลักไม่ได้ → ค้นหาในวง Wi-Fi แล้วตอบกลับ window.edposFound(เครื่องหลัก, เครื่องสำรอง) ("http://…:3000" หรือ "") */
         @JavascriptInterface
         public void findMain() {
             new Thread(() -> {
-                String f = Discovery.findMain(prefs.getString("shop", ""));
+                String[] r = Discovery.find(prefs.getString("shop", ""));
+                String f = r[0];
                 if (f != null && !"main".equals(serverMode())) prefs.edit().putString("main", f).apply();
-                js("window.edposFound && window.edposFound(" + org.json.JSONObject.quote(f == null ? "" : f) + ")");
+                js("window.edposFound && window.edposFound(" + org.json.JSONObject.quote(f == null ? "" : f) + ","
+                    + org.json.JSONObject.quote(r[1] == null ? "" : r[1]) + ")");
             }, "find-main").start();
         }
 
