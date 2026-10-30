@@ -49,7 +49,9 @@
         'คุณเป็นผู้จัดการร้านด้วย (เจ้าของร้านเปิดโหมดผู้จัดการ): ข้อมูล "shop" คือยอดขาย คุ้มทุน พยากรณ์พรุ่งนี้ ของที่ต้องเตรียม ขายดี เวลาครัว เมนูที่ปิด',
         'ตอบคำถามธุรกิจแบบผู้จัดการที่เก่ง: วิเคราะห์จากตัวเลขจริง บอกสาเหตุที่เป็นไปได้ และแนะนำสิ่งที่ทำได้ทันที 1-3 ข้อ (โปร เมนูแนะนำ ปรับการเตรียมของ ปิดเมนูที่ทำช้าตอนยุ่ง) ห้ามแต่งตัวเลข',
         'ถ้าตัวเลขเงินไม่มีในข้อมูล แปลว่าเจ้าของร้านตั้งไม่ให้พูดยอดเงินออกเสียง ให้พูดเป็นเปอร์เซ็นต์หรือบอกให้ดูบนจอแทน',
-        'action เพิ่มเติม: "menu_off" / "menu_on" ("menu_ids": [...] ใช้ id จาก menu_list) เมื่อผู้ใช้สั่งปิด/เปิดเมนู หรือบอกว่าวัตถุดิบหมด/มาแล้ว · ระบบจะถามยืนยันก่อน');
+        'action เพิ่มเติม: "menu_off" / "menu_on" ("menu_ids": [...] ใช้ id จาก menu_list) เมื่อผู้ใช้สั่งปิด/เปิดเมนู หรือบอกว่าวัตถุดิบหมด/มาแล้ว · ระบบจะถามยืนยันก่อน',
+        '"stock_move" ("ingredient_id", "kind": "in" รับของเข้า | "waste" ของเสีย | "count" นับได้เท่านี้, "qty" เป็นหน่วยของวัตถุดิบนั้นในข้อมูล stock เท่านั้น (แปลง กิโล→กรัม ขีด=100กรัม แผง=30ฟอง เอง), "cost" ราคารวมบาทถ้าบอก) เมื่อผู้ใช้บอกว่ารับของ/ของเสีย/นับสต๊อก',
+        'เรื่องสต๊อก: ใช้ข้อมูล stock (on_hand คงเหลือ, per_day ใช้ต่อวัน, tomorrow_need, to_buy, cost_per_unit) แนะนำการสั่งของ ของที่ควรรีบใช้ เมนูที่ต้นทุนสูง (dish_cost) ได้');
     }
     if (p.notes) sys.push('ข้อมูลเฉพาะร้าน (เจ้าของร้านเขียนไว้):\n' + String(p.notes).slice(0, 4000));
 
@@ -135,10 +137,57 @@
       }
       return { kind: 'ai', say: off ? 'เมนูนั้นปิดอยู่แล้วหรือหาไม่เจอค่ะ' : 'เมนูนั้นเปิดอยู่แล้วหรือหาไม่เจอค่ะ' };
     }
+    if (a.type === 'stock_move' && a.ingredient_id && ctx.stock) {
+      const g = (ctx.stock.list || []).find(x => x.id === a.ingredient_id);
+      const kind = ['in', 'waste', 'count'].includes(a.kind) ? a.kind : null, qty = Math.round((+a.qty || 0) * 100) / 100;
+      if (g && kind && (qty > 0 || kind === 'count') && qty < 1e7) {
+        const cost = Math.max(0, Math.round(+a.cost || 0));
+        const body = kind === 'count' && !g.tracked ? { id: g.id, stock: qty } : { id: g.id, kind, qty, ...(kind === 'in' && cost ? { cost } : {}) };
+        const undo = kind === 'in' ? { id: g.id, kind: 'adjust', delta: -qty } : kind === 'waste' ? { id: g.id, kind: 'adjust', delta: qty }
+          : g.tracked ? { id: g.id, kind: 'count', qty: g.stock } : { id: g.id, track: false };
+        const path = kind === 'count' && !g.tracked ? '/api/stock/setup' : '/api/stock/move';
+        const verb = kind === 'in' ? 'รับ' : kind === 'waste' ? 'ตัดของเสีย' : 'ตั้งสต๊อก';
+        return { kind: 'stock-move', confirm: true, ai: true, ing: g, ask: say || `${verb}${g.name} ${qty} ${g.unit} ใช่ไหมคะ`, say: `บันทึก${g.name}แล้วค่ะ`,
+          calls: [{ path, body }], undo: [{ path: path === '/api/stock/setup' && undo.track === false ? '/api/stock/setup' : '/api/stock/move', body: undo }] };
+      }
+      return { kind: 'ai', say: 'บันทึกสต๊อกไม่ได้ค่ะ ไม่เจอวัตถุดิบหรือจำนวนไม่ชัด' };
+    }
     if (a.type === 'next') return { kind: 'ai-next' };
     // AI อยากให้ทำ "เสร็จ" แต่ id ไม่ตรงกับของจริง → ไม่ทำ แค่พูด (ไม่ใช้คำถามยืนยันที่ไม่มีอะไรรองรับ)
-    if (/^(done|menu)/.test(a.type || '')) return { kind: 'ai', say: 'หาจานที่จะกดเสร็จไม่เจอค่ะ บอกเลขโต๊ะด้วยค่ะ' };
+    if (/^(done|menu|stock)/.test(a.type || '')) return { kind: 'ai', say: 'หาจานที่จะกดเสร็จไม่เจอค่ะ บอกเลขโต๊ะด้วยค่ะ' };
     return { kind: 'ai', say: say || 'ขอโทษค่ะ ตอบไม่ได้' };
+  }
+
+  // ---------- อ่านรูปบิลซื้อของ ----------
+  /** @param ings [{id,name,unit}] วัตถุดิบในร้าน */
+  function buildReceiptRequest(b64, ings, mime) {
+    const prompt = [
+      'นี่คือรูปบิล/ใบเสร็จซื้อของเข้าร้านอาหาร (อาจเป็นแม็คโคร ตลาด ร้านส่งของ หรือเขียนด้วยมือ)',
+      'อ่านทุกบรรทัดสินค้า แล้วจับคู่กับวัตถุดิบของร้านด้านล่าง (ไม่ตรงก็ใส่ ingredient_id เป็น null)',
+      '"qty" = ปริมาณรวมที่ซื้อ แปลงเป็นหน่วยของวัตถุดิบที่จับคู่ (เช่น วัตถุดิบหน่วยกรัม ซื้อ 2 กก. → 2000 · แพ็ค 1 กก. x 3 → 3000 · ไข่ 1 แผง = 30 ฟอง) ถ้าไม่จับคู่ให้ใส่ปริมาณตามบิลและ "unit" ตามบิล',
+      '"total" = ราคารวมบรรทัดนั้นเป็นบาท (หลังส่วนลดถ้ามี) · ห้ามแต่งบรรทัดที่อ่านไม่ออก',
+      'ตอบ JSON เท่านั้น: {"store": "ชื่อร้าน", "date": "YYYY-MM-DD หรือ null", "total": บาทรวมทั้งบิล, "lines": [{"text": "ชื่อสินค้าตามบิล", "ingredient_id": "..."|null, "qty": number, "unit": "...", "total": number}]}',
+      'วัตถุดิบของร้าน: ' + JSON.stringify(ings.map(g => ({ id: g.id, name: g.name, unit: g.unit }))),
+    ].join('\n');
+    return {
+      contents: [{ role: 'user', parts: [{ inline_data: { mime_type: mime || 'image/jpeg', data: b64 } }, { text: prompt }] }],
+      generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens: 2500 },
+    };
+  }
+  function parseReceipt(text, ings) {
+    const r = parseResponse(text);
+    if (r.error) return r;
+    let j;
+    try {
+      const c = JSON.parse(text).candidates[0].content.parts.map(x => x.text || '').join('').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+      j = JSON.parse(/\{[\s\S]*\}/.exec(c)[0]);
+    } catch { return { error: 'bad' }; }
+    const ids = new Set((ings || []).map(g => g.id));
+    const lines = (Array.isArray(j.lines) ? j.lines : []).slice(0, 60).map(l => ({
+      text: String(l.text || '').slice(0, 60), id: ids.has(l.ingredient_id) ? l.ingredient_id : null,
+      qty: Math.max(0, Math.round((+l.qty || 0) * 100) / 100), unit: String(l.unit || '').slice(0, 12), total: Math.max(0, Math.round((+l.total || 0) * 100) / 100),
+    })).filter(l => l.text || l.qty);
+    return { store: String(j.store || '').slice(0, 40), date: j.date || null, total: +j.total || null, lines };
   }
 
   /** ข้อความเมื่อเรียก AI ไม่สำเร็จ */
@@ -151,7 +200,7 @@
     return 'ถาม AI ไม่สำเร็จค่ะ';
   }
 
-  const api = { MODELS, buildRequest, parseResponse, toResult, errorText, snapshot };
+  const api = { MODELS, buildRequest, parseResponse, toResult, errorText, snapshot, buildReceiptRequest, parseReceipt };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KitchenAI = api;
 })(this);

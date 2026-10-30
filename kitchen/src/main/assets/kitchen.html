@@ -101,6 +101,23 @@
   .qbtns button { padding: 10px 12px; border-radius: 12px; background: var(--panel2); font-size: 15px; }
   .mgrState { padding: 10px 12px; border-radius: 12px; background: var(--panel); font-size: 15px; line-height: 1.5; }
 
+  .stk { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+  .stk:first-of-type { border-top: 0; }
+  .stk .nm { font-size: 17px; }
+  .stk .q { font-size: 17px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .stk .sub { grid-column: 1 / -1; font-size: 13px; color: var(--dim); }
+  .stk.low .q, .stk.low .nm { color: var(--hot); } .stk.out .q, .stk.out .nm { color: var(--bad); }
+  .stk .bar { grid-column: 1 / -1; margin-top: 2px; height: 6px; }
+  .stk.low .bar i { background: var(--hot); } .stk.out .bar i { background: var(--bad); }
+  .rows .r { display: grid; grid-template-columns: 1fr 96px 84px; gap: 6px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+  .rows .r .t { font-size: 15px; line-height: 1.3; }
+  .rows .r .t small { display: block; color: var(--dim); font-size: 13px; }
+  .rows .r input, .rows .r select { padding: 9px 8px; font-size: 16px; }
+  .rows .r.rc { grid-template-columns: 1fr; }
+  .rows .r.rc .g { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 6px; }
+  .pill2 { display: inline-block; font-size: 13px; padding: 1px 8px; border-radius: 99px; background: #3a2420; color: #ffd2c9; margin-left: 4px; }
+  .pill2.ok { background: #1f3a2e; color: #b8f0d2; }
+
   /* ----- ปุ่มล่าง ----- */
   footer { display: flex; gap: 8px; padding: 10px 14px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
   footer button { height: 70px; border-radius: 20px; font-size: 18px; }
@@ -184,6 +201,14 @@
   <div class="actions"><button class="btn" id="pinCancel">ยกเลิก</button><button class="btn main" id="pinOk">เข้าหน้าตั้งค่า</button></div>
 </div>
 
+<!-- สต๊อก: นับ / ซื้อของ / บิล -->
+<div class="sheet" id="stockSheet">
+  <h2 id="ssTitle"></h2>
+  <div id="ssBody"></div>
+  <div class="msg" id="ssMsg"></div>
+  <div class="actions"><button class="btn" id="ssCancel">ปิด</button><button class="btn main" id="ssOk">บันทึก</button></div>
+</div>
+
 <!-- ตั้งค่า -->
 <div class="sheet" id="setup">
   <h2>ตั้งค่าผู้ช่วยครัว</h2>
@@ -250,6 +275,7 @@
     <label class="check"><input type="checkbox" id="sMgrMilestone"><span>ข่าวดี<small>ทะลุยอดที่คาด · เดือนนี้ถึงจุดคุ้มทุน</small></span></label>
     <label class="check"><input type="checkbox" id="sMgrBacklog"><span>ครัวค้างเยอะ<small>แนะนำทำรวม/ปิดเมนูชั่วคราว · ไม่เกินทุก 20 นาที</small></span></label>
     <div class="field inline"><span class="lab" style="margin:0;flex:1">ค้างตั้งแต่ (จาน)</span><input type="number" id="sBacklogN" min="3" max="60"></div>
+    <label class="check"><input type="checkbox" id="sMgrStock"><span>วัตถุดิบใกล้หมด / หมดสต๊อก<small>ตามจุดเตือนที่ตั้งไว้ในหน้านับสต๊อก</small></span></label>
     <label class="check"><input type="checkbox" id="sMgrCancel"><span>ยกเลิกบ่อย<small>ทุกครั้งที่ยกเลิกครบ 5 จาน</small></span></label>
     <div class="field inline"><span class="lab" style="margin:0;flex:1">บรีฟเปิดร้าน (เวลา) <small>ยอดที่คาดวันนี้ เมนูที่ปิด</small></span><input type="text" id="sBriefOpen" placeholder="10:00" style="width:100px;flex:none"></div>
     <div class="field inline"><span class="lab" style="margin:0;flex:1">บรีฟปิดร้าน (เวลา) <small>สรุปวันนี้ + พรุ่งนี้เตรียมอะไร</small></span><input type="text" id="sBriefClose" placeholder="21:30" style="width:100px;flex:none"></div>
@@ -283,7 +309,7 @@ const $ = id => document.getElementById(id);
 const DEF = { name: 'น้องมาม่า', particle: 'ค่ะ', pitch: 1, brief: false, batchMax: 4,
   annGroup: true, annAllergy: true, annCancel: true, annNew: false, annLate: true, lateMin: 15,
   timerRepeat: 3, words: '', aiOn: true, aiModel: '', aiNotes: '',
-  mgrOn: true, mgrMoney: true, mgrPace: true, paceDrop: 25, mgrMilestone: true, mgrBacklog: true, backlogN: 12, mgrCancel: true, briefOpen: '', briefClose: '' };
+  mgrOn: true, mgrMoney: true, mgrPace: true, paceDrop: 25, mgrMilestone: true, mgrBacklog: true, backlogN: 12, mgrCancel: true, mgrStock: true, briefOpen: '', briefClose: '' };
 let cfg = load();
 function load() { const c = JSON.parse(K.getConfig()); for (const k in DEF) if (c[k] === undefined) c[k] = DEF[k]; return c; }
 
@@ -488,7 +514,8 @@ const SHOP_URL = {
   report: () => { const k = M.dayKey(Date.now()); return `/api/report?from=${k}&to=${k}`; },
   'line-day': '/api/line/preview?kind=day', 'line-week': '/api/line/preview?kind=week', 'line-month': '/api/line/preview?kind=month',
 };
-const SHOP_TTL = { pace: 45e3, state: 60e3, report: 120e3, breakeven: 300e3, forecast: 600e3 };
+SHOP_URL.stock = '/api/stock';
+const SHOP_TTL = { stock: 30e3, pace: 45e3, state: 60e3, report: 120e3, breakeven: 300e3, forecast: 600e3 };
 let mgrLost = false;
 /** โหลดข้อมูลร้านที่ยังไม่มี/เก่าเกิน · force = โหลดใหม่ทั้งหมด */
 async function loadShop(need, force) {
@@ -503,18 +530,18 @@ async function loadShop(need, force) {
   }));
 }
 const optionNames = () => [...new Set(((shop.state && shop.state.optionSets) || []).flatMap(g => (g.choices || g.options || []).map(c => c.name || c)).filter(x => typeof x === 'string'))];
-function mgrCtx() { return { menu: (shop.state && shop.state.menu) || [], ingredients: (shop.state && shop.state.ingredients) || [], optionNames: optionNames() }; }
+function mgrCtx() { return { menu: (shop.state && shop.state.menu) || [], ingredients: (shop.state && shop.state.ingredients) || [], optionNames: optionNames(), stock: shop.stock }; }
 
 let mgrBusy = false;
 async function mgrTick() {
   if (!mgr() || mgrBusy || !base) return;
   mgrBusy = true;
   try {
-    await loadShop(['pace', 'state', 'report', 'breakeven', 'forecast']);
+    await loadShop(['pace', 'state', 'report', 'breakeven', 'forecast', 'stock']);
     if (mgrLost) return;
-    const msgs = M.alerts(mgrMem, { pace: shop.pace, breakeven: shop.breakeven, report: shop.report, orders, now: Date.now() },
+    const msgs = M.alerts(mgrMem, { pace: shop.pace, breakeven: shop.breakeven, report: shop.report, stock: shop.stock, orders, now: Date.now() },
       { pace: cfg.mgrPace, paceDrop: cfg.paceDrop, milestone: cfg.mgrMilestone, backlog: cfg.mgrBacklog, backlogN: cfg.backlogN,
-        cancel: cfg.mgrCancel, money: cfg.mgrMoney, lateMin: cfg.lateMin });
+        cancel: cfg.mgrCancel, money: cfg.mgrMoney, lateMin: cfg.lateMin, stock: cfg.mgrStock });
     if (msgs.length) annQueue.push(...msgs);
     await briefs();
     if (tab === 'shop') render();
@@ -547,10 +574,17 @@ const ADVICE = /(ทำไม|ควร|แนะนำ|ยังไงดี|�
 async function managerCommand(text) {
   const c = text;
   if (ADVICE.test(L.norm(text)) && aiReady()) return null;   // คำถามเชิงคิด → ให้ AI ตอบพร้อมข้อมูลร้าน
-  await loadShop(['state']);
+  await loadShop(['state', 'stock']);
   if (mgrLost) return { kind: 'say', say: 'สิทธิ์ผู้จัดการหมดอายุค่ะ (เปลี่ยนรหัสเจ้าของร้าน) เข้าหน้าตั้งค่าแล้วใส่รหัสใหม่' };
   const q = M.parse(c, mgrCtx());
   if (!q) return null;
+  if (q.kind === 'stock-line') {
+    const text = M.shopListText(shop.stock || {}, (shop.state && shop.state.settings && shop.state.settings.shopName) || '');
+    if (!text) return { kind: 'say', say: 'ตอนนี้ไม่มีอะไรต้องซื้อค่ะ' };
+    if (!shop.stock.hasLine) return { kind: 'say', say: 'ยังไม่ได้ตั้ง LINE ที่หลังร้านค่ะ รายการซื้ออยู่ในแท็บร้าน' };
+    const n = text.split('\n').length - 1;
+    return { kind: 'stock-line', confirm: true, ask: `ส่งรายการซื้อของ ${n} รายการเข้าไลน์ร้าน ใช่ไหมคะ`, say: 'ส่งเข้าไลน์แล้วค่ะ', calls: [{ path: '/api/stock/line', body: { text } }] };
+  }
   if (q.kind !== 'mgr') return q;
   await loadShop(q.need, q.need.some(k => k.startsWith('line-')) || q.topic === 'today');
   const say = M.answer(q, shop, { money: cfg.mgrMoney });
@@ -583,7 +617,7 @@ async function command(text, heardRaw) {
     if (q && q.kind === 'mgr') r = { kind: 'say', say: 'ถามเรื่องยอดขายได้เมื่อเปิดโหมดผู้จัดการค่ะ แตะ ⚙ แล้วใส่รหัสเจ้าของร้าน' };
   }
   if (!r) r = L.interpret(text, orders, ctx());
-  if (r.kind === 'help' && mgr()) r.say += ' ผู้จัดการ: ยอดวันนี้, สรุปวันนี้, พรุ่งนี้เตรียมอะไร, ขายดี, เดือนนี้คุ้มทุนยัง, กุ้งหมด, เปิดเมนูผัดไทย';
+  if (r.kind === 'help' && mgr()) r.say += ' ผู้จัดการ: ยอดวันนี้, สรุปวันนี้, พรุ่งนี้เตรียมอะไร, ขายดี, เดือนนี้คุ้มทุนยัง, กุ้งหมด, เปิดเมนูผัดไทย · สต๊อก: รับกุ้งมา 2 กิโล, กุ้งเหลือเท่าไร, ต้องซื้ออะไร, อะไรใกล้หมด, ต้มยำต้นทุนเท่าไร';
   if ((r.kind === 'unknown' || r.vague || (r.kind === 'notfound' && !/โต๊ะ|คิว/.test(r.say))) && aiReady()) r = await askAI(text);
   else if (r.kind === 'unknown' && cfg.aiOn && !cfg.aiKeySet) r.say += ' หรือใส่คีย์ AI ในหน้าตั้งค่าให้ฉลาดขึ้น';
   handle(r, text);
@@ -610,6 +644,8 @@ function handle(r, text) {
       followAfterSpeech = !!batch;   // ตอบ "เสร็จ" ได้เลยหลังฟังจบ
       speak(n.say); remember(n.say); break;
     }
+    case 'stock-move': case 'stock-line':
+      pending = { ...r, until: Date.now() + 30000 }; speak(r.ask, 'ask'); remember(r.ask); break;
     case 'done-dish': case 'done-table': case 'menu-off': case 'menu-on':
       if (cfg.confirm || r.ai) { pending = { ...r, until: Date.now() + 30000 }; speak(r.ask, 'ask'); remember(r.ask); }
       else run(r);
@@ -624,7 +660,7 @@ function handle(r, text) {
 // ---------- AI ----------
 async function askAI(text) {
   thinking = true; setStatus();
-  if (mgr()) await loadShop(['pace', 'state', 'report', 'breakeven', 'forecast']);
+  if (mgr()) await loadShop(['pace', 'state', 'report', 'breakeven', 'forecast', 'stock']);
   const manager = mgr() && !mgrLost ? M.aiContext(shop, cfg.mgrMoney) : null;
   const body = JSON.stringify(AI.buildRequest({ text, orders, menu, history, name: cfg.name, particle: cfg.particle, notes: cfg.aiNotes,
     manager, menuList: manager ? (shop.state && shop.state.menu) || [] : null,
@@ -647,7 +683,7 @@ async function askAI(text) {
   }
   const p = AI.parseResponse(res.text);
   if (p.error) return { kind: 'say', say: 'AI ตอบไม่ได้ค่ะ ลองพูดใหม่อีกที' };
-  return AI.toResult(p, orders, { ...ctx(), menu: mgr() ? (shop.state && shop.state.menu) || [] : null });
+  return AI.toResult(p, orders, { ...ctx(), menu: mgr() ? (shop.state && shop.state.menu) || [] : null, stock: mgr() ? shop.stock : null });
 }
 
 // ---------- ทำงานกับจอครัว ----------
@@ -661,8 +697,8 @@ async function post(path, body) {
 async function run(r) {
   try {
     for (const c of r.calls) await post(c.path, c.body);
-    lastUndo = { calls: r.undo, label: r.say.replace(/^เรียบร้อย /, '').replace(/ เสร็จแล้วค่ะ$/, ''), at: Date.now() };
-    if (r.calls.some(c => c.path === '/api/menu/available')) { loadShop(['state'], true).then(render); }
+    if (r.undo && r.undo.length) lastUndo = { calls: r.undo, label: r.say.replace(/^เรียบร้อย /, '').replace(/ เสร็จแล้วค่ะ$/, ''), at: Date.now() };
+    if (r.calls.some(c => c.path === '/api/menu/available' || c.path.startsWith('/api/stock'))) { loadShop(['state', 'stock'], true).then(render); }
     if (r.batchDone || (batch && r.calls.every(c => batch.dishes.some(d => d.id === c.body.dishes_id)))) batch = null;
     K.ding('ok');
     if (!cfg.brief) speak(r.say); else $('reply').textContent = voice(r.say);
@@ -677,9 +713,9 @@ async function undo() {
   const u = lastUndo; lastUndo = null;
   try {
     for (const c of u.calls) await post(c.path, c.body);
-    const menuUndo = u.calls.some(c => c.path === '/api/menu/available');
-    if (menuUndo) loadShop(['state'], true).then(render);
-    speak(menuUndo ? 'ย้อนกลับแล้วค่ะ เมนูกลับเป็นเหมือนเดิม' : `ย้อนกลับแล้วค่ะ ${u.label} กลับขึ้นจอแล้ว`);
+    const menuUndo = u.calls.some(c => c.path === '/api/menu/available' || c.path.startsWith('/api/stock'));
+    if (menuUndo) loadShop(['state', 'stock'], true).then(render);
+    speak(menuUndo ? 'ย้อนกลับแล้วค่ะ กลับเป็นเหมือนเดิม' : `ย้อนกลับแล้วค่ะ ${u.label} กลับขึ้นจอแล้ว`);
   } catch (e) { speak('ย้อนกลับไม่สำเร็จค่ะ ' + e.message); }
   refresh();
 }
@@ -800,23 +836,160 @@ function shopHtml() {
       <div class="s">${b.be ? (b.soldNow >= b.be ? '<span class="up">ถึงจุดคุ้มทุนแล้ว</span>' : `อีก ${money(b.be - b.soldNow)}`) : 'ยังไม่ตั้งค่าใช้จ่ายคงที่'}</div>
       ${b.be ? `<div class="bar"><i style="width:${Math.min(100, Math.round(b.soldNow / b.be * 100))}%"></i></div>` : ''}</div>`);
   if (kp.length) out.push(`<div class="kpis">${kp.join('')}</div>`);
+  out.push(stockHtml());
   const off = ((st && st.menu) || []).filter(m => m.available === false);
   out.push(`<div class="card"><h4>เมนูที่ปิดอยู่ <small>แตะเพื่อเปิดขาย</small></h4>${off.length
     ? `<div class="menuoff">${off.map(m => `<button data-on="${esc(m.id)}">${esc(m.name)}</button>`).join('')}</div>` : '<div class="ln" style="color:var(--dim)">ไม่มี · พูด “กุ้งหมด” เพื่อปิดเมนูที่ใช้กุ้ง</div>'}</div>`);
   const top = ((rp && rp.summary && rp.summary.items_list) || []).filter(x => x.qty).sort((a, x) => x.qty - a.qty).slice(0, 6);
+  const ds = ((shop.stock && shop.stock.dishes) || []).slice(0, 6);
+  if (ds.length) out.push(`<div class="card"><h4>ต้นทุนวัตถุดิบต่อจาน <small>สูงสุดก่อน</small></h4>${ds.map(d => `<div class="ln">${esc(d.name)} <b style="color:${d.pct >= 40 ? 'var(--bad)' : d.pct >= 33 ? 'var(--hot)' : 'var(--ok)'}">${d.pct}%</b> <span style="color:var(--dim)">ทุน ${money(d.cost)} · ขาย ${money(d.price)}</span></div>`).join('')}</div>`);
   if (top.length) out.push(`<div class="card"><h4>ขายดีวันนี้</h4>${top.map((x, i) => `<div class="ln">${i + 1}. ${esc(x.name)} <b>${x.qty}</b> <span style="color:var(--dim)">${money(x.amount)}</span></div>`).join('')}</div>`);
   const tom = shop.forecast ? M.sayTomorrow(shop.forecast, Date.now(), cfg.mgrMoney, true) : '';
   if (tom) out.push(`<div class="card"><h4>พรุ่งนี้</h4><div class="ln">${esc(tom.replace(/ ค่ะ$/, '')).replace(/ · /g, '<br>')}</div></div>`);
   return out.join('');
 }
 $('board').onclick = async e => {
-  const a = e.target.closest('[data-ask]'), on = e.target.closest('[data-on]'), x = e.target.closest('[data-x]');
+  const a = e.target.closest('[data-ask]'), on = e.target.closest('[data-on]'), x = e.target.closest('[data-x]'), sk = e.target.closest('[data-stk]');
+  if (sk) { await loadShop(['stock', 'state']); openSS(sk.dataset.stk); return; }
   if (a) { $('heard').textContent = '“' + a.dataset.ask + '”'; const r = await managerCommand(a.dataset.ask); if (r) handle(r, a.dataset.ask); }
   if (x) { report = null; render(); }
   if (on) {   // แตะเอง = ตั้งใจแล้ว
     const m = ((shop.state && shop.state.menu) || []).find(z => z.id === on.dataset.on);
     if (m) run({ say: `เปิดขาย ${m.name} แล้วค่ะ`, ...M.menuCalls([m], true) });
   }
+};
+
+// ---------- สต๊อก (แท็บร้าน + หน้าต่าง นับ/ซื้อ/บิล) ----------
+const qty = (q, u) => M.qtyTxt(q, u);
+function stockHtml() {
+  const s = shop.stock;
+  const head = `<h4>สต๊อกวัตถุดิบ <small>${s && s.settings && s.settings.autoClose ? 'หมดแล้วปิดเมนูเอง' : ''}</small></h4>
+    <div class="qbtns" style="margin-bottom:6px"><button data-stk="bill">📷 บิลซื้อของ</button><button data-stk="buy">🛒 ต้องซื้อ</button><button data-stk="count">📝 นับ/ตั้งค่า</button></div>`;
+  if (!s) return `<div class="card">${head}<div class="ln" style="color:var(--dim)">กำลังโหลด…</div></div>`;
+  if (!s.list.length) return `<div class="card">${head}<div class="ln" style="color:var(--dim)">ยังไม่มีวัตถุดิบ · เพิ่มที่หลังร้าน ED POS → 🥬 วัตถุดิบ แล้วใส่ว่าแต่ละเมนูใช้เท่าไร (ระบบจะตัดสต๊อกตามที่ขายให้เอง)</div></div>`;
+  const tr = s.list.filter(x => x.tracked).sort((a, b) => (b.out - a.out) || (b.low - a.low) || (a.daysLeft ?? 99) - (b.daysLeft ?? 99));
+  const rows = tr.map(x => {
+    const full = Math.max(x.min * 3, (x.tomorrow || x.perDay || 0) * 1.5, x.stock, 1);
+    const sub = [x.daysLeft != null ? `พอ ~${x.daysLeft} วัน` : '', x.tomorrow ? `พรุ่งนี้ใช้ ~${qty(x.tomorrow, x.unit)}` : '', x.min ? `เตือนที่ ${qty(x.min, x.unit)}` : '',
+      x.cost && x.costPrev && Math.abs(x.cost / x.costPrev - 1) >= 0.05 ? `ราคา${x.cost > x.costPrev ? 'ขึ้น' : 'ลง'} ${Math.abs(Math.round((x.cost / x.costPrev - 1) * 100))}%` : ''].filter(Boolean).join(' · ');
+    return `<div class="stk${x.out ? ' out' : x.low ? ' low' : ''}"><div class="nm">${esc(x.name)}</div><div class="q">${x.out ? 'หมด' : esc(qty(x.stock, x.unit))}</div>
+      <div class="bar"><i style="width:${Math.max(2, Math.min(100, Math.round(x.stock / full * 100)))}%"></i></div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div>`;
+  }).join('');
+  const un = s.list.length - tr.length;
+  return `<div class="card">${head}${rows || '<div class="ln" style="color:var(--dim)">ยังไม่ได้นับสต๊อก · แตะ 📝 หรือพูด “กุ้งเหลือ 2 กิโล”</div>'}
+    ${un ? `<div class="ln" style="color:var(--dim);margin-top:6px">ยังไม่ได้นับ ${un} อย่าง</div>` : ''}</div>`;
+}
+let ssMode = '', receipt = null;
+function openSS(mode) {
+  ssMode = mode; $('ssMsg').textContent = ''; $('ssMsg').className = 'msg';
+  $('ssOk').style.display = ''; $('ssOk').textContent = 'บันทึก';
+  const s = shop.stock || { list: [] };
+  if (mode === 'count') {
+    $('ssTitle').textContent = 'นับสต๊อก / ตั้งจุดเตือน';
+    $('ssBody').innerHTML = `<p class="note">ใส่จำนวนที่นับได้จริงตอนนี้ (เว้นว่าง = ไม่เปลี่ยน) · จุดเตือน = เหลือเท่านี้ให้น้องเตือน · หน่วยตามที่ตั้งในหลังร้าน</p>
+      <div class="rows"><div class="r" style="border:0"><span class="lab">วัตถุดิบ</span><span class="lab">นับได้</span><span class="lab">เตือนที่</span></div>
+      ${s.list.map(x => `<div class="r"><div class="t">${esc(x.name)}<small>${x.tracked ? `ในระบบ ${esc(qty(x.stock, x.unit))}` : 'ยังไม่นับ'} · หน่วย ${esc(x.unit)}</small></div>
+        <input type="number" inputmode="decimal" step="any" min="0" data-cnt="${x.id}" placeholder="${x.tracked ? x.stock : ''}">
+        <input type="number" inputmode="decimal" step="any" min="0" data-min="${x.id}" value="${x.min || ''}" placeholder="0"></div>`).join('')}</div>
+      <label class="check"><input type="checkbox" id="ssAuto" ${s.settings && s.settings.autoClose ? 'checked' : ''}><span>วัตถุดิบหมด → ปิดเมนูที่ใช้เอง<small>เติมของแล้วเปิดเมนูคืนเอง · พนักงานหน้าร้านจะสั่งเมนูนั้นไม่ได้ระหว่างที่หมด</small></span></label>
+      ${s.log && s.log.length ? `<span class="lab" style="margin-top:12px">ล่าสุด</span>${s.log.slice(0, 12).map(l => `<div class="ln" style="font-size:14px;color:var(--dim)">${new Date(l.at).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${esc({ in: 'รับ', count: 'นับ', waste: 'เสีย', adjust: 'ปรับ', start: 'เริ่ม' }[l.kind] || l.kind)} ${esc(l.name)} ${l.d > 0 ? '+' : ''}${l.d}${l.cost ? ` · ${l.cost} ฿` : ''} ${l.by ? '· ' + esc(l.by) : ''}</div>`).join('')}` : ''}`;
+  } else if (mode === 'buy') {
+    $('ssTitle').textContent = 'ต้องซื้อ';
+    const text = M.shopListText(s, (shop.state && shop.state.settings && shop.state.settings.shopName) || '');
+    $('ssBody').innerHTML = text ? `<p class="note">คิดจาก (ที่คาดว่าจะใช้พรุ่งนี้ + จุดเตือน) − ที่เหลือ · แก้ข้อความก่อนส่งได้</p><textarea id="ssText" style="min-height:220px">${esc(text)}</textarea>`
+      : `<div class="empty" style="padding:24px 0">${(s.list || []).some(x => x.tracked) ? 'ของที่นับไว้พอสำหรับพรุ่งนี้แล้ว 👌' : 'ยังไม่ได้นับสต๊อก นับก่อนแล้วน้องจะคิดรายการให้'}</div>`;
+    $('ssOk').textContent = 'ส่งเข้า LINE ร้าน';
+    $('ssOk').style.display = text && s.hasLine ? '' : 'none';
+    if (text && !s.hasLine) $('ssMsg').textContent = 'ตั้ง LINE ที่หลังร้านก่อนจึงจะส่งได้';
+  } else if (mode === 'bill') {
+    $('ssTitle').textContent = 'บิลซื้อของ';
+    $('ssOk').style.display = 'none';
+    if (!aiReady()) { $('ssBody').innerHTML = '<div class="empty" style="padding:24px 0">อ่านบิลต้องใช้ AI · ใส่คีย์ AI ในหน้าตั้งค่า ⚙ ก่อน</div>'; }
+    else if (!(s.list || []).length) { $('ssBody').innerHTML = '<div class="empty" style="padding:24px 0">เพิ่มวัตถุดิบที่หลังร้านก่อน</div>'; }
+    else { $('ssBody').innerHTML = '<div class="empty" style="padding:24px 0">📷 กำลังเปิดกล้อง…<br><small>ถ่ายให้เห็นทั้งบิล ตัวหนังสือชัด</small></div>'; snapBill(); }
+  }
+  $('stockSheet').classList.add('open'); $('stockSheet').scrollTop = 0;
+}
+async function snapBill() {
+  const b64 = await new Promise(res => { const id = 'p' + (++seq); __kit._photo = __kit._photo || {}; __kit._photo[id] = res; K.pickPhoto(id); });
+  if (!b64) { $('ssBody').innerHTML = '<div class="empty" style="padding:24px 0">ไม่ได้เลือกรูป<br><button class="btn" data-stk="bill" style="margin-top:12px">📷 ลองใหม่</button></div>'; return; }
+  $('ssBody').innerHTML = '<div class="empty" style="padding:24px 0">🔎 AI กำลังอ่านบิล…</div>';
+  const ings = shop.stock.list.map(x => ({ id: x.id, name: x.name, unit: x.unit }));
+  const body = JSON.stringify(AI.buildReceiptRequest(b64, ings));
+  let models = cfg.aiModel ? [cfg.aiModel] : AI.MODELS.slice(), res = null;
+  let good = ''; try { good = localStorage.getItem('aiModelOk') || ''; } catch {}
+  if (!cfg.aiModel && good) models = [good, ...models.filter(m => m !== good)];
+  for (const m of models) { res = await call(id => K.ai(id, m, body, ''), 60000); if (res.code !== 404) break; }
+  if (!res || res.code !== 200) {
+    let m = ''; try { m = JSON.parse(res.text).error.message; } catch {}
+    $('ssBody').innerHTML = `<div class="empty" style="padding:24px 0">${esc(AI.errorText(res ? res.code : 0, m))}<br><button class="btn" data-stk="bill" style="margin-top:12px">📷 ลองใหม่</button></div>`; return;
+  }
+  receipt = AI.parseReceipt(res.text, ings);
+  if (receipt.error || !receipt.lines.length) { $('ssBody').innerHTML = '<div class="empty" style="padding:24px 0">อ่านบิลไม่ออก ลองถ่ายใหม่ให้ชัดขึ้น<br><button class="btn" data-stk="bill" style="margin-top:12px">📷 ถ่ายใหม่</button></div>'; return; }
+  renderBill();
+}
+__kit.photo = (id, b64) => { const f = __kit._photo && __kit._photo[id]; if (f) { delete __kit._photo[id]; f(b64); } };
+function renderBill() {
+  const list = shop.stock.list;
+  const sum = receipt.lines.reduce((a, l) => a + (l.total || 0), 0);
+  $('ssBody').innerHTML = `<p class="note">${esc(receipt.store || 'บิล')}${receipt.total ? ` · รวม ${receipt.total.toLocaleString('en-US')} ฿` : ''} · ตรวจ/แก้ให้ถูกก่อนบันทึก · บรรทัดที่ไม่ใช่วัตถุดิบเลือก “ไม่นับ”</p>
+    <div class="rows">${receipt.lines.map((l, i) => {
+      const g = list.find(x => x.id === l.id);
+      const unit = l.qty > 0 && l.total > 0 && g ? l.total / l.qty : null;
+      const ch = unit && g.cost ? Math.round((unit / g.cost - 1) * 100) : null;
+      return `<div class="r rc"><div class="t">${esc(l.text)}${ch != null && Math.abs(ch) >= 5 ? `<span class="pill2${ch < 0 ? ' ok' : ''}">${ch > 0 ? 'แพงขึ้น' : 'ถูกลง'} ${Math.abs(ch)}%</span>` : ''}</div>
+        <div class="g"><select data-bi="${i}" data-bf="id"><option value="">— ไม่นับ —</option>${list.map(x => `<option value="${x.id}"${x.id === l.id ? ' selected' : ''}>${esc(x.name)} (${esc(x.unit)})</option>`).join('')}</select>
+        <input type="number" inputmode="decimal" step="any" data-bi="${i}" data-bf="qty" value="${l.qty || ''}" placeholder="จำนวน">
+        <input type="number" inputmode="decimal" step="any" data-bi="${i}" data-bf="total" value="${l.total || ''}" placeholder="บาท"></div></div>`;
+    }).join('')}</div><p class="note">รวมบรรทัด ${Math.round(sum).toLocaleString('en-US')} ฿${receipt.total && Math.abs(sum - receipt.total) > 1 ? ` <span class="bad">(ไม่ตรงยอดบิล ${receipt.total.toLocaleString('en-US')} ฿ ตรวจอีกที)</span>` : ''}</p>`;
+  $('ssOk').style.display = ''; $('ssOk').textContent = 'บันทึกเข้าสต๊อก';
+  ssMode = 'bill-save';
+}
+$('ssBody').oninput = $('ssBody').onchange = e => {
+  const t = e.target; if (!t.dataset || t.dataset.bi == null || !receipt) return;
+  const l = receipt.lines[+t.dataset.bi]; l[t.dataset.bf] = t.dataset.bf === 'id' ? t.value || null : +t.value;
+  if (e.type === 'change' && t.dataset.bf === 'id') renderBill();
+};
+$('ssBody').onclick = e => { const b = e.target.closest('[data-stk]'); if (b) openSS(b.dataset.stk); };
+$('ssCancel').onclick = () => { $('stockSheet').classList.remove('open'); receipt = null; };
+async function adminPost(path, body) {
+  const r = await http('POST', base + path, body, 8000);
+  let j = {}; try { j = JSON.parse(r.text); } catch {}
+  if (r.code !== 200) throw new Error(r.code === 401 ? 'สิทธิ์ผู้จัดการหมดอายุ' : j.error || 'ติดต่อเครื่อง ED POS ไม่ได้');
+  return j;
+}
+$('ssOk').onclick = async () => {
+  const msg = $('ssMsg'); msg.className = 'msg'; msg.textContent = 'กำลังบันทึก…';
+  try {
+    if (ssMode === 'count') {
+      let n = 0;
+      for (const x of shop.stock.list) {
+        const c = document.querySelector(`[data-cnt="${x.id}"]`).value, mn = document.querySelector(`[data-min="${x.id}"]`).value;
+        const minV = mn === '' ? 0 : +mn;
+        if (c !== '' && !x.tracked) { await adminPost('/api/stock/setup', { id: x.id, stock: +c, min: minV }); n++; continue; }
+        if (c !== '' && +c !== x.stock) { await adminPost('/api/stock/move', { id: x.id, kind: 'count', qty: +c }); n++; }
+        if (x.tracked && minV !== (x.min || 0)) { await adminPost('/api/stock/setup', { id: x.id, min: minV }); n++; }
+      }
+      const auto = $('ssAuto').checked;
+      if (auto !== !!(shop.stock.settings && shop.stock.settings.autoClose)) { await adminPost('/api/stock/settings', { autoClose: auto }); n++; }
+      await loadShop(['stock', 'state'], true);
+      msg.className = 'msg good'; msg.textContent = n ? `✓ บันทึก ${n} รายการ` : 'ไม่มีอะไรเปลี่ยน';
+      if (n) { K.ding('ok'); setTimeout(() => { $('stockSheet').classList.remove('open'); render(); }, 600); }
+    } else if (ssMode === 'buy') {
+      await adminPost('/api/stock/line', { text: $('ssText').value });
+      msg.className = 'msg good'; msg.textContent = '✓ ส่งเข้า LINE แล้ว'; K.ding('ok');
+    } else if (ssMode === 'bill-save') {
+      const lines = receipt.lines.filter(l => l.id && l.qty > 0).map(l => ({ id: l.id, qty: l.qty, cost: l.total || 0 }));
+      if (!lines.length) throw new Error('ยังไม่ได้เลือกวัตถุดิบสักบรรทัด');
+      const r = await adminPost('/api/stock/receipt', { lines, note: receipt.store || 'บิลซื้อของ' });
+      await loadShop(['stock', 'state'], true);
+      const up = r.lines.filter(x => x.costChange != null && x.costChange >= 10);
+      const t = `บันทึกบิลแล้ว ${r.lines.length} รายการค่ะ` + (up.length ? ` ระวัง ${up.map(x => `${x.name}แพงขึ้น ${x.costChange}%`).join(', ')}` : '');
+      msg.className = 'msg good'; msg.textContent = '✓ ' + t; K.ding('ok'); speak(t);
+      lastUndo = { calls: r.lines.map(x => ({ path: '/api/stock/move', body: { id: x.id, kind: 'adjust', delta: -x.d, note: 'ย้อนกลับบิล' } })), label: 'บิลซื้อของ', at: Date.now() };
+      receipt = null; setTimeout(() => { $('stockSheet').classList.remove('open'); render(); }, 900);
+    }
+  } catch (e) { msg.className = 'msg bad'; msg.textContent = '✗ ' + e.message; }
 };
 function showTab(t) {
   tab = t;
@@ -851,7 +1024,7 @@ $('pinOk').onclick = () => {
 const SEGS = { sMode: 'mode', sParticle: 'particle' };
 const CHECKS = { sVolKey: 'volKey', sMute: 'mute', sConfirm: 'confirm', sBrief: 'brief', sAnnGroup: 'annGroup', sAnnAllergy: 'annAllergy',
   sAnnCancel: 'annCancel', sAnnNew: 'annNew', sAnnLate: 'annLate', sAiOn: 'aiOn',
-  sMgrOn: 'mgrOn', sMgrMoney: 'mgrMoney', sMgrPace: 'mgrPace', sMgrMilestone: 'mgrMilestone', sMgrBacklog: 'mgrBacklog', sMgrCancel: 'mgrCancel' };
+  sMgrOn: 'mgrOn', sMgrMoney: 'mgrMoney', sMgrPace: 'mgrPace', sMgrMilestone: 'mgrMilestone', sMgrBacklog: 'mgrBacklog', sMgrCancel: 'mgrCancel', sMgrStock: 'mgrStock' };
 const TEXTS = { sWake: 'wake', sName: 'name', sWords: 'words', sAiModel: 'aiModel', sAiNotes: 'aiNotes', sBriefOpen: 'briefOpen', sBriefClose: 'briefClose' };
 const NUMS = { sBatchMax: 'batchMax', sLateMin: 'lateMin', sTimerRepeat: 'timerRepeat', sRate: 'rate', sPitch: 'pitch', sPaceDrop: 'paceDrop', sBacklogN: 'backlogN' };
 const draft = {};

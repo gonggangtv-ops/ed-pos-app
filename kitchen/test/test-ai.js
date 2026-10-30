@@ -34,5 +34,16 @@ r = A.toResult(A.parseResponse(gem({ say: 'ปิดต้มยำกุ้ง�
 ok(r.kind === 'menu-off' && r.calls.length === 1 && r.calls[0].body.available === false && r.undo[0].body.available === true, 'menu_off validated');
 r = A.toResult(A.parseResponse(gem({ say: 'ok', action: { type: 'menu_on', menu_ids: ['m1'] } })), orders, { menu });
 ok(r.kind === 'ai' && !r.calls, 'menu_on on already-open menu → no action');
+const stock = { list: [{ id: 'g1', name: 'กุ้ง', unit: 'กรัม', tracked: true, stock: 1200 }, { id: 'g2', name: 'นม', unit: 'มล.', tracked: false }] };
+r = A.toResult(A.parseResponse(gem({ say: 'รับกุ้ง 2000 กรัม 800 บาท ใช่ไหมคะ', action: { type: 'stock_move', ingredient_id: 'g1', kind: 'in', qty: 2000, cost: 800 } })), orders, { stock });
+ok(r.kind === 'stock-move' && r.confirm && r.calls[0].body.cost === 800 && r.undo[0].body.delta === -2000, 'AI stock in');
+r = A.toResult(A.parseResponse(gem({ say: 'x', action: { type: 'stock_move', ingredient_id: 'g2', kind: 'count', qty: 900 } })), orders, { stock });
+ok(r.calls[0].path === '/api/stock/setup' && r.undo[0].body.track === false, 'AI count untracked → setup');
+r = A.toResult(A.parseResponse(gem({ say: 'x', action: { type: 'stock_move', ingredient_id: 'zz', kind: 'in', qty: 1 } })), orders, { stock });
+ok(r.kind === 'ai' && !r.calls, 'AI stock unknown id → no action');
+const rq = A.buildReceiptRequest('QUJD', [{ id: 'g1', name: 'กุ้ง', unit: 'กรัม' }]);
+ok(rq.contents[0].parts[0].inline_data.data === 'QUJD' && /กุ้ง/.test(rq.contents[0].parts[1].text), 'receipt request');
+const rc = A.parseReceipt(gem('```json\n' + JSON.stringify({ store: 'แม็คโคร', total: 1290, lines: [{ text: 'กุ้งขาวแช่แข็ง 1กก.x2', ingredient_id: 'g1', qty: 2000, unit: 'กรัม', total: 780 }, { text: 'ถุงร้อน', ingredient_id: 'nope', qty: 1, unit: 'แพ็ค', total: 45 }] }) + '\n```'), [{ id: 'g1' }]);
+ok(rc.store === 'แม็คโคร' && rc.lines.length === 2 && rc.lines[0].id === 'g1' && rc.lines[1].id === null, 'parse receipt');
 console.log(fail ? `${fail} FAILED` : 'all passed');
 process.exit(fail ? 1 : 0);

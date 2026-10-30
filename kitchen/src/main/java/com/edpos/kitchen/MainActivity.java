@@ -3,11 +3,20 @@ package com.edpos.kitchen;
 import android.Manifest;
 import android.app.Activity;
 import android.content.ComponentName;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.media.AudioAttributes;
+import android.media.ExifInterface;
+import android.net.Uri;
+import android.os.Build;
+import android.provider.MediaStore;
+import android.util.Base64;
 import android.media.AudioManager;
 import android.media.ToneGenerator;
 import android.os.Bundle;
@@ -53,6 +62,9 @@ import java.util.concurrent.Executors;
 public class MainActivity extends Activity {
     private static final String PREFS = "kitchen";
     private static final int REQ_MIC = 3;
+    private static final int REQ_PHOTO = 4;
+    private String photoId = null;
+    private Uri photoOut = null;   // ไฟล์ที่กล้องเขียนลง (ลบทิ้งหลังอ่านแล้ว)
     private static final String DEFAULT_WAKE = "น้องมาม่า, น้องมามา, น้องม่าม้า, น้องหม่าม้า, น้องมาม๊า, น้องมะม่า, น้องมาร์ม่า, น้องหมาม่า";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -352,6 +364,90 @@ public class MainActivity extends Activity {
         if (req == REQ_MIC && hasMic()) applyListening();
     }
 
+    // ---------- ถ่ายรูป/เลือกรูป (บิลซื้อของ) → JPEG base64 ไม่เกิน 1600px ----------
+    private void pickPhoto(String id) {
+        photoId = id;
+        photoOut = null;
+        try {
+            Intent pick = new Intent(Intent.ACTION_GET_CONTENT);
+            pick.setType("image/*");
+            pick.addCategory(Intent.CATEGORY_OPENABLE);
+            Intent chooser = Intent.createChooser(pick, "รูปบิลซื้อของ");
+            if (Build.VERSION.SDK_INT >= 29) {   // กล้อง: ให้เขียนลงคลังรูปของแอปเอง (ไม่ต้องขอสิทธิ์)
+                ContentValues v = new ContentValues();
+                v.put(MediaStore.Images.Media.DISPLAY_NAME, "receipt-" + System.currentTimeMillis() + ".jpg");
+                v.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                v.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/MamaKitchen");
+                photoOut = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+                if (photoOut != null) {
+                    Intent cam = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                    cam.putExtra(MediaStore.EXTRA_OUTPUT, photoOut);
+                    cam.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    if (cam.resolveActivity(getPackageManager()) != null) chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[]{cam});
+                }
+            }
+            stopRec();   // ปล่อยไมค์ระหว่างถ่ายรูป
+            startActivityForResult(chooser, REQ_PHOTO);
+        } catch (Exception e) {
+            photoDone("");
+        }
+    }
+
+    private void photoDone(String b64) {
+        String id = photoId;
+        photoId = null;
+        if (id != null) js("__kit.photo&&__kit.photo(" + JSONObject.quote(id) + "," + JSONObject.quote(b64) + ")");
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req != REQ_PHOTO) return;
+        final Uri src = res == RESULT_OK ? (data != null && data.getData() != null ? data.getData() : photoOut) : null;
+        final Uri tmp = photoOut;
+        photoOut = null;
+        if (src == null) { if (tmp != null) try { getContentResolver().delete(tmp, null, null); } catch (Exception ignored) { } photoDone(""); return; }
+        net.execute(() -> {
+            String b64 = "";
+            try { b64 = encodePhoto(src); } catch (Exception ignored) { }
+            if (tmp != null) try { getContentResolver().delete(tmp, null, null); } catch (Exception ignored) { }
+            final String out = b64;
+            ui.post(() -> photoDone(out));
+        });
+    }
+
+    private String encodePhoto(Uri u) throws Exception {
+        BitmapFactory.Options o = new BitmapFactory.Options();
+        o.inJustDecodeBounds = true;
+        try (java.io.InputStream in = getContentResolver().openInputStream(u)) { BitmapFactory.decodeStream(in, null, o); }
+        int max = Math.max(o.outWidth, o.outHeight), sample = 1;
+        while (max / (sample * 2) >= 1600) sample *= 2;
+        BitmapFactory.Options o2 = new BitmapFactory.Options();
+        o2.inSampleSize = sample;
+        Bitmap bm;
+        try (java.io.InputStream in = getContentResolver().openInputStream(u)) { bm = BitmapFactory.decodeStream(in, null, o2); }
+        if (bm == null) return "";
+        int rot = 0;
+        try (java.io.InputStream in = getContentResolver().openInputStream(u)) {
+            int ori = new ExifInterface(in).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+            rot = ori == ExifInterface.ORIENTATION_ROTATE_90 ? 90 : ori == ExifInterface.ORIENTATION_ROTATE_180 ? 180 : ori == ExifInterface.ORIENTATION_ROTATE_270 ? 270 : 0;
+        } catch (Exception ignored) { }
+        float scale = Math.min(1f, 1600f / Math.max(bm.getWidth(), bm.getHeight()));
+        if (rot != 0 || scale < 1f) {
+            Matrix m = new Matrix();
+            m.postScale(scale, scale);
+            m.postRotate(rot);
+            Bitmap b2 = Bitmap.createBitmap(bm, 0, 0, bm.getWidth(), bm.getHeight(), m, true);
+            if (b2 != bm) bm.recycle();
+            bm = b2;
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        bm.compress(Bitmap.CompressFormat.JPEG, 82, out);
+        bm.recycle();
+        return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
+    }
+
     // ---------- วงจรชีวิตแอป ----------
     @Override
     protected void onResume() {
@@ -590,6 +686,9 @@ public class MainActivity extends Activity {
                 return "bad:" + msg;
             } catch (Exception e) { return "offline"; }
         }
+
+        @JavascriptInterface
+        public void pickPhoto(String id) { ui.post(() -> MainActivity.this.pickPhoto(id)); }
 
         @JavascriptInterface
         public void ownerLogout() { prefs.edit().remove("ownerToken").commit(); }
