@@ -3017,7 +3017,7 @@ const STAFF_ROUTES = new Set(['GET /api/state', 'GET /api/rev', 'GET /api/histor
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml',
-  '.webp': 'image/webp', '.jpg': 'image/jpeg' };
+  '.webp': 'image/webp', '.jpg': 'image/jpeg', '.woff2': 'font/woff2' };
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');

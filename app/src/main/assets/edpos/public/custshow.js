@@ -1,46 +1,48 @@
-/* ป้ายยอดให้ลูกค้าดู (test-1.51)
- * เปิดจากหน้าต่างชำระเงิน ปุ่ม "📺 ให้ลูกค้าดู" → เต็มจอ รูปป้าย pay-sign.webp + ตัวเลขแบบไฟ 7 ส่วน
+/* ป้ายยอดให้ลูกค้าดู (test-1.52)
+ * เปิดจากหน้าต่างชำระเงิน ปุ่ม "📺 ขึ้นยอดให้ลูกค้าดู" → เต็มจอ รูปป้าย pay-sign.webp + ยอดเงิน
+ * · ตัวเลขฟอนต์กลมมน Fredoka 600 (fredoka-600.woff2 ติดมากับแอป ไม่ต้องใช้เน็ต · SIL OFL)
+ *   สตางค์ (.50) ตัวเล็กกว่า · ฿ = ตัว B ของฟอนต์เดียวกัน + ขีดตั้ง
  * · ตัวเลขวางทับช่องว่างในรูป (ตำแหน่งเป็น % ของรูป 1536×1024) ยาวแค่ไหนก็ย่อให้พอดีช่องเอง
  * · จอแนวตั้ง → หมุนป้ายเป็นแนวนอนให้ · ปุ่ม ⟳ พลิกกลับหัว (ยื่นเครื่องข้ามเคาน์เตอร์) จำต่อเครื่อง
  * · ยอดเปลี่ยน (หารเท่า/แยกจ่าย/ค่าธรรมเนียมบัตร/ใส่เงินที่รับมา) ป้ายเปลี่ยนตามทันที
  * window.custShow.open(s) / .update(s) / .close() · s = { amount, note, paid } */
 (() => {
   const INK = '#3a1d0c';
+  const FONT = 'EdposNum, Fredoka, system-ui, sans-serif';
   // ช่องตัวเลขในรูป (% ของความกว้าง/สูงรูป)
   const BOX = { l: 52.6, t: 51.6, w: 41.6, h: 18.4 };
 
-  // ---------- ตัวเลขแบบไฟ 7 ส่วน (SVG) ----------
-  // ช่องละ 60×100 · ความหนาเส้น 12 · ปลายเส้นตัดเฉียง
-  const W = 60, H = 100, T = 12, G = 1.6, ADV = 74;
-  const hSeg = y => { const a = T / 2 + G, b = W - T / 2 - G, h = T / 2;
-    return `${a},${y} ${a + h},${y - h} ${b - h},${y - h} ${b},${y} ${b - h},${y + h} ${a + h},${y + h}`; };
-  const vSeg = (x, y1, y2) => { const a = y1 + G, b = y2 - G, h = T / 2;
-    return `${x},${a} ${x + h},${a + h} ${x + h},${b - h} ${x},${b} ${x - h},${b - h} ${x - h},${a + h}`; };
-  const SEG = {
-    a: () => hSeg(T / 2), g: () => hSeg(H / 2), d: () => hSeg(H - T / 2),
-    f: () => vSeg(T / 2, T / 2, H / 2), b: () => vSeg(W - T / 2, T / 2, H / 2),
-    e: () => vSeg(T / 2, H / 2, H - T / 2), c: () => vSeg(W - T / 2, H / 2, H - T / 2),
-  };
-  const DIG = { 0: 'abcdef', 1: 'bc', 2: 'abged', 3: 'abgcd', 4: 'fgbc', 5: 'afgcd', 6: 'afgedc', 7: 'abc', 8: 'abcdefg', 9: 'abcdfg', '-': 'g' };
-
-  function digitsSvg(str) {
-    let x = 0, out = '';
-    for (const ch of str) {
-      if (DIG[ch] != null) {
-        // เส้นที่ไม่ติดจางๆ ให้ดูเป็นจอไฟจริง
-        out += `<g transform="translate(${x} 0)">${Object.keys(SEG).map(k =>
-          `<polygon points="${SEG[k]()}" fill="${INK}" opacity="${DIG[ch].includes(k) ? 1 : 0.06}"/>`).join('')}</g>`;
-        x += ADV;
-      } else if (ch === '.') {
-        out += `<rect x="${x - 6}" y="${H - 14}" width="14" height="14" rx="2" fill="${INK}"/>`; x += 18;
-      } else if (ch === ',') {
-        out += `<polygon points="${x - 6},${H - 14} ${x + 8},${H - 14} ${x + 4},${H + 6} ${x - 4},${H + 6}" fill="${INK}"/>`; x += 18;
-      }
-    }
-    // ฿ ใช้ตัวอักษร (ตัวหนา) สูงราว 70% ของตัวเลข ชิดฐาน
-    out += `<text x="${x + 6}" y="${H}" font-size="74" font-weight="900" fill="${INK}" font-family="system-ui,sans-serif">฿</text>`;
-    x += 54;
-    return `<svg viewBox="-8 -4 ${x + 16} ${H + 14}" preserveAspectRatio="xMidYMid meet">${out}</svg>`;
+  // ---------- ยอดเงิน (SVG ตัวอักษร) ----------
+  // "1,187.50" → บาท ตัวใหญ่ + ".50" ตัวเล็ก ชิดฐานเดียวกัน · viewBox ตั้งจากขนาดจริงหลังวาด (fit)
+  function amountSvg(str) {
+    const m = str.match(/^(.*?)([.,]\d{1,2})?$/);
+    const main = m[1], dec = m[2] && m[2][0] === '.' ? m[2] : '';
+    const whole = dec ? main : str;
+    const t = (txt, size, extra = '') => `<tspan font-size="${size}"${extra}>${txt}</tspan>`;
+    return `<svg preserveAspectRatio="xMidYMid meet" viewBox="0 -100 400 130">
+      <g fill="${INK}" font-family="${FONT}" font-weight="600" letter-spacing="1">
+        <text x="0" y="0">${t(whole, 128)}${dec ? t(dec, 84, ' dx="2"') : ''}</text>
+      </g>
+      <g class="cs-baht" fill="${INK}" font-family="${FONT}" font-weight="600">
+        <text y="0" font-size="92">B</text><rect width="11" height="112" rx="5.5"/>
+      </g></svg>`;
+  }
+  // วางตัว ฿ ต่อท้ายตัวเลข แล้วตั้ง viewBox ให้พอดีของที่วาดจริง (ฟอนต์โหลดเสร็จแล้วเรียกซ้ำ)
+  function fit(svg) {
+    if (!svg || !svg.isConnected) return;
+    const num = svg.querySelector('text'), b = svg.querySelector('.cs-baht');
+    const nb = num.getBBox();
+    const bt = b.querySelector('text'), bar = b.querySelector('rect');
+    const x = nb.x + nb.width + 22;
+    bt.setAttribute('x', x);
+    const bb = bt.getBBox();
+    // ตัว B ของฟอนต์มีช่องว่างรอบตัว (bbox ใหญ่กว่าเส้นจริง) → ขีดตั้งยาวพ้นหัว/ท้ายนิดเดียว
+    bar.setAttribute('x', bb.x + bb.width * 0.47 - 5.5);
+    bar.setAttribute('y', bb.y + bb.height * 0.12 - 9);
+    bar.setAttribute('height', bb.height * 0.76 + 18);
+    const all = svg.querySelector('g').getBBox(), end = bb.x + bb.width;
+    const top = Math.min(all.y, bb.y), bot = Math.max(all.y + all.height, bb.y + bb.height);
+    svg.setAttribute('viewBox', `${all.x - 6} ${top - 4} ${end - all.x + 12} ${bot - top + 8}`);
   }
 
   // ---------- หน้าจอ ----------
@@ -48,6 +50,7 @@
     if (document.getElementById('csCss')) return;
     const s = document.createElement('style'); s.id = 'csCss';
     s.textContent = `
+      @font-face { font-family: EdposNum; src: url(fredoka-600.woff2) format('woff2'); font-weight: 600; font-display: block; }
       #custShow { position: fixed; inset: 0; z-index: 2147483000; background: #fff; overflow: hidden; touch-action: none;
         user-select: none; -webkit-user-select: none; }
       #custShow .cs-stage { position: absolute; left: 50%; top: 50%; aspect-ratio: 3 / 2;
@@ -60,7 +63,7 @@
         display: flex; flex-direction: column; justify-content: center; align-items: center; }
       #custShow .cs-num svg { width: 100%; height: 100%; flex: 1 1 0; min-height: 0; }
       #custShow .cs-num.has-note svg { height: 70%; }
-      #custShow .cs-note { flex: 0 0 auto; font: 700 clamp(12px, 2.1vmax, 30px)/1.15 system-ui, sans-serif; color: ${INK};
+      #custShow .cs-note { flex: 0 0 auto; font: 600 clamp(12px, 2.1vmax, 30px)/1.15 ${FONT}; color: ${INK};
         white-space: nowrap; margin-top: .3em; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
       #custShow .cs-note.paid { color: #1d7a3f; }
       #custShow .cs-tools { position: absolute; top: 10px; right: 10px; display: flex; gap: 8px; }
@@ -86,8 +89,10 @@
     last = key;
     const num = el.querySelector('.cs-num');
     num.classList.toggle('has-note', !!s.note);
-    num.innerHTML = digitsSvg(amt) + (s.note ? `<div class="cs-note${s.paid ? ' paid' : ''}"></div>` : '');
+    num.innerHTML = amountSvg(amt) + (s.note ? `<div class="cs-note${s.paid ? ' paid' : ''}"></div>` : '');
     if (s.note) num.querySelector('.cs-note').textContent = s.note;
+    const svg = num.querySelector('svg'); fit(svg);
+    try { document.fonts.load('600 100px EdposNum').then(() => fit(svg), () => {}); } catch {}
     if (changedAmt) { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
   }
 
