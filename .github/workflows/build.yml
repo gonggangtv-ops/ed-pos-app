@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Test kitchen voice commands
-        run: node kitchen/test/test-logic.js && node kitchen/test/test-ai.js
+        run: node kitchen/test/test-logic.js && node kitchen/test/test-ai.js && node kitchen/test/test-manager.js
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

@@ -435,9 +435,11 @@ public class MainActivity extends Activity {
     }
 
     /** → {code, text} · code 0 = ติดต่อไม่ได้ */
-    static String[] request(String method, String url, String body, int timeout) { return request(method, url, body, timeout, null); }
+    static String[] request(String method, String url, String body, int timeout) { return request(method, url, body, timeout, null, null); }
 
-    static String[] request(String method, String url, String body, int timeout, String aiKey) {
+    static String[] request(String method, String url, String body, int timeout, String aiKey) { return request(method, url, body, timeout, aiKey, null); }
+
+    static String[] request(String method, String url, String body, int timeout, String aiKey, String pinToken) {
         HttpURLConnection c = null;
         try {
             if (!url.startsWith("http://") && !url.startsWith("https://")) return new String[]{"0", ""};
@@ -447,6 +449,7 @@ public class MainActivity extends Activity {
             c.setUseCaches(false);
             c.setRequestMethod(method);
             if (aiKey != null) c.setRequestProperty("x-goog-api-key", aiKey);
+            if (pinToken != null) c.setRequestProperty("x-pin-token", pinToken);
             if ("POST".equals(method)) {
                 c.setDoOutput(true);
                 c.setRequestProperty("Content-Type", "application/json");
@@ -483,6 +486,7 @@ public class MainActivity extends Activity {
                 String k = str("aiKey", "");
                 o.put("aiKeySet", !k.isEmpty());
                 o.put("aiKeyHint", k.length() > 4 ? k.substring(k.length() - 4) : "");
+                o.put("mgrSet", !str("ownerToken", "").isEmpty());
                 o.put("version", version());
                 return o.toString();
             } catch (Exception e) { return "{}"; }
@@ -526,7 +530,9 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void http(String id, String method, String url, String body, int timeout) {
             net.execute(() -> {
-                String[] r = request(method, url, body, timeout);
+                // โหมดผู้จัดการ: แนบโทเค็นเจ้าของร้านไปกับคำขอถึงเครื่อง ED POS (http:// ในร้านเท่านั้น ไม่ส่งออกอินเทอร์เน็ต)
+                String tok = str("ownerToken", "");
+                String[] r = request(method, url, body, timeout, null, url != null && url.startsWith("http://") && !tok.isEmpty() ? tok : null);
                 js("__kit.http&&__kit.http(" + JSONObject.quote(id) + "," + r[0] + "," + JSONObject.quote(r[1]) + ")");
             });
         }
@@ -563,6 +569,30 @@ public class MainActivity extends Activity {
                 return "bad:" + msg;
             } catch (Exception e) { return "offline"; }
         }
+
+        /** เปิดโหมดผู้จัดการ: ใส่รหัสเจ้าของร้าน → เก็บโทเค็นไว้ในแอป (หน้าเว็บไม่เห็น) · "ok" | "bad:ข้อความ" | "offline" */
+        @JavascriptInterface
+        public String ownerLogin(String base, String pin) {
+            try {
+                JSONObject o = new JSONObject();
+                o.put("pin", pin);
+                o.put("want", "admin");
+                String[] r = request("POST", (base == null || base.isEmpty() ? str("main", "") : base) + "/api/login", o.toString(), 4000);
+                if ("200".equals(r[0])) {
+                    String t = new JSONObject(r[1]).optString("token", "");
+                    if (t.isEmpty()) return "bad:เซิร์ฟเวอร์ไม่ส่งโทเค็น";
+                    prefs.edit().putString("ownerToken", t).commit();
+                    return "ok";
+                }
+                if ("0".equals(r[0])) return "offline";
+                String msg = "รหัสไม่ถูกต้อง";
+                try { msg = new JSONObject(r[1]).optString("error", msg); } catch (Exception ignored) { }
+                return "bad:" + msg;
+            } catch (Exception e) { return "offline"; }
+        }
+
+        @JavascriptInterface
+        public void ownerLogout() { prefs.edit().remove("ownerToken").commit(); }
 
         @JavascriptInterface
         public void setListening(boolean on) { ui.post(() -> { wantLoop = on; applyListening(); }); }

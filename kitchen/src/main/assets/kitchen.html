@@ -81,6 +81,26 @@
   .ord .rm { color: var(--hot); font-size: 15px; }
   .hl { border-color: var(--hot) !important; }
 
+  /* ----- ร้าน (โหมดผู้จัดการ) ----- */
+  .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .kpi { background: var(--panel); border-radius: 16px; padding: 12px 14px; }
+  .kpi .k { font-size: 14px; color: var(--dim); }
+  .kpi .v { font-size: 26px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .kpi .s { font-size: 14px; color: var(--dim); margin-top: 2px; }
+  .kpi .up { color: var(--ok); } .kpi .down { color: var(--bad); }
+  .bar { height: 8px; border-radius: 99px; background: #2b2a27; margin-top: 8px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--brand); border-radius: 99px; }
+  .card { background: var(--panel); border-radius: 16px; padding: 12px 14px; margin-bottom: 10px; }
+  .card h4 { margin: 0 0 8px; font-size: 17px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .card h4 small { color: var(--dim); font-weight: 400; font-size: 14px; }
+  .card .ln { font-size: 16px; line-height: 1.6; }
+  .card pre { white-space: pre-wrap; font: inherit; font-size: 15px; line-height: 1.6; margin: 0; color: var(--text); }
+  .menuoff { display: flex; flex-wrap: wrap; gap: 8px; }
+  .menuoff button { padding: 8px 12px; border-radius: 12px; background: #3a2420; color: #ffd2c9; font-size: 15px; }
+  .qbtns { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .qbtns button { padding: 10px 12px; border-radius: 12px; background: var(--panel2); font-size: 15px; }
+  .mgrState { padding: 10px 12px; border-radius: 12px; background: var(--panel); font-size: 15px; line-height: 1.5; }
+
   /* ----- ปุ่มล่าง ----- */
   footer { display: flex; gap: 8px; padding: 10px 14px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
   footer button { height: 70px; border-radius: 20px; font-size: 18px; }
@@ -145,6 +165,7 @@
 <nav class="tabs">
   <button class="on" data-tab="groups">ทำรวม</button>
   <button data-tab="tables">รายโต๊ะ</button>
+  <button data-tab="shop" id="tabShop" style="display:none">ร้าน</button>
 </nav>
 
 <main id="board"><div class="empty">กำลังโหลดออเดอร์…</div></main>
@@ -219,6 +240,23 @@
       <textarea id="sWords" placeholder="กพ = กะเพรา&#10;เพชร = เผ็ด&#10;ต้มยำ = ต้มยำกุ้ง"></textarea></div>
   </div>
 
+  <div class="sec"><h4>ผู้จัดการร้าน</h4>
+    <div class="mgrState" id="mgrState"></div>
+    <label class="check"><input type="checkbox" id="sMgrOn"><span>เปิดโหมดผู้จัดการ<small>ถามยอดขาย คุ้มทุน พรุ่งนี้เตรียมอะไร ขายดี เวลาครัว · สั่งปิด/เปิดเมนูด้วยเสียง (“กุ้งหมด”) · แท็บ “ร้าน” · ใครอยู่หน้าเครื่องนี้ก็ถามได้</small></span></label>
+    <label class="check"><input type="checkbox" id="sMgrMoney"><span>พูดตัวเลขเงินออกเสียง<small>ปิด = พูดเป็นเปอร์เซ็นต์ ตัวเลขเงินดูบนจอแท็บ “ร้าน” แทน</small></span></label>
+    <span class="lab" style="margin-top:8px">พูดเตือนแบบผู้จัดการ</span>
+    <label class="check"><input type="checkbox" id="sMgrPace"><span>ยอดต่ำกว่าที่คาด<small>เตือนไม่เกินทุก 90 นาที</small></span></label>
+    <div class="field inline"><span class="lab" style="margin:0;flex:1">ต่ำกว่าที่คาดเกิน (%)</span><input type="number" id="sPaceDrop" min="5" max="80"></div>
+    <label class="check"><input type="checkbox" id="sMgrMilestone"><span>ข่าวดี<small>ทะลุยอดที่คาด · เดือนนี้ถึงจุดคุ้มทุน</small></span></label>
+    <label class="check"><input type="checkbox" id="sMgrBacklog"><span>ครัวค้างเยอะ<small>แนะนำทำรวม/ปิดเมนูชั่วคราว · ไม่เกินทุก 20 นาที</small></span></label>
+    <div class="field inline"><span class="lab" style="margin:0;flex:1">ค้างตั้งแต่ (จาน)</span><input type="number" id="sBacklogN" min="3" max="60"></div>
+    <label class="check"><input type="checkbox" id="sMgrCancel"><span>ยกเลิกบ่อย<small>ทุกครั้งที่ยกเลิกครบ 5 จาน</small></span></label>
+    <div class="field inline"><span class="lab" style="margin:0;flex:1">บรีฟเปิดร้าน (เวลา) <small>ยอดที่คาดวันนี้ เมนูที่ปิด</small></span><input type="text" id="sBriefOpen" placeholder="10:00" style="width:100px;flex:none"></div>
+    <div class="field inline"><span class="lab" style="margin:0;flex:1">บรีฟปิดร้าน (เวลา) <small>สรุปวันนี้ + พรุ่งนี้เตรียมอะไร</small></span><input type="text" id="sBriefClose" placeholder="21:30" style="width:100px;flex:none"></div>
+    <p class="note">เว้นเวลาว่าง = ไม่บรีฟ · ปิดเมนูด้วยเสียงต้องตอบ “ใช่” ทุกครั้ง และพูด “ย้อนกลับ” ได้ · เปลี่ยนรหัสเจ้าของร้านที่หลังร้านเมื่อไร ต้องเข้าหน้าตั้งค่านี้ใหม่</p>
+    <button class="btn" id="mgrRevoke" style="margin-top:6px">ลบสิทธิ์ผู้จัดการออกจากเครื่องนี้</button>
+  </div>
+
   <div class="sec"><h4>AI (Gemini) — ให้ฉลาดขึ้น</h4>
     <label class="check"><input type="checkbox" id="sAiOn"><span>ใช้ AI เมื่อไม่เข้าใจคำพูด / ถามคำถามทั่วไป<small>คำสั่งหลักยังทำในเครื่องเหมือนเดิม (เร็ว ฟรี เน็ตหลุดก็ใช้ได้)</small></span></label>
     <div class="field"><label>API key <span id="keyState"></span></label>
@@ -235,15 +273,17 @@
 
 <script src="logic.js"></script>
 <script src="ai.js"></script>
+<script src="manager.js"></script>
 <script>
 'use strict';
 const K = window.Kit;            // ช่องทางไปแอป (MainActivity.Bridge)
-const L = window.KitchenLogic, AI = window.KitchenAI;
+const L = window.KitchenLogic, AI = window.KitchenAI, M = window.KitchenManager;
 const $ = id => document.getElementById(id);
 
 const DEF = { name: 'น้องมาม่า', particle: 'ค่ะ', pitch: 1, brief: false, batchMax: 4,
   annGroup: true, annAllergy: true, annCancel: true, annNew: false, annLate: true, lateMin: 15,
-  timerRepeat: 3, words: '', aiOn: true, aiModel: '', aiNotes: '' };
+  timerRepeat: 3, words: '', aiOn: true, aiModel: '', aiNotes: '',
+  mgrOn: true, mgrMoney: true, mgrPace: true, paceDrop: 25, mgrMilestone: true, mgrBacklog: true, backlogN: 12, mgrCancel: true, briefOpen: '', briefClose: '' };
 let cfg = load();
 function load() { const c = JSON.parse(K.getConfig()); for (const k in DEF) if (c[k] === undefined) c[k] = DEF[k]; return c; }
 
@@ -261,6 +301,7 @@ let timers = [], timerSeq = 0;
 let annQueue = [];
 const words = () => L.parseWords(cfg.words);
 const aiReady = () => cfg.aiOn && cfg.aiKeySet;
+const mgr = () => cfg.mgrOn && cfg.mgrSet;
 
 // ---------- เครือข่าย (ผ่านแอป ไม่ติด CORS) ----------
 const waits = new Map(); let seq = 0;
@@ -438,6 +479,88 @@ function talkNow() {
   setStatus();
 }
 
+// ---------- ร้าน (โหมดผู้จัดการ) ----------
+const shop = {}, shopAt = {};
+let report = null;               // {title, text} สรุปล่าสุดที่ขอ (แสดงในแท็บร้าน)
+const mgrMem = {};               // สถานะของการเตือน (KitchenManager.alerts)
+const SHOP_URL = {
+  pace: '/api/pace', breakeven: '/api/breakeven', forecast: '/api/forecast', state: '/api/state',
+  report: () => { const k = M.dayKey(Date.now()); return `/api/report?from=${k}&to=${k}`; },
+  'line-day': '/api/line/preview?kind=day', 'line-week': '/api/line/preview?kind=week', 'line-month': '/api/line/preview?kind=month',
+};
+const SHOP_TTL = { pace: 45e3, state: 60e3, report: 120e3, breakeven: 300e3, forecast: 600e3 };
+let mgrLost = false;
+/** โหลดข้อมูลร้านที่ยังไม่มี/เก่าเกิน · force = โหลดใหม่ทั้งหมด */
+async function loadShop(need, force) {
+  if (!base) await refresh();
+  await Promise.all(need.map(async k => {
+    if (!force && shop[k] && Date.now() - (shopAt[k] || 0) < (SHOP_TTL[k] || 0)) return;
+    const u = typeof SHOP_URL[k] === 'function' ? SHOP_URL[k]() : SHOP_URL[k];
+    const r = await http('GET', base + u, null, 8000);
+    if (r.code === 401) { mgrLost = true; return; }
+    if (r.code !== 200) return;
+    try { const j = JSON.parse(r.text); shop[k] = k.startsWith('line-') ? j.text : j; shopAt[k] = Date.now(); mgrLost = false; } catch {}
+  }));
+}
+const optionNames = () => [...new Set(((shop.state && shop.state.optionSets) || []).flatMap(g => (g.choices || g.options || []).map(c => c.name || c)).filter(x => typeof x === 'string'))];
+function mgrCtx() { return { menu: (shop.state && shop.state.menu) || [], ingredients: (shop.state && shop.state.ingredients) || [], optionNames: optionNames() }; }
+
+let mgrBusy = false;
+async function mgrTick() {
+  if (!mgr() || mgrBusy || !base) return;
+  mgrBusy = true;
+  try {
+    await loadShop(['pace', 'state', 'report', 'breakeven', 'forecast']);
+    if (mgrLost) return;
+    const msgs = M.alerts(mgrMem, { pace: shop.pace, breakeven: shop.breakeven, report: shop.report, orders, now: Date.now() },
+      { pace: cfg.mgrPace, paceDrop: cfg.paceDrop, milestone: cfg.mgrMilestone, backlog: cfg.mgrBacklog, backlogN: cfg.backlogN,
+        cancel: cfg.mgrCancel, money: cfg.mgrMoney, lateMin: cfg.lateMin });
+    if (msgs.length) annQueue.push(...msgs);
+    await briefs();
+    if (tab === 'shop') render();
+  } finally { mgrBusy = false; }
+}
+/** บรีฟเปิด/ปิดร้านตามเวลาที่ตั้ง (วันละครั้ง) */
+async function briefs() {
+  const d = new Date(), hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`, day = M.dayKey(d);
+  // ถึงเวลาแล้ว และยังไม่เกิน 2 ชั่วโมง (เปิดแอปตอนเย็นจะไม่บรีฟเปิดร้านย้อนหลัง)
+  const mins = x => { const [h, m] = x.replace('.', ':').split(':').map(Number); return h * 60 + m; };
+  const due = t => /^\d{1,2}[:.]\d{2}$/.test(t || '') && mins(hm) >= mins(t) && mins(hm) - mins(t) <= 120;
+  let done = {}; try { done = JSON.parse(localStorage.getItem('briefs') || '{}'); } catch {}
+  const mark = k => { done[k] = day; try { localStorage.setItem('briefs', JSON.stringify(done)); } catch {} };
+  if (due(cfg.briefOpen) && done.open !== day) {
+    mark('open');
+    const p = shop.pace, off = ((shop.state && shop.state.menu) || []).filter(m => m.available === false);
+    let t = 'บรีฟเปิดร้าน ';
+    if (p && p.forecast) t += `วันนี้คาดขาย${cfg.mgrMoney ? ` ${p.forecast.toLocaleString('en-US')} บาท` : ''}${p.wx && p.wx.prob >= 50 ? ` ฝนมีโอกาสตก ${p.wx.prob}%` : ''} `;
+    t += off.length ? `เมนูที่ปิดอยู่ ${M.listNames(off)} ถ้าของมาแล้วบอกน้องให้เปิดได้` : 'ทุกเมนูเปิดขายอยู่';
+    annQueue.push(t);
+  }
+  if (due(cfg.briefClose) && done.close !== day) {
+    mark('close');
+    await loadShop(['line-day', 'forecast'], true);
+    annQueue.push('บรีฟปิดร้าน ' + M.answer({ topic: 'day' }, shop, { money: cfg.mgrMoney }), M.answer({ topic: 'tomorrow' }, shop, { money: cfg.mgrMoney }));
+    report = { title: 'สรุปวันนี้', text: shop['line-day'] || '' };
+  }
+}
+const ADVICE = /(ทำไม|ควร|แนะนำ|ยังไงดี|ช่วยคิด|ไอเดีย|จัดโปร|โปรโมชั่น|วิเคราะห์|เพราะอะไร|ปรับปรุง|เพิ่มยอด)/;
+async function managerCommand(text) {
+  const c = text;
+  if (ADVICE.test(L.norm(text)) && aiReady()) return null;   // คำถามเชิงคิด → ให้ AI ตอบพร้อมข้อมูลร้าน
+  await loadShop(['state']);
+  if (mgrLost) return { kind: 'say', say: 'สิทธิ์ผู้จัดการหมดอายุค่ะ (เปลี่ยนรหัสเจ้าของร้าน) เข้าหน้าตั้งค่าแล้วใส่รหัสใหม่' };
+  const q = M.parse(c, mgrCtx());
+  if (!q) return null;
+  if (q.kind !== 'mgr') return q;
+  await loadShop(q.need, q.need.some(k => k.startsWith('line-')) || q.topic === 'today');
+  const say = M.answer(q, shop, { money: cfg.mgrMoney });
+  const lines = { day: ['line-day', 'สรุปวันนี้'], week: ['line-week', 'สรุปสัปดาห์'], 'month-text': ['line-month', 'สรุปเดือน'] }[q.topic];
+  if (lines && shop[lines[0]]) report = { title: lines[1], text: shop[lines[0]] };
+  else report = { title: 'คำตอบล่าสุด', text: say };
+  if (tab !== 'shop' && document.getElementById('tabShop')) showTab('shop');
+  return { kind: 'say', say };
+}
+
 // ---------- เข้าใจคำสั่ง ----------
 function ctx() {
   return { now: Date.now(), awaitingConfirm: !!pending, screen: cfg.screen || '', words: words(), batch, batchMax: +cfg.batchMax || 0,
@@ -448,7 +571,19 @@ async function command(text, heardRaw) {
   $('heard').textContent = '“' + (heardRaw || text || cfg.name) + '”';
   if (pending && Date.now() > pending.until) pending = null;
   await refresh();   // ใช้ออเดอร์ล่าสุดเสมอ (ครัวอาจกดบนจอไปแล้ว)
-  let r = L.interpret(text, orders, ctx());
+  let r = null;
+  if (!pending && mgr() && text) {
+    // คำเฉพาะร้านใช้กับคำสั่งผู้จัดการด้วย (กพ หมด = กะเพราหมด)
+    let t2 = L.norm(text); for (const [f, t] of words()) t2 = t2.split(f).join(t);
+    r = await managerCommand(t2);
+    if (r === null && ADVICE.test(L.norm(text)) && aiReady()) { handle(await askAI(text), text); return; }
+  }
+  if (!r && !mgr() && text) {   // ถามยอด/รายงานแต่ยังไม่เปิดโหมดผู้จัดการ → ไม่ให้ AI เดาตัวเลข
+    const q = M.parse(text, { menu: [] });
+    if (q && q.kind === 'mgr') r = { kind: 'say', say: 'ถามเรื่องยอดขายได้เมื่อเปิดโหมดผู้จัดการค่ะ แตะ ⚙ แล้วใส่รหัสเจ้าของร้าน' };
+  }
+  if (!r) r = L.interpret(text, orders, ctx());
+  if (r.kind === 'help' && mgr()) r.say += ' ผู้จัดการ: ยอดวันนี้, สรุปวันนี้, พรุ่งนี้เตรียมอะไร, ขายดี, เดือนนี้คุ้มทุนยัง, กุ้งหมด, เปิดเมนูผัดไทย';
   if ((r.kind === 'unknown' || r.vague || (r.kind === 'notfound' && !/โต๊ะ|คิว/.test(r.say))) && aiReady()) r = await askAI(text);
   else if (r.kind === 'unknown' && cfg.aiOn && !cfg.aiKeySet) r.say += ' หรือใส่คีย์ AI ในหน้าตั้งค่าให้ฉลาดขึ้น';
   handle(r, text);
@@ -475,7 +610,7 @@ function handle(r, text) {
       followAfterSpeech = !!batch;   // ตอบ "เสร็จ" ได้เลยหลังฟังจบ
       speak(n.say); remember(n.say); break;
     }
-    case 'done-dish': case 'done-table':
+    case 'done-dish': case 'done-table': case 'menu-off': case 'menu-on':
       if (cfg.confirm || r.ai) { pending = { ...r, until: Date.now() + 30000 }; speak(r.ask, 'ask'); remember(r.ask); }
       else run(r);
       break;
@@ -489,7 +624,10 @@ function handle(r, text) {
 // ---------- AI ----------
 async function askAI(text) {
   thinking = true; setStatus();
+  if (mgr()) await loadShop(['pace', 'state', 'report', 'breakeven', 'forecast']);
+  const manager = mgr() && !mgrLost ? M.aiContext(shop, cfg.mgrMoney) : null;
   const body = JSON.stringify(AI.buildRequest({ text, orders, menu, history, name: cfg.name, particle: cfg.particle, notes: cfg.aiNotes,
+    manager, menuList: manager ? (shop.state && shop.state.menu) || [] : null,
     batch, timers: timers.map(t => ({ label: t.label, left_sec: Math.max(0, Math.round((t.end - Date.now()) / 1000)) })) }));
   let models = cfg.aiModel ? [cfg.aiModel] : AI.MODELS.slice();
   let good = ''; try { good = localStorage.getItem('aiModelOk') || ''; } catch {}
@@ -509,7 +647,7 @@ async function askAI(text) {
   }
   const p = AI.parseResponse(res.text);
   if (p.error) return { kind: 'say', say: 'AI ตอบไม่ได้ค่ะ ลองพูดใหม่อีกที' };
-  return AI.toResult(p, orders, ctx());
+  return AI.toResult(p, orders, { ...ctx(), menu: mgr() ? (shop.state && shop.state.menu) || [] : null });
 }
 
 // ---------- ทำงานกับจอครัว ----------
@@ -524,6 +662,7 @@ async function run(r) {
   try {
     for (const c of r.calls) await post(c.path, c.body);
     lastUndo = { calls: r.undo, label: r.say.replace(/^เรียบร้อย /, '').replace(/ เสร็จแล้วค่ะ$/, ''), at: Date.now() };
+    if (r.calls.some(c => c.path === '/api/menu/available')) { loadShop(['state'], true).then(render); }
     if (r.batchDone || (batch && r.calls.every(c => batch.dishes.some(d => d.id === c.body.dishes_id)))) batch = null;
     K.ding('ok');
     if (!cfg.brief) speak(r.say); else $('reply').textContent = voice(r.say);
@@ -538,7 +677,9 @@ async function undo() {
   const u = lastUndo; lastUndo = null;
   try {
     for (const c of u.calls) await post(c.path, c.body);
-    speak(`ย้อนกลับแล้วค่ะ ${u.label} กลับขึ้นจอแล้ว`);
+    const menuUndo = u.calls.some(c => c.path === '/api/menu/available');
+    if (menuUndo) loadShop(['state'], true).then(render);
+    speak(menuUndo ? 'ย้อนกลับแล้วค่ะ เมนูกลับเป็นเหมือนเดิม' : `ย้อนกลับแล้วค่ะ ${u.label} กลับขึ้นจอแล้ว`);
   } catch (e) { speak('ย้อนกลับไม่สำเร็จค่ะ ' + e.message); }
   refresh();
 }
@@ -593,7 +734,7 @@ $('timers').onclick = e => {
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function render() {
   const up = Date.now() - lastOk < 10000;
-  $('net').textContent = !cfg.main ? '' : up ? (base === cfg.standby ? 'เครื่องสำรอง' : '') : 'ต่อ ED POS ไม่ได้';
+  $('net').textContent = !cfg.main ? '' : up ? (base && base === cfg.standby ? 'เครื่องสำรอง' : '') : 'ต่อ ED POS ไม่ได้';
   $('net').className = 'net' + (up ? '' : ' down');
   // ชุดที่กำลังทำ
   $('batch').classList.toggle('on', !!batch);
@@ -607,6 +748,7 @@ function render() {
   const board = $('board');
   if (!cfg.main) { board.innerHTML = '<div class="empty">ยังไม่ได้ใส่ IP เครื่อง ED POS<br>แตะ ⚙ เพื่อตั้งค่า</div>'; return; }
   if (!lastOk) { board.innerHTML = '<div class="empty">กำลังติดต่อเครื่อง ED POS…</div>'; return; }
+  if (tab === 'shop') { board.innerHTML = shopHtml(); return; }
   if (!orders.length) { board.innerHTML = '<div class="empty">ไม่มีออเดอร์ค้าง 👌</div>'; return; }
   const now = Date.now(), late = +cfg.lateMin || 15;
   if (tab === 'groups') {
@@ -634,11 +776,54 @@ function render() {
   }
 }
 
-document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
-  tab = b.dataset.tab;
-  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+// ---------- แท็บร้าน ----------
+const money = n => n == null ? '–' : (cfg.mgrMoney || !n ? Math.round(n).toLocaleString('en-US') + ' ฿' : '•••');
+function shopHtml() {
+  if (!mgr()) return '<div class="empty">เปิดโหมดผู้จัดการในหน้าตั้งค่า ⚙</div>';
+  if (mgrLost) return '<div class="empty">สิทธิ์ผู้จัดการหมดอายุ (เปลี่ยนรหัสเจ้าของร้าน)<br>แตะ ⚙ แล้วใส่รหัสใหม่</div>';
+  const p = shop.pace, b = shop.breakeven, st = shop.state, rp = shop.report;
+  if (!p && !st) return '<div class="empty">กำลังโหลดข้อมูลร้าน…</div>';
+  const out = [];
+  out.push(`<div class="qbtns">${[['ยอดวันนี้', 'ยอดวันนี้'], ['สรุปวันนี้', 'สรุปวันนี้'], ['พรุ่งนี้เตรียมอะไร', 'พรุ่งนี้ต้องเตรียมอะไร'], ['ขายดี', 'เมนูไหนขายดี'], ['เดือนนี้', 'เดือนนี้คุ้มทุนยัง'], ['ครัวช้าไหม', 'ครัวช้าไหม']]
+    .map(([l, q]) => `<button data-ask="${esc(q)}">${esc(l)}</button>`).join('')}</div>`);
+  if (report && report.text) out.push(`<div class="card"><h4>${esc(report.title)}<button data-x="report" style="color:var(--dim)">✕</button></h4><pre>${esc(report.text)}</pre></div>`);
+  const kp = [];
+  if (p) {
+    const pc = p.pace, fc = p.forecast;
+    kp.push(`<div class="kpi"><div class="k">ยอดวันนี้ · ${p.bills} บิล</div><div class="v">${money(p.actual)}</div>
+      <div class="s">${pc == null ? 'ยังเทียบไม่ได้' : `<span class="${pc >= 0 ? 'up' : 'down'}">${pc >= 0 ? '▲' : '▼'} ${Math.abs(pc)}%</span> เทียบที่คาดตอนนี้`}</div>
+      ${fc ? `<div class="bar"><i style="width:${Math.min(100, Math.round(p.actual / fc * 100))}%"></i></div>` : ''}</div>`);
+    kp.push(`<div class="kpi"><div class="k">คาดปิดวัน</div><div class="v">${money(p.projected)}</div><div class="s">คาดไว้ ${money(fc)}</div></div>`);
+    kp.push(`<div class="kpi"><div class="k">โต๊ะเปิดอยู่</div><div class="v">${p.openTables}</div><div class="s">รอเก็บ ${money(p.openDue)}</div></div>`);
+  }
+  if (b) kp.push(`<div class="kpi"><div class="k">เดือนนี้${b.be ? ' / คุ้มทุน' : ''}</div><div class="v">${money(b.soldNow)}</div>
+      <div class="s">${b.be ? (b.soldNow >= b.be ? '<span class="up">ถึงจุดคุ้มทุนแล้ว</span>' : `อีก ${money(b.be - b.soldNow)}`) : 'ยังไม่ตั้งค่าใช้จ่ายคงที่'}</div>
+      ${b.be ? `<div class="bar"><i style="width:${Math.min(100, Math.round(b.soldNow / b.be * 100))}%"></i></div>` : ''}</div>`);
+  if (kp.length) out.push(`<div class="kpis">${kp.join('')}</div>`);
+  const off = ((st && st.menu) || []).filter(m => m.available === false);
+  out.push(`<div class="card"><h4>เมนูที่ปิดอยู่ <small>แตะเพื่อเปิดขาย</small></h4>${off.length
+    ? `<div class="menuoff">${off.map(m => `<button data-on="${esc(m.id)}">${esc(m.name)}</button>`).join('')}</div>` : '<div class="ln" style="color:var(--dim)">ไม่มี · พูด “กุ้งหมด” เพื่อปิดเมนูที่ใช้กุ้ง</div>'}</div>`);
+  const top = ((rp && rp.summary && rp.summary.items_list) || []).filter(x => x.qty).sort((a, x) => x.qty - a.qty).slice(0, 6);
+  if (top.length) out.push(`<div class="card"><h4>ขายดีวันนี้</h4>${top.map((x, i) => `<div class="ln">${i + 1}. ${esc(x.name)} <b>${x.qty}</b> <span style="color:var(--dim)">${money(x.amount)}</span></div>`).join('')}</div>`);
+  const tom = shop.forecast ? M.sayTomorrow(shop.forecast, Date.now(), cfg.mgrMoney, true) : '';
+  if (tom) out.push(`<div class="card"><h4>พรุ่งนี้</h4><div class="ln">${esc(tom.replace(/ ค่ะ$/, '')).replace(/ · /g, '<br>')}</div></div>`);
+  return out.join('');
+}
+$('board').onclick = async e => {
+  const a = e.target.closest('[data-ask]'), on = e.target.closest('[data-on]'), x = e.target.closest('[data-x]');
+  if (a) { $('heard').textContent = '“' + a.dataset.ask + '”'; const r = await managerCommand(a.dataset.ask); if (r) handle(r, a.dataset.ask); }
+  if (x) { report = null; render(); }
+  if (on) {   // แตะเอง = ตั้งใจแล้ว
+    const m = ((shop.state && shop.state.menu) || []).find(z => z.id === on.dataset.on);
+    if (m) run({ say: `เปิดขาย ${m.name} แล้วค่ะ`, ...M.menuCalls([m], true) });
+  }
+};
+function showTab(t) {
+  tab = t;
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === t));
   render();
-});
+}
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { showTab(b.dataset.tab); if (b.dataset.tab === 'shop') mgrTick(); });
 $('talk').onclick = talkNow;
 $('nextBtn').onclick = async () => { await refresh(); handle(L.interpret('ต่อไป', orders, ctx()), 'ต่อไป'); };
 $('batchDone').onclick = () => {   // แตะเอง = ตั้งใจแล้ว ไม่ต้องถามยืนยัน
@@ -656,16 +841,19 @@ $('gear').onclick = async () => {
 };
 $('pinCancel').onclick = () => $('lock').classList.remove('open');
 $('pinOk').onclick = () => {
-  const r = K.checkAdminPin(base, $('pin').value);
+  // รหัสเจ้าของร้านถูก = เก็บสิทธิ์ผู้จัดการไว้ในแอปด้วย (ใช้กับแท็บร้าน/ถามยอด/ปิดเมนู)
+  const r = K.ownerLogin(base, $('pin').value);
+  if (r === 'ok') { mgrLost = false; for (const k in shopAt) delete shopAt[k]; }
   if (r === 'ok' || r === 'offline') { $('lock').classList.remove('open'); openSetup(); }
   else $('pinMsg').textContent = r.replace(/^bad:/, '');
 };
 
 const SEGS = { sMode: 'mode', sParticle: 'particle' };
 const CHECKS = { sVolKey: 'volKey', sMute: 'mute', sConfirm: 'confirm', sBrief: 'brief', sAnnGroup: 'annGroup', sAnnAllergy: 'annAllergy',
-  sAnnCancel: 'annCancel', sAnnNew: 'annNew', sAnnLate: 'annLate', sAiOn: 'aiOn' };
-const TEXTS = { sWake: 'wake', sName: 'name', sWords: 'words', sAiModel: 'aiModel', sAiNotes: 'aiNotes' };
-const NUMS = { sBatchMax: 'batchMax', sLateMin: 'lateMin', sTimerRepeat: 'timerRepeat', sRate: 'rate', sPitch: 'pitch' };
+  sAnnCancel: 'annCancel', sAnnNew: 'annNew', sAnnLate: 'annLate', sAiOn: 'aiOn',
+  sMgrOn: 'mgrOn', sMgrMoney: 'mgrMoney', sMgrPace: 'mgrPace', sMgrMilestone: 'mgrMilestone', sMgrBacklog: 'mgrBacklog', sMgrCancel: 'mgrCancel' };
+const TEXTS = { sWake: 'wake', sName: 'name', sWords: 'words', sAiModel: 'aiModel', sAiNotes: 'aiNotes', sBriefOpen: 'briefOpen', sBriefClose: 'briefClose' };
+const NUMS = { sBatchMax: 'batchMax', sLateMin: 'lateMin', sTimerRepeat: 'timerRepeat', sRate: 'rate', sPitch: 'pitch', sPaceDrop: 'paceDrop', sBacklogN: 'backlogN' };
 const draft = {};
 function openSetup() {
   cfg = load();
@@ -683,6 +871,10 @@ function openSetup() {
   $('sAiKey').value = '';
   $('keyState').innerHTML = cfg.aiKeySet ? `<span style="color:var(--ok)">✓ ตั้งแล้ว (…${esc(cfg.aiKeyHint)})</span> · เว้นว่าง = ใช้คีย์เดิม · ใส่ - เพื่อลบ` : '(ยังไม่ได้ใส่)';
   $('ver').textContent = 'ผู้ช่วยครัว รุ่น ' + cfg.version;
+  $('mgrState').innerHTML = cfg.mgrSet ? (mgrLost ? '<span class="bad">สิทธิ์หมดอายุ (เปลี่ยนรหัสเจ้าของร้าน) · ออกแล้วเข้าหน้าตั้งค่าใหม่ด้วยรหัสใหม่</span>'
+    : '<span style="color:var(--ok)">✓ เครื่องนี้มีสิทธิ์ผู้จัดการแล้ว</span> (ได้จากรหัสเจ้าของร้านที่เพิ่งใส่)')
+    : 'ยังไม่มีสิทธิ์ · ออกแล้วเข้าหน้าตั้งค่าใหม่โดยใส่รหัสเจ้าของร้านตอนเครื่อง ED POS ต่ออยู่';
+  $('mgrRevoke').style.display = cfg.mgrSet ? '' : 'none';
   ['sMainMsg', 'sStandbyMsg', 'ttsMsg', 'aiMsg'].forEach(i => { $(i).textContent = ''; $(i).className = 'msg'; });
   const st = K.ttsStatus();
   if (st !== 'ok') $('ttsMsg').innerHTML = `<span class="bad">${st === 'nothai' ? 'ยังไม่มีเสียงอ่านภาษาไทย แตะ “ตั้งค่าเสียงอ่าน” → Google → ติดตั้งภาษาไทย' : 'ไม่พบเครื่องอ่านออกเสียง'}</span>`;
@@ -726,6 +918,12 @@ $('aiTest').onclick = async () => {
     msg.className = 'msg bad'; msg.textContent = '✗ ' + AI.errorText(r.code, m) + (m ? ` (${m.slice(0, 120)})` : '');
   }
 };
+$('mgrRevoke').onclick = () => {
+  K.ownerLogout(); cfg = load();
+  for (const k in shop) delete shop[k];
+  report = null; if (tab === 'shop') showTab('groups');
+  openSetup();
+};
 $('sCancel').onclick = () => { $('setup').classList.remove('open'); if (!cfg.main) render(); };
 $('sSave').onclick = () => {
   const o = { main: $('sMain').value, standby: $('sStandby').value, screen: $('sScreen').value, aiKey: $('sAiKey').value.trim() };
@@ -737,6 +935,8 @@ $('sSave').onclick = () => {
   if (!o.name) o.name = DEF.name;
   if (!(o.lateMin >= 3)) o.lateMin = DEF.lateMin;
   if (!(o.timerRepeat >= 1)) o.timerRepeat = DEF.timerRepeat;
+  if (!(o.paceDrop >= 5)) o.paceDrop = DEF.paceDrop;
+  if (!(o.backlogN >= 3)) o.backlogN = DEF.backlogN;
   K.saveConfig(JSON.stringify(o));
   cfg = load();
   base = '';
@@ -749,12 +949,15 @@ function start() {
   if (!cfg.wake) cfg.wake = L.DEFAULT_WAKE.join(', ');
   if (!$('reply').textContent) $('reply').textContent = `เรียก “${wakeList()[0] || cfg.name}” แล้วพูดได้เลย · ลอง “${cfg.name} ต่อไป”`;
   K.setListening(cfg.mode === 'wake' && !paused && !!cfg.main);
+  $('tabShop').style.display = mgr() ? '' : 'none';
+  if (!mgr() && tab === 'shop') tab = 'groups';
   setStatus(); render();
-  if (cfg.main) refresh(); else openSetup();
+  if (cfg.main) refresh().then(mgrTick); else openSetup();
 }
 setInterval(() => { if (cfg.main && !document.querySelector('.sheet.open')) refresh(); }, 3000);
 setInterval(() => { tickTimers(); flushAnn(); setStatus(); }, 1000);
 setInterval(render, 30000);
+setInterval(mgrTick, 60000);
 start();
 </script>
 </body>
