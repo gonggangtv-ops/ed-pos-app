@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- ไอน้ำ -->
+    <path android:strokeColor="#F2A541" android:strokeWidth="3.2" android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M44,30 C41,26 47,24 44,20 M54,30 C51,26 57,24 54,20 M64,30 C61,26 67,24 64,20"/>
+    <!-- ตัวไมค์ -->
+    <path android:fillColor="#FCF9E8"
+        android:pathData="M54,36 C49.6,36 46,39.6 46,44 L46,57 C46,61.4 49.6,65 54,65 C58.4,65 62,61.4 62,57 L62,44 C62,39.6 58.4,36 54,36 Z"/>
+    <!-- ขาไมค์ -->
+    <path android:strokeColor="#FCF9E8" android:strokeWidth="3.6" android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M39,55 C39,63.3 45.7,70 54,70 C62.3,70 69,63.3 69,55 M54,70 L54,78 M46,78 L62,78"/>
+</vector>
