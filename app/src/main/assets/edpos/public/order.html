@@ -128,6 +128,9 @@
   .warnline { color: var(--warn); margin: 0 0 8px; }
   .paystat { display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: space-between; background: #F4F1EA; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; font-size: 14px; color: var(--muted); }
   .paystat b { color: var(--ink); font-size: 16px; }
+  .custbtn { display: block; width: 100%; margin: 0 0 10px; padding: 10px; border-radius: 12px; border: 1.5px dashed #e0b84a;
+    background: #fff8dc; color: #6b4b12; font-size: 16px; font-weight: 600; }
+  .custbtn.on { border-style: solid; background: #f6dc7a; }
   .big small { display: block; font-size: 14px; font-weight: 500; color: var(--muted); }
   .pick-head { display: flex; justify-content: space-between; align-items: center; margin: 12px 0 4px; font-weight: 600; font-size: 15px; }
   .picklist { display: grid; gap: 6px; max-height: 38vh; overflow: auto; }
@@ -1086,7 +1089,7 @@ function payModalNow() {
 
   function draw() {
     const c = calc();
-    if (!c) { bg.remove(); return; }
+    if (!c) { bg.remove(); if (!custShow.isOpen() || !document.querySelector('#custShow .cs-note.paid')) custShow.close(); return; }
     if (st.mode === 'items' && (c.hasShare || !c.unpaid.length)) st.mode = 'full';
     const lastShare = c.sharesLeft === 1;
     box.innerHTML = `
@@ -1119,6 +1122,7 @@ function payModalNow() {
       ${c.fee ? `<div class="feeline"><span>ยอดอาหาร</span><span>${baht(c.amount)}</span></div>
         <div class="feeline"><span>ค่าธรรมเนียมบัตร ${baht(feePct)}%</span><span>${baht(c.fee)}</span></div>` : ''}
       <div class="big">${baht(c.total)} ฿${st.mode === 'share' ? `<small>ส่วนที่ ${c.sharesPaid + 1}/${st.parts}</small>` : st.mode === 'items' && c.amount ? '<small>ส่วนนี้</small>' : ''}</div>
+      <button class="custbtn ${custShow.isOpen() ? 'on' : ''}" id="cust" ${c.total > 0 ? '' : 'disabled'}>📺 ${custShow.isOpen() ? 'ลูกค้ากำลังดูยอด · ปิด' : 'ขึ้นยอดให้ลูกค้าดู'}</button>
       ${st.method === 'cash' ? `<div id="cashbox">
         <input id="recv" type="number" inputmode="decimal" placeholder="รับเงินมา (ไม่ใส่ก็ได้)">
         <div class="chips">${[c.total, 100, 500, 1000].filter((v, i, a) => v >= c.total && a.indexOf(v) === i && v > 0)
@@ -1130,6 +1134,19 @@ function payModalNow() {
         <button class="ok" id="ok" ${c.amount > 0 && !st.busy ? '' : 'disabled'}>${
           st.busy ? 'กำลังบันทึก…' : st.mode === 'full' ? 'ยืนยันชำระ' : !c.amount ? 'เลือกจานก่อน'
           : `รับเงิน ${baht(c.total)} ฿${r2(c.remaining - c.amount) > 0 ? '' : ' · ปิดบิล'}`}</button></div>`;
+    custShow.update(custState(c));
+  }
+
+  // ป้ายยอดให้ลูกค้าดู: ยอด + บรรทัดเล็กภาษาอังกฤษ (ลูกค้าส่วนใหญ่ต่างชาติ)
+  function custState(c) {
+    const notes = [];
+    if (st.mode === 'share') notes.push(`Share ${c.sharesPaid + 1} of ${st.parts}`);
+    else if (st.mode === 'items') notes.push('Your items');
+    else if (c.pays.length) notes.push('Remaining');
+    if (c.fee) notes.push(`incl. card fee ${baht(feePct)}%`);
+    const r = st.method === 'cash' ? Number($('#recv')?.value) || 0 : 0;
+    if (r >= c.total && c.total > 0) notes.push(`Cash ${baht(r)} · Change ${baht(r2(r - c.total))}`);
+    return { amount: c.total, note: notes.join(' · ') };
   }
 
   box.addEventListener('click', e => {
@@ -1146,16 +1163,26 @@ function payModalNow() {
     }
     else if (b.dataset.parts) st.parts = Math.max(c.sharesPaid + 1, 2, st.parts + Number(b.dataset.parts));
     else if (b.dataset.v) { $('#recv').value = b.dataset.v; updChange(); return; }
-    else if (b.id === 'cancel') { bg.remove(); return; }
+    else if (b.id === 'cancel') { bg.remove(); custShow.close(); return; }
     else if (b.id === 'ok') { submit(); return; }
+    else if (b.id === 'cust') { if (custShow.isOpen()) custShow.close(); else { st.cust = true; custShow.open(custState(c)); } syncCust(); return; }
     else return;
     draw();
   });
+  window.addEventListener('custshowclose', function f() { if (!bg.isConnected) return removeEventListener('custshowclose', f); syncCust(); });
+  // ปุ่มป้ายลูกค้า: เปลี่ยนแค่ปุ่ม ไม่วาดใหม่ทั้งหน้าต่าง (เงินที่พิมพ์ไว้ในช่องรับเงินจะได้ไม่หาย)
+  function syncCust() {
+    const b = $('#cust'); if (!b) return;
+    const on = custShow.isOpen();
+    b.classList.toggle('on', on);
+    b.textContent = '📺 ' + (on ? 'ลูกค้ากำลังดูยอด · ปิด' : 'ขึ้นยอดให้ลูกค้าดู');
+  }
   box.addEventListener('input', e => { if (e.target.id === 'recv') updChange(); });
   box.addEventListener('change', e => { if (e.target.id === 'pr') st.print = e.target.checked; });
   function updChange() {
     const c = calc(), r = Number($('#recv').value) || 0;
     $('#change').textContent = r ? baht(r2(r - c.total)) : '0';
+    custShow.update(custState(c));
   }
 
   async function submit() {
@@ -1172,7 +1199,12 @@ function payModalNow() {
       const o = S.orders.find(x => x.id === oid);
       const p = r.paymentNo ? o.payments.find(x => x.no === r.paymentNo) : null;
       if (st.print) await printReceipt(receiptLines(o, p ? { payment: p } : { paid: true })).catch(e => toast(e.message, true));
-      if (r.closed) { bg.remove(); current = null; toggleBill(false); toast('ปิดบิลแล้ว'); return; }
+      if (r.closed) {
+        // เคยเปิดป้ายให้ลูกค้าดูในรอบนี้ → ขึ้น "จ่ายแล้ว + เงินทอน" ให้ลูกค้าเห็น (พนักงานกด ✕ ปิดเอง)
+        if (st.cust || custShow.isOpen()) custShow.open({ amount: c.total, paid: true,
+          note: received > c.total ? `Paid ✓ · Change ${baht(r2(received - c.total))}` : 'Paid ✓' });
+        bg.remove(); current = null; toggleBill(false); toast('ปิดบิลแล้ว'); return;
+      }
       toast(`รับเงินส่วนที่ ${r.paymentNo} แล้ว · ค้างอีก ${baht(r.left)} ฿`);
       st.sel = {}; st.busy = false; st.method = methods[0]; draw(); render();   // คนถัดไปเลือกวิธีจ่ายใหม่
     } catch (e) { st.busy = false; draw(); toast(e.message, true); }
@@ -1195,6 +1227,7 @@ live(() => { if (hist && !current && hist.date === dayBack(0)) loadHistory(); el
 loadMe();
 setInterval(() => { if (!current) render(); }, 60000);
 </script>
+<script src="custshow.js"></script>
 <script src="voice.js"></script>
 </body>
 </html>
