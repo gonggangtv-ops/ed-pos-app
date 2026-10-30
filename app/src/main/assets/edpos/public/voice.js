@@ -20,7 +20,7 @@ const VOICE = (() => {
   let wordsRev = -1, words = [];
   const userWords = () => {
     if (wordsRev !== S.rev) { wordsRev = S.rev;
-      words = (S.settings.voiceWords || []).map(w => [base(w.f), base(w.t)]).filter(([a, b]) => a.length >= 2 && a !== b).sort((x, y) => y[0].length - x[0].length); }
+      words = (S.settings.voiceWords || []).filter(w => !w.c).map(w => [base(w.f), base(w.t)]).filter(([a, b]) => a.length >= 2 && a !== b).sort((x, y) => y[0].length - x[0].length); }
     return words;
   };
   const norm = s => userWords().reduce((t, [a, b]) => t.split(a).join(b), base(s));
@@ -29,9 +29,11 @@ const VOICE = (() => {
       .replace(/([\u0E48-\u0E4B])([\u0E31\u0E34-\u0E37\u0E47])/g, '$2$1').toLowerCase().replace(/[๐-๙]/g, d => TH_DIG.indexOf(d)).replace(/[\s.,!?'"“”()\-ๆ]/g, ''));
   // คำพูดที่หมายถึงตัวเลือก (ใช้เมื่อเมนูนั้นไม่มีตัวเลือกชื่อนี้ตรงๆ) เช่น "ที่เล็ก" = ขนาด S · "ไม่เผ็ด" = ไม่พริก
   const SYN = {
-    s: ['เล็ก', 'ไซส์เล็ก', 'ขนาดเล็ก', 'เอส', 'ไซส์เอส', 'ไซส์s'],
-    m: ['กลาง', 'ไซส์กลาง', 'ขนาดกลาง', 'เอ็ม', 'ไซส์เอ็ม', 'ไซส์m'],
-    l: ['ใหญ่', 'ไซส์ใหญ่', 'ขนาดใหญ่', 'แอล', 'ไซส์แอล', 'ไซส์l'],
+    // "ที่ใหญ่" "จานเล็ก" = ขนาด (ยาวกว่า "ใหญ่" ที่เป็นเส้นใหญ่ จึงชนะ)
+    s: ['เล็ก', 'ไซส์เล็ก', 'ขนาดเล็ก', 'เอส', 'ไซส์เอส', 'ไซส์s', 'ที่เล็ก', 'จานเล็ก', 'ชามเล็ก'],
+    m: ['กลาง', 'ไซส์กลาง', 'ขนาดกลาง', 'เอ็ม', 'ไซส์เอ็ม', 'ไซส์m', 'ที่กลาง', 'จานกลาง', 'ชามกลาง'],
+    l: ['ใหญ่', 'ไซส์ใหญ่', 'ขนาดใหญ่', 'แอล', 'ไซส์แอล', 'ไซส์l', 'ที่ใหญ่', 'จานใหญ่', 'ชามใหญ่'],
+    น้ำแข็งน้อย: ['แข็งน้อย', 'น้ำแข็งนิดเดียว', 'น้ำแข็งนิดหน่อย'], ไม่น้ำแข็ง: ['ไม่ใส่น้ำแข็ง', 'ไม่เอาน้ำแข็ง', 'ไม่แข็ง', 'ไม่เอาแข็ง'],
     xl: ['ใหญ่พิเศษ', 'เอ็กซ์แอล', 'ไซส์xl'],
     ไม่พริก: ['ไม่เผ็ด', 'ไม่ใส่พริก', 'ไม่เอาพริก'],
     ไม่หวาน: ['ไม่น้ำตาล', 'ไม่ใส่น้ำตาล', 'ไม่เอาหวาน', 'ไม่เอาน้ำตาล'], หวานน้อย: ['น้ำตาลน้อย', 'หวานนิดเดียว', 'หวานนิดหน่อย'],
@@ -111,6 +113,8 @@ const VOICE = (() => {
           .replace(/(ฟรี|แถม|ไม่คิดเงิน|ไม่เสียเงิน|ไม่คิดตังค์|ไม่ชาร์จ|\+?\d+บาท|\+?\d+)$/, '');
         if (core.length >= 2 && core !== k && core !== cut) out.push({ key: core, choice: c.name, pri: 2.5 });
         for (const w of SYN[k] || []) out.push({ key: norm(w), choice: c.name, pri: 2.5 });
+        // ร้านสอนเอง: "แข็งน้อย" = ตัวเลือก น้ำแข็งน้อย (ใช้เฉพาะเป็นตัวเลือกของจาน ไม่แทนคำในประโยค)
+        for (const w of S.settings.voiceWords || []) if (w.c && base(w.t) === k) out.push({ key: norm(w.f), choice: c.name, pri: 2.6 });
       }
     }
     return out.filter(e => e.key && !(e.pri === 2.5 && exact.has(e.key)));
@@ -129,11 +133,11 @@ const VOICE = (() => {
     }
     return prev[b.length];
   }
-  function nearMenu(rest, D) {
+  function nearMenu(rest, D, cap = 2) {
     let best = null;
     for (const e of D) {
       const k = e.key; if (k.length < 4 || e.skip || e.m?.available === false) continue;
-      const max = k.length >= 8 ? 2 : 1;
+      const max = Math.min(cap, k.length >= 8 ? 2 : 1);
       for (let L = k.length - max; L <= k.length + max; L++) {
         if (L < 3 || L > rest.length) continue;
         const d = lev(rest.slice(0, L), k, max);
@@ -183,7 +187,7 @@ const VOICE = (() => {
       // ไม่ตรงคำไหนเลย และเพิ่งเริ่มคำใหม่ → ลองชื่อเมนูที่สะกดต่างไปนิดเดียว
       // (ตัวเลือกของจานล่าสุดก่อน: "หมูกอบ" หลังกะเพรา = ตัวเลือกหมูกรอบ ไม่ใช่เมนูหมูกรอบ)
       if (!best && !buf) {
-        const c = cur ? nearMenu(rest, cur.ch) : null, n = nearMenu(rest, D);
+        const c = cur ? nearMenu(rest, cur.ch, 1) : null, n = nearMenu(rest, D);   // ตัวเลือกผิดได้ตัวเดียว (เย็นน้อย ≠ เผ็ดน้อย)
         const f = c && (!n || c.d <= n.d) ? c : n;
         // มีชื่อเมนู/ตัวเลือกที่ตรงเป๊ะเริ่มอยู่ในช่วงนี้ → ใช้อันที่ตรง ("น้ำ|มะม่วงปั่น" ≠ ยำมะม่วง)
         const exactIn = f && [...Array(f.L - 1)].some((_, j) => { const r = rest.slice(j + 1);

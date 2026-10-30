@@ -393,12 +393,14 @@
           <!-- แก้คำที่ได้ยินผิด: ใช้กับทุกเมนู (เพชร = เผ็ด) -->
           <div class="vaadd">
             <b>🔤 แก้คำที่ได้ยินผิด</b>
-            <span>ตัวแปลงเสียงเขียนเป็นคำอื่นบ่อยๆ สอนครั้งเดียวใช้ได้ทุกเมนู เช่น ได้ยิน “ไม่ชอบเผ็ด” = “ไม่เผ็ด” (เพชร = เผ็ด และ ไม่น้ำตาล = ไม่หวาน ระบบรู้อยู่แล้ว)</span>
+            <span>สอนครั้งเดียวใช้ได้ทุกเมนู · “หมายถึง” เลือกเป็นตัวเลือกได้ เช่น ได้ยิน “เย็นน้อย” = ตัวเลือก น้ำแข็งน้อย · หรือพิมพ์คำเอง เช่น “ไม่ชอบเผ็ด” = “ไม่เผ็ด”</span>
             <div class="vaform">
               <input id="vwF" placeholder="ได้ยินว่า เช่น ไม่ชอบเผ็ด" autocomplete="off" maxlength="40">
-              <input id="vwT" placeholder="หมายถึง เช่น ไม่เผ็ด" autocomplete="off" maxlength="40">
+              <input id="vwT" list="vwChoices" placeholder="หมายถึง (พิมพ์ หรือเลือกตัวเลือก)" autocomplete="off" maxlength="40">
               <button class="btn primary" id="vwAdd" type="button">เพิ่มคำ</button>
             </div>
+            <datalist id="vwChoices"></datalist>
+            <p class="vahint" id="vwHint"></p>
           </div>
           <div id="vaList"></div>
         </div>
@@ -2026,14 +2028,20 @@ $('#ingSave').onclick = async () => {
 let ou = null;   // ค่าที่กำลังแก้ (ยังไม่บันทึก)
 const OU_SW = { ouShowEn: 'showEn', ouShowPrice: 'showPrice', ouShowSearch: 'showSearch', ouAbroad: 'abroad', ouVoice: 'voice' };
 // คำที่ระบบจำไว้ (สั่งด้วยเสียง) · พนักงานสอนตอนเลือกคำที่ระบบไม่แน่ใจ · ลบคำที่จำผิดได้ที่นี่
-let vaOpen = false, vwOpen = false;
+let vaOpen = false, vwOpen = false, vwChoiceMap = new Map();
+const vwChoice = () => { const t = $('#vwT').value.trim(); return vwChoiceMap.has(t) ? t : ''; };
 function renderVoiceAliases() {
   const list = S.settings.voiceAliases || [], name = id => S.menu.find(m => m.id === id)?.name || '(เมนูถูกลบ)';
   const dl = [...new Set(S.menu.map(m => m.name))].map(n => `<option value="${esc(n)}">`).join('');
   if ($('#vaMenus').innerHTML !== dl) $('#vaMenus').innerHTML = dl;
   const words = S.settings.voiceWords || [];
+  // ตัวเลือกทั้งหมดของร้าน (ชื่อ → กลุ่ม) ให้เลือกในช่อง "หมายถึง"
+  vwChoiceMap = new Map();
+  for (const g of [...(S.optionSets || []), ...S.menu.flatMap(m => (m.groups || []).filter(g => !g.ref))]) for (const c of g.choices || []) if (c.name && !vwChoiceMap.has(c.name)) vwChoiceMap.set(c.name, g.name);
+  const cl = [...vwChoiceMap].map(([c, g]) => `<option value="${esc(c)}">ตัวเลือก · ${esc(g)}</option>`).join('');
+  if ($('#vwChoices').innerHTML !== cl) $('#vwChoices').innerHTML = cl;
   $('#vaList').innerHTML = (!words.length ? '' : `<details class="va" ${vwOpen ? 'open' : ''} data-vw><summary>คำที่แก้ไว้ (${words.length})</summary>
-    <ul>${words.map((w, k) => `<li><span>ได้ยิน “${esc(w.f)}” = <b>${esc(w.t)}</b></span><button class="btn" data-vwdel="${k}">ลบ</button></li>`).join('')}</ul></details>`)
+    <ul>${words.map((w, k) => `<li><span>ได้ยิน “${esc(w.f)}” = ${w.c ? 'ตัวเลือก ' : ''}<b>${esc(w.t)}</b></span><button class="btn" data-vwdel="${k}">ลบ</button></li>`).join('')}</ul></details>`)
     + (!list.length ? '' : `<details class="va" ${vaOpen ? 'open' : ''}><summary>คำที่ระบบจำไว้ (${list.length})</summary>
     <ul>${list.map((a, k) => `<li><span>“${esc(a.p)}” → <b>${esc(name(a.m))}</b>${a.c?.length ? ' ' + esc(a.c.join(' ')) : ''}</span><button class="btn" data-vadel="${k}">ลบ</button></li>`).join('')}</ul></details>`);
 }
@@ -2048,15 +2056,17 @@ function renderVaChoices() {
 }
 $('#vaM').addEventListener('input', renderVaChoices);
 $('#vaList').addEventListener('toggle', e => { if (e.target.matches('details[data-vw]')) vwOpen = e.target.open; else if (e.target.matches('details.va')) vaOpen = e.target.open; }, true);
+$('#vwT').addEventListener('input', () => { const c = vwChoice();
+  $('#vwHint').textContent = c ? `เป็นตัวเลือกของกลุ่ม “${vwChoiceMap.get(c)}” · ใช้ตอนพูดหลังชื่อเมนูที่มีตัวเลือกนี้` : $('#vwT').value.trim() ? 'แทนคำนี้ในทุกประโยค' : ''; });
 $('#vwAdd').onclick = async () => {
-  const f = $('#vwF').value.trim(), t = $('#vwT').value.trim();
+  const f = $('#vwF').value.trim(), t = $('#vwT').value.trim(), c = !!vwChoice();
   if (f.replace(/\s/g, '').length < 2 || !t) return toast('ใส่ทั้งคำที่ได้ยินและคำที่หมายถึง', true);
   try {
-    await api('/api/voice/word', { f, t });
+    await api('/api/voice/word', { f, t, c });
     const k = s => s.toLowerCase().replace(/[\s.,!?'"“”]/g, '').slice(0, 40);
-    S.settings.voiceWords = [{ f: k(f), t: k(t) }, ...(S.settings.voiceWords || []).filter(w => w.f !== k(f))];
-    toast(`จำแล้ว: ได้ยิน “${f}” = ${t}`);
-    $('#vwF').value = $('#vwT').value = ''; vwOpen = true; renderVoiceAliases(); $('#vwF').focus();
+    S.settings.voiceWords = [{ f: k(f), t: k(t), ...(c ? { c: 1 } : {}) }, ...(S.settings.voiceWords || []).filter(w => w.f !== k(f))];
+    toast(`จำแล้ว: ได้ยิน “${f}” = ${c ? 'ตัวเลือก ' : ''}${t}`);
+    $('#vwF').value = $('#vwT').value = ''; $('#vwHint').textContent = ''; vwOpen = true; renderVoiceAliases(); $('#vwF').focus();
   } catch (err) { toast(err.message, true); }
 };
 $('#vaAdd').onclick = async () => {

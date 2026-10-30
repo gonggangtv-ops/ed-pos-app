@@ -2430,7 +2430,8 @@ const routes = {
     const f = voiceKey(b.f), t = voiceKey(b.t);
     if (f.length < 2 || !t) throw new Error('ใส่ทั้งคำที่ได้ยินและคำที่หมายถึง');
     if (f === t) throw new Error('สองคำนี้เหมือนกัน');
-    data.settings.voiceWords = [{ f, t }, ...(data.settings.voiceWords || []).filter(w => w.f !== f)].slice(0, 300);
+    // c = หมายถึงตัวเลือก (เช่น แข็งน้อย = น้ำแข็งน้อย) → ใช้เป็นตัวเลือกของจานเท่านั้น ไม่แทนคำทั้งประโยค
+    data.settings.voiceWords = [{ f, t, ...(b.c ? { c: 1 } : {}) }, ...(data.settings.voiceWords || []).filter(w => w.f !== f)].slice(0, 300);
   },
   'POST /api/voice/word/delete': b => {
     const f = voiceKey(b.f);
