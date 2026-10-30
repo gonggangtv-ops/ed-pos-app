@@ -2425,6 +2425,17 @@ const routes = {
     list.unshift({ p, m: m.id, ...(c.length ? { c } : {}) });
     data.settings.voiceAliases = list.slice(0, 500);
   },
+  // แก้คำที่ตัวแปลงเสียงได้ยินผิด: ได้ยิน f = หมายถึง t (เช่น เพชรน้อย = เผ็ดน้อย) · ใช้กับทุกเมนู
+  'POST /api/voice/word': b => {
+    const f = voiceKey(b.f), t = voiceKey(b.t);
+    if (f.length < 2 || !t) throw new Error('ใส่ทั้งคำที่ได้ยินและคำที่หมายถึง');
+    if (f === t) throw new Error('สองคำนี้เหมือนกัน');
+    data.settings.voiceWords = [{ f, t }, ...(data.settings.voiceWords || []).filter(w => w.f !== f)].slice(0, 300);
+  },
+  'POST /api/voice/word/delete': b => {
+    const f = voiceKey(b.f);
+    data.settings.voiceWords = (data.settings.voiceWords || []).filter(w => w.f !== f);
+  },
   'POST /api/voice/alias/delete': b => {
     const p = voiceKey(b.p);
     data.settings.voiceAliases = (data.settings.voiceAliases || []).filter(a => a.p !== p);
