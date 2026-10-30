@@ -1,0 +1,44 @@
+plugins {
+    id 'com.android.application'
+}
+
+// ผู้ช่วยครัว (น้องมาม่า) — แอปแยกจาก MAMA POS ติดตั้งคู่กันได้
+// เลขรุ่นเพิ่มเองทุกครั้งที่ GitHub สร้างแอปใหม่ → ติดตั้งทับรุ่นเก่าได้เลย
+def run = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+
+android {
+    namespace 'com.edpos.kitchen'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.edpos.kitchen"
+        minSdk 26          // Android 8 ขึ้นไป
+        targetSdk 34
+        versionCode run
+        versionName "1." + run
+    }
+
+    // กุญแจเดียวกับ MAMA POS (ห้ามเปลี่ยน ไม่งั้นติดตั้งทับไม่ได้)
+    signingConfigs {
+        release {
+            storeFile file("../app/edpos-release.jks")
+            storePassword "edpos-app"
+            keyAlias "edpos"
+            keyPassword "edpos-app"
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
