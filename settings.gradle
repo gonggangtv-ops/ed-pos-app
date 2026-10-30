@@ -7,3 +7,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "ed-pos-app"
 include ':app'
+include ':kitchen'

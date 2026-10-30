@@ -1,6 +1,7 @@
 # สร้างไฟล์ติดตั้ง (.apk) อัตโนมัติทุกครั้งที่มีการอัปเดตโค้ด แล้ววางไว้ที่หน้า Releases
 #  · main → รุ่นจริง (Latest) ที่แท็บเล็ตในร้านดาวน์โหลด
 #  · กิ่ง claude/* → รุ่นทดสอบ (Pre-release) ไม่แทนที่รุ่นจริง
+#  · ed-pos-app.apk = MAMA POS (แท็บเล็ต) · mama-kitchen.apk = ผู้ช่วยครัว "น้องมาม่า" (มือถือในครัว สั่งงานด้วยเสียง)
 name: Build APK
 on:
   push:
@@ -16,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Test kitchen voice commands
+        run: node kitchen/test/test-logic.js
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -48,20 +51,29 @@ jobs:
           echo $ABIS > app/libnode/abis.txt
           echo "ABIs:$ABIS"; ls -la app/libnode/bin/*
       - name: Build
-        run: gradle :app:assembleRelease --no-daemon --stacktrace
-      - run: cp app/build/outputs/apk/release/app-release.apk ed-pos-app.apk && ls -la ed-pos-app.apk
+        run: gradle :app:assembleRelease :kitchen:assembleRelease --no-daemon --stacktrace
+      - run: |
+          cp app/build/outputs/apk/release/app-release.apk ed-pos-app.apk
+          cp kitchen/build/outputs/apk/release/kitchen-release.apk mama-kitchen.apk
+          ls -la ed-pos-app.apk mama-kitchen.apk
       - uses: actions/upload-artifact@v4
         with:
           name: ed-pos-app
-          path: ed-pos-app.apk
+          path: |
+            ed-pos-app.apk
+            mama-kitchen.apk
       - name: Release (main = รุ่นจริง)
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.${{ github.run_number }}
           name: MAMA POS 1.${{ github.run_number }}
-          body: ดาวน์โหลด ed-pos-app.apk แล้วติดตั้งบนแท็บเล็ต (ติดตั้งทับรุ่นเก่าได้เลย)
-          files: ed-pos-app.apk
+          body: |
+            ดาวน์โหลด ed-pos-app.apk แล้วติดตั้งบนแท็บเล็ต (ติดตั้งทับรุ่นเก่าได้เลย)
+            mama-kitchen.apk = ผู้ช่วยครัว "น้องมาม่า" สำหรับมือถือในครัว (ติดตั้งคู่กับ MAMA POS ได้)
+          files: |
+            ed-pos-app.apk
+            mama-kitchen.apk
           make_latest: true
       - name: Pre-release (กิ่งทดสอบ)
         if: github.ref != 'refs/heads/main'
@@ -69,7 +81,11 @@ jobs:
         with:
           tag_name: test-1.${{ github.run_number }}
           name: MAMA POS ทดสอบ 1.${{ github.run_number }}
-          body: รุ่นทดสอบจากกิ่ง ${{ github.ref_name }} (ยังไม่ใช่รุ่นจริง) · ติดตั้งทับรุ่นเดิมได้ การตั้งค่าไม่หาย
-          files: ed-pos-app.apk
+          body: |
+            รุ่นทดสอบจากกิ่ง ${{ github.ref_name }} (ยังไม่ใช่รุ่นจริง) · ติดตั้งทับรุ่นเดิมได้ การตั้งค่าไม่หาย
+            mama-kitchen.apk = ผู้ช่วยครัว "น้องมาม่า" สำหรับมือถือในครัว (ติดตั้งคู่กับ MAMA POS ได้)
+          files: |
+            ed-pos-app.apk
+            mama-kitchen.apk
           prerelease: true
           make_latest: false
