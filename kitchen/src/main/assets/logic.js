@@ -210,6 +210,79 @@
     return { woke: true, rest: raw.slice(k).trim() };
   }
 
+  // ---------- คำเฉพาะร้าน ----------
+  /** "กพ = กะเพรา" ทีละบรรทัด → [[กพ, กะเพรา]] (ยาวก่อน) */
+  function parseWords(txt) {
+    return String(txt || '').split(/\n|;/).map(l => l.split(/=|→|>/)).filter(p => p.length === 2)
+      .map(([f, t]) => [norm(f), norm(t)]).filter(([f, t]) => f && t && f !== t).sort((a, b) => b[0].length - a[0].length);
+  }
+  function applyWords(c, words) {
+    for (const [f, t] of words || []) c = c.split(f).join(t);
+    return c;
+  }
+
+  // ---------- ทำต่อไป (ทีละชุด) ----------
+  /** จานที่ควรทำรอบถัดไป: เมนูของจานที่รอนานสุด รวมทุกโต๊ะที่สั่งเมนูเดียวกัน (ไม่เกิน max จาน เรียงตามที่รอนาน) */
+  function nextBatch(orders, max) {
+    const all = pendingDishes(orders).map(d => ({ ...d, t: d.at || d.order.order_at }));
+    if (!all.length) return null;
+    all.sort((a, b) => a.t - b.t);
+    const name = all[0].name;
+    const pick = [];
+    let qty = 0;
+    for (const d of all) {
+      if (d.name !== name) continue;
+      if (qty && max && qty + (d.quantity || 1) > max) break;
+      pick.push(d); qty += d.quantity || 1;
+    }
+    return { name, qty, dishes: pick };
+  }
+  /** "ผัดกะเพรา 3 จาน: หมูสับ ไข่ดาว 2 โต๊ะ 3, ไก่ 1 โต๊ะ 5 ระวัง โต๊ะ 3 แพ้ถั่ว" */
+  function batchText(b) {
+    const parts = new Map();
+    for (const d of b.dishes) {
+      const k = (d.extra_option || []).join(' ') || 'ธรรมดา';
+      const p = parts.get(k) || { n: 0, t: [] };
+      p.n += d.quantity || 1;
+      const lab = tableLabel(d.order);
+      if (!p.t.includes(lab)) p.t.push(lab);
+      parts.set(k, p);
+    }
+    const detail = [...parts].map(([k, p]) => `${k} ${p.n} ${listTables(p.t)}`).join(', ');
+    const notes = b.dishes.filter(d => d.remark).map(d => `${tableLabel(d.order)} ${d.remark}`);
+    return say(`${b.name} ${b.qty} จาน: ${detail}${notes.length ? ' · ' + notes.join(' · ') : ''}`);
+  }
+  function doneDishes(dishes) {
+    return {
+      calls: dishes.map(d => ({ path: '/api/dish/complete', body: { order_id: d.order.id, dishes_id: d.id } })),
+      undo: dishes.map(d => ({ path: '/api/dish/complete', body: { order_id: d.order.id, dishes_id: d.id, status: 'pending' } })),
+    };
+  }
+
+  // ---------- จับเวลา ----------
+  /** "จับเวลา 4 นาที ของทอด" / "ตั้งเวลา 90 วิ" / "นาทีครึ่ง" → {sec, label} */
+  function parseTimer(c) {
+    const m = /(จับเวลา|ตั้งเวลา|เตือนอีก|เตือนในอีก|นับเวลา|timer)/.exec(c);
+    if (!m) return null;
+    let rest = c.slice(m.index + m[0].length), sec = 0, i = 0, label = rest;
+    if (rest.startsWith('ครึ่งนาที')) { sec = 30; i = 9; }
+    else {
+      const n = readNumber(rest, 0);
+      if (n) {
+        i = n.len;
+        const u = /^(ชั่วโมง|ชม|นาที|นาฑี|วินาที|วิ|min|sec|s)/.exec(rest.slice(i));
+        const unit = u ? u[1] : 'นาที';
+        if (u) i += u[1].length;
+        sec = /ชั่วโมง|ชม/.test(unit) ? n.n * 3600 : /วิ|sec|^s$/.test(unit) ? n.n : n.n * 60;
+        if (rest.startsWith('ครึ่ง', i)) { sec += /วิ/.test(unit) ? 0 : 30; i += 5; }
+      } else if (rest.startsWith('นาทีครึ่ง')) { sec = 90; i = 9; }
+    }
+    if (!sec) return { sec: 0 };
+    label = rest.slice(i).replace(/^(สำหรับ|ให้|ที่)/, '').replace(/(ค่ะ|ครับ|นะ|หน่อย|ด้วย)+$/, '');
+    return { sec: Math.min(sec, 4 * 3600), label };
+  }
+  const fmtSec = s => s >= 60 ? `${Math.floor(s / 60)} นาที${s % 60 ? ' ' + (s % 60) + ' วินาที' : ''}` : `${s} วินาที`;
+
   const YES = /^(ใช่|ช่าย|ใช่ค่ะ|ใช่ครับ|ถูก|ถูกต้อง|ตกลง|โอเค|โอเคร|ok|okay|ยืนยัน|เอาเลย|เอา|ได้เลย|ได้|จัดไป|เยส|yes)/;
   const NO = /^(ไม่|ม่าย|ยกเลิก|ไม่ใช่|ไม่เอา|ผิด|no)/;
 
@@ -217,7 +290,7 @@
    * ตีความคำสั่ง
    * @param text   คำสั่ง (ตัดชื่อเรียกออกแล้ว)
    * @param orders ออเดอร์ค้างจาก /api/orders
-   * @param ctx    {now, awaitingConfirm, screen}
+   * @param ctx    {now, awaitingConfirm, screen, words: parseWords(), batch: nextBatch() ที่บอกล่าสุด, batchMax, name}
    * @returns {kind, say, confirm?, calls?, undo?, highlight?}
    *   calls/undo = [{path, body}] (POST) · confirm = ต้องถามยืนยันก่อนทำ
    */
@@ -225,19 +298,29 @@
     ctx = ctx || {};
     const now = ctx.now || Date.now();
     const screen = ctx.screen || '';
-    const c = norm(text);
+    const c = applyWords(norm(text), ctx.words);
     orders = orders || [];
+    const name = ctx.name || 'น้องมาม่า';
 
     if (ctx.awaitingConfirm) {
       if (YES.test(c)) return { kind: 'yes' };
       if (NO.test(c)) return { kind: 'no', say: 'ยกเลิกแล้วค่ะ' };
     }
     if (!c) return { kind: 'wake' };
+    if (ctx.ringing && /^(รับทราบ|โอเค|ok|ได้|ทราบ|รู้แล้ว|หยุด|พอ|ปิด)/.test(c)) return { kind: 'ack' };
+
+    // ----- จับเวลา -----
+    if (/(ยกเลิก|หยุด|ลบ|ปิด)(การ)?(จับเวลา|ตั้งเวลา|นาฬิกา|เวลา)/.test(c)) return { kind: 'timer-cancel', label: c.replace(/.*(จับเวลา|ตั้งเวลา|นาฬิกา|เวลา)/, '') };
+    if (/(เหลือ(อีก)?กี่นาที|เวลาเหลือ|เหลือเวลา|จับเวลาอะไรอยู่)/.test(c)) return { kind: 'timer-status' };
+    const tm = parseTimer(c);
+    if (tm) return tm.sec ? { kind: 'timer', sec: tm.sec, label: tm.label, say: `จับเวลา ${fmtSec(tm.sec)}${tm.label ? ' ' + tm.label : ''} ค่ะ` }
+      : { kind: 'ask', say: 'จับเวลากี่นาทีคะ เช่น จับเวลา 4 นาที ของทอด' };
+
     if (/^(หยุด|เงียบ|พอแล้ว|พอ|stop)/.test(c)) return { kind: 'stop' };
     if (/(พูดอีกที|พูดใหม่|ทวน|อีกรอบ|ว่าไงนะ|อะไรนะ|ไม่ได้ยิน)/.test(c)) return { kind: 'repeat' };
     if (/(ย้อนกลับ|เอาคืน|เรียกกลับ|ยกเลิกเสร็จ|undo|กดผิด|ยังไม่เสร็จ)/.test(c)) return { kind: 'undo' };
     if (/(ทำอะไรได้|ช่วยอะไรได้|ใช้ยังไง|ใช้งานยังไง|วิธีใช้|สั่งอะไรได้)/.test(c)) {
-      return { kind: 'help', say: 'เรียก น้องมาม่า แล้วพูดได้เลยค่ะ เช่น ค้างอะไรบ้าง, โต๊ะ 3 สั่งอะไร, กะเพรากี่จาน, โต๊ะ 3 เสร็จ, รอนานสุดโต๊ะไหน หรือ ย้อนกลับ' };
+      return { kind: 'help', say: `เรียก ${name} แล้วพูดได้เลยค่ะ เช่น ต่อไป, เสร็จ, ค้างอะไรบ้าง, โต๊ะ 3 สั่งอะไร, กะเพรากี่จาน, โต๊ะ 3 เสร็จ, จับเวลา 4 นาที, ย้อนกลับ` };
     }
 
     const table = findTable(c);
@@ -245,7 +328,15 @@
     const phrase = dishPhrase(c, table);
     const done = /(เสร็จ|เรียบร้อย|ออกแล้ว|ส่งแล้ว|เสิร์ฟแล้ว|ทำแล้ว)/.test(c) && !/(เสร็จ|เรียบร้อย)(หรือ)?ยัง/.test(c);
 
-    if (/(รอนาน|นานสุด|นานที่สุด|ต่อไป|ทำอะไรก่อน|อันไหนก่อน|โต๊ะไหนก่อน|คิวแรก|ช้าสุด)/.test(c) && !done) {
+    // ----- ทำอะไรต่อ: บอกชุดที่ควรผัดรอบถัดไป (เมนูเดียวกันหลายโต๊ะรวมกัน) -----
+    if (/^(ต่อไป|ถัดไป|อันต่อไป|จานต่อไป|ชุดต่อไป|next)|(ทำอะไรต่อ|ทำอะไรดี|ทำอะไรก่อน|อันไหนก่อน|ทำอันไหน|ต้องทำอะไร$)/.test(c) && !done) {
+      const b = nextBatch(orders, ctx.batchMax || 0);
+      if (!b) return { kind: 'next', say: 'ไม่มีออเดอร์ค้างค่ะ', batch: null };
+      return { kind: 'next', batch: b, highlight: { orders: [...new Set(b.dishes.map(d => d.order.id))], dishes: b.dishes.map(d => d.id) },
+        say: 'ต่อไป ' + batchText(b) + ' ค่ะ' };
+    }
+
+    if (/(รอนาน|นานสุด|นานที่สุด|โต๊ะไหนก่อน|คิวแรก|ช้าสุด)/.test(c) && !done) {
       if (!orders.length) return { kind: 'oldest', say: 'ตอนนี้ไม่มีออเดอร์ค้างค่ะ' };
       const o = orders.slice().sort((a, b) => a.order_at - b.order_at)[0];
       return { kind: 'oldest', highlight: { orders: [o.id] },
@@ -272,11 +363,20 @@
           kind: 'done-dish', confirm: true, highlight: { orders: tables.map(o => o.id), dishes: dishes.map(d => d.id) },
           ask: `${dishes[0].name} ${qty} จาน ${where} เสร็จ ใช่ไหมคะ`,
           say: `เรียบร้อย ${dishes[0].name} ${where} เสร็จแล้วค่ะ`,
-          calls: dishes.map(d => ({ path: '/api/dish/complete', body: { order_id: d.order.id, dishes_id: d.id } })),
-          undo: dishes.map(d => ({ path: '/api/dish/complete', body: { order_id: d.order.id, dishes_id: d.id, status: 'pending' } })),
+          ...doneDishes(dishes),
         };
       }
-      if (!table) return { kind: 'ask', say: 'เสร็จโต๊ะไหนคะ บอกเลขโต๊ะด้วยค่ะ' };
+      if (!table) {
+        // พูดแค่ "เสร็จ" หลังถาม "ต่อไป" = ชุดที่บอกล่าสุด (เฉพาะจานที่ยังค้าง)
+        const live = ctx.batch ? all.filter(d => ctx.batch.dishes.some(x => x.id === d.id)) : [];
+        if (live.length) {
+          const qty = live.reduce((s2, d) => s2 + (d.quantity || 1), 0);
+          const where = listTables([...new Set(live.map(d => tableLabel(d.order)))]);
+          return { kind: 'done-dish', confirm: true, batchDone: true, highlight: { orders: live.map(d => d.order.id), dishes: live.map(d => d.id) },
+            ask: `${live[0].name} ${qty} จาน ${where} เสร็จ ใช่ไหมคะ`, say: `เรียบร้อย ${live[0].name} ${qty} จาน เสร็จแล้วค่ะ`, ...doneDishes(live) };
+        }
+        return { kind: 'ask', say: 'เสร็จโต๊ะไหนคะ บอกเลขโต๊ะด้วยค่ะ' };
+      }
       if (hits.length > 1) return { kind: 'ask', say: `มี ${hits.length} ออเดอร์ที่ตรงกับ ${table.key} ค่ะ ดูบนจอแล้วกดเองนะคะ`, highlight: { orders: hits.map(o => o.id) } };
       const o = hits[0];
       const ds = o.pending_dishes || [];
@@ -320,12 +420,14 @@
     }
 
     if (/(ค้าง|เหลือ|ต้องทำ|มีอะไร|รออะไร|ทำรวม|รวมจาน|ออเดอร์|สรุป|งาน)/.test(c)) {
-      return { kind: 'pending', say: replyPending(orders) };
+      // มีคำอื่นที่ไม่รู้จักปนอยู่ (เช่น "โต๊ะริมหน้าต่างเหลืออะไร") → vague: ถ้ามี AI ให้ AI ตอบแทน
+      return { kind: 'pending', say: replyPending(orders), vague: phrase.length >= 3 };
     }
     return { kind: 'unknown', say: 'ไม่แน่ใจค่ะ ลองพูดว่า ค้างอะไรบ้าง หรือ โต๊ะ 3 เสร็จ' };
   }
 
-  const api = { norm, readNumber, findTable, findWake, matchDishes, dishPhrase, groups, interpret, tableLabel, mins, DEFAULT_WAKE };
+  const api = { norm, readNumber, findTable, findWake, matchDishes, dishPhrase, groups, interpret, tableLabel, mins, DEFAULT_WAKE,
+    parseWords, nextBatch, batchText, doneDishes, parseTimer, fmtSec, pendingDishes, listTables, say };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.KitchenLogic = api;
 })(this);

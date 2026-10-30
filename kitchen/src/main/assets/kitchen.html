@@ -6,8 +6,8 @@
 <title>ผู้ช่วยครัว</title>
 <style>
   :root {
-    --bg: #121211; --panel: #1d1c1a; --line: #2e2c29; --text: #f6f1df; --dim: #a59f8f;
-    --brand: #2f9a7e; --hot: #f2a541; --bad: #e5604d; --ok: #57c18f;
+    --bg: #121211; --panel: #1d1c1a; --panel2: #262522; --line: #2e2c29; --text: #f6f1df; --dim: #a59f8f;
+    --brand: #2f9a7e; --hot: #f2a541; --bad: #e5604d; --ok: #57c18f; --ai: #8fa8ff;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
@@ -23,27 +23,45 @@
   .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--dim); flex: none; }
   .listening .dot { background: var(--ok); animation: pulse 1.6s infinite; }
   .hearing .dot { background: var(--hot); animation: pulse .6s infinite; }
+  .thinking .dot { background: var(--ai); animation: pulse .5s infinite; }
   .error .dot { background: var(--bad); }
   @keyframes pulse { 50% { opacity: .35; } }
   .net { font-size: 13px; color: var(--dim); white-space: nowrap; }
   .net.down { color: var(--bad); }
   .gear { width: 44px; height: 44px; font-size: 24px; border-radius: 12px; background: var(--panel); flex: none; }
 
+  /* ----- จับเวลา ----- */
+  .timers { display: flex; gap: 8px; padding: 8px 14px 0; overflow-x: auto; }
+  .timers:empty { display: none; }
+  .tm { flex: none; padding: 8px 14px; border-radius: 14px; background: var(--panel2); font-size: 18px; font-variant-numeric: tabular-nums; }
+  .tm b { font-size: 22px; margin-left: 6px; }
+  .tm.ring { background: var(--bad); color: #fff; animation: pulse .7s infinite; }
+
   /* ----- คำพูดล่าสุด ----- */
-  .talk { padding: 12px 16px 6px; min-height: 92px; }
+  .talk { padding: 10px 16px 4px; min-height: 86px; }
   .heard { color: var(--dim); font-size: 15px; min-height: 22px; }
-  .reply { font-size: 22px; line-height: 1.4; margin-top: 4px; }
+  .reply { font-size: 21px; line-height: 1.4; margin-top: 4px; }
   .reply.ask { color: var(--hot); }
+  .reply.ai::before { content: "AI · "; color: var(--ai); font-size: 15px; }
+
+  /* ----- ชุดที่กำลังทำ ----- */
+  .batch { margin: 6px 14px 0; padding: 12px 14px; border-radius: 16px; background: #1f2b26; border: 2px solid var(--brand); display: none; }
+  .batch.on { display: block; }
+  .batch .t { font-size: 14px; color: var(--ok); }
+  .batch .n { font-size: 22px; font-weight: 600; margin: 2px 0 6px; }
+  .batch .d { font-size: 17px; line-height: 1.45; }
+  .batch .row2 { display: flex; gap: 8px; margin-top: 10px; }
+  .batch .row2 button { flex: 1; padding: 12px; border-radius: 12px; background: var(--brand); color: #fff; font-size: 17px; font-weight: 600; }
+  .batch .row2 button.ghost { background: transparent; border: 1px solid var(--line); color: var(--dim); flex: none; padding: 12px 16px; }
 
   /* ----- แท็บ ----- */
-  .tabs { display: flex; gap: 8px; padding: 6px 14px; }
+  .tabs { display: flex; gap: 8px; padding: 8px 14px 4px; }
   .tabs button { flex: 1; padding: 10px; border-radius: 12px; background: var(--panel); color: var(--dim); font-size: 17px; }
   .tabs button.on { background: var(--brand); color: #fff; }
 
   main { flex: 1; overflow-y: auto; padding: 6px 14px 16px; }
-  .empty { text-align: center; color: var(--dim); padding: 48px 0; font-size: 19px; }
+  .empty { text-align: center; color: var(--dim); padding: 48px 0; font-size: 19px; line-height: 1.6; }
 
-  /* ทำรวม */
   .grp { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; background: var(--panel); border: 2px solid transparent;
     border-radius: 16px; padding: 12px 14px; margin-bottom: 10px; }
   .grp .name { font-size: 22px; font-weight: 600; }
@@ -54,7 +72,6 @@
   .chip.late { background: #5a2a22; color: #ffd2c9; }
   .alert { color: var(--bad); font-weight: 600; }
 
-  /* รายโต๊ะ */
   .ord { background: var(--panel); border: 2px solid transparent; border-radius: 16px; padding: 12px 14px; margin-bottom: 10px; }
   .ord h3 { margin: 0 0 6px; font-size: 21px; display: flex; justify-content: space-between; gap: 8px; }
   .ord h3 small { font-weight: 400; color: var(--dim); font-size: 15px; }
@@ -64,38 +81,44 @@
   .ord .rm { color: var(--hot); font-size: 15px; }
   .hl { border-color: var(--hot) !important; }
 
-  /* ----- ปุ่มพูด ----- */
-  footer { display: flex; gap: 10px; padding: 10px 14px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
-  .talkbtn { flex: 1; height: 72px; border-radius: 20px; background: var(--brand); color: #fff; font-size: 21px; font-weight: 600; }
+  /* ----- ปุ่มล่าง ----- */
+  footer { display: flex; gap: 8px; padding: 10px 14px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+  footer button { height: 70px; border-radius: 20px; font-size: 18px; }
+  .talkbtn { flex: 1; background: var(--brand); color: #fff; font-size: 21px !important; font-weight: 600; }
   .talkbtn.active { background: var(--hot); color: #1b1100; }
-  .pause { width: 92px; border-radius: 20px; background: var(--panel); font-size: 16px; }
+  .nextbtn { width: 96px; background: var(--panel2); }
+  .pause { width: 86px; background: var(--panel); font-size: 15px !important; }
   .pause.on { background: var(--bad); color: #fff; }
 
   /* ----- ตั้งค่า ----- */
-  .sheet { position: fixed; inset: 0; background: var(--bg); overflow-y: auto; padding: 16px 16px 40px; display: none; z-index: 5; }
+  .sheet { position: fixed; inset: 0; background: var(--bg); overflow-y: auto; padding: 16px 16px 0; display: none; z-index: 5; }
   .sheet.open { display: block; }
-  .sheet h2 { margin: 4px 0 14px; font-size: 22px; }
-  .sheet h4 { margin: 22px 0 8px; color: var(--dim); font-weight: 500; font-size: 15px; }
+  .sheet h2 { margin: 4px 0 6px; font-size: 22px; }
+  .sec { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 4px; }
+  .sec > h4 { margin: 12px 0 8px; font-size: 17px; color: var(--hot); font-weight: 600; }
   .field { margin-bottom: 12px; }
-  .field label { display: block; font-size: 15px; color: var(--dim); margin-bottom: 4px; }
-  input[type=text], input[type=password], select {
-    width: 100%; font: inherit; font-size: 18px; padding: 12px; border-radius: 12px; border: 1px solid var(--line);
+  .field label, .lab { display: block; font-size: 15px; color: var(--dim); margin-bottom: 4px; }
+  input[type=text], input[type=password], input[type=number], select, textarea {
+    width: 100%; font: inherit; font-size: 17px; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--line);
     background: var(--panel); color: var(--text); }
+  textarea { min-height: 96px; resize: vertical; line-height: 1.5; }
   .row { display: flex; gap: 8px; align-items: center; }
   .row > * { flex: 1; }
-  .check { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; font-size: 17px; }
+  .check { display: flex; gap: 12px; align-items: flex-start; padding: 9px 0; font-size: 17px; }
   .check input { width: 24px; height: 24px; flex: none; margin-top: 2px; accent-color: var(--brand); }
   .check small { display: block; color: var(--dim); font-size: 14px; }
   .btn { padding: 12px 16px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-size: 16px; }
   .btn.main { background: var(--brand); border-color: var(--brand); color: #fff; }
-  .note { color: var(--dim); font-size: 14px; line-height: 1.5; }
-  .msg { font-size: 15px; min-height: 20px; margin-top: 6px; }
-  .msg.bad { color: var(--bad); } .msg.good { color: var(--ok); }
+  .note { color: var(--dim); font-size: 14px; line-height: 1.55; }
+  .msg { font-size: 15px; min-height: 20px; margin-top: 6px; line-height: 1.5; }
+  .msg.bad, span.bad { color: var(--bad); } .msg.good { color: var(--ok); }
   .seg { display: flex; gap: 6px; }
-  .seg button { flex: 1; padding: 12px 6px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-size: 16px; }
+  .seg button { flex: 1; padding: 11px 6px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-size: 16px; }
   .seg button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
-  .actions { display: flex; gap: 10px; margin-top: 22px; position: sticky; bottom: 0; background: var(--bg); padding: 10px 0; }
+  .actions { display: flex; gap: 10px; margin-top: 22px; position: sticky; bottom: 0; background: var(--bg); padding: 12px 0 16px; border-top: 1px solid var(--line); }
   .actions .btn { flex: 1; font-size: 18px; padding: 14px; }
+  .inline { display: flex; align-items: center; gap: 10px; }
+  .inline input[type=number] { width: 90px; flex: none; }
 </style>
 </head>
 <body>
@@ -105,9 +128,18 @@
   <button class="gear" id="gear" aria-label="ตั้งค่า">⚙</button>
 </header>
 
+<div class="timers" id="timers"></div>
+
 <section class="talk">
   <div class="heard" id="heard"></div>
-  <div class="reply" id="reply">เรียก “น้องมาม่า” แล้วพูดคำสั่งได้เลยค่ะ</div>
+  <div class="reply" id="reply"></div>
+</section>
+
+<section class="batch" id="batch">
+  <div class="t">กำลังทำ</div>
+  <div class="n" id="batchName"></div>
+  <div class="d" id="batchDetail"></div>
+  <div class="row2"><button id="batchDone">✓ เสร็จชุดนี้</button><button class="ghost" id="batchClose">ซ่อน</button></div>
 </section>
 
 <nav class="tabs">
@@ -118,11 +150,12 @@
 <main id="board"><div class="empty">กำลังโหลดออเดอร์…</div></main>
 
 <footer>
+  <button class="nextbtn" id="nextBtn">⏭ ต่อไป</button>
   <button class="talkbtn" id="talk">🎙 แตะแล้วพูด</button>
   <button class="pause" id="pause">หยุดฟัง</button>
 </footer>
 
-<!-- ตั้งค่า -->
+<!-- รหัสเจ้าของร้าน -->
 <div class="sheet" id="lock">
   <h2>ใส่รหัสเจ้าของร้าน</h2>
   <div class="field"><input type="password" id="pin" inputmode="numeric" autocomplete="off" placeholder="รหัสเจ้าของร้าน"></div>
@@ -130,68 +163,118 @@
   <div class="actions"><button class="btn" id="pinCancel">ยกเลิก</button><button class="btn main" id="pinOk">เข้าหน้าตั้งค่า</button></div>
 </div>
 
+<!-- ตั้งค่า -->
 <div class="sheet" id="setup">
   <h2>ตั้งค่าผู้ช่วยครัว</h2>
-
-  <h4>เครื่อง ED POS</h4>
-  <div class="field"><label>IP เครื่องหลัก</label>
-    <div class="row"><input type="text" id="sMain" inputmode="url" placeholder="เช่น 192.168.1.34"><button class="btn" style="flex:none" data-test="sMain">ทดสอบ</button></div>
-    <div class="msg" id="sMainMsg"></div></div>
-  <div class="field"><label>IP เครื่องสำรอง (ถ้ามี)</label>
-    <div class="row"><input type="text" id="sStandby" inputmode="url" placeholder="เว้นว่างได้"><button class="btn" style="flex:none" data-test="sStandby">ทดสอบ</button></div>
-    <div class="msg" id="sStandbyMsg"></div></div>
-  <div class="field"><label>ฟังออเดอร์ของจอ</label><select id="sScreen"></select></div>
-
-  <h4>การฟัง</h4>
-  <div class="seg" id="sMode">
-    <button data-v="wake">ฟังตลอด (เรียกชื่อ)</button>
-    <button data-v="ptt">แตะแล้วพูด</button>
-  </div>
-  <div class="field" style="margin-top:12px"><label>ชื่อเรียก (คั่นด้วย , ใส่คำที่ระบบฟังชอบเขียนผิดเพิ่มได้)</label>
-    <input type="text" id="sWake"></div>
-  <label class="check"><input type="checkbox" id="sConfirm"><span>ถามยืนยันก่อนกดเสร็จ<small>พูดทวนแล้วรอคำว่า “ใช่” ก่อนทำ (แนะนำ)</small></span></label>
-  <label class="check"><input type="checkbox" id="sVolKey"><span>ปุ่มเพิ่ม/ลดเสียง = แตะแล้วพูด<small>ใช้กับปุ่มรีโมตบลูทูธได้ (ปุ่มถ่ายรูปบลูทูธส่วนใหญ่คือปุ่มเพิ่มเสียง)</small></span></label>
-  <label class="check"><input type="checkbox" id="sMute"><span>ปิดเสียง “ปิ๊บ” ของระบบฟัง<small>ปิดเสียงสื่อ/แจ้งเตือนของมือถือระหว่างฟัง · เสียงพูดของผู้ช่วยยังดังตามปกติ</small></span></label>
-
-  <h4>เสียงพูด</h4>
-  <div class="field"><label>ความเร็ว <b id="sRateV"></b></label><input type="range" id="sRate" min="0.7" max="1.5" step="0.1" style="width:100%"></div>
-  <div class="row"><button class="btn" id="tTest">ทดสอบเสียงพูด</button><button class="btn" id="tTts">ตั้งค่าเสียงอ่าน</button></div>
-  <div class="msg" id="ttsMsg"></div>
-  <p class="note">ให้ฟังภาษาไทยได้แม้เน็ตหลุดและเร็วขึ้น: เปิดแอป Google → รูปโปรไฟล์ → การตั้งค่า → เสียง → การจดจำเสียงพูดแบบออฟไลน์ → ดาวน์โหลด “ไทย”</p>
-
   <p class="note" id="ver"></p>
+
+  <div class="sec"><h4>เครื่อง ED POS</h4>
+    <div class="field"><label>IP เครื่องหลัก</label>
+      <div class="row"><input type="text" id="sMain" inputmode="url" placeholder="เช่น 192.168.1.34"><button class="btn" style="flex:none" data-test="sMain">ทดสอบ</button></div>
+      <div class="msg" id="sMainMsg"></div></div>
+    <div class="field"><label>IP เครื่องสำรอง (ถ้ามี)</label>
+      <div class="row"><input type="text" id="sStandby" inputmode="url" placeholder="เว้นว่างได้"><button class="btn" style="flex:none" data-test="sStandby">ทดสอบ</button></div>
+      <div class="msg" id="sStandbyMsg"></div></div>
+    <div class="field"><label>ดูออเดอร์ของจอ</label><select id="sScreen"></select></div>
+  </div>
+
+  <div class="sec"><h4>ผู้ช่วย</h4>
+    <div class="field"><label>ชื่อผู้ช่วย (ใช้ตอนพูดและในหน้าจอ)</label><input type="text" id="sName"></div>
+    <div class="field"><span class="lab">ลงท้าย</span><div class="seg" id="sParticle"><button data-v="ค่ะ">ค่ะ</button><button data-v="ครับ">ครับ</button></div></div>
+    <div class="field"><label>ความเร็วเสียง <b id="sRateV"></b></label><input type="range" id="sRate" min="0.7" max="1.6" step="0.1" style="width:100%"></div>
+    <div class="field"><label>ระดับเสียง (สูง/ต่ำ) <b id="sPitchV"></b></label><input type="range" id="sPitch" min="0.6" max="1.6" step="0.1" style="width:100%"></div>
+    <div class="row"><button class="btn" id="tTest">ทดสอบเสียง</button><button class="btn" id="tTts">ตั้งค่าเสียงอ่าน</button></div>
+    <div class="msg" id="ttsMsg"></div>
+  </div>
+
+  <div class="sec"><h4>การฟัง</h4>
+    <div class="seg" id="sMode"><button data-v="wake">ฟังตลอด (เรียกชื่อ)</button><button data-v="ptt">แตะแล้วพูด</button></div>
+    <div class="field" style="margin-top:12px"><label>คำเรียก (คั่นด้วย , ใส่คำที่ระบบฟังชอบเขียนผิดเพิ่มได้)</label><input type="text" id="sWake"></div>
+    <label class="check"><input type="checkbox" id="sVolKey"><span>ปุ่มเพิ่ม/ลดเสียง = แตะแล้วพูด<small>ใช้กับปุ่มรีโมตบลูทูธ (ปุ่มกดถ่ายรูป) ติดข้างเตาได้</small></span></label>
+    <label class="check"><input type="checkbox" id="sMute"><span>ปิดเสียง “ปิ๊บ” ของระบบฟัง<small>ปิดเสียงสื่อ/แจ้งเตือนของมือถือระหว่างฟัง · ผู้ช่วยพูดผ่านเสียงนาฬิกาปลุก (ปรับดังเบาที่เสียงปลุกของมือถือ)</small></span></label>
+    <p class="note">ให้ฟังไทยได้แม้เน็ตหลุดและเร็วขึ้น: แอป Google → รูปโปรไฟล์ → การตั้งค่า → เสียง → การจดจำเสียงพูดแบบออฟไลน์ → ดาวน์โหลด “ไทย”</p>
+  </div>
+
+  <div class="sec"><h4>ตอนกดเสร็จ</h4>
+    <label class="check"><input type="checkbox" id="sConfirm"><span>พูดทวนแล้วรอ “ใช่” ก่อนทำ<small>แนะนำ · ตอบ “ใช่” ได้เลยไม่ต้องเรียกชื่อ · คำสั่งที่ AI ตีความจะถามเสมอ</small></span></label>
+    <label class="check"><input type="checkbox" id="sBrief"><span>ตอบสั้น (ช่วงยุ่ง)<small>ทำเสร็จแล้วแค่ “ติ๊ง” ไม่พูดยาว</small></span></label>
+    <div class="field inline"><span class="lab" style="margin:0;flex:1">“ต่อไป” บอกทีละไม่เกิน (จาน) <small>0 = ไม่จำกัด</small></span><input type="number" id="sBatchMax" min="0" max="20"></div>
+  </div>
+
+  <div class="sec"><h4>พูดแจ้งเตือนเอง</h4>
+    <label class="check"><input type="checkbox" id="sAnnGroup"><span>ทำรวมได้<small>มีออเดอร์ใหม่ที่ซ้ำกับของที่ค้าง เช่น “กะเพรารวม 4 จาน”</small></span></label>
+    <label class="check"><input type="checkbox" id="sAnnAllergy"><span>แพ้อาหาร / หมายเหตุสำคัญ<small>จานใหม่ที่มี ⚠ ในหมายเหตุ</small></span></label>
+    <label class="check"><input type="checkbox" id="sAnnCancel"><span>ยกเลิกจาน / ยกเลิกบิล<small>จะได้ไม่ทำเสียของ</small></span></label>
+    <label class="check"><input type="checkbox" id="sAnnNew"><span>ทุกออเดอร์ใหม่<small>ปิดไว้ถ้าจอครัวอ่านออเดอร์อยู่แล้ว</small></span></label>
+    <label class="check"><input type="checkbox" id="sAnnLate"><span>โต๊ะรอนาน</span></label>
+    <div class="field inline"><span class="lab" style="margin:0;flex:1">เตือนเมื่อรอเกิน (นาที)</span><input type="number" id="sLateMin" min="3" max="90"></div>
+  </div>
+
+  <div class="sec"><h4>จับเวลา</h4>
+    <div class="field inline"><span class="lab" style="margin:0;flex:1">ครบเวลาแล้วพูดเตือนซ้ำ (ครั้ง) · ตอบ “รับทราบ” เพื่อหยุด</span><input type="number" id="sTimerRepeat" min="1" max="10"></div>
+  </div>
+
+  <div class="sec"><h4>คำเฉพาะร้าน</h4>
+    <div class="field"><label>คำที่พูด = คำที่หมายถึง (บรรทัดละคำ)</label>
+      <textarea id="sWords" placeholder="กพ = กะเพรา&#10;เพชร = เผ็ด&#10;ต้มยำ = ต้มยำกุ้ง"></textarea></div>
+  </div>
+
+  <div class="sec"><h4>AI (Gemini) — ให้ฉลาดขึ้น</h4>
+    <label class="check"><input type="checkbox" id="sAiOn"><span>ใช้ AI เมื่อไม่เข้าใจคำพูด / ถามคำถามทั่วไป<small>คำสั่งหลักยังทำในเครื่องเหมือนเดิม (เร็ว ฟรี เน็ตหลุดก็ใช้ได้)</small></span></label>
+    <div class="field"><label>API key <span id="keyState"></span></label>
+      <div class="row"><input type="password" id="sAiKey" autocomplete="off" placeholder="วางคีย์จาก aistudio.google.com"><button class="btn" style="flex:none" id="aiTest">ทดสอบ</button></div>
+      <div class="msg" id="aiMsg"></div></div>
+    <div class="field"><label>รุ่น AI (เว้นว่าง = เลือกให้เอง)</label><input type="text" id="sAiModel" placeholder="gemini-3.5-flash-lite"></div>
+    <div class="field"><label>สิ่งที่อยากให้ AI รู้เกี่ยวกับร้าน (สูตร ตำแหน่งโต๊ะ กฎในครัว)</label>
+      <textarea id="sAiNotes" placeholder="โต๊ะ 1-4 อยู่ริมหน้าต่าง&#10;กะเพราร้านเราใส่ถั่วฝักยาว&#10;ต้มยำใช้น้ำซุปไก่"></textarea></div>
+    <p class="note">สมัครคีย์ฟรีที่ aistudio.google.com (ไม่ต้องผูกบัตร = ไม่มีทางโดนเก็บเงิน) · แบบฟรี Google อาจนำข้อความไปปรับปรุงบริการ แอปส่งแค่ชื่อจาน ตัวเลือก หมายเหตุ และเลขโต๊ะ · ใช้ครบโควตาฟรีของวัน AI จะตอบไม่ได้จนรีเซ็ต (ประมาณบ่ายสองโมงเวลาไทย)</p>
+  </div>
+
   <div class="actions"><button class="btn" id="sCancel">ยกเลิก</button><button class="btn main" id="sSave">บันทึก</button></div>
 </div>
 
 <script src="logic.js"></script>
+<script src="ai.js"></script>
 <script>
 'use strict';
-const K = window.Kit;   // ช่องทางไปแอป (MainActivity.Bridge)
-const L = window.KitchenLogic;
+const K = window.Kit;            // ช่องทางไปแอป (MainActivity.Bridge)
+const L = window.KitchenLogic, AI = window.KitchenAI;
 const $ = id => document.getElementById(id);
 
-let cfg = JSON.parse(K.getConfig());
-let base = '';                 // เครื่องที่ใช้อยู่
-let orders = [], screens = [], lastOk = 0, fails = 0;
-let tab = 'groups';
-let lastSay = '';
-let pending = null;            // คำสั่งที่รอ "ใช่"
-let followUntil = 0;           // ช่วงที่ตอบได้โดยไม่ต้องเรียกชื่อ (หลังเรียกชื่อ/ถามยืนยัน)
-let lastUndo = null;           // {calls, label, at}
+const DEF = { name: 'น้องมาม่า', particle: 'ค่ะ', pitch: 1, brief: false, batchMax: 4,
+  annGroup: true, annAllergy: true, annCancel: true, annNew: false, annLate: true, lateMin: 15,
+  timerRepeat: 3, words: '', aiOn: true, aiModel: '', aiNotes: '' };
+let cfg = load();
+function load() { const c = JSON.parse(K.getConfig()); for (const k in DEF) if (c[k] === undefined) c[k] = DEF[k]; return c; }
+
+let base = '', orders = [], screens = [], menu = [], lastOk = 0;
+let tab = 'groups', lastSay = '';
+let pending = null;              // คำสั่งที่รอ "ใช่"
+let followUntil = 0;             // ช่วงที่ตอบได้โดยไม่ต้องเรียกชื่อ
+let followAfterSpeech = false;
+let lastUndo = null;             // {calls, label, at}
+let batch = null;                // ชุดที่บอกล่าสุดจาก "ต่อไป"
 let highlight = { orders: [], dishes: [], until: 0 };
-let paused = false, speaking = false, onceActive = false, wokeThisRound = false;
+let paused = false, speaking = false, onceActive = false, wokeThisRound = false, thinking = false;
+let history = [];                // บทสนทนาล่าสุดสำหรับ AI
+let timers = [], timerSeq = 0;
+let annQueue = [];
+const words = () => L.parseWords(cfg.words);
+const aiReady = () => cfg.aiOn && cfg.aiKeySet;
 
 // ---------- เครือข่าย (ผ่านแอป ไม่ติด CORS) ----------
 const waits = new Map(); let seq = 0;
 window.__kit = window.__kit || {};
 __kit.http = (id, code, text) => { const w = waits.get(id); if (w) { waits.delete(id); w({ code, text }); } };
-function http(method, url, body, timeout) {
+function call(fn, timeoutMs) {
   return new Promise(res => {
     const id = 'h' + (++seq);
-    waits.set(id, res);
-    K.http(id, method, url, body ? JSON.stringify(body) : '', timeout || 4000);
+    const t = setTimeout(() => { if (waits.delete(id)) res({ code: 0, text: '' }); }, timeoutMs);
+    waits.set(id, r => { clearTimeout(t); res(r); });
+    fn(id);
   });
 }
+const http = (method, url, body, timeout) => call(id => K.http(id, method, url, body ? JSON.stringify(body) : '', timeout || 4000), (timeout || 4000) + 2000);
 async function getJSON(url, timeout) {
   const r = await http('GET', url, null, timeout);
   if (r.code !== 200) return null;
@@ -203,54 +286,124 @@ async function refresh() {
   for (const b of list) {
     const j = await getJSON(`${b}/api/orders?screen=${encodeURIComponent(cfg.screen || '')}`, 3000);
     if (j && j.ok) {
-      base = b; orders = j.orders || []; screens = j.screens || []; lastOk = Date.now(); fails = 0;
+      base = b; lastOk = Date.now();
+      screens = j.screens || []; menu = j.knownDishes || [];
+      watch(j);
+      orders = j.orders || [];
+      if (batch) {   // ชุดที่กำลังทำ: เหลือเฉพาะจานที่ยังค้าง
+        const live = new Set(L.pendingDishes(orders).map(d => d.id));
+        batch.dishes = batch.dishes.filter(d => live.has(d.id));
+        if (!batch.dishes.length) batch = null;
+      }
       render(); return;
     }
   }
-  fails++;
   render();
 }
 
-// ---------- พูด / ฟัง ----------
+// ---------- พูดแจ้งเตือนเอง: เทียบออเดอร์รอบก่อนกับรอบนี้ ----------
+let prev = null;                 // id จาน → ข้อมูล (รอบก่อน)
+const seen = new Set(), saidCancel = new Set(), saidLate = new Set();
+function watch(j) {
+  const cur = new Map(), now = Date.now();
+  for (const o of j.orders || []) for (const d of o.pending_dishes || []) cur.set(d.id, { ...d, order: o });
+  const cancelled = (j.cancelled && j.cancelled.dishes) || [], voided = (j.cancelled && j.cancelled.orders) || [];
+  if (!prev) {   // เปิดแอปครั้งแรก: ไม่พูดของเก่า
+    for (const id of cur.keys()) seen.add(id);
+    cancelled.forEach(id => saidCancel.add(id)); voided.forEach(id => saidCancel.add(id));
+    for (const o of j.orders || []) if (L.mins(now, o.order_at) >= cfg.lateMin) saidLate.add(o.id);
+    prev = cur; return;
+  }
+  const msgs = [];
+  // จานใหม่
+  const fresh = [...cur.values()].filter(d => !seen.has(d.id));
+  fresh.forEach(d => seen.add(d.id));
+  if (fresh.length) {
+    const byOrder = new Map();
+    for (const d of fresh) { const a = byOrder.get(d.order.id) || []; a.push(d); byOrder.set(d.order.id, a); }
+    for (const [, ds] of byOrder) {
+      const o = ds[0].order, more = [...prev.values()].some(p => p.order.id === o.id);
+      if (cfg.annNew) msgs.push(`${L.tableLabel(o)} สั่ง${more ? 'เพิ่ม' : ''} ` + ds.map(d => `${d.name}${(d.extra_option || []).length ? ' ' + d.extra_option.join(' ') : ''} ${d.quantity || 1}`).join(', '));
+      if (cfg.annAllergy) for (const d of ds) if (/⚠/.test(d.remark || '')) msgs.push(`ระวัง ${L.tableLabel(o)} ${d.name} ${d.remark}`);
+    }
+    if (cfg.annGroup) {
+      for (const name of new Set(fresh.map(d => d.name))) {
+        const same = [...cur.values()].filter(d => d.name === name);
+        const qty = same.reduce((s, d) => s + (d.quantity || 1), 0), freshQty = fresh.filter(d => d.name === name).reduce((s, d) => s + (d.quantity || 1), 0);
+        if (qty > freshQty && new Set(same.map(d => d.order.id)).size > 1) msgs.push(`${name} ทำรวมได้ ${qty} จาน`);
+      }
+    }
+  }
+  // ยกเลิก
+  if (cfg.annCancel) {
+    const names = new Map();
+    for (const o of j.orders || []) for (const d of o.cancelled_dishes || []) names.set(d.id, { ...d, order: o });
+    for (const id of cancelled) if (!saidCancel.has(id)) {
+      saidCancel.add(id);
+      const d = names.get(id) || prev.get(id);
+      if (d) msgs.push(`ยกเลิก ${L.tableLabel(d.order)} ${d.name}${d.quantity > 1 ? ' ' + d.quantity : ''}`);
+    }
+    for (const oid of voided) if (!saidCancel.has(oid)) {
+      saidCancel.add(oid);
+      const any = [...prev.values()].find(p => p.order.id === oid);
+      if (any) msgs.push(`ยกเลิกทั้งบิล ${L.tableLabel(any.order)}`);
+    }
+  } else { cancelled.forEach(id => saidCancel.add(id)); voided.forEach(id => saidCancel.add(id)); }
+  // รอนาน
+  for (const o of j.orders || []) if (!saidLate.has(o.id) && L.mins(now, o.order_at) >= cfg.lateMin) {
+    saidLate.add(o.id);
+    if (cfg.annLate) msgs.push(`${L.tableLabel(o)} รอ ${L.mins(now, o.order_at)} นาทีแล้ว`);
+  }
+  prev = cur;
+  if (msgs.length) annQueue.push(...msgs);
+}
+function flushAnn() {
+  if (!annQueue.length || speaking || pending || thinking || onceActive || Date.now() < followUntil) return;
+  const text = annQueue.splice(0).join(' · ');
+  K.ding('wake');
+  setTimeout(() => speak(text + ' ' + cfg.particle, 'ann'), 250);
+}
+
+// ---------- พูด ----------
+function voice(t) {   // เปลี่ยนคำลงท้ายตามตั้งค่า
+  if (cfg.particle !== 'ครับ') return t;
+  return t.replace(/(ค่ะ|คะ|ค่า)(?=[\s,.!?·)]|$)/g, 'ครับ').replace(/ครับ\s*ครับ/g, 'ครับ');
+}
 function speak(text, kind) {
   if (!text) return;
-  lastSay = text;
+  text = voice(text);
+  if (kind !== 'ann') lastSay = text;
   $('reply').textContent = text;
-  $('reply').className = 'reply' + (kind === 'ask' ? ' ask' : '');
-  K.speak(text, cfg.rate || 1);
+  $('reply').className = 'reply' + (kind === 'ask' ? ' ask' : kind === 'ai' ? ' ai' : '');
+  K.speak(text.replace(/[⚠✓]/g, ''), cfg.rate || 1);
 }
 __kit.tts = state => {
   speaking = state === 'start';
-  // พูดจบ → ให้ตอบต่อได้โดยไม่ต้องเรียกชื่อ (กรณีถามยืนยัน/ถามเลขโต๊ะ)
   if (!speaking && (pending || followAfterSpeech)) { followUntil = Date.now() + 8000; followAfterSpeech = false; }
   setStatus();
 };
-let followAfterSpeech = false;
 
+const wakeList = () => String(cfg.wake || '').split(/[,،]/).map(s => s.trim()).filter(Boolean);
+let micState = '', micMsg = '';
 function setStatus(extra) {
-  const pill = $('pill');
   let cls = '', txt;
   if (extra && extra.error) { cls = 'error'; txt = extra.error; }
-  else if (speaking) { txt = '🔊 กำลังพูด'; }
-  else if (onceActive) { cls = 'hearing'; txt = 'พูดได้เลยค่ะ…'; }
-  else if (Date.now() < followUntil) { cls = 'hearing'; txt = pending ? 'ตอบ “ใช่” หรือ “ไม่”' : 'ว่ามาเลยค่ะ…'; }
-  else if (paused) { txt = 'หยุดฟังอยู่ (แตะปุ่มเพื่อพูด)'; }
-  else if (cfg.mode === 'ptt') { txt = 'แตะปุ่มหรือกดปุ่มเสียงเพื่อพูด'; }
-  else if (micState === 'listening') { cls = 'listening'; txt = `ฟังอยู่ · เรียก “${wakeName()}”`; }
+  else if (thinking) { cls = 'thinking'; txt = 'AI กำลังคิด…'; }
+  else if (speaking) txt = '🔊 กำลังพูด';
+  else if (onceActive) { cls = 'hearing'; txt = 'พูดได้เลย…'; }
+  else if (Date.now() < followUntil) { cls = 'hearing'; txt = pending ? 'ตอบ “ใช่” หรือ “ไม่”' : 'ว่ามาเลย…'; }
+  else if (paused) txt = 'หยุดฟังอยู่ (แตะปุ่มเพื่อพูด)';
+  else if (cfg.mode === 'ptt') txt = 'แตะปุ่มหรือกดปุ่มเสียงเพื่อพูด';
+  else if (micState === 'listening') { cls = 'listening'; txt = `ฟังอยู่ · เรียก “${wakeList()[0] || cfg.name}”`; }
   else txt = micMsg || 'กำลังเริ่มฟัง…';
-  pill.className = 'pill ' + cls;
+  $('pill').className = 'pill ' + cls;
   $('status').textContent = txt;
   $('talk').classList.toggle('active', onceActive || Date.now() < followUntil);
   $('pause').classList.toggle('on', paused);
   $('pause').textContent = paused ? 'ฟังต่อ' : 'หยุดฟัง';
   $('pause').style.display = cfg.mode === 'ptt' ? 'none' : '';
 }
-setInterval(setStatus, 1000);
 
-const wakeList = () => String(cfg.wake || '').split(/[,،]/).map(s => s.trim()).filter(Boolean);
-const wakeName = () => wakeList()[0] || 'น้องมาม่า';
-
-let micState = '', micMsg = '';
 __kit.mic = (state, msg) => {
   micState = state; micMsg = msg || '';
   if (state !== 'once') onceActive = false;
@@ -258,7 +411,7 @@ __kit.mic = (state, msg) => {
 };
 
 /** ระบบฟังได้ยิน: texts = คำที่น่าจะเป็นหลายแบบ (แบบแรกมั่นใจสุด) */
-__kit.hear = (json) => {
+__kit.hear = json => {
   const h = JSON.parse(json);
   const texts = (h.texts || []).filter(Boolean);
   if (!texts.length) return;
@@ -273,51 +426,93 @@ __kit.hear = (json) => {
     const w = L.findWake(t, wakeList());
     if (w.woke) { if (!dinged) K.ding('wake'); return command(w.rest, t); }
   }
-  if (Date.now() < followUntil) return command(texts[0]);
+  if (Date.now() < followUntil || timers.some(t => t.ringing)) return command(texts[0]);
   // เสียงคนคุยกัน/จอครัวอ่านออเดอร์ (ไม่มีชื่อเรียก) → ไม่สนใจ
 };
-
 __kit.key = k => { if (k === 'ptt') talkNow(); };
 
 function talkNow() {
-  if (speaking) K.stopSpeak();
   onceActive = true;
   K.ding('wake');
   K.listenOnce();
   setStatus();
 }
 
-// ---------- ทำตามคำสั่ง ----------
-async function command(text, heardRaw) {
-  $('heard').textContent = '“' + (heardRaw || text || wakeName()) + '”';
-  if (pending && Date.now() > pending.until) pending = null;
-  // ใช้ออเดอร์ล่าสุดเสมอ (ครัวอาจกดบนจอไปแล้ว)
-  await refresh();
-  const r = L.interpret(text, orders, { now: Date.now(), awaitingConfirm: !!pending, screen: cfg.screen || '' });
-  if (r.highlight) highlight = { orders: r.highlight.orders || [], dishes: r.highlight.dishes || [], until: Date.now() + 20000 };
-  render();
-
-  switch (r.kind) {
-    case 'wake':
-      followUntil = Date.now() + 8000; setStatus(); return;
-    case 'yes': {
-      const p = pending; pending = null;
-      return p ? run(p) : speak('ไม่มีอะไรให้ยืนยันค่ะ');
-    }
-    case 'no': pending = null; followUntil = 0; return speak(r.say);
-    case 'stop': pending = null; followUntil = 0; K.stopSpeak(); return;
-    case 'repeat': return speak(lastSay || 'ยังไม่ได้พูดอะไรค่ะ');
-    case 'undo': return undo();
-    case 'done-dish': case 'done-table':
-      if (cfg.confirm) { pending = { ...r, until: Date.now() + 30000 }; return speak(r.ask, 'ask'); }
-      return run(r);
-    case 'ask':
-      followAfterSpeech = true; return speak(r.say, 'ask');
-    default:
-      return speak(r.say);
-  }
+// ---------- เข้าใจคำสั่ง ----------
+function ctx() {
+  return { now: Date.now(), awaitingConfirm: !!pending, screen: cfg.screen || '', words: words(), batch, batchMax: +cfg.batchMax || 0,
+    name: cfg.name, ringing: timers.some(t => t.ringing) };
 }
 
+async function command(text, heardRaw) {
+  $('heard').textContent = '“' + (heardRaw || text || cfg.name) + '”';
+  if (pending && Date.now() > pending.until) pending = null;
+  await refresh();   // ใช้ออเดอร์ล่าสุดเสมอ (ครัวอาจกดบนจอไปแล้ว)
+  let r = L.interpret(text, orders, ctx());
+  if ((r.kind === 'unknown' || r.vague || (r.kind === 'notfound' && !/โต๊ะ|คิว/.test(r.say))) && aiReady()) r = await askAI(text);
+  else if (r.kind === 'unknown' && cfg.aiOn && !cfg.aiKeySet) r.say += ' หรือใส่คีย์ AI ในหน้าตั้งค่าให้ฉลาดขึ้น';
+  handle(r, text);
+}
+
+function handle(r, text) {
+  if (r.highlight) highlight = { orders: r.highlight.orders || [], dishes: r.highlight.dishes || [], until: Date.now() + 20000 };
+  const remember = s => { if (text && s) { history.push({ u: text, a: s }); history = history.slice(-6); } };
+  switch (r.kind) {
+    case 'wake': followUntil = Date.now() + 8000; setStatus(); break;
+    case 'yes': { const p = pending; pending = null; p ? run(p) : speak('ไม่มีอะไรให้ยืนยันค่ะ'); break; }
+    case 'no': pending = null; followUntil = 0; speak(r.say); break;
+    case 'stop': pending = null; followUntil = 0; annQueue = []; K.stopSpeak(); break;
+    case 'repeat': speak(lastSay || 'ยังไม่ได้พูดอะไรค่ะ'); break;
+    case 'undo': undo(); break;
+    case 'ack': ackTimers(); break;
+    case 'timer': addTimer(r.sec, r.label); speak(r.say, r.ai ? 'ai' : ''); remember(r.say); break;
+    case 'timer-cancel': cancelTimers(r.label); break;
+    case 'timer-status': speak(timerStatus()); break;
+    case 'next': case 'ai-next': {
+      const n = r.kind === 'next' ? r : L.interpret('ต่อไป', orders, ctx());
+      batch = n.batch || null;
+      if (n.highlight) highlight = { orders: n.highlight.orders, dishes: n.highlight.dishes, until: Date.now() + 20000 };
+      followAfterSpeech = !!batch;   // ตอบ "เสร็จ" ได้เลยหลังฟังจบ
+      speak(n.say); remember(n.say); break;
+    }
+    case 'done-dish': case 'done-table':
+      if (cfg.confirm || r.ai) { pending = { ...r, until: Date.now() + 30000 }; speak(r.ask, 'ask'); remember(r.ask); }
+      else run(r);
+      break;
+    case 'ask': followAfterSpeech = true; speak(r.say, 'ask'); remember(r.say); break;
+    case 'ai': followAfterSpeech = /[?？]|ไหม|มั้ย|อะไร|ยังไง|เท่าไร/.test(r.say.slice(-12)); speak(r.say, 'ai'); remember(r.say); break;
+    default: speak(r.say); remember(r.say);
+  }
+  render();
+}
+
+// ---------- AI ----------
+async function askAI(text) {
+  thinking = true; setStatus();
+  const body = JSON.stringify(AI.buildRequest({ text, orders, menu, history, name: cfg.name, particle: cfg.particle, notes: cfg.aiNotes,
+    batch, timers: timers.map(t => ({ label: t.label, left_sec: Math.max(0, Math.round((t.end - Date.now()) / 1000)) })) }));
+  let models = cfg.aiModel ? [cfg.aiModel] : AI.MODELS.slice();
+  let good = ''; try { good = localStorage.getItem('aiModelOk') || ''; } catch {}
+  if (!cfg.aiModel && good) models = [good, ...models.filter(m => m !== good)];
+  let res = null;
+  for (const m of models) {
+    res = await call(id => K.ai(id, m, body, ''), 26000);
+    if (res.code === 404) continue;           // รุ่นนี้เลิกให้บริการ → ลองรุ่นถัดไป
+    if (res.code === 200) { try { localStorage.setItem('aiModelOk', m); } catch {} }
+    break;
+  }
+  thinking = false; setStatus();
+  if (!res || res.code !== 200) {
+    let msg = ''; try { msg = JSON.parse(res.text).error.message; } catch {}
+    K.ding('err');
+    return { kind: 'say', say: AI.errorText(res ? res.code : 0, msg) };
+  }
+  const p = AI.parseResponse(res.text);
+  if (p.error) return { kind: 'say', say: 'AI ตอบไม่ได้ค่ะ ลองพูดใหม่อีกที' };
+  return AI.toResult(p, orders, ctx());
+}
+
+// ---------- ทำงานกับจอครัว ----------
 async function post(path, body) {
   const r = await http('POST', base + path, body, 5000);
   if (r.code === 200) return true;
@@ -325,20 +520,19 @@ async function post(path, body) {
   try { err = JSON.parse(r.text).error || ''; } catch {}
   throw new Error(r.code === 409 ? 'เครื่องนี้เป็นเครื่องสำรอง กดเสร็จไม่ได้' : err || 'ติดต่อเครื่อง ED POS ไม่ได้');
 }
-
 async function run(r) {
   try {
     for (const c of r.calls) await post(c.path, c.body);
     lastUndo = { calls: r.undo, label: r.say.replace(/^เรียบร้อย /, '').replace(/ เสร็จแล้วค่ะ$/, ''), at: Date.now() };
+    if (r.batchDone || (batch && r.calls.every(c => batch.dishes.some(d => d.id === c.body.dishes_id)))) batch = null;
     K.ding('ok');
-    speak(r.say);
+    if (!cfg.brief) speak(r.say); else $('reply').textContent = voice(r.say);
   } catch (e) {
     K.ding('err');
     speak('ทำไม่สำเร็จค่ะ ' + e.message);
   }
   refresh();
 }
-
 async function undo() {
   if (!lastUndo || Date.now() - lastUndo.at > 15 * 60000) return speak('ไม่มีอะไรให้ย้อนกลับค่ะ');
   const u = lastUndo; lastUndo = null;
@@ -349,22 +543,72 @@ async function undo() {
   refresh();
 }
 
+// ---------- จับเวลา ----------
+function addTimer(sec, label) {
+  timers.push({ id: ++timerSeq, label: label || '', end: Date.now() + sec * 1000, ringing: false, rings: 0, next: 0 });
+  renderTimers();
+}
+function cancelTimers(label) {
+  const lab = L.norm(label || '');
+  const hit = lab ? timers.filter(t => L.norm(t.label).includes(lab) || lab.includes(L.norm(t.label) || '∅')) : timers;
+  if (!timers.length) return speak('ไม่มีการจับเวลาค่ะ');
+  const n = (hit.length ? hit : timers).length;
+  timers = hit.length ? timers.filter(t => !hit.includes(t)) : [];
+  renderTimers(); speak(`ยกเลิกจับเวลา ${n} อันแล้วค่ะ`);
+}
+function ackTimers() { timers = timers.filter(t => !t.ringing); renderTimers(); K.ding('ok'); }
+function timerStatus() {
+  if (!timers.length) return 'ไม่มีการจับเวลาค่ะ';
+  return timers.map(t => `${t.label || 'จับเวลา'} เหลือ ${L.fmtSec(Math.max(0, Math.round((t.end - Date.now()) / 1000)))}`).join(', ') + ' ค่ะ';
+}
+function tickTimers() {
+  const now = Date.now();
+  for (const t of timers) {
+    if (!t.ringing && now >= t.end) { t.ringing = true; t.next = now; }
+    if (t.ringing && now >= t.next) {
+      if (t.rings >= (+cfg.timerRepeat || 3)) { t.done = true; continue; }
+      t.rings++; t.next = now + 15000;
+      K.ding('err');
+      setTimeout(() => speak(`ครบเวลา ${t.label || ''} ค่ะ`.replace('  ', ' ')), 300);
+    }
+  }
+  timers = timers.filter(t => !t.done);
+  renderTimers();
+}
+function renderTimers() {
+  const now = Date.now();
+  $('timers').innerHTML = timers.map(t => {
+    const left = Math.max(0, Math.round((t.end - now) / 1000));
+    const mm = Math.floor(left / 60), ss = String(left % 60).padStart(2, '0');
+    return `<button class="tm${t.ringing ? ' ring' : ''}" data-tm="${t.id}">⏱ ${esc(t.label || 'จับเวลา')}<b>${t.ringing ? 'ครบ!' : mm + ':' + ss}</b></button>`;
+  }).join('');
+}
+$('timers').onclick = e => {
+  const b = e.target.closest('[data-tm]'); if (!b) return;
+  const t = timers.find(x => x.id === +b.dataset.tm);
+  if (t) { timers = timers.filter(x => x !== t); renderTimers(); if (!t.ringing) speak(`ยกเลิกจับเวลา ${t.label || ''} แล้วค่ะ`); }
+};
+
 // ---------- หน้าจอ ----------
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const lateMin = 15;
-
 function render() {
   const up = Date.now() - lastOk < 10000;
   $('net').textContent = !cfg.main ? '' : up ? (base === cfg.standby ? 'เครื่องสำรอง' : '') : 'ต่อ ED POS ไม่ได้';
   $('net').className = 'net' + (up ? '' : ' down');
+  // ชุดที่กำลังทำ
+  $('batch').classList.toggle('on', !!batch);
+  if (batch) {
+    const qty = batch.dishes.reduce((s, d) => s + (d.quantity || 1), 0);
+    $('batchName').textContent = `${batch.name} · ${qty} จาน`;
+    $('batchDetail').innerHTML = esc(L.batchText({ ...batch, qty }).replace(/^.*?:\s*/, '')).replace(/ · /g, '<br>⚠ ');
+  }
   const hlOn = Date.now() < highlight.until;
   const hlO = new Set(hlOn ? highlight.orders : []), hlD = new Set(hlOn ? highlight.dishes : []);
   const board = $('board');
   if (!cfg.main) { board.innerHTML = '<div class="empty">ยังไม่ได้ใส่ IP เครื่อง ED POS<br>แตะ ⚙ เพื่อตั้งค่า</div>'; return; }
   if (!lastOk) { board.innerHTML = '<div class="empty">กำลังติดต่อเครื่อง ED POS…</div>'; return; }
   if (!orders.length) { board.innerHTML = '<div class="empty">ไม่มีออเดอร์ค้าง 👌</div>'; return; }
-  const now = Date.now();
-
+  const now = Date.now(), late = +cfg.lateMin || 15;
   if (tab === 'groups') {
     board.innerHTML = L.groups(orders).map(g => {
       const hl = g.dishes.some(d => hlD.has(d.id)) || (!hlD.size && g.dishes.some(d => hlO.has(d.order.id)));
@@ -372,7 +616,7 @@ function render() {
       const chips = g.tables.map(t => {
         const o = g.dishes.find(d => L.tableLabel(d.order) === t).order;
         const m = L.mins(now, o.order_at);
-        return `<span class="chip${m >= lateMin ? ' late' : ''}">${esc(t)} · ${m} น.</span>`;
+        return `<span class="chip${m >= late ? ' late' : ''}">${esc(t)} · ${m} น.</span>`;
       }).join('');
       return `<div class="grp${hl ? ' hl' : ''}"><div class="name">${esc(g.name)}${g.alerts ? ' <span class="alert">⚠</span>' : ''}</div>
         <div class="qty">${g.qty}</div>${opts ? `<div class="opts">${opts}</div>` : ''}<div class="chips">${chips}</div></div>`;
@@ -385,7 +629,7 @@ function render() {
         return `<li${hlD.has(d.id) ? ' style="color:var(--hot)"' : ''}>${d.quantity || 1} × ${esc(d.name)}${opt ? ` <span class="opts">${esc(opt)}</span>` : ''}
           ${d.remark ? `<div class="rm${/⚠/.test(d.remark) ? ' alert' : ''}">${esc(d.remark)}</div>` : ''}</li>`;
       }).join('');
-      return `<div class="ord${hlO.has(o.id) ? ' hl' : ''}"><h3>${esc(L.tableLabel(o))}<small class="${m >= lateMin ? 'late' : ''}">รอ ${m} นาที</small></h3><ul>${items}</ul></div>`;
+      return `<div class="ord${hlO.has(o.id) ? ' hl' : ''}"><h3>${esc(L.tableLabel(o))}<small class="${m >= late ? 'late' : ''}">รอ ${m} นาที</small></h3><ul>${items}</ul></div>`;
     }).join('');
   }
 }
@@ -396,6 +640,12 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   render();
 });
 $('talk').onclick = talkNow;
+$('nextBtn').onclick = async () => { await refresh(); handle(L.interpret('ต่อไป', orders, ctx()), 'ต่อไป'); };
+$('batchDone').onclick = () => {   // แตะเอง = ตั้งใจแล้ว ไม่ต้องถามยืนยัน
+  const r = L.interpret('เสร็จ', orders, ctx());
+  if (r.kind === 'done-dish') run(r);
+};
+$('batchClose').onclick = () => { batch = null; render(); };
 $('pause').onclick = () => { paused = !paused; K.setListening(!paused && cfg.mode === 'wake'); setStatus(); };
 
 // ---------- ตั้งค่า ----------
@@ -411,30 +661,38 @@ $('pinOk').onclick = () => {
   else $('pinMsg').textContent = r.replace(/^bad:/, '');
 };
 
-let draftMode = 'wake';
+const SEGS = { sMode: 'mode', sParticle: 'particle' };
+const CHECKS = { sVolKey: 'volKey', sMute: 'mute', sConfirm: 'confirm', sBrief: 'brief', sAnnGroup: 'annGroup', sAnnAllergy: 'annAllergy',
+  sAnnCancel: 'annCancel', sAnnNew: 'annNew', sAnnLate: 'annLate', sAiOn: 'aiOn' };
+const TEXTS = { sWake: 'wake', sName: 'name', sWords: 'words', sAiModel: 'aiModel', sAiNotes: 'aiNotes' };
+const NUMS = { sBatchMax: 'batchMax', sLateMin: 'lateMin', sTimerRepeat: 'timerRepeat', sRate: 'rate', sPitch: 'pitch' };
+const draft = {};
 function openSetup() {
+  cfg = load();
   $('sMain').value = (cfg.main || '').replace(/^http:\/\//, '').replace(/:3000$/, '');
   $('sStandby').value = (cfg.standby || '').replace(/^http:\/\//, '').replace(/:3000$/, '');
   const opts = [...screens.map(s => [s.id, s.name]), ['all', 'ทุกจอรวมกัน']];
-  if (!opts.length || !screens.length) opts.unshift(['', 'จอครัวหลัก (ค่าเริ่มต้น)']);
+  if (!screens.length) opts.unshift(['', 'จอครัวหลัก (ค่าเริ่มต้น)']);
   $('sScreen').innerHTML = opts.map(([v, n]) => `<option value="${esc(v)}">${esc(n)}</option>`).join('');
   $('sScreen').value = cfg.screen || opts[0][0];
-  draftMode = cfg.mode;
-  segMode();
-  $('sWake').value = cfg.wake;
-  $('sConfirm').checked = cfg.confirm;
-  $('sVolKey').checked = cfg.volKey;
-  $('sMute').checked = cfg.mute;
-  $('sRate').value = cfg.rate || 1; $('sRateV').textContent = (+$('sRate').value).toFixed(1);
+  for (const [id, k] of Object.entries(SEGS)) { draft[k] = cfg[k]; seg(id, k); }
+  for (const [id, k] of Object.entries(CHECKS)) $(id).checked = !!cfg[k];
+  for (const [id, k] of Object.entries(TEXTS)) $(id).value = cfg[k] || '';
+  for (const [id, k] of Object.entries(NUMS)) $(id).value = cfg[k];
+  $('sRateV').textContent = (+cfg.rate).toFixed(1); $('sPitchV').textContent = (+cfg.pitch).toFixed(1);
+  $('sAiKey').value = '';
+  $('keyState').innerHTML = cfg.aiKeySet ? `<span style="color:var(--ok)">✓ ตั้งแล้ว (…${esc(cfg.aiKeyHint)})</span> · เว้นว่าง = ใช้คีย์เดิม · ใส่ - เพื่อลบ` : '(ยังไม่ได้ใส่)';
   $('ver').textContent = 'ผู้ช่วยครัว รุ่น ' + cfg.version;
-  ['sMainMsg', 'sStandbyMsg', 'ttsMsg'].forEach(i => $(i).textContent = '');
+  ['sMainMsg', 'sStandbyMsg', 'ttsMsg', 'aiMsg'].forEach(i => { $(i).textContent = ''; $(i).className = 'msg'; });
   const st = K.ttsStatus();
   if (st !== 'ok') $('ttsMsg').innerHTML = `<span class="bad">${st === 'nothai' ? 'ยังไม่มีเสียงอ่านภาษาไทย แตะ “ตั้งค่าเสียงอ่าน” → Google → ติดตั้งภาษาไทย' : 'ไม่พบเครื่องอ่านออกเสียง'}</span>`;
   $('setup').classList.add('open');
+  $('setup').scrollTop = 0;
 }
-function segMode() { document.querySelectorAll('#sMode button').forEach(b => b.classList.toggle('on', b.dataset.v === draftMode)); }
-document.querySelectorAll('#sMode button').forEach(b => b.onclick = () => { draftMode = b.dataset.v; segMode(); });
+function seg(id, k) { document.querySelectorAll(`#${id} button`).forEach(b => b.classList.toggle('on', b.dataset.v === draft[k])); }
+for (const [id, k] of Object.entries(SEGS)) document.querySelectorAll(`#${id} button`).forEach(b => b.onclick = () => { draft[k] = b.dataset.v; seg(id, k); });
 $('sRate').oninput = () => $('sRateV').textContent = (+$('sRate').value).toFixed(1);
+$('sPitch').oninput = () => $('sPitchV').textContent = (+$('sPitch').value).toFixed(1);
 document.querySelectorAll('[data-test]').forEach(b => b.onclick = () => {
   const f = b.dataset.test, msg = $(f + 'Msg');
   msg.className = 'msg'; msg.textContent = 'กำลังทดสอบ…';
@@ -444,16 +702,43 @@ document.querySelectorAll('[data-test]').forEach(b => b.onclick = () => {
     msg.textContent = r.ok ? `✓ เจอ ${r.shop || 'ED POS'} (${r.role === 'standby' ? 'เครื่องสำรอง' : 'เครื่องหลัก'})` : '✗ ติดต่อไม่ได้ ตรวจ IP และ Wi-Fi';
   }, 30);
 });
-$('tTest').onclick = () => K.speak('สวัสดีค่ะ น้องมาม่าพร้อมช่วยงานครัวแล้วค่ะ', +$('sRate').value);
+$('tTest').onclick = () => {
+  const keep = { rate: cfg.rate, particle: cfg.particle };
+  cfg.particle = draft.particle;
+  K.speak(voice(`สวัสดีค่ะ ${$('sName').value || cfg.name} พร้อมช่วยงานครัวแล้วค่ะ`), +$('sRate').value);
+  Object.assign(cfg, keep);
+};
 $('tTts').onclick = () => K.openTtsSettings();
+$('aiTest').onclick = async () => {
+  const key = $('sAiKey').value.trim(), msg = $('aiMsg');
+  if (!key && !cfg.aiKeySet) { msg.className = 'msg bad'; msg.textContent = 'ใส่คีย์ก่อน'; return; }
+  msg.className = 'msg'; msg.textContent = 'กำลังถาม AI…';
+  const body = JSON.stringify(AI.buildRequest({ text: 'ทดสอบระบบ ตอบสั้นๆ ว่าพร้อมช่วยงานครัวแล้ว', orders: [], name: $('sName').value || cfg.name, particle: draft.particle }));
+  const models = $('sAiModel').value.trim() ? [$('sAiModel').value.trim()] : AI.MODELS;
+  let r, used = '';
+  for (const m of models) { r = await call(id => K.ai(id, m, body, key), 26000); used = m; if (r.code !== 404) break; }
+  if (r.code === 200) {
+    const p = AI.parseResponse(r.text);
+    msg.className = 'msg good'; msg.textContent = `✓ ใช้ได้ (${used}) · “${p.say || '…'}”`;
+    try { localStorage.setItem('aiModelOk', used); } catch {}
+  } else {
+    let m = ''; try { m = JSON.parse(r.text).error.message; } catch {}
+    msg.className = 'msg bad'; msg.textContent = '✗ ' + AI.errorText(r.code, m) + (m ? ` (${m.slice(0, 120)})` : '');
+  }
+};
 $('sCancel').onclick = () => { $('setup').classList.remove('open'); if (!cfg.main) render(); };
 $('sSave').onclick = () => {
-  const wake = $('sWake').value.trim() || L.DEFAULT_WAKE.join(', ');
-  K.saveConfig(JSON.stringify({
-    main: $('sMain').value, standby: $('sStandby').value, screen: $('sScreen').value, mode: draftMode, wake,
-    confirm: $('sConfirm').checked, volKey: $('sVolKey').checked, mute: $('sMute').checked, rate: +$('sRate').value,
-  }));
-  cfg = JSON.parse(K.getConfig());
+  const o = { main: $('sMain').value, standby: $('sStandby').value, screen: $('sScreen').value, aiKey: $('sAiKey').value.trim() };
+  for (const k of Object.values(SEGS)) o[k] = draft[k];
+  for (const [id, k] of Object.entries(CHECKS)) o[k] = $(id).checked;
+  for (const [id, k] of Object.entries(TEXTS)) o[k] = $(id).value.trim();
+  for (const [id, k] of Object.entries(NUMS)) o[k] = +$(id).value;
+  if (!o.wake) o.wake = L.DEFAULT_WAKE.join(', ');
+  if (!o.name) o.name = DEF.name;
+  if (!(o.lateMin >= 3)) o.lateMin = DEF.lateMin;
+  if (!(o.timerRepeat >= 1)) o.timerRepeat = DEF.timerRepeat;
+  K.saveConfig(JSON.stringify(o));
+  cfg = load();
   base = '';
   $('setup').classList.remove('open');
   start();
@@ -462,14 +747,14 @@ $('sSave').onclick = () => {
 // ---------- เริ่ม ----------
 function start() {
   if (!cfg.wake) cfg.wake = L.DEFAULT_WAKE.join(', ');
+  if (!$('reply').textContent) $('reply').textContent = `เรียก “${wakeList()[0] || cfg.name}” แล้วพูดได้เลย · ลอง “${cfg.name} ต่อไป”`;
   K.setListening(cfg.mode === 'wake' && !paused && !!cfg.main);
-  setStatus();
-  render();
-  if (cfg.main) refresh();
-  else openSetup();
+  setStatus(); render();
+  if (cfg.main) refresh(); else openSetup();
 }
 setInterval(() => { if (cfg.main && !document.querySelector('.sheet.open')) refresh(); }, 3000);
-setInterval(render, 30000);   // นาทีที่รอ
+setInterval(() => { tickTimers(); flushAnn(); setStatus(); }, 1000);
+setInterval(render, 30000);
 start();
 </script>
 </body>

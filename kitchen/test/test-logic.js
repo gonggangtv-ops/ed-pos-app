@@ -26,7 +26,8 @@ function t(input, kind, check) {
 console.log(L.findWake('น้องมาม่า โต๊ะ 3 เสร็จ'), L.findWake('มาม่าต้มยำกุ้ง'), L.findWake('น้อง มา ม่า'));
 t('น้องมาม่า', 'wake');
 t('น้องมาม่า ค้างอะไรบ้าง', 'pending');
-t('น้องมาม่า มีอะไรต้องทำ', 'pending');
+t('น้องมาม่า มีอะไรต้องทำ', 'pending', r => !r.vague);
+t('โต๊ะริมหน้าต่างเหลืออะไร', 'pending', r => r.vague);
 t('น้องหม่าม้า โต๊ะ 3 สั่งอะไร', 'table', r => /ต้มยำกุ้ง/.test(r.say) && /ระวัง แพ้ถั่ว/.test(r.say));
 t('โต๊ะสาม มีอะไรบ้าง', 'table', r => r.highlight.orders[0] === 'o1');
 t('โต๊ะ ๕', 'table', r => r.highlight.orders[0] === 'o5' || r.highlight.orders[0] === 'o2');
@@ -49,13 +50,36 @@ t('คิว 7 สั่งอะไร', 'table', r => r.highlight.orders[0] ==
 t('โต๊ะ 9 เสร็จ', 'notfound');
 t('โต๊ะ 3 เสร็จหรือยัง', 'table');
 t('โต๊ะไหนรอนานสุด', 'oldest', r => /โต๊ะ 3 รอ 15 นาที/.test(r.say));
-t('ต่อไปทำอะไร', 'oldest');
+t('ต่อไปทำอะไร', 'next', r => r.batch.qty === 4 && /หมูสับ ไข่ดาว 2 โต๊ะ 3, ไก่ 1 โต๊ะ 5, หมูกรอบ 1 กลับบ้าน 7/.test(r.say));
 t('ย้อนกลับ', 'undo');
 t('หยุด', 'stop');
 t('พูดอีกที', 'repeat');
 t('ทำอะไรได้บ้าง', 'help');
 t('ข้าวผัดปูกี่จาน', 'notfound');
 t('วันนี้อากาศดีจัง', 'unknown');
+// ทำทีละชุด: "ต่อไป" แล้ว "เสร็จ"
+const nb = L.interpret('ต่อไป', orders, { ...ctx, batchMax: 3 });
+console.log(nb.batch.qty === 3 ? 'ok   batch max 3: ' + nb.say : (fail++, 'FAIL batch max ' + nb.say));
+const bd = L.interpret('เสร็จ', orders, { ...ctx, batch: nb.batch });
+console.log(bd.kind === 'done-dish' && bd.calls.length === 2 ? 'ok   batch done: ' + bd.ask : (fail++, 'FAIL batch done ' + JSON.stringify(bd)));
+const nob = L.interpret('เสร็จแล้ว', orders, ctx);
+console.log(nob.kind === 'ask' ? 'ok   done without batch asks table' : (fail++, 'FAIL done no batch'));
+// จับเวลา
+for (const [txt, sec, lab] of [['จับเวลา 4 นาที ของทอด', 240, 'ทอด'], ['ตั้งเวลาสามนาที', 180, ''], ['จับเวลา 90 วิ', 90, ''], ['จับเวลานาทีครึ่ง', 90, ''],
+  ['จับเวลา 2 นาทีครึ่ง ไข่', 150, 'ไข่'], ['จับเวลาสิบนาที หมูตุ๋น', 600, 'หมูตุ๋น']]) {
+  const r = L.interpret(txt, orders, ctx);
+  const ok = r.kind === 'timer' && r.sec === sec && (!lab || r.label.includes(lab));
+  if (!ok) fail++; console.log(`${ok ? 'ok  ' : 'FAIL'} [${txt}] → ${r.kind} ${r.sec} "${r.label}" | ${r.say}`);
+}
+for (const [txt, k] of [['ยกเลิกจับเวลา', 'timer-cancel'], ['เหลืออีกกี่นาที', 'timer-status'], ['จับเวลา', 'ask']]) {
+  const r = L.interpret(txt, orders, ctx); const ok = r.kind === k; if (!ok) fail++; console.log(`${ok ? 'ok  ' : 'FAIL'} [${txt}] → ${r.kind}`);
+}
+const ack = L.interpret('รับทราบ', orders, { ...ctx, ringing: true });
+console.log(ack.kind === 'ack' ? 'ok   ack timer' : (fail++, 'FAIL ack'));
+// คำเฉพาะร้าน
+const words = L.parseWords('กพ = กะเพรา\nต้มยำ=ต้มยำกุ้ง');
+const w = L.interpret('กพ กี่จาน', orders, { ...ctx, words });
+console.log(w.kind === 'count' && /4 จาน/.test(w.say) ? 'ok   shop words' : (fail++, 'FAIL shop words ' + w.say));
 const yes = L.interpret('ใช่ค่ะ', orders, { ...ctx, awaitingConfirm: true });
 const no = L.interpret('ไม่ใช่', orders, { ...ctx, awaitingConfirm: true });
 console.log(yes.kind === 'yes' && no.kind === 'no' ? 'ok   confirm yes/no' : (fail++, 'FAIL confirm'));

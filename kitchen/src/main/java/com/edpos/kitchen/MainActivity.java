@@ -154,6 +154,9 @@ public class MainActivity extends Activity {
         Bundle p = new Bundle();
         p.putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, outStream());
         tts.setSpeechRate(rate > 0 ? rate : 1f);
+        float pitch = 1f;
+        try { pitch = (float) new JSONObject(str("extra", "{}")).optDouble("pitch", 1); } catch (Exception ignored) { }
+        tts.setPitch(pitch > 0.3f ? pitch : 1f);
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, p, speakId);
         js("__kit.tts&&__kit.tts('start')");
     }
@@ -432,7 +435,9 @@ public class MainActivity extends Activity {
     }
 
     /** → {code, text} · code 0 = ติดต่อไม่ได้ */
-    static String[] request(String method, String url, String body, int timeout) {
+    static String[] request(String method, String url, String body, int timeout) { return request(method, url, body, timeout, null); }
+
+    static String[] request(String method, String url, String body, int timeout, String aiKey) {
         HttpURLConnection c = null;
         try {
             if (!url.startsWith("http://") && !url.startsWith("https://")) return new String[]{"0", ""};
@@ -441,6 +446,7 @@ public class MainActivity extends Activity {
             c.setReadTimeout(timeout);
             c.setUseCaches(false);
             c.setRequestMethod(method);
+            if (aiKey != null) c.setRequestProperty("x-goog-api-key", aiKey);
             if ("POST".equals(method)) {
                 c.setDoOutput(true);
                 c.setRequestProperty("Content-Type", "application/json");
@@ -458,10 +464,13 @@ public class MainActivity extends Activity {
 
     // ---------- ช่องทางให้หน้าเว็บเรียกแอป: window.Kit ----------
     private class Bridge {
+        /** ค่าทั้งหมดของหน้าตั้งค่า (เก็บเป็น JSON ก้อนเดียว "extra" เพิ่มค่าใหม่ได้โดยไม่ต้องแก้ส่วนนี้)
+         *  คีย์ AI ไม่ส่งกลับให้หน้าเว็บ บอกแค่ว่าตั้งแล้วหรือยัง + 4 ตัวท้าย */
         @JavascriptInterface
         public String getConfig() {
             try {
-                JSONObject o = new JSONObject();
+                JSONObject o;
+                try { o = new JSONObject(str("extra", "{}")); } catch (Exception e) { o = new JSONObject(); }
                 o.put("main", str("main", ""));
                 o.put("standby", str("standby", ""));
                 o.put("screen", str("screen", ""));
@@ -471,6 +480,9 @@ public class MainActivity extends Activity {
                 o.put("volKey", prefs.getBoolean("volKey", true));
                 o.put("mute", muteOn());
                 o.put("rate", prefs.getFloat("rate", 1f));
+                String k = str("aiKey", "");
+                o.put("aiKeySet", !k.isEmpty());
+                o.put("aiKeyHint", k.length() > 4 ? k.substring(k.length() - 4) : "");
                 o.put("version", version());
                 return o.toString();
             } catch (Exception e) { return "{}"; }
@@ -480,8 +492,11 @@ public class MainActivity extends Activity {
         public void saveConfig(String json) {
             try {
                 JSONObject o = new JSONObject(json);
-                prefs.edit()
-                        .putString("main", normalize(o.optString("main")))
+                SharedPreferences.Editor e = prefs.edit();
+                String key = o.optString("aiKey", "").trim();
+                if (key.equals("-")) e.remove("aiKey"); else if (!key.isEmpty()) e.putString("aiKey", key);
+                for (String drop : new String[]{"aiKey", "aiKeySet", "aiKeyHint", "version"}) o.remove(drop);
+                e.putString("main", normalize(o.optString("main")))
                         .putString("standby", normalize(o.optString("standby")))
                         .putString("screen", o.optString("screen", ""))
                         .putString("mode", "ptt".equals(o.optString("mode")) ? "ptt" : "wake")
@@ -490,9 +505,22 @@ public class MainActivity extends Activity {
                         .putBoolean("volKey", o.optBoolean("volKey", true))
                         .putBoolean("mute", o.optBoolean("mute", true))
                         .putFloat("rate", (float) o.optDouble("rate", 1))
+                        .putString("extra", o.toString())
                         .commit();
             } catch (Exception ignored) { }
             ui.post(() -> { setMuted(false); applyTtsStream(); applyListening(); });
+        }
+
+        /** ถาม Gemini · ใส่คีย์ที่นี่ (หน้าเว็บไม่เห็นคีย์) · ผลกลับทาง __kit.http(id, code, text) */
+        @JavascriptInterface
+        public void ai(String id, String model, String body, String keyOverride) {
+            net.execute(() -> {
+                String key = keyOverride != null && !keyOverride.trim().isEmpty() ? keyOverride.trim() : str("aiKey", "");
+                String m = model == null ? "" : model.replaceAll("[^A-Za-z0-9._-]", "");
+                String[] r = key.isEmpty() ? new String[]{"401", "{\"error\":{\"message\":\"no key\"}}"}
+                        : request("POST", "https://generativelanguage.googleapis.com/v1beta/models/" + m + ":generateContent", body, 20000, key);
+                js("__kit.http&&__kit.http(" + JSONObject.quote(id) + "," + r[0] + "," + JSONObject.quote(r[1]) + ")");
+            });
         }
 
         @JavascriptInterface
