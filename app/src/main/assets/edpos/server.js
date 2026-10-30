@@ -1703,14 +1703,25 @@ function breakEven() {
 // data.ingredients = [{id, name, unit, uses: [{t: 'm' (เมนู) | 'c' (ตัวเลือก ชื่อเดียวกันทุกเมนู), r: menuId | ชื่อตัวเลือก, q: ปริมาณต่อจาน}]}]
 // ใช้ = Σ จำนวนจานของเมนู × q + Σ จำนวนจานที่เลือกตัวเลือกนั้น × q (ดูจากข้อความตัวเลือกของจาน "หมู S เผ็ดน้อย")
 const ING_UNITS = ['กรัม', 'กก.', 'มล.', 'ลิตร', 'ชิ้น', 'ตัว', 'ฟอง', 'ถุง', 'ขวด', 'กล่อง', 'แพ็ค'];
+// สูตรแบบ "ตัวเลือก" ใส่หลายคำต่อด้วย + ได้ (เช่น "กุ้ง+M" = จานที่มีทั้ง กุ้ง และ M) → แยกปริมาณตามขนาดได้
+// จานหนึ่งเข้าหลายสูตร → ใช้สูตรที่ละเอียดกว่า: มี "กุ้ง" และ "กุ้ง+M" → จาน "กุ้ง M" ใช้ กุ้ง+M อย่างเดียว
+//   จาน "กุ้ง" (ราคาคนไทย ไม่มีขนาด) ใช้ "กุ้ง" · สูตรที่ไม่ซ้อนกัน (กุ้ง+M กับ ทะเล+M) นับรวมกัน
+const ruleWords = r => String(r || '').split(/[+\s]+/).filter(Boolean);
+function optRules(g, words) {
+  const set = new Set(words);
+  const hit = (g.uses || []).filter(u => u.t === 'c').map(u => ({ u, w: ruleWords(u.r) }))
+    .filter(x => x.w.length && x.w.every(w => set.has(w)));
+  return hit.filter(x => !hit.some(y => y !== x && y.w.length > x.w.length && x.w.every(w => y.w.includes(w)))).map(x => x.u);
+}
+const optQty = (g, words) => optRules(g, words).reduce((s, u) => s + u.q, 0);
 function usageOf(d) {
   const out = {}, byName = new Map(data.menu.map(m => [m.id, m.name]));
   for (const g of data.ingredients || []) {
     let a = 0;
     for (const u of g.uses || []) {
       if (u.t === 'm') { const it = d.items[byName.get(u.r)]; if (it) a += it.qty * u.q; }
-      else for (const it of Object.values(d.items)) for (const [o, oq] of Object.entries(it.opts || {})) if (o.split(' ').includes(u.r)) a += oq * u.q;
     }
+    for (const it of Object.values(d.items)) for (const [o, oq] of Object.entries(it.opts || {})) a += oq * optQty(g, o.split(' '));
     if (a) out[g.id] = a;
   }
   return out;
@@ -1725,7 +1736,7 @@ function cleanIngredients(list) {
     ...keep(g),
     id: /^ing\w{1,20}$/.test(g.id) ? g.id : 'ing' + Date.now().toString(36) + i,
     name: String(g.name || '').trim().slice(0, 40), unit: String(g.unit || 'กรัม').trim().slice(0, 10) || 'กรัม',
-    uses: (Array.isArray(g.uses) ? g.uses : []).slice(0, 200).map(u => ({ t: u.t === 'c' ? 'c' : 'm', r: String(u.r || '').trim().slice(0, 40), q: Math.max(0, Math.round((+u.q || 0) * 100) / 100) }))
+    uses: (Array.isArray(g.uses) ? g.uses : []).slice(0, 200).map(u => ({ t: u.t === 'c' ? 'c' : 'm', r: u.t === 'c' ? ruleWords(u.r).join('+').slice(0, 40) : String(u.r || '').trim().slice(0, 40), q: Math.max(0, Math.round((+u.q || 0) * 100) / 100) }))
       .filter(u => u.q > 0 && u.r && (u.t === 'c' || ids.has(u.r))),
   })).filter(g => g.name);
 }
@@ -1736,11 +1747,11 @@ function usageReport(from, to) {
     const d = dayOf(k); if (!d.bills) continue; nDays.n++;
     const u = usageOf(d); for (const id in u) tot[id] = (tot[id] || 0) + u[id];
     // แยกว่ามาจากเมนู/ตัวเลือกไหน
-    for (const g of data.ingredients || []) for (const x of g.uses || []) {
-      let a = 0;
-      if (x.t === 'm') { const it = d.items[byName.get(x.r)]; if (it) a = it.qty * x.q; }
-      else for (const it of Object.values(d.items)) for (const [o, oq] of Object.entries(it.opts || {})) if (o.split(' ').includes(x.r)) a += oq * x.q;
-      if (a) { const key = (x.t === 'm' ? byName.get(x.r) : 'ตัวเลือก ' + x.r); const b = (by[g.id] ||= {}); b[key] = (b[key] || 0) + a; }
+    for (const g of data.ingredients || []) {
+      const add = (key, a) => { if (a) { const b = (by[g.id] ||= {}); b[key] = (b[key] || 0) + a; } };
+      for (const x of g.uses || []) if (x.t === 'm') { const it = d.items[byName.get(x.r)]; if (it) add(byName.get(x.r), it.qty * x.q); }
+      for (const it of Object.values(d.items)) for (const [o, oq] of Object.entries(it.opts || {}))
+        for (const x of optRules(g, o.split(' '))) add('ตัวเลือก ' + ruleWords(x.r).join('+'), oq * x.q);
     }
   }
   return { from, to, days: nDays.n, list: (data.ingredients || []).map(g => ({ id: g.id, name: g.name, unit: g.unit, total: tot[g.id] || 0,
@@ -1760,7 +1771,8 @@ function itemUse(it) {
   for (const g of data.ingredients || []) {
     if (!tracked(g)) continue;
     let a = 0;
-    for (const u of g.uses || []) if (u.t === 'm' ? u.r === it.menuId : opts.includes(u.r)) a += u.q * (it.qty || 1);
+    for (const u of g.uses || []) if (u.t === 'm' && u.r === it.menuId) a += u.q * (it.qty || 1);
+    a += optQty(g, opts) * (it.qty || 1);
     if (a) out[g.id] = a;
   }
   return out;
