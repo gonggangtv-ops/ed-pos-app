@@ -115,6 +115,7 @@
   .rows .r input, .rows .r select { padding: 9px 8px; font-size: 16px; }
   .rows .r.rc { grid-template-columns: 1fr; }
   .rows .r.rc .g { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 6px; }
+  .rows .r.rc .g.kgrow { grid-template-columns: auto 80px auto; align-items: center; justify-content: start; font-size: 14px; margin-top: 4px; }
   .pill2 { display: inline-block; font-size: 13px; padding: 1px 8px; border-radius: 99px; background: #3a2420; color: #ffd2c9; margin-left: 4px; }
   .pill2.ok { background: #1f3a2e; color: #b8f0d2; }
 
@@ -914,7 +915,7 @@ async function snapBill() {
   const b64 = await new Promise(res => { const id = 'p' + (++seq); __kit._photo = __kit._photo || {}; __kit._photo[id] = res; K.pickPhoto(id); });
   if (!b64) { $('ssBody').innerHTML = '<div class="empty" style="padding:24px 0">ไม่ได้เลือกรูป<br><button class="btn" data-stk="bill" style="margin-top:12px">📷 ลองใหม่</button></div>'; return; }
   $('ssBody').innerHTML = '<div class="empty" style="padding:24px 0">🔎 AI กำลังอ่านบิล…</div>';
-  const ings = shop.stock.list.map(x => ({ id: x.id, name: x.name, unit: x.unit }));
+  const ings = shop.stock.list.map(x => ({ id: x.id, name: x.name, unit: x.unit, perKg: x.perKg || null }));
   const body = JSON.stringify(AI.buildReceiptRequest(b64, ings));
   let models = cfg.aiModel ? [cfg.aiModel] : AI.MODELS.slice(), res = null;
   let good = ''; try { good = localStorage.getItem('aiModelOk') || ''; } catch {}
@@ -929,18 +930,24 @@ async function snapBill() {
   renderBill();
 }
 __kit.photo = (id, b64) => { const f = __kit._photo && __kit._photo[id]; if (f) { delete __kit._photo[id]; f(b64); } };
+// บรรทัดที่ซื้อเป็นกิโลแต่วัตถุดิบนับเป็นตัว/ชิ้น
+const pcByKg = (l, g) => l.kg > 0 && g && !/กรัม|กก|มล|ลิตร/.test(g.unit);
 function renderBill() {
   const list = shop.stock.list;
   const sum = receipt.lines.reduce((a, l) => a + (l.total || 0), 0);
   $('ssBody').innerHTML = `<p class="note">${esc(receipt.store || 'บิล')}${receipt.total ? ` · รวม ${receipt.total.toLocaleString('en-US')} ฿` : ''} · ตรวจ/แก้ให้ถูกก่อนบันทึก · บรรทัดที่ไม่ใช่วัตถุดิบเลือก “ไม่นับ”</p>
     <div class="rows">${receipt.lines.map((l, i) => {
       const g = list.find(x => x.id === l.id);
+      if (pcByKg(l, g)) { if (!l.perKg && g.perKg) l.perKg = g.perKg; if (l.perKg && !l.qty) l.qty = Math.round(l.kg * l.perKg); }
       const unit = l.qty > 0 && l.total > 0 && g ? l.total / l.qty : null;
       const ch = unit && g.cost ? Math.round((unit / g.cost - 1) * 100) : null;
       return `<div class="r rc"><div class="t">${esc(l.text)}${ch != null && Math.abs(ch) >= 5 ? `<span class="pill2${ch < 0 ? ' ok' : ''}">${ch > 0 ? 'แพงขึ้น' : 'ถูกลง'} ${Math.abs(ch)}%</span>` : ''}</div>
         <div class="g"><select data-bi="${i}" data-bf="id"><option value="">— ไม่นับ —</option>${list.map(x => `<option value="${x.id}"${x.id === l.id ? ' selected' : ''}>${esc(x.name)} (${esc(x.unit)})</option>`).join('')}</select>
         <input type="number" inputmode="decimal" step="any" data-bi="${i}" data-bf="qty" value="${l.qty || ''}" placeholder="จำนวน">
-        <input type="number" inputmode="decimal" step="any" data-bi="${i}" data-bf="total" value="${l.total || ''}" placeholder="บาท"></div></div>`;
+        <input type="number" inputmode="decimal" step="any" data-bi="${i}" data-bf="total" value="${l.total || ''}" placeholder="บาท"></div>
+        ${pcByKg(l, g) ? `<div class="g kgrow"><span>${l.kg} กิโล × โลละ</span>
+          <input type="number" inputmode="numeric" step="1" data-bi="${i}" data-bf="perKg" value="${l.perKg || ''}" placeholder="กี่${esc(g.unit)}">
+          <span>= <b data-bq="${i}">${l.qty || '?'}</b> ${esc(g.unit)}</span></div>` : ''}</div>`;
     }).join('')}</div><p class="note">รวมบรรทัด ${Math.round(sum).toLocaleString('en-US')} ฿${receipt.total && Math.abs(sum - receipt.total) > 1 ? ` <span class="bad">(ไม่ตรงยอดบิล ${receipt.total.toLocaleString('en-US')} ฿ ตรวจอีกที)</span>` : ''}</p>`;
   $('ssOk').style.display = ''; $('ssOk').textContent = 'บันทึกเข้าสต๊อก';
   ssMode = 'bill-save';
@@ -948,6 +955,12 @@ function renderBill() {
 $('ssBody').oninput = $('ssBody').onchange = e => {
   const t = e.target; if (!t.dataset || t.dataset.bi == null || !receipt) return;
   const l = receipt.lines[+t.dataset.bi]; l[t.dataset.bf] = t.dataset.bf === 'id' ? t.value || null : +t.value;
+  // กิโล × โลละ → จำนวนตัว (แก้ช่องจำนวนให้ด้วย)
+  if (t.dataset.bf === 'perKg' && l.kg) {
+    l.qty = l.perKg > 0 ? Math.round(l.kg * l.perKg) : 0;
+    const q = $('ssBody').querySelector(`[data-bi="${t.dataset.bi}"][data-bf="qty"]`); if (q) q.value = l.qty || '';
+    const b = $('ssBody').querySelector(`[data-bq="${t.dataset.bi}"]`); if (b) b.textContent = l.qty || '?';
+  }
   if (e.type === 'change' && t.dataset.bf === 'id') renderBill();
 };
 $('ssBody').onclick = e => { const b = e.target.closest('[data-stk]'); if (b) openSS(b.dataset.stk); };
@@ -979,7 +992,10 @@ $('ssOk').onclick = async () => {
       await adminPost('/api/stock/line', { text: $('ssText').value });
       msg.className = 'msg good'; msg.textContent = '✓ ส่งเข้า LINE แล้ว'; K.ding('ok');
     } else if (ssMode === 'bill-save') {
-      const lines = receipt.lines.filter(l => l.id && l.qty > 0).map(l => ({ id: l.id, qty: l.qty, cost: l.total || 0 }));
+      const lines = receipt.lines.filter(l => l.id && l.qty > 0).map(l => {
+        const g = shop.stock.list.find(x => x.id === l.id);
+        return { id: l.id, qty: l.qty, cost: l.total || 0, ...(pcByKg(l, g) ? { kg: l.kg, perKg: l.perKg } : {}) };
+      });
       if (!lines.length) throw new Error('ยังไม่ได้เลือกวัตถุดิบสักบรรทัด');
       const r = await adminPost('/api/stock/receipt', { lines, note: receipt.store || 'บิลซื้อของ' });
       await loadShop(['stock', 'state'], true);

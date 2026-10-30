@@ -165,9 +165,10 @@
       'นี่คือรูปบิล/ใบเสร็จซื้อของเข้าร้านอาหาร (อาจเป็นแม็คโคร ตลาด ร้านส่งของ หรือเขียนด้วยมือ)',
       'อ่านทุกบรรทัดสินค้า แล้วจับคู่กับวัตถุดิบของร้านด้านล่าง (ไม่ตรงก็ใส่ ingredient_id เป็น null)',
       '"qty" = ปริมาณรวมที่ซื้อ แปลงเป็นหน่วยของวัตถุดิบที่จับคู่ (เช่น วัตถุดิบหน่วยกรัม ซื้อ 2 กก. → 2000 · แพ็ค 1 กก. x 3 → 3000 · ไข่ 1 แผง = 30 ฟอง) ถ้าไม่จับคู่ให้ใส่ปริมาณตามบิลและ "unit" ตามบิล',
+      'วัตถุดิบที่นับเป็นตัว/ชิ้นแต่บิลขายเป็นน้ำหนัก (เช่น กุ้ง หน่วยตัว ซื้อ 3 กก.): ใส่ "kg" = น้ำหนักเป็นกิโล และถ้าวัตถุดิบมี per_kg ให้ "qty" = kg × per_kg (ไม่มี per_kg ใส่ qty เป็น 0) · บิลเขียนไซส์ เช่น "กุ้ง 40/กก." ใส่ "per_kg": 40',
       '"total" = ราคารวมบรรทัดนั้นเป็นบาท (หลังส่วนลดถ้ามี) · ห้ามแต่งบรรทัดที่อ่านไม่ออก',
-      'ตอบ JSON เท่านั้น: {"store": "ชื่อร้าน", "date": "YYYY-MM-DD หรือ null", "total": บาทรวมทั้งบิล, "lines": [{"text": "ชื่อสินค้าตามบิล", "ingredient_id": "..."|null, "qty": number, "unit": "...", "total": number}]}',
-      'วัตถุดิบของร้าน: ' + JSON.stringify(ings.map(g => ({ id: g.id, name: g.name, unit: g.unit }))),
+      'ตอบ JSON เท่านั้น: {"store": "ชื่อร้าน", "date": "YYYY-MM-DD หรือ null", "total": บาทรวมทั้งบิล, "lines": [{"text": "ชื่อสินค้าตามบิล", "ingredient_id": "..."|null, "qty": number, "unit": "...", "kg": number|null, "per_kg": number|null, "total": number}]}',
+      'วัตถุดิบของร้าน: ' + JSON.stringify(ings.map(g => ({ id: g.id, name: g.name, unit: g.unit, ...(g.perKg ? { per_kg: g.perKg } : {}) }))),
     ].join('\n');
     return {
       contents: [{ role: 'user', parts: [{ inline_data: { mime_type: mime || 'image/jpeg', data: b64 } }, { text: prompt }] }],
@@ -186,7 +187,15 @@
     const lines = (Array.isArray(j.lines) ? j.lines : []).slice(0, 60).map(l => ({
       text: String(l.text || '').slice(0, 60), id: ids.has(l.ingredient_id) ? l.ingredient_id : null,
       qty: Math.max(0, Math.round((+l.qty || 0) * 100) / 100), unit: String(l.unit || '').slice(0, 12), total: Math.max(0, Math.round((+l.total || 0) * 100) / 100),
-    })).filter(l => l.text || l.qty);
+      kg: +l.kg > 0 ? Math.round(l.kg * 100) / 100 : null, perKg: +l.per_kg > 0 ? Math.round(+l.per_kg) : null,
+    })).filter(l => l.text || l.qty || l.kg);
+    // นับเป็นตัวแต่ซื้อเป็นกิโล: คิดจำนวนตัวเองจาก กิโล × โลละ (ของบิล หรือค่าล่าสุดของร้าน)
+    for (const l of lines) {
+      const g = (ings || []).find(x => x.id === l.id);
+      if (!l.kg || !g || /กรัม|กก|มล|ลิตร/.test(g.unit)) continue;
+      l.pc = true; if (!l.perKg && g.perKg) l.perKg = g.perKg;
+      if (l.perKg) l.qty = Math.round(l.kg * l.perKg);
+    }
     return { store: String(j.store || '').slice(0, 40), date: j.date || null, total: +j.total || null, lines };
   }
 

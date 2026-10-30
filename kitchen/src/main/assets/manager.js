@@ -81,7 +81,7 @@
     if (c.startsWith('ครึ่ง', j)) { n += 0.5; j += 5; }   // กิโลครึ่ง
     let q = n;
     if (base && base === baseOf(ingUnit)) q = toIngUnit(n * mult, base, ingUnit);
-    else if (base && base !== 'pc') return { n: null, len: j - i, unitWord, bad: true };   // พูดกิโลแต่วัตถุดิบนับเป็นชิ้น
+    else if (base && base !== 'pc') return { n: null, len: j - i, unitWord, bad: true, kg: base === 'g' ? n * mult / 1000 : null };   // พูดกิโลแต่วัตถุดิบนับเป็นชิ้น (kg = ไว้แปลงด้วย โลละกี่ตัว)
     else if (base === 'pc') q = n * mult;
     return { n: Math.round(q * 100) / 100, len: j - i, unitWord };
   }
@@ -107,6 +107,23 @@
   // ปัดจำนวนซื้อให้ซื้อจริงได้: กรัม → ขึ้นทีละ 100 · มล. ทีละ 100 · ชิ้น → ขึ้นเป็นจำนวนเต็ม
   const roundBuy = (q, unit) => unit === 'กรัม' || unit === 'มล.' ? Math.ceil(q / 100) * 100 : unit === 'กก.' || unit === 'ลิตร' ? Math.ceil(q * 10) / 10 : Math.ceil(q - 0.01);
 
+  // "โลละ 40 ตัว" / "กิโลละสี่สิบ" / "40 ตัวต่อโล" / "ไซส์ 40" (กุ้งขายตามไซส์ = กี่ตัวต่อกิโล) · ไม่นับ "กิโลละ 350 บาท" (ราคา)
+  // → {n, start, end} ตำแหน่งในข้อความ (ไว้ตัดออกก่อนหาราคา)
+  function perKgAt(t) {
+    const kw = /(กิโลกรัมละ|กิโลละ|โลละ|กิโลนึง|โลนึง|กิโลหนึ่ง|โลหนึ่ง|ไซส์|ไซซ์|size|ขนาด)/g;
+    let m;
+    while ((m = kw.exec(t))) {
+      const i = m.index + m[0].length, r = L.readNumber(t, i);
+      if (!r) continue;
+      let j = i + r.len;
+      const u = /^(ตัว|ชิ้น|ลูก|ฟอง|อัน)/.exec(t.slice(j)); if (u) j += u[0].length;
+      if (!u && /^(\.\d|บาท)/.test(t.slice(j))) continue;   // ราคาต่อกิโล
+      if (r.n > 0 && r.n < 10000) return { n: r.n, start: m.index, end: j };
+    }
+    const m2 = /(\d+)(ตัว|ชิ้น|ลูก|ฟอง)ต่อ(กิโล|โล)(กรัม)?/.exec(t);
+    return m2 && +m2[1] > 0 ? { n: +m2[1], start: m2.index, end: m2.index + m2[0].length } : null;
+  }
+  const perKgIn = t => (perKgAt(t) || {}).n || null;
   function stockIntent(c, st) {
     const list = (st && st.list) || [];
     if (!list.length) return null;
@@ -119,6 +136,13 @@
     const f = findIng(c, list);
     if (!f) return null;
     const g = f.g, rest = c.slice(f.end), before = c.slice(0, f.start);
+    // "กุ้งวันนี้โลละ 35 ตัว" (ไม่มีรับ/นับ) = จำไว้ใช้แปลงกิโลเป็นตัว
+    if (!/(รับ|เติม|ซื้อ|เหลือ|นับ|เสีย|ทิ้ง|ได้มา)/.test(c) && g.unit !== 'กรัม' && g.unit !== 'กก.') {
+      const per = perKgIn(rest);
+      if (per) return { kind: 'stock-move', confirm: true, ing: g, ask: `จำว่า${g.name}โลละ ${per} ${g.unit} ใช่ไหมคะ`, say: `จำไว้แล้วค่ะ ${g.name}โลละ ${per} ${g.unit}`,
+        calls: [{ path: '/api/stock/setup', body: { id: g.id, perKg: per } }],
+        undo: g.perKg ? [{ path: '/api/stock/setup', body: { id: g.id, perKg: g.perKg } }] : [] };
+    }
     // ถามคงเหลือ
     if (/^(เหลือ|มี|สต[็๊]?อก)?(เท่าไร|เท่าไหร่|กี่|อีกกี่|อยู่เท่าไร|อยู่กี่|พอไหม|พอมั้ย|พอถึง)/.test(rest) || /^(สต[็๊]?อก|เช็ค|เช็ก)$/.test(before)) return T('ing', { id: g.id });
     // หาตัวเลข (หลังชื่อ ข้ามคำเชื่อม)
@@ -126,11 +150,24 @@
     const qi = f.end + m[0].length;
     const q = readQty(c, qi, g.unit);
     if (!q) return null;
+    // ซื้อเป็นกิโลแต่นับเป็นตัว (กุ้ง): แปลงด้วย "โลละ 40 ตัว" ในประโยค หรือค่าล่าสุดที่เคยบอก (g.perKg)
+    let kgInfo = null;
+    if (q.bad && q.kg > 0) {
+      const said = perKgIn(c.slice(qi + q.len)), per = said || g.perKg;
+      if (!per) return { kind: 'say', say: `${g.name}นับเป็น${g.unit}ค่ะ ${g.name}วันนี้โลละกี่${g.unit} พูดแบบนี้ได้ค่ะ รับ${g.name} ${Math.round(q.kg * 10) / 10} กิโล โลละ 40 ${g.unit}` };
+      kgInfo = { kg: Math.round(q.kg * 100) / 100, per, said: !!said };
+      q.n = Math.round(q.kg * per); q.bad = false;
+    }
     if (q.bad) return { kind: 'say', say: `${g.name} นับเป็น${g.unit} บอกเป็น${g.unit}ด้วยค่ะ` };
     if (!(q.n > 0) && !/เหลือ/.test(rest)) return null;
     const after = c.slice(qi + q.len);
-    const price = /(ราคา|ค่า)?(\d+(\.\d+)?)บาท|ราคา(\d+(\.\d+)?)/.exec(after);
-    const cost = price ? parseFloat(price[2] || price[4]) : 0;
+    const pk = perKgAt(after), after2 = pk ? after.slice(0, pk.start) + ' ' + after.slice(pk.end) : after;   // ตัด "โลละ 40 ตัว" ออกก่อนหาราคา
+    const perKgPrice = /(กิโล|โล)ละ(\d+(\.\d+)?)บาท/.exec(after);
+    const price = /(ราคา|ค่า)?(\d+(\.\d+)?)บาท|ราคา(\d+(\.\d+)?)/.exec(after2);
+    const kgBought = kgInfo ? kgInfo.kg : g.unit === 'กรัม' ? q.n / 1000 : g.unit === 'กก.' ? q.n : 0;
+    const cost = perKgPrice && kgBought ? Math.round(parseFloat(perKgPrice[2]) * kgBought) : price ? parseFloat(price[2] || price[4]) : 0;
+    const kgTxt = kgInfo ? ` (${Math.round(kgInfo.kg * 10) / 10} กิโล โลละ ${kgInfo.per})` : '';
+    const extra = kgInfo ? { kg: kgInfo.kg, ...(kgInfo.said ? { perKg: kgInfo.per } : {}) } : {};
     const word = before + rest.slice(0, m[0].length);
     let kind = null;
     if (/(รับ|เติม|ซื้อ|เข้า|ได้|มา|เพิ่ม)/.test(word) && !/(เหลือ|เสีย|ทิ้ง|นับ)/.test(word)) kind = 'in';
@@ -141,20 +178,20 @@
     const now = g.stock;
     if (kind === 'in') {
       return { kind: 'stock-move', confirm: true, ing: g,
-        ask: `รับ${g.name} ${amt}${cost ? ` ${Math.round(cost)} บาท` : ''} ใช่ไหมคะ`,
+        ask: `รับ${g.name} ${amt}${kgTxt}${cost ? ` ${Math.round(cost)} บาท` : ''} ใช่ไหมคะ`,
         say: `รับ${g.name}แล้วค่ะ เหลือ ${qtyTxt((now || 0) + q.n, g.unit)}`,
-        calls: [{ path: '/api/stock/move', body: { id: g.id, kind: 'in', qty: q.n, cost } }],
+        calls: [{ path: '/api/stock/move', body: { id: g.id, kind: 'in', qty: q.n, cost, ...extra } }],
         undo: [{ path: '/api/stock/move', body: { id: g.id, kind: 'adjust', delta: -q.n, note: 'ย้อนกลับรับของ' } }] };
     }
     if (kind === 'waste') {
-      return { kind: 'stock-move', confirm: true, ing: g, ask: `${g.name}เสีย ${amt} ตัดออกจากสต๊อก ใช่ไหมคะ`, say: `ตัด${g.name} ${amt}แล้วค่ะ`,
-        calls: [{ path: '/api/stock/move', body: { id: g.id, kind: 'waste', qty: q.n } }],
+      return { kind: 'stock-move', confirm: true, ing: g, ask: `${g.name}เสีย ${amt}${kgTxt} ตัดออกจากสต๊อก ใช่ไหมคะ`, say: `ตัด${g.name} ${amt}แล้วค่ะ`,
+        calls: [{ path: '/api/stock/move', body: { id: g.id, kind: 'waste', qty: q.n, ...extra } }],
         undo: [{ path: '/api/stock/move', body: { id: g.id, kind: 'adjust', delta: q.n, note: 'ย้อนกลับของเสีย' } }] };
     }
     const diff = now != null ? q.n - now : null;
     const gap = diff != null && Math.abs(diff) >= Math.max(1, Math.abs(now) * 0.05) ? ` ${diff < 0 ? 'น้อยกว่า' : 'มากกว่า'}ในระบบ ${qtyTxt(Math.abs(diff), g.unit)}` : '';
-    return { kind: 'stock-move', confirm: true, ing: g, ask: `นับ${g.name}ได้ ${amt}${gap} ตั้งตามนี้ใช่ไหมคะ`, say: `ตั้ง${g.name}เป็น ${amt}แล้วค่ะ`,
-      calls: [{ path: g.tracked ? '/api/stock/move' : '/api/stock/setup', body: g.tracked ? { id: g.id, kind: 'count', qty: q.n } : { id: g.id, stock: q.n } }],
+    return { kind: 'stock-move', confirm: true, ing: g, ask: `นับ${g.name}ได้ ${amt}${kgTxt}${gap} ตั้งตามนี้ใช่ไหมคะ`, say: `ตั้ง${g.name}เป็น ${amt}แล้วค่ะ`,
+      calls: [{ path: g.tracked ? '/api/stock/move' : '/api/stock/setup', body: g.tracked ? { id: g.id, kind: 'count', qty: q.n, ...extra } : { id: g.id, stock: q.n, ...(extra.perKg ? { perKg: extra.perKg } : {}) } }],
       undo: g.tracked ? [{ path: '/api/stock/move', body: { id: g.id, kind: 'count', qty: now, note: 'ย้อนกลับการนับ' } }] : [{ path: '/api/stock/setup', body: { id: g.id, track: false } }] };
   }
   function sayLow(st) {

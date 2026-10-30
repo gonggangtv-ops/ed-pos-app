@@ -70,7 +70,9 @@ const stock = { hasLine: true, tomorrow: { date: '2026-11-01' }, list: [
   { id: 'g1', name: 'กุ้ง', unit: 'กรัม', tracked: true, stock: 1200, min: 500, perDay: 900, daysLeft: 1.3, tomorrow: 1500, toBuy: 800, cost: 0.4, costPrev: 0.35 },
   { id: 'g2', name: 'ไข่ไก่', unit: 'ฟอง', tracked: true, stock: 20, min: 30, low: true, perDay: 40, toBuy: 55 },
   { id: 'g3', name: 'น้ำมันหอย', unit: 'มล.', tracked: false, stock: null },
-  { id: 'g4', name: 'หมูสับ', unit: 'กก.', tracked: true, stock: 3, min: 1, toBuy: 0 }],
+  { id: 'g4', name: 'หมูสับ', unit: 'กก.', tracked: true, stock: 3, min: 1, toBuy: 0 },
+  { id: 'g5', name: 'กุ้งตัว', unit: 'ตัว', tracked: true, stock: 30, min: 20, toBuy: 0, perKg: 40 },
+  { id: 'g6', name: 'หมึก', unit: 'ตัว', tracked: true, stock: 10, min: 0, toBuy: 0 }],
   dishes: [{ name: 'ต้มยำกุ้ง', price: 150, cost: 62, margin: 88, pct: 41 }, { name: 'ผัดกะเพรา', price: 70, cost: 20, margin: 50, pct: 29 }],
   gap7: [{ id: 'g1', name: 'กุ้ง', d: -400 }] };
 const SP = t => M.parse(t, { ...ctx, stock });
@@ -85,6 +87,17 @@ for (const [t, kind, check] of [
   ['กุ้งเสีย 3 ขีด', 'stock-move', r => r.calls[0].body.kind === 'waste' && r.calls[0].body.qty === 300],
   ['ทิ้งไข่ไก่ 5 ฟอง', 'stock-move', r => r.calls[0].body.kind === 'waste' && r.calls[0].body.qty === 5],
   ['ไข่ไก่เหลือ 2 กิโล', 'say', r => /นับเป็นฟอง/.test(r.say)],
+  // ซื้อเป็นกิโล นับเป็นตัว
+  ['รับกุ้งตัว 3 กิโล โลละ 35 ตัว 1,200 บาท', 'stock-move', r => r.calls[0].body.qty === 105 && r.calls[0].body.perKg === 35 && r.calls[0].body.kg === 3 && r.calls[0].body.cost === 1200 && /โลละ 35/.test(r.ask)],
+  ['รับกุ้งตัว 2 กิโล', 'stock-move', r => r.calls[0].body.qty === 80 && r.calls[0].body.perKg === undefined && r.calls[0].body.kg === 2],
+  ['ซื้อกุ้งตัวสองกิโลครึ่ง กิโลละ 400 บาท', 'stock-move', r => r.calls[0].body.qty === 100 && r.calls[0].body.cost === 1000],
+  ['รับกุ้งตัว 2 กิโล ไซส์สี่สิบห้า', 'stock-move', r => r.calls[0].body.qty === 90 && r.calls[0].body.perKg === 45],
+  ['รับกุ้งตัว 1 กิโล 40 ตัวต่อโล', 'stock-move', r => r.calls[0].body.qty === 40 && r.calls[0].body.perKg === 40],
+  ['นับกุ้งตัวเหลือครึ่งกิโล', 'stock-move', r => r.calls[0].body.kind === 'count' && r.calls[0].body.qty === 20],
+  ['กุ้งตัวเสีย 2 ขีด', 'stock-move', r => r.calls[0].body.kind === 'waste' && r.calls[0].body.qty === 8],
+  ['รับหมึก 2 กิโล', 'say', r => /โลละกี่ตัว/.test(r.say)],
+  ['กุ้งตัววันนี้โลละ 38 ตัว', 'stock-move', r => r.calls[0].path === '/api/stock/setup' && r.calls[0].body.perKg === 38 && r.undo[0].body.perKg === 40],
+  ['รับกุ้ง 2 กิโล กิโลละ 350 บาท', 'stock-move', r => r.calls[0].body.qty === 2000 && r.calls[0].body.cost === 700],
 ]) { const r = SP(t); ok(r && r.kind === kind && (!check || check(r)), `${t} → ${r && (r.ask || r.say || r.kind)}`); }
 for (const [t, topic] of [['กุ้งเหลือเท่าไร', 'ing'], ['สต๊อกกุ้ง', 'ing'], ['อะไรใกล้หมด', 'low'], ['ต้องซื้ออะไรบ้าง', 'buy'], ['พรุ่งนี้ไปแม็คโครซื้ออะไร', 'buy'],
   ['ของหายไปเท่าไร', 'loss'], ['ต้มยำกุ้งต้นทุนเท่าไร', 'cost'], ['ต้นทุนเมนู', 'cost']]) {

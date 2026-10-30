@@ -1763,7 +1763,9 @@ function usageReport(from, to) {
 // ขาย = ตัดตามสูตร (uses) ตอนสั่ง · ยกเลิกจานที่ยังไม่ได้ทำ = คืน · item.stk = จานนี้ตัดสต๊อกแล้ว
 // data.stockLog = [{at, id, d (+/-), kind: sale|cancel|in|count|waste|adjust, by, item?, note?, cost?}] เก็บ 45 วัน
 // data.settings.stock = {autoClose: หมดสต๊อกแล้วปิดเมนูที่ใช้เอง (เติมแล้วเปิดคืนเอง)}
-const STOCK_FIELDS = ['stock', 'min', 'cost', 'costPrev'];
+// perKg = นับเป็นตัว/ชิ้นแต่ซื้อเป็นกิโล: กี่ตัวต่อกิโล (ล่าสุดที่บอก เช่น กุ้งวันนี้โลละ 40 ตัว) ใช้แปลงตอนรับ/นับเป็นกิโล
+const STOCK_FIELDS = ['stock', 'min', 'cost', 'costPrev', 'perKg'];
+const setPerKg = (g, v) => { v = Math.round(+v || 0); if (v > 0 && v < 10000) g.perKg = v; };
 const tracked = g => typeof g.stock === 'number';
 const stockCfg = () => ({ autoClose: false, ...(data.settings.stock || {}) });
 function itemUse(it) {
@@ -1830,6 +1832,7 @@ function stockMove(b, by) {
   const qty = Math.round((+b.qty || 0) * 100) / 100;
   if (!(qty >= 0) || qty > 1e7) throw new Error('จำนวนไม่ถูกต้อง');
   if (kind !== 'count' && kind !== 'adjust' && !qty) throw new Error('ใส่จำนวน');
+  if (b.perKg) setPerKg(g, b.perKg);
   const before = tracked(g) ? g.stock : 0;
   if (!tracked(g)) g.stock = 0;
   // count = นับได้เท่านี้ (ตั้งค่าใหม่) · waste = เสีย/ทิ้ง · in = รับเข้า · adjust = ปรับ +/- (b.delta)
@@ -1844,7 +1847,8 @@ function stockMove(b, by) {
     out.cost = unit; out.costPrev = g.costPrev || null;
     out.costChange = g.costPrev ? Math.round((unit / g.costPrev - 1) * 100) : null;
   }
-  stockLog(g.id, d, kind0, by, { note: String(b.note || '').slice(0, 80) || undefined, cost: kind === 'in' && cost ? cost : undefined });
+  stockLog(g.id, d, kind0, by, { note: String(b.note || '').slice(0, 80) || undefined, cost: kind === 'in' && cost ? cost : undefined,
+    kg: +b.kg > 0 ? Math.round(b.kg * 100) / 100 : undefined, perKg: +b.kg > 0 && g.perKg ? g.perKg : undefined });
   stockCross(g, before);
   if (kind === 'in') addEvent('stock', `รับ ${g.name} ${amtTxt(qty, g.unit)} · เหลือ ${stockTxt(g)}`);
   return out;
@@ -1861,7 +1865,7 @@ function stockReport() {
     const t = tracked(g), pd = per.get(g.id) || 0, f = fuse.get(g.id);
     const need = f ? f.hi : pd * 1.2;
     const toBuy = t ? Math.max(0, need + (g.min || 0) - g.stock) : 0;
-    return { id: g.id, name: g.name, unit: g.unit, tracked: t, stock: t ? g.stock : null, min: g.min || 0, cost: g.cost || null, costPrev: g.costPrev || null,
+    return { id: g.id, name: g.name, unit: g.unit, tracked: t, stock: t ? g.stock : null, min: g.min || 0, cost: g.cost || null, costPrev: g.costPrev || null, perKg: g.perKg || null,
       perDay: Math.round(pd * 100) / 100, daysLeft: t && pd > 0 ? Math.round(g.stock / pd * 10) / 10 : null,
       tomorrow: f ? Math.round(f.hi * 100) / 100 : null, toBuy: Math.round(toBuy * 100) / 100,
       low: t && (g.stock <= 0 || (g.min > 0 && g.stock <= g.min)), out: t && g.stock <= 0, uses: (g.uses || []).length };
@@ -2605,7 +2609,7 @@ const routes = {
     if (!lines.length) throw new Error('ไม่มีรายการ');
     for (const l of lines) if (!(data.ingredients || []).some(g => g.id === l.id)) throw new Error('ไม่พบวัตถุดิบบางรายการ');
     const by = whoOf(req).name, note = String(b.note || 'บิลซื้อของ').slice(0, 60);
-    return { lines: lines.map(l => stockMove({ id: l.id, kind: 'in', qty: l.qty, cost: l.cost, note }, by)) };
+    return { lines: lines.map(l => stockMove({ id: l.id, kind: 'in', qty: l.qty, cost: l.cost, kg: l.kg, perKg: l.perKg, note }, by)) };
   },
   // เริ่ม/เลิกนับสต๊อก และจุดเตือน: {id, track, stock?, min?}
   'POST /api/stock/setup': (b, q, req) => {
@@ -2613,6 +2617,7 @@ const routes = {
     if (!g) throw new Error('ไม่พบวัตถุดิบ');
     if (b.track === false) { for (const f of STOCK_FIELDS) if (f === 'stock') delete g[f]; return { ok: true }; }
     if (b.min != null) g.min = Math.max(0, Math.round((+b.min || 0) * 100) / 100);
+    if (b.perKg != null) { setPerKg(g, b.perKg); if (b.stock == null && b.min == null) return { ok: true, perKg: g.perKg || null }; }
     if (b.stock != null) stockMove({ id: g.id, kind: tracked(g) ? 'count' : 'start', qty: b.stock, note: tracked(g) ? '' : 'เริ่มนับสต๊อก' }, whoOf(req).name);
     else if (!tracked(g)) g.stock = 0;
     return { ok: true, stock: g.stock, min: g.min || 0 };

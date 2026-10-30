@@ -41,6 +41,15 @@ async function api(p, body) {
   await order('6', pick(['กุ้ง'], ''), { thai: true }).then(async () => ok(await stock() === 71, 'ราคาคนไทย (ไม่มีขนาด) ใช้ 5 → ' + await stock()),
     e => ok(false, 'สั่งราคาคนไทยไม่ได้: ' + e.message));
   // ยอดใช้วัตถุดิบรายวัน (หน้ายอดขาย) นับแบบเดียวกัน
+  // ซื้อเป็นกิโล: รับ 2 กก. โลละ 40 = 80 ตัว 1,000 บาท → จำโลละ 40 · ต้นทุน 12.5 บาท/ตัว
+  let mv = await api('/api/stock/move', { id, kind: 'in', qty: 80, cost: 1000, kg: 2, perKg: 40 });
+  let sl = (await api('/api/stock')).list.find(x => x.id === id);
+  ok(mv.stock === 151 && sl.perKg === 40 && sl.cost === 12.5, 'รับเป็นกิโล: ' + JSON.stringify({ stock: mv.stock, perKg: sl.perKg, cost: sl.cost }));
+  await api('/api/stock/setup', { id, perKg: 36 });
+  sl = (await api('/api/stock')).list.find(x => x.id === id);
+  ok(sl.perKg === 36 && sl.stock === 151, 'ตั้งโลละใหม่ไม่แตะสต๊อก: ' + sl.perKg);
+  await api('/api/ingredients', { list: [{ ...ing[0] }] });
+  ok((await api('/api/stock')).list.find(x => x.id === id).perKg === 36, 'บันทึกสูตรใหม่ ไม่ล้างโลละ');
   for (const orderId of oids) await api('/api/order/pay', { orderId, method: 'cash' });
   const u = (await api('/api/usage')).list.find(x => x.id === id);
   ok(u.total === 29, 'ยอดใช้รายวันหลังปิดบิล 5+7+9+3+5 = ' + u.total);

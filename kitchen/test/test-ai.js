@@ -45,5 +45,13 @@ const rq = A.buildReceiptRequest('QUJD', [{ id: 'g1', name: 'กุ้ง', unit
 ok(rq.contents[0].parts[0].inline_data.data === 'QUJD' && /กุ้ง/.test(rq.contents[0].parts[1].text), 'receipt request');
 const rc = A.parseReceipt(gem('```json\n' + JSON.stringify({ store: 'แม็คโคร', total: 1290, lines: [{ text: 'กุ้งขาวแช่แข็ง 1กก.x2', ingredient_id: 'g1', qty: 2000, unit: 'กรัม', total: 780 }, { text: 'ถุงร้อน', ingredient_id: 'nope', qty: 1, unit: 'แพ็ค', total: 45 }] }) + '\n```'), [{ id: 'g1' }]);
 ok(rc.store === 'แม็คโคร' && rc.lines.length === 2 && rc.lines[0].id === 'g1' && rc.lines[1].id === null, 'parse receipt');
+// ซื้อกุ้งเป็นกิโล ร้านนับเป็นตัว: โลละจากบิล / ค่าล่าสุดของร้าน / ไม่รู้ = 0 ให้ใส่เอง
+const ingsPc = [{ id: 'p1', name: 'กุ้ง', unit: 'ตัว', perKg: 40 }, { id: 'p2', name: 'หมึก', unit: 'ตัว' }];
+const rk = A.parseReceipt(gem(JSON.stringify({ lines: [
+  { text: 'กุ้ง 3 กก.', ingredient_id: 'p1', qty: 0, unit: 'กก.', kg: 3, total: 1200 },
+  { text: 'กุ้งไซส์ 35 2 กก.', ingredient_id: 'p1', qty: 0, unit: 'กก.', kg: 2, per_kg: 35, total: 900 },
+  { text: 'หมึก 1 กก.', ingredient_id: 'p2', qty: 0, unit: 'กก.', kg: 1, total: 250 }] })), ingsPc);
+ok(rk.lines[0].qty === 120 && rk.lines[0].perKg === 40 && rk.lines[1].qty === 70 && rk.lines[1].perKg === 35 && rk.lines[2].qty === 0 && rk.lines[2].pc, 'บิลกิโล → ตัว: ' + JSON.stringify(rk.lines.map(l => [l.qty, l.perKg])));
+ok(/per_kg":40/.test(A.buildReceiptRequest('QUJD', ingsPc).contents[0].parts[1].text), 'ส่งโลละให้ AI');
 console.log(fail ? `${fail} FAILED` : 'all passed');
 process.exit(fail ? 1 : 0);
