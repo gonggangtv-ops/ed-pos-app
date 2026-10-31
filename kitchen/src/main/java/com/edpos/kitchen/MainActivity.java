@@ -618,7 +618,7 @@ public class MainActivity extends Activity {
                 String key = keyOverride != null && !keyOverride.trim().isEmpty() ? keyOverride.trim() : str("aiKey", "");
                 String m = model == null ? "" : model.replaceAll("[^A-Za-z0-9._-]", "");
                 String[] r = key.isEmpty() ? new String[]{"401", "{\"error\":{\"message\":\"no key\"}}"}
-                        : request("POST", "https://generativelanguage.googleapis.com/v1beta/models/" + m + ":generateContent", body, 20000, key);
+                        : request("POST", "https://generativelanguage.googleapis.com/v1beta/models/" + m + ":generateContent", body, 45000, key);
                 js("__kit.http&&__kit.http(" + JSONObject.quote(id) + "," + r[0] + "," + JSONObject.quote(r[1]) + ")");
             });
         }

@@ -94,6 +94,8 @@
   .card h4 { margin: 0 0 8px; font-size: 17px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .card h4 small { color: var(--dim); font-weight: 400; font-size: 14px; }
   .card .ln { font-size: 16px; line-height: 1.6; }
+  .card p.obs { margin: 0 0 8px; font-size: 15px; line-height: 1.55; }
+  .card p.obs small { color: var(--dim); white-space: pre-wrap; }
   .card pre { white-space: pre-wrap; font: inherit; font-size: 15px; line-height: 1.6; margin: 0; color: var(--text); }
   .menuoff { display: flex; flex-wrap: wrap; gap: 8px; }
   .menuoff button { padding: 8px 12px; border-radius: 12px; background: #3a2420; color: #ffd2c9; font-size: 15px; }
@@ -289,6 +291,11 @@
     <div class="field"><label>API key <span id="keyState"></span></label>
       <div class="row"><input type="password" id="sAiKey" autocomplete="off" placeholder="วางคีย์จาก aistudio.google.com"><button class="btn" style="flex:none" id="aiTest">ทดสอบ</button></div>
       <div class="msg" id="aiMsg"></div></div>
+    <label class="check"><input type="checkbox" id="sThink"><span>ให้คิดวิเคราะห์เอง<small>ค้นข้อมูลร้านเองหลายขั้นก่อนตอบ (ยอดย้อนหลัง เทียบช่วงก่อน สต๊อก อากาศ) ตอบช้ากว่าเดิมนิดหน่อย</small></span></label>
+    <label class="check"><input type="checkbox" id="sThinkAuto"><span>คอยดูร้านแล้วบอกเองเมื่อเจอเรื่องสำคัญ<small>ต้องเปิดโหมดผู้จัดการ · พูดเฉพาะตอนครัวไม่ยุ่ง ไม่พูดเรื่องซ้ำ</small></span></label>
+    <div class="field inline"><span class="lab" style="margin:0;flex:1">ดูร้านเองทุก (นาที)</span><input type="number" id="sThinkEvery" min="15" step="5" style="width:100px;flex:none"></div>
+    <div class="field"><label>สิ่งที่น้องจดจำไว้ (บอกด้วยเสียงว่า "จำไว้ว่า…" / "ลืมเรื่อง…" หรือแก้ตรงนี้ บรรทัดละเรื่อง)</label>
+      <textarea id="sAiMemory" placeholder="ร้านส่งกุ้งมาวันอังคารกับศุกร์&#10;เจ้าของอยากให้ต้นทุนอาหารไม่เกิน 35%"></textarea></div>
     <div class="field"><label>รุ่น AI (เว้นว่าง = เลือกให้เอง)</label><input type="text" id="sAiModel" placeholder="gemini-3.5-flash-lite"></div>
     <div class="field"><label>สิ่งที่อยากให้ AI รู้เกี่ยวกับร้าน (สูตร ตำแหน่งโต๊ะ กฎในครัว)</label>
       <textarea id="sAiNotes" placeholder="โต๊ะ 1-4 อยู่ริมหน้าต่าง&#10;กะเพราร้านเราใส่ถั่วฝักยาว&#10;ต้มยำใช้น้ำซุปไก่"></textarea></div>
@@ -301,15 +308,16 @@
 <script src="logic.js"></script>
 <script src="ai.js"></script>
 <script src="manager.js"></script>
+<script src="think.js"></script>
 <script>
 'use strict';
 const K = window.Kit;            // ช่องทางไปแอป (MainActivity.Bridge)
-const L = window.KitchenLogic, AI = window.KitchenAI, M = window.KitchenManager;
+const L = window.KitchenLogic, AI = window.KitchenAI, M = window.KitchenManager, TH = window.KitchenThink;
 const $ = id => document.getElementById(id);
 
 const DEF = { name: 'น้องมาม่า', particle: 'ค่ะ', pitch: 1, brief: false, batchMax: 4,
   annGroup: true, annAllergy: true, annCancel: true, annNew: false, annLate: true, lateMin: 15,
-  timerRepeat: 3, words: '', aiOn: true, aiModel: '', aiNotes: '',
+  timerRepeat: 3, words: '', aiOn: true, aiModel: '', aiNotes: '', think: true, thinkAuto: true, thinkEvery: 60, aiMemory: '',
   mgrOn: true, mgrMoney: true, mgrPace: true, paceDrop: 25, mgrMilestone: true, mgrBacklog: true, backlogN: 12, mgrCancel: true, mgrStock: true, briefOpen: '', briefClose: '' };
 let cfg = load();
 function load() { const c = JSON.parse(K.getConfig()); for (const k in DEF) if (c[k] === undefined) c[k] = DEF[k]; return c; }
@@ -547,6 +555,7 @@ async function mgrTick() {
     await briefs();
     if (tab === 'shop') render();
   } finally { mgrBusy = false; }
+  autoThink();
 }
 /** บรีฟเปิด/ปิดร้านตามเวลาที่ตั้ง (วันละครั้ง) */
 async function briefs() {
@@ -571,7 +580,7 @@ async function briefs() {
     report = { title: 'สรุปวันนี้', text: shop['line-day'] || '' };
   }
 }
-const ADVICE = /(ทำไม|ควร|แนะนำ|ยังไงดี|ช่วยคิด|ไอเดีย|จัดโปร|โปรโมชั่น|วิเคราะห์|เพราะอะไร|ปรับปรุง|เพิ่มยอด)/;
+const ADVICE = /(ทำไม|ควร|แนะนำ|ยังไงดี|ช่วยคิด|ไอเดีย|จัดโปร|โปรโมชั่น|วิเคราะห์|เพราะอะไร|ปรับปรุง|เพิ่มยอด|เทียบ|ย้อนหลัง|ที่แล้ว|แนวโน้ม|ช่วยดู|คิดว่า|ความเห็น|เป็นไปได้|เหตุผล|กำไร|ขาดทุน|คุ้มไหม|คุ้มมั้ย|ดีไหม|ดีมั้ย|วางแผน|จำไว้|ลืม)/;
 async function managerCommand(text) {
   const c = text;
   if (ADVICE.test(L.norm(text)) && aiReady()) return null;   // คำถามเชิงคิด → ให้ AI ตอบพร้อมข้อมูลร้าน
@@ -659,7 +668,80 @@ function handle(r, text) {
 }
 
 // ---------- AI ----------
+const thinkOn = () => cfg.think && TH;
+async function genWith(models0, okKey, body, timeout) {
+  let models = cfg.aiModel ? [cfg.aiModel] : models0.slice();
+  let good = ''; try { good = localStorage.getItem(okKey) || ''; } catch {}
+  if (!cfg.aiModel && good && models.includes(good)) models = [good, ...models.filter(m => m !== good)];
+  let res = null;
+  for (const m of models) {
+    res = await call(id => K.ai(id, m, body, ''), timeout);
+    if (res.code === 404 || (res.code === 400 && /not found|not supported|function/i.test(res.text || ''))) continue;   // รุ่นนี้ไม่มี/ไม่รองรับ → รุ่นถัดไป
+    if (res.code === 200) { try { localStorage.setItem(okKey, m); } catch {} }
+    break;
+  }
+  return res;
+}
+function saveMemory(text) {
+  cfg.aiMemory = text;
+  const o = { ...load(), aiMemory: text }; delete o.aiKey; K.saveConfig(JSON.stringify(o));
+}
+/** โหมดคิดเอง: AI ค้นข้อมูลร้านเองหลายขั้น (think.js) */
+async function think(text, mode) {
+  const manager = mgr() && !mgrLost;
+  const p = { text, mode: mode || 'ask', orders, menu, history: mode === 'auto' ? [] : history, name: cfg.name, particle: cfg.particle, notes: cfg.aiNotes,
+    memory: TH.memList(cfg.aiMemory), recent: autoLog.filter(x => x.day === M.dayKey(Date.now())).map(x => x.say), manager, money: cfg.mgrMoney,
+    today: M.dayKey(Date.now()), now: Date.now(), batch, timers: timers.map(t => ({ label: t.label, left_sec: Math.max(0, Math.round((t.end - Date.now()) / 1000)) })) };
+  const io = {
+    gen: body => genWith(TH.MODELS, 'aiThinkOk', body, 50000),
+    get: path => { if (!base) return Promise.resolve({ code: 0, text: '' }); return http('GET', base + path, null, 10000); },
+    remember: note => saveMemory(TH.memAdd(cfg.aiMemory, note)),
+    forget: t => { const r = TH.memForget(cfg.aiMemory, t); if (r.n) saveMemory(r.text); return r.n; },
+  };
+  return TH.run(p, io);
+}
 async function askAI(text) {
+  if (thinkOn()) {
+    thinking = true; setStatus();
+    if (mgr()) await loadShop(['state', 'stock']);   // ไว้ตรวจ action ปิดเมนู/สต๊อก
+    const r = await think(text, 'ask');
+    thinking = false; setStatus();
+    if (r.error) {
+      if (r.error === 'http' && r.code !== 0 && r.code !== 429 && r.code !== 401 && r.code !== 403) return askAIQuick(text);   // คิดเองไม่ได้ → ตอบแบบเดิม
+      K.ding('err');
+      return { kind: 'say', say: r.error === 'http' ? AI.errorText(r.code, r.message) : 'AI ตอบไม่ได้ค่ะ ลองพูดใหม่อีกที' };
+    }
+    if (r.show) { report = { title: '💡 ' + cfg.name + ' วิเคราะห์', text: r.show }; if (tab !== 'shop' && mgr()) showTab('shop'); else render(); }
+    if (r.memo && r.memo.length && !r.say) r.say = 'จำไว้แล้วค่ะ';
+    return AI.toResult(r, orders, { ...ctx(), menu: mgr() ? (shop.state && shop.state.menu) || [] : null, stock: mgr() ? shop.stock : null });
+  }
+  return askAIQuick(text);
+}
+// ---------- คิดเองเป็นระยะ: เดินตรวจร้าน บอกเฉพาะเรื่องสำคัญ ตอนครัวไม่ยุ่ง ----------
+let autoLog = [];   // [{at, day, say, show}]
+try { autoLog = JSON.parse(localStorage.getItem('thinkLog') || '[]'); } catch {}
+let autoAt = 0, autoBusy = false;
+const appStart = Date.now();   // เพิ่งเปิดแอป → รอ 10 นาทีก่อนดูร้านเองครั้งแรก
+try { autoAt = +localStorage.getItem('thinkAt') || 0; } catch {}
+async function autoThink(force) {
+  if (!thinkOn() || !cfg.thinkAuto || !aiReady() || !mgr() || mgrLost || autoBusy) return;
+  const every = Math.max(15, +cfg.thinkEvery || 60) * 60000;
+  if (!force && (Date.now() - autoAt < every || Date.now() - appStart < 10 * 60000)) return;
+  const busyDishes = L.pendingDishes(orders).reduce((n, d) => n + (d.quantity || 1), 0);
+  if (!force && (busyDishes > 4 || speaking || pending || thinking || onceActive || Date.now() < followUntil)) return;   // ครัวยุ่ง → รอบหน้า
+  const p = shop.pace;
+  if (!force && !(orders.length || (p && (p.bills || p.openTables)))) return;   // ร้านยังไม่เปิดขายวันนี้
+  autoBusy = true; autoAt = Date.now(); try { localStorage.setItem('thinkAt', String(autoAt)); } catch {}
+  try {
+    const r = await think('', 'auto');
+    if (r.error || !r.say || autoLog.some(x => Date.now() - x.at < 86400000 && TH.similar(x.say, r.say))) return;
+    autoLog.unshift({ at: Date.now(), day: M.dayKey(Date.now()), say: r.say, show: r.show || '' });
+    autoLog = autoLog.slice(0, 20); try { localStorage.setItem('thinkLog', JSON.stringify(autoLog)); } catch {}
+    annQueue.push(r.say.replace(/\s*(ค่ะ|ครับ)\s*$/, ''));
+    if (tab === 'shop') render();
+  } finally { autoBusy = false; }
+}
+async function askAIQuick(text) {
   thinking = true; setStatus();
   if (mgr()) await loadShop(['pace', 'state', 'report', 'breakeven', 'forecast', 'stock']);
   const manager = mgr() && !mgrLost ? M.aiContext(shop, cfg.mgrMoney) : null;
@@ -823,6 +905,12 @@ function shopHtml() {
   const out = [];
   out.push(`<div class="qbtns">${[['ยอดวันนี้', 'ยอดวันนี้'], ['สรุปวันนี้', 'สรุปวันนี้'], ['พรุ่งนี้เตรียมอะไร', 'พรุ่งนี้ต้องเตรียมอะไร'], ['ขายดี', 'เมนูไหนขายดี'], ['เดือนนี้', 'เดือนนี้คุ้มทุนยัง'], ['ครัวช้าไหม', 'ครัวช้าไหม']]
     .map(([l, q]) => `<button data-ask="${esc(q)}">${esc(l)}</button>`).join('')}</div>`);
+  if (thinkOn() && cfg.thinkAuto && aiReady()) {
+    const today = autoLog.filter(x => Date.now() - x.at < 36 * 3600000).slice(0, 5);
+    out.push(`<div class="card"><h4>💡 ${esc(cfg.name)}สังเกต<button data-think="1" style="color:var(--dim)">${autoBusy ? 'กำลังดู…' : 'ดูร้านตอนนี้'}</button></h4>${today.length
+      ? today.map(x => `<p class="obs"><b>${new Date(x.at).toTimeString().slice(0, 5)}</b> ${esc(x.say)}${x.show ? `<br><small>${esc(x.show)}</small>` : ''}</p>`).join('')
+      : `<p class="note">ยังไม่มีเรื่องที่ต้องบอก · ดูร้านเองทุก ${Math.max(15, +cfg.thinkEvery || 60)} นาทีตอนครัวไม่ยุ่ง</p>`}</div>`);
+  }
   if (report && report.text) out.push(`<div class="card"><h4>${esc(report.title)}<button data-x="report" style="color:var(--dim)">✕</button></h4><pre>${esc(report.text)}</pre></div>`);
   const kp = [];
   if (p) {
@@ -852,6 +940,7 @@ function shopHtml() {
 $('board').onclick = async e => {
   const a = e.target.closest('[data-ask]'), on = e.target.closest('[data-on]'), x = e.target.closest('[data-x]'), sk = e.target.closest('[data-stk]');
   if (sk) { await loadShop(['stock', 'state']); openSS(sk.dataset.stk); return; }
+  if (e.target.closest('[data-think]')) { if (!autoBusy) { const p = autoThink(true); render(); await p; if (!autoLog.length || Date.now() - autoLog[0].at > 60000) $('reply').textContent = 'ดูแล้ว ยังไม่มีเรื่องใหม่ที่ต้องบอกค่ะ'; render(); } return; }
   if (a) { $('heard').textContent = '“' + a.dataset.ask + '”'; const r = await managerCommand(a.dataset.ask); if (r) handle(r, a.dataset.ask); }
   if (x) { report = null; render(); }
   if (on) {   // แตะเอง = ตั้งใจแล้ว
@@ -1039,10 +1128,10 @@ $('pinOk').onclick = () => {
 
 const SEGS = { sMode: 'mode', sParticle: 'particle' };
 const CHECKS = { sVolKey: 'volKey', sMute: 'mute', sConfirm: 'confirm', sBrief: 'brief', sAnnGroup: 'annGroup', sAnnAllergy: 'annAllergy',
-  sAnnCancel: 'annCancel', sAnnNew: 'annNew', sAnnLate: 'annLate', sAiOn: 'aiOn',
+  sAnnCancel: 'annCancel', sAnnNew: 'annNew', sAnnLate: 'annLate', sAiOn: 'aiOn', sThink: 'think', sThinkAuto: 'thinkAuto',
   sMgrOn: 'mgrOn', sMgrMoney: 'mgrMoney', sMgrPace: 'mgrPace', sMgrMilestone: 'mgrMilestone', sMgrBacklog: 'mgrBacklog', sMgrCancel: 'mgrCancel', sMgrStock: 'mgrStock' };
-const TEXTS = { sWake: 'wake', sName: 'name', sWords: 'words', sAiModel: 'aiModel', sAiNotes: 'aiNotes', sBriefOpen: 'briefOpen', sBriefClose: 'briefClose' };
-const NUMS = { sBatchMax: 'batchMax', sLateMin: 'lateMin', sTimerRepeat: 'timerRepeat', sRate: 'rate', sPitch: 'pitch', sPaceDrop: 'paceDrop', sBacklogN: 'backlogN' };
+const TEXTS = { sWake: 'wake', sName: 'name', sWords: 'words', sAiModel: 'aiModel', sAiNotes: 'aiNotes', sAiMemory: 'aiMemory', sBriefOpen: 'briefOpen', sBriefClose: 'briefClose' };
+const NUMS = { sBatchMax: 'batchMax', sLateMin: 'lateMin', sTimerRepeat: 'timerRepeat', sRate: 'rate', sPitch: 'pitch', sPaceDrop: 'paceDrop', sBacklogN: 'backlogN', sThinkEvery: 'thinkEvery' };
 const draft = {};
 function openSetup() {
   cfg = load();
@@ -1126,6 +1215,7 @@ $('sSave').onclick = () => {
   if (!(o.timerRepeat >= 1)) o.timerRepeat = DEF.timerRepeat;
   if (!(o.paceDrop >= 5)) o.paceDrop = DEF.paceDrop;
   if (!(o.backlogN >= 3)) o.backlogN = DEF.backlogN;
+  if (!(o.thinkEvery >= 15)) o.thinkEvery = DEF.thinkEvery;
   K.saveConfig(JSON.stringify(o));
   cfg = load();
   base = '';
