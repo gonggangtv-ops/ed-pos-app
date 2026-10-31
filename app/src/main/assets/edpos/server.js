@@ -1760,14 +1760,14 @@ function cleanIngredients(list) {
   })).filter(g => g.name);
 }
 function usageReport(from, to) {
-  const tot = {}, nDays = { n: 0 }, by = {};
+  // ต่อวัตถุดิบ: รวม · เฉลี่ยต่อวันที่เปิด · รายวัน (daily ตรงกับ dates) · มาจากเมนู/ตัวเลือกไหน (by) · ต้นทุน/คงเหลือ (ถ้ามี)
+  const tot = {}, by = {}, daily = {}, dates = [];
   const byName = new Map(data.menu.map(m => [m.id, m.name]));
   for (let k = from; k <= to; k = addDays(k, 1)) {
-    const d = dayOf(k); if (!d.bills) continue; nDays.n++;
-    const u = usageOf(d); for (const id in u) tot[id] = (tot[id] || 0) + u[id];
-    // แยกว่ามาจากเมนู/ตัวเลือกไหน
+    const d = dayOf(k); if (!d.bills) continue;
+    const di = dates.push(k) - 1;
     for (const g of data.ingredients || []) {
-      const add = (key, a) => { if (a) { const b = (by[g.id] ||= {}); b[key] = (b[key] || 0) + a; } };
+      const add = (key, a) => { if (!a) return; const b = (by[g.id] ||= {}); b[key] = (b[key] || 0) + a; tot[g.id] = (tot[g.id] || 0) + a; (daily[g.id] ||= [])[di] = ((daily[g.id] || [])[di] || 0) + a; };
       for (const id of new Set((g.uses || []).filter(u => u.t === 'm').map(u => u.r))) {
         const it = d.items[byName.get(id)]; if (!it) continue;
         for (const [w, n] of itemSplits(it)) for (const x of menuRules(g, id, w)) add(byName.get(id) + (x.o ? ' ' + ruleWords(x.o).join('+') : ''), n * x.q);
@@ -1776,8 +1776,11 @@ function usageReport(from, to) {
         for (const x of optRules(g, o.split(' '))) add('ตัวเลือก ' + ruleWords(x.r).join('+'), oq * x.q);
     }
   }
-  return { from, to, days: nDays.n, list: (data.ingredients || []).map(g => ({ id: g.id, name: g.name, unit: g.unit, total: tot[g.id] || 0,
-    perDay: nDays.n ? (tot[g.id] || 0) / nDays.n : 0, by: Object.entries(by[g.id] || {}).sort((a, b) => b[1] - a[1]).slice(0, 8) })) };
+  const n = dates.length, r2_ = v => Math.round(v * 100) / 100;
+  return { from, to, days: n, dates, list: (data.ingredients || []).map(g => ({ id: g.id, name: g.name, unit: g.unit, total: r2_(tot[g.id] || 0),
+    perDay: n ? r2_((tot[g.id] || 0) / n) : 0, by: Object.entries(by[g.id] || {}).map(([k, v]) => [k, r2_(v)]).sort((a, b) => b[1] - a[1]).slice(0, 20),
+    daily: dates.map((_, i) => r2_((daily[g.id] || [])[i] || 0)), cost: g.cost || null, perKg: g.perKg || null,
+    stock: tracked(g) ? g.stock : null, min: g.min || 0 })) };
 }
 // ================= สต๊อกวัตถุดิบ =================
 // data.ingredients[i] += stock (คงเหลือ หน่วยเดียวกับ unit · ไม่มีค่า = ยังไม่นับสต๊อกตัวนี้), min (เตือนเมื่อเหลือไม่เกิน),
