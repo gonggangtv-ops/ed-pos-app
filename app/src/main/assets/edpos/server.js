@@ -1714,12 +1714,27 @@ function optRules(g, words) {
   return hit.filter(x => !hit.some(y => y !== x && y.w.length > x.w.length && x.w.every(w => y.w.includes(w)))).map(x => x.u);
 }
 const optQty = (g, words) => optRules(g, words).reduce((s, u) => s + u.q, 0);
+// สูตรแบบ "เมนู" ระบุตัวเลือกได้ (u.o เช่น "S" = กุ้งชุบ ขนาด S) · แถวที่ไม่ระบุ = ใช้เมื่อไม่ตรงแถวไหน/ไม่มีขนาด
+// เลือกแบบเดียวกับตัวเลือก: แถวที่ละเอียดกว่าชนะ (กุ้งชุบ S ใช้แถว S ไม่ใช่แถวเปล่า)
+function menuRules(g, menuId, words) {
+  const set = new Set(words);
+  const hit = (g.uses || []).filter(u => u.t === 'm' && u.r === menuId).map(u => ({ u, w: ruleWords(u.o) })).filter(x => x.w.every(w => set.has(w)));
+  return hit.filter(x => !hit.some(y => y !== x && y.w.length > x.w.length && x.w.every(w => y.w.includes(w)))).map(x => x.u);
+}
+const menuQty = (g, menuId, words) => menuRules(g, menuId, words).reduce((s, u) => s + u.q, 0);
+/** จานในสรุปรายวัน (d.items[ชื่อ] = {qty, opts: {"S มะนาว": n}}) → [[คำตัวเลือก, จำนวน]] รวมจานที่ไม่มีตัวเลือก */
+function itemSplits(it) {
+  const out = []; let rest = it.qty;
+  for (const [o, oq] of Object.entries(it.opts || {})) { out.push([o.split(' '), oq]); rest -= oq; }
+  if (rest > 0) out.push([[], rest]);
+  return out;
+}
 function usageOf(d) {
   const out = {}, byName = new Map(data.menu.map(m => [m.id, m.name]));
   for (const g of data.ingredients || []) {
     let a = 0;
-    for (const u of g.uses || []) {
-      if (u.t === 'm') { const it = d.items[byName.get(u.r)]; if (it) a += it.qty * u.q; }
+    for (const id of new Set((g.uses || []).filter(u => u.t === 'm').map(u => u.r))) {
+      const it = d.items[byName.get(id)]; if (it) for (const [w, n] of itemSplits(it)) a += n * menuQty(g, id, w);
     }
     for (const it of Object.values(d.items)) for (const [o, oq] of Object.entries(it.opts || {})) a += oq * optQty(g, o.split(' '));
     if (a) out[g.id] = a;
@@ -1736,7 +1751,11 @@ function cleanIngredients(list) {
     ...keep(g),
     id: /^ing\w{1,20}$/.test(g.id) ? g.id : 'ing' + Date.now().toString(36) + i,
     name: String(g.name || '').trim().slice(0, 40), unit: String(g.unit || 'กรัม').trim().slice(0, 10) || 'กรัม',
-    uses: (Array.isArray(g.uses) ? g.uses : []).slice(0, 200).map(u => ({ t: u.t === 'c' ? 'c' : 'm', r: u.t === 'c' ? ruleWords(u.r).join('+').slice(0, 40) : String(u.r || '').trim().slice(0, 40), q: Math.max(0, Math.round((+u.q || 0) * 100) / 100) }))
+    uses: (Array.isArray(g.uses) ? g.uses : []).slice(0, 200).map(u => {
+      const x = { t: u.t === 'c' ? 'c' : 'm', r: u.t === 'c' ? ruleWords(u.r).join('+').slice(0, 40) : String(u.r || '').trim().slice(0, 40), q: Math.max(0, Math.round((+u.q || 0) * 100) / 100) };
+      const o = u.t !== 'c' ? ruleWords(u.o).join('+').slice(0, 40) : '';
+      return o ? { ...x, o } : x;
+    })
       .filter(u => u.q > 0 && u.r && (u.t === 'c' || ids.has(u.r))),
   })).filter(g => g.name);
 }
@@ -1749,7 +1768,10 @@ function usageReport(from, to) {
     // แยกว่ามาจากเมนู/ตัวเลือกไหน
     for (const g of data.ingredients || []) {
       const add = (key, a) => { if (a) { const b = (by[g.id] ||= {}); b[key] = (b[key] || 0) + a; } };
-      for (const x of g.uses || []) if (x.t === 'm') { const it = d.items[byName.get(x.r)]; if (it) add(byName.get(x.r), it.qty * x.q); }
+      for (const id of new Set((g.uses || []).filter(u => u.t === 'm').map(u => u.r))) {
+        const it = d.items[byName.get(id)]; if (!it) continue;
+        for (const [w, n] of itemSplits(it)) for (const x of menuRules(g, id, w)) add(byName.get(id) + (x.o ? ' ' + ruleWords(x.o).join('+') : ''), n * x.q);
+      }
       for (const it of Object.values(d.items)) for (const [o, oq] of Object.entries(it.opts || {}))
         for (const x of optRules(g, o.split(' '))) add('ตัวเลือก ' + ruleWords(x.r).join('+'), oq * x.q);
     }
@@ -1773,7 +1795,7 @@ function itemUse(it) {
   for (const g of data.ingredients || []) {
     if (!tracked(g)) continue;
     let a = 0;
-    for (const u of g.uses || []) if (u.t === 'm' && u.r === it.menuId) a += u.q * (it.qty || 1);
+    a += menuQty(g, it.menuId, opts) * (it.qty || 1);
     a += optQty(g, opts) * (it.qty || 1);
     if (a) out[g.id] = a;
   }
@@ -1873,11 +1895,16 @@ function stockReport() {
   // ต้นทุนวัตถุดิบต่อจาน (เฉพาะเมนูที่ทุกวัตถุดิบในสูตรมีราคาแล้ว)
   const dishes = [];
   for (const m of data.menu) {
-    const parts = [];
-    for (const g of data.ingredients || []) for (const u of g.uses || []) if (u.t === 'm' && u.r === m.id) parts.push({ g, q: u.q });
-    if (!parts.length || parts.some(x => !x.g.cost)) continue;
-    const cost = Math.round(parts.reduce((a, x) => a + x.q * x.g.cost, 0) * 100) / 100;
-    dishes.push({ id: m.id, name: m.name, price: m.price, cost, margin: Math.round((m.price - cost) * 100) / 100, pct: m.price ? Math.round(cost / m.price * 100) : null });
+    // แยกตามตัวเลือกที่สูตรระบุ (กุ้งชุบ S / M / L) · ไม่ระบุ = จานเดียว
+    const variants = [...new Set((data.ingredients || []).flatMap(g => (g.uses || []).filter(u => u.t === 'm' && u.r === m.id).map(u => ruleWords(u.o).join('+'))))];
+    for (const v of variants.length > 1 ? variants.filter(Boolean) : variants) {
+      const w = ruleWords(v), parts = [];
+      for (const g of data.ingredients || []) for (const u of menuRules(g, m.id, w)) parts.push({ g, q: u.q });
+      if (!parts.length || parts.some(x => !x.g.cost)) continue;
+      const add = groupsOf(m).flatMap(gr => gr.choices || []).filter(c => w.includes(c.name)).reduce((a, c) => a + (+c.add || 0), 0);
+      const price = m.price + add, cost = Math.round(parts.reduce((a, x) => a + x.q * x.g.cost, 0) * 100) / 100;
+      dishes.push({ id: m.id, name: m.name + (v ? ' ' + w.join(' ') : ''), price, cost, margin: Math.round((price - cost) * 100) / 100, pct: price ? Math.round(cost / price * 100) : null });
+    }
   }
   const names = new Map((data.ingredients || []).map(g => [g.id, g.name]));
   const log = (data.stockLog || []).filter(x => x.kind !== 'sale' && x.kind !== 'cancel').slice(-60).reverse().map(x => ({ ...x, name: names.get(x.id) || '?' }));

@@ -1998,13 +1998,23 @@ function renderIngredients() {
     ${g.uses.map((u, j) => `<div class="ingrow">
       <select data-iu="t" data-i="${i}" data-j="${j}"><option value="m" ${u.t === 'm' ? 'selected' : ''}>เมนู</option><option value="c" ${u.t === 'c' ? 'selected' : ''}>ตัวเลือก</option></select>
       ${u.t === 'c' ? `<input data-iu="r" data-i="${i}" data-j="${j}" list="ingChoices" value="${esc(u.r)}" placeholder="เช่น กุ้ง หรือ กุ้ง+M">`
-        : `<select data-iu="r" data-i="${i}" data-j="${j}">${menuOptions(u.r)}</select>`}
+        : `<div class="ingmenu"><select data-iu="r" data-i="${i}" data-j="${j}">${menuOptions(u.r)}</select>${u.o != null || menuSizes(u.r).names.length
+          ? `<input data-iu="o" data-i="${i}" data-j="${j}" value="${esc(u.o || '')}" placeholder="ทุกขนาด" title="เฉพาะตัวเลือก เช่น S (เว้นว่าง = ทุกขนาด)" list="ingChoices">` : ''}</div>`}
       <input data-iu="q" data-i="${i}" data-j="${j}" type="number" inputmode="decimal" min="0" step="any" value="${u.q}" placeholder="เช่น 300">
       <button class="btn" data-iudel="${i}.${j}" aria-label="ลบ">✕</button></div>
       ${u.t === 'c' && u.r.trim() && !/[+\s]/.test(u.r.trim()) && !g.uses.some(x => x.t === 'c' && x.r.split(/[+\s]+/)[0] === u.r.trim() && /[+\s]/.test(x.r.trim()))
-        ? `<button class="linkbtn ingsz" data-iusize="${i}.${j}">↳ แยกจำนวนตามขนาด (${esc(sizeNames().join(' / '))})</button>` : ''}`).join('')}
+        ? `<button class="linkbtn ingsz" data-iusize="${i}.${j}">↳ แยกจำนวนตามขนาด (${esc(sizeNames().join(' / '))})</button>` : ''}
+      ${u.t === 'm' && u.r && !u.o && menuSizes(u.r).names.length && !g.uses.some(x => x.t === 'm' && x.r === u.r && x.o)
+        ? `<button class="linkbtn ingsz" data-iumsize="${i}.${j}">↳ แยกจำนวนตามขนาด (${esc(menuSizes(u.r).names.join(' / '))})</button>` : ''}`).join('')}
     <button class="linkbtn" data-iuadd="${i}">+ เมนู/ตัวเลือกที่ใช้</button>
-    ${g.uses.some(u => u.t === 'c' && /[+\s]/.test(u.r.trim())) ? `<p class="hint inghint">"${'กุ้ง+M'}" = จานที่เลือกทั้ง กุ้ง และ M · จานที่ตรงหลายแถวใช้แถวที่ละเอียดกว่า (กุ้ง M ใช้ กุ้ง+M ไม่ใช่ กุ้ง) · แถวที่ไม่มีขนาดใช้กับราคาคนไทย/จานที่ไม่มีขนาด</p>` : ''}</div>`).join('');
+    ${g.uses.some(u => u.t === 'c' && /[+\s]/.test(u.r.trim())) ? `<p class="hint inghint">"${'กุ้ง+M'}" = จานที่เลือกทั้ง กุ้ง และ M · จานที่ตรงหลายแถวใช้แถวที่ละเอียดกว่า (กุ้ง M ใช้ กุ้ง+M ไม่ใช่ กุ้ง) · แถวที่ไม่มีขนาดใช้กับราคาคนไทย/จานที่ไม่มีขนาด</p>` : ''}
+    ${g.uses.some(u => u.t === 'm' && u.o) ? `<p class="hint inghint">เมนูที่ใส่ขนาด (เช่น กุ้งชุบ S) ใช้เฉพาะจานที่เลือกขนาดนั้น · แถวเมนูที่เว้นขนาดว่างใช้กับจานที่ไม่ได้เลือกขนาด</p>` : ''}</div>`).join('');
+}
+// ขนาดของเมนูนี้ (กลุ่มตัวเลือกชื่อ ขนาด/Size ของเมนู) → {names, required}
+function menuSizes(id) {
+  const m = S.menu.find(x => x.id === id); if (!m) return { names: [], required: false };
+  const g = groupsOf(m).find(x => /ขนาด|size/i.test(x.name || ''));
+  return { names: g ? g.choices.map(c => c.name).filter(Boolean).slice(0, 6) : [], required: !!(g && g.required) };
 }
 // ชื่อขนาดจากชุดตัวเลือก "ขนาด" ของร้าน (ไม่มี → S M L)
 function sizeNames() {
@@ -2015,7 +2025,12 @@ function sizeNames() {
 $('#ingList').addEventListener('input', e => {
   const t = e.target, i = +t.dataset.i;
   if (t.dataset.ig) { ing[i][t.dataset.ig] = t.value; dirty.add('ingredients'); if (t.dataset.ig === 'unit') renderIngredients(); }
-  if (t.dataset.iu) { const u = ing[i].uses[+t.dataset.j]; u[t.dataset.iu] = t.value; if (t.dataset.iu === 't') { u.r = ''; renderIngredients(); } dirty.add('ingredients'); }
+  if (t.dataset.iu) {
+    const u = ing[i].uses[+t.dataset.j]; u[t.dataset.iu] = t.value;
+    if (t.dataset.iu === 't') { u.r = ''; delete u.o; renderIngredients(); }
+    else if (t.dataset.iu === 'r' && u.t === 'm') renderIngredients();   // เมนูมีขนาด → ขึ้นช่องขนาด/ปุ่มแยกขนาด
+    dirty.add('ingredients');
+  }
 });
 $('#ingList').addEventListener('change', e => { if (e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', { bubbles: true })); });
 $('#ingList').addEventListener('click', e => {
@@ -2023,6 +2038,12 @@ $('#ingList').addEventListener('click', e => {
   if (d) { ing.splice(+d.dataset.igdel, 1); dirty.add('ingredients'); renderIngredients(); }
   if (ud) { const [i, j] = ud.dataset.iudel.split('.').map(Number); ing[i].uses.splice(j, 1); dirty.add('ingredients'); renderIngredients(); }
   if (ua) { ing[+ua.dataset.iuadd].uses.push({ t: 'm', r: '', q: '' }); renderIngredients(); }
+  const ms = e.target.closest('[data-iumsize]');
+  if (ms) {   // กุ้งชุบ → กุ้งชุบ S / M / L (ขนาดบังคับเลือก = แทนแถวเดิม · ไม่บังคับ = เก็บแถวเดิมไว้ใช้กับจานที่ไม่เลือกขนาด)
+    const [i, j] = ms.dataset.iumsize.split('.').map(Number), u = ing[i].uses[j], sz = menuSizes(u.r);
+    ing[i].uses.splice(j + (sz.required ? 0 : 1), sz.required ? 1 : 0, ...sz.names.map(n => ({ t: 'm', r: u.r, o: n, q: u.q })));
+    dirty.add('ingredients'); renderIngredients();
+  }
   const sz = e.target.closest('[data-iusize]');
   if (sz) {   // กุ้ง → เพิ่มแถว กุ้ง+S / กุ้ง+M / กุ้ง+L ต่อท้ายแถวนี้ (แถวเดิมเก็บไว้ใช้กับจานที่ไม่มีขนาด)
     const [i, j] = sz.dataset.iusize.split('.').map(Number), u = ing[i].uses[j];
@@ -2034,7 +2055,7 @@ $('#ingList').addEventListener('click', e => {
 $('#ingAdd').onclick = () => { ing.push({ id: '', name: '', unit: 'กรัม', uses: [{ t: 'm', r: '', q: '' }] }); renderIngredients(); $('#ingList .ingcard:last-child input').focus(); };
 $('#ingSave').onclick = async () => {
   try {
-    const list = ing.filter(g => g.name.trim()).map(g => ({ ...g, uses: g.uses.filter(u => u.r && +u.q > 0).map(u => ({ t: u.t, r: u.r, q: +u.q })) }));
+    const list = ing.filter(g => g.name.trim()).map(g => ({ ...g, uses: g.uses.filter(u => u.r && +u.q > 0).map(u => ({ t: u.t, r: u.r, q: +u.q, ...(u.t === 'm' && u.o ? { o: u.o } : {}) })) }));
     const r = await api('/api/ingredients', { list });
     S.ingredients = r.list; dirty.delete('ingredients'); loadIngredients(true); toast('บันทึกวัตถุดิบแล้ว');
   } catch (err) { toast(err.message, true); }

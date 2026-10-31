@@ -50,9 +50,25 @@ async function api(p, body) {
   ok(sl.perKg === 36 && sl.stock === 151, 'ตั้งโลละใหม่ไม่แตะสต๊อก: ' + sl.perKg);
   await api('/api/ingredients', { list: [{ ...ing[0] }] });
   ok((await api('/api/stock')).list.find(x => x.id === id).perKg === 36, 'บันทึกสูตรใหม่ ไม่ล้างโลละ');
+  // เมนูที่กุ้งเป็นตัวจาน (กุ้งชุบ Size S/M/L): สูตรแบบเมนู + ขนาด
+  const cs = st.menu.find(m => m.name === 'กุ้งชุบ');
+  const ing2 = (await api('/api/ingredients', { list: [{ ...ing[0], uses: [...ing[0].uses,
+    { t: 'm', r: cs.id, q: 4 }, { t: 'm', r: cs.id, o: 'S', q: 6 }, { t: 'm', r: cs.id, o: 'M', q: 9 }, { t: 'm', r: cs.id, o: ' L ', q: 12 }] }] })).list;
+  ok(ing2[0].uses.filter(u => u.r === cs.id).map(u => u.o || '-').join() === '-,S,M,L', 'เก็บขนาดของแถวเมนู');
+  const sizeGroup = (cs.groups || []).map(g => g.ref ? st.optionSets.find(o => o.id === g.ref) : g).find(g => /size|ขนาด/i.test(g.name)).name;
+  const before = await stock();
+  const o2 = await api('/api/order', { table: '7', items: [
+    { menuId: cs.id, qty: 1, choices: [{ g: sizeGroup, c: 'S' }] }, { menuId: cs.id, qty: 2, choices: [{ g: sizeGroup, c: 'M' }] }, { menuId: cs.id, qty: 1, choices: [{ g: sizeGroup, c: 'L' }] }] });
+  oids.push(o2.orderId);
+  ok(before - await stock() === 6 + 18 + 12, 'กุ้งชุบ S 6 + M 9×2 + L 12 = ' + (before - await stock()));
+  const sr = await api('/api/stock/move', { id, kind: 'in', qty: 10, cost: 100 });
+  const dish = (await api('/api/stock')).dishes.filter(x => x.name.startsWith('กุ้งชุบ')).map(x => x.name + ':' + x.cost);
+  ok(dish.join() === 'กุ้งชุบ S:60,กุ้งชุบ M:90,กุ้งชุบ L:120', 'ต้นทุนต่อจานแยกขนาด: ' + dish.join());
+  await api('/api/stock/move', { id, kind: 'adjust', delta: -10 });
   for (const orderId of oids) await api('/api/order/pay', { orderId, method: 'cash' });
   const u = (await api('/api/usage')).list.find(x => x.id === id);
-  ok(u.total === 29, 'ยอดใช้รายวันหลังปิดบิล 5+7+9+3+5 = ' + u.total);
+  ok(u.total === 29 + 36, 'ยอดใช้รายวันหลังปิดบิล 5+7+9+3+5 + กุ้งชุบ 36 = ' + u.total);
+  ok(u.by.some(([k, v]) => k === 'กุ้งชุบ M' && v === 18), 'แยกที่มา กุ้งชุบ M 18');
   ok(u.by.some(([k, v]) => k === 'ตัวเลือก กุ้ง+M' && v === 7) && u.by.some(([k, v]) => k === 'ตัวเลือก กุ้ง' && v === 5), 'แยกที่มา: ' + JSON.stringify(u.by));
   done(fail ? 1 : 0);
 })().catch(e => { console.log('ERR', e.message); done(1); });
