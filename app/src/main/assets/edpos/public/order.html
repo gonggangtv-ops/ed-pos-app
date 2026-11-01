@@ -842,7 +842,7 @@ function addItem(menuId, editIdx, vp) {
       <div class="seg2" id="thaiSeg"><button data-th="0" class="${pr.thai ? '' : 'on'}">ราคาปกติ</button><button data-th="1" class="${pr.thai ? 'on thai' : ''}">ราคาคนไทย</button></div>` : ''}
     ${groups.map((g, k) => `<div data-gw="${k}" ${g.name === skipNow() ? 'hidden' : ''}>
       <div class="grp ${g.alert ? 'alert' : ''}">${g.alert ? '⚠ ' : ''}${esc(g.name)}
-        <small class="${g.required || inGrid(g) ? 'req' : ''}">${g.required || inGrid(g) ? 'ต้องเลือก' : 'ไม่บังคับ'}${g.type === 'multi' ? ' · เลือกได้หลายอย่าง' : ''}</small></div>
+        <small class="${g.required || inGrid(g) ? 'req' : ''}">${g.required || inGrid(g) ? 'ต้องเลือก' : 'ไม่บังคับ'}${g.type === 'multi' ? (g.required || inGrid(g) ? ' · แตะ = เปลี่ยน · แตะอีกอัน = ผสม' : ' · เลือกได้หลายอย่าง') : ''}</small></div>
       <div class="chips ${g.alert ? 'alert' : ''}" data-g="${k}">${shown(g).map(c =>
         `<button data-c="${esc(c.name)}" class="${sel[k].has(c.name) ? 'on' : ''}">${esc(c.name)}${tagOf(g, c)}</button>`).join('')}</div></div>`).join('')}
     <div class="grp">จำนวน</div>
@@ -868,6 +868,7 @@ function addItem(menuId, editIdx, vp) {
     groups.forEach((g, k) => { bg.querySelectorAll(`[data-g="${k}"] button`).forEach(b => {
       const c = g.choices.find(x => x.name === b.dataset.c); b.innerHTML = esc(c.name) + tagOf(g, c); }); });
   };
+  const touched = new Set();   // กลุ่มที่แตะไปแล้วในหน้าต่างนี้
   bg.querySelectorAll('[data-g]').forEach(box => {
     const k = +box.dataset.g, g = groups[k];
     box.querySelectorAll('button').forEach(b => b.onclick = () => {
@@ -876,7 +877,9 @@ function addItem(menuId, editIdx, vp) {
         if (sel[k].has(c) && !g.required && !inGrid(g)) sel[k].clear();      // แตะซ้ำ = ไม่เอา (เฉพาะกลุ่มไม่บังคับ)
         else { sel[k].clear(); sel[k].add(c); }
       } else if (sel[k].has(c)) { if (!(inGrid(g) && sel[k].size === 1)) sel[k].delete(c); }   // กลุ่มในตารางต้องเหลืออย่างน้อย 1
-      else sel[k].add(c);
+      else if (!touched.has(k) && (g.required || inGrid(g))) { sel[k].clear(); sel[k].add(c); }   // แตะครั้งแรกในกลุ่มหลายอย่าง = เปลี่ยน (ไม่ต้องเอาตัวที่เลือกไว้ก่อนออก)
+      else sel[k].add(c);                                             // แตะครั้งต่อไป = ผสม (ไก่ + กุ้ง)
+      touched.add(k);
       if (inGrid(g)) fixGrid(k);
       bg.querySelectorAll('[data-g]').forEach(bx => bx.querySelectorAll('button').forEach(x => x.classList.toggle('on', sel[+bx.dataset.g].has(x.dataset.c))));
       refresh();
