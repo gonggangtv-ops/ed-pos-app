@@ -105,7 +105,53 @@
   .pareto { background: var(--jade-soft); border-radius: 12px; padding: 12px 14px; margin: 0 0 14px; font-size: 15px; }
   /* พยากรณ์: ไม่ใช้ช่วงวันที่ด้านบน */
   body[data-tab="forecast"] #range, body[data-tab="forecast"] #customBox, body[data-tab="forecast"] #rangeLabel,
-  body[data-tab="breakeven"] #range, body[data-tab="breakeven"] #customBox, body[data-tab="breakeven"] #rangeLabel { display: none !important; }
+  body[data-tab="breakeven"] #range, body[data-tab="breakeven"] #customBox, body[data-tab="breakeven"] #rangeLabel,
+  body[data-tab="ask"] #range, body[data-tab="ask"] #customBox, body[data-tab="ask"] #rangeLabel { display: none !important; }
+  /* ===== AI ===== */
+  .aicard { background: linear-gradient(135deg, #F3F7FF 0%, var(--surface) 55%); border: 1px solid #C9D6F2; border-radius: 16px; padding: 18px 20px; margin-bottom: 18px; }
+  .aicard .aih { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .aicard .aib { font-size: 12.5px; font-weight: 700; letter-spacing: .02em; color: var(--card); background: var(--card-soft); padding: 3px 10px; border-radius: 99px; }
+  .aicard h2 { margin: 6px 0 6px; font-size: 22px; line-height: 1.35; }
+  .aicard h2.up { color: var(--jade); } .aicard h2.down { color: var(--brick); }
+  .aicard .story { font-size: 15.5px; line-height: 1.7; margin: 0 0 12px; }
+  .aicard .ainums { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 0 0 12px; }
+  .aicard .ainums div { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; }
+  .aicard .ainums span { display: block; font-size: 12.5px; color: var(--muted); } .aicard .ainums b { font-size: 19px; } .aicard .ainums small { display: block; font-size: 12px; color: var(--muted); }
+  .aicols { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+  .aicols > div { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .aicols h3 { margin: 0 0 6px; font-size: 15px; } .aicols ul { margin: 0; padding: 0; list-style: none; }
+  .aicols li { padding: 7px 0; border-top: 1px solid var(--line); font-size: 14.5px; line-height: 1.55; } .aicols li:first-child { border-top: 0; }
+  .aicols li small { display: block; color: var(--muted); font-size: 13px; }
+  .aifoot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+  .aiwait { display: flex; align-items: center; gap: 10px; color: var(--muted); padding: 6px 0; }
+  .aiwait i { width: 8px; height: 8px; border-radius: 50%; background: var(--card); animation: aiP 1s infinite ease-in-out; }
+  .aiwait i:nth-child(2) { animation-delay: .15s; } .aiwait i:nth-child(3) { animation-delay: .3s; }
+  @keyframes aiP { 0%, 80%, 100% { opacity: .25; transform: scale(.8); } 40% { opacity: 1; transform: none; } }
+  .aiskel { height: 14px; border-radius: 7px; background: linear-gradient(90deg, var(--sunk), #E6ECF7, var(--sunk)); background-size: 200% 100%; animation: aiS 1.3s infinite; margin: 8px 0; }
+  @keyframes aiS { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  /* ถาม AI */
+  .chat { display: grid; gap: 14px; margin-bottom: 14px; }
+  .msg-u { justify-self: end; max-width: 80%; background: var(--ink); color: #fff; padding: 10px 14px; border-radius: 16px 16px 4px 16px; font-size: 15.5px; white-space: pre-wrap; }
+  .msg-a { max-width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 4px 16px 16px 16px; padding: 14px 16px; font-size: 15.5px; line-height: 1.7; }
+  .msg-a.err { border-color: var(--brick); color: var(--brick); }
+  .msg-a ul { margin: 6px 0; padding-left: 20px; } .msg-a p { margin: 0 0 6px; }
+  .msg-a .used { font-size: 12px; color: var(--faint); margin-top: 8px; }
+  .msg-a .hbars { margin-top: 10px; display: grid; gap: 5px; }
+  .msg-a .hbars .ct { font-size: 13.5px; font-weight: 600; margin-bottom: 2px; }
+  .msg-a .hb { display: grid; grid-template-columns: minmax(70px, 30%) 1fr auto; gap: 8px; align-items: center; font-size: 13.5px; }
+  .msg-a .hb span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg-a .hb i { display: block; height: 14px; border-radius: 4px; background: var(--card); min-width: 2px; }
+  .msg-a .hb b { font-variant-numeric: tabular-nums; }
+  .chips2 { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips2 button { border: 1px solid #C9D6F2; background: #F3F7FF; color: var(--card); border-radius: 99px; padding: 7px 13px; font-size: 14px; cursor: pointer; text-align: left; }
+  .chips2 button:hover { background: var(--card-soft); }
+  .askbar { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0 14px; display: flex; gap: 8px; align-items: flex-end; }
+  .askbar textarea { flex: 1; min-height: 46px; max-height: 160px; resize: none; border: 1px solid var(--line); border-radius: 14px; padding: 11px 14px; font: inherit; font-size: 16px; background: var(--surface); }
+  .askbar button { height: 46px; border-radius: 14px; padding: 0 18px; }
+  .linkbtn { all: unset; cursor: pointer; color: var(--jade); font-weight: 600; font-size: 13.5px; }
+  .linkbtn:hover { text-decoration: underline; }
+  .aitable td.why { color: var(--muted); font-size: 13.5px; text-align: left; min-width: 180px; }
+  .aitable .aip { font-weight: 700; } .aitable .aip.up { color: var(--jade); } .aitable .aip.down { color: var(--brick); }
   /* ยอดวันนี้ตอนนี้ */
   .pace h2 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .pbadge { font-size: 14px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--sunk); }
@@ -198,6 +244,7 @@
 
   <nav class="tabs" id="tabs" role="tablist" aria-label="หัวข้อ">
     <button role="tab" data-t="shop">สรุปร้าน</button>
+    <button role="tab" data-t="ask">🤖 ถาม AI</button>
     <button role="tab" data-t="forecast">🔮 พยากรณ์</button>
     <button role="tab" data-t="breakeven">💰 คุ้มทุน</button>
     <button role="tab" data-t="overview" aria-selected="true">ภาพรวม</button>
@@ -212,6 +259,7 @@
 
   <!-- ===== สรุปร้าน: วิเคราะห์ข้อมูลแล้วสรุปเป็นข้อความ ===== -->
   <section class="pane" data-p="shop" hidden>
+    <div id="aiShop"></div>
     <div class="verdict" id="shopVerdict"></div>
     <div class="two">
       <div class="panel shopsec"><h2>✅ จุดแข็ง</h2><ul id="shopGood"></ul></div>
@@ -221,10 +269,18 @@
     <p class="note" id="shopNote"></p>
   </section>
 
+  <!-- ===== ถาม AI: ถามเรื่องยอดขายเป็นภาษาพูด (AI ค้นข้อมูลร้านเอง) ===== -->
+  <section class="pane" data-p="ask" hidden>
+    <div id="askEmpty"></div>
+    <div class="chat" id="chat" aria-live="polite"></div>
+    <div class="askbar"><textarea id="askQ" rows="1" placeholder="ถามเรื่องยอดขาย เช่น ทำไมยอดตก"></textarea><button class="btn primary" id="askGo">ถาม</button></div>
+  </section>
+
   <!-- ===== พยากรณ์: พรุ่งนี้ + เตรียมของ + 7 วันข้างหน้า (ไม่ขึ้นกับช่วงวันที่ด้านบน) ===== -->
   <section class="pane" data-p="forecast" hidden>
     <div class="panel pace" id="paceBox" hidden></div>
     <div class="verdict" id="fcTop"><h2>กำลังคำนวณ…</h2></div>
+    <div id="aiFc"></div>
     <div class="two">
       <div class="panel"><h2>🧺 เตรียมของ</h2><div id="fcPrep"></div></div>
       <div class="panel"><h2>🍽 เมนูที่น่าจะขายดี</h2><div id="fcItems"></div></div>
@@ -411,7 +467,7 @@ function cats() { const c = [...(S.categories || [])]; S.menu.forEach(m => c.inc
 $('#lockBtn').onclick = e => { e.preventDefault(); PIN.lock(); };
 
 // ---------- แท็บ (จำแท็บล่าสุดใน #hash เปิดลิงก์ sales.html#tables ได้ตรงแท็บ) ----------
-const TABS = ['shop', 'forecast', 'breakeven', 'overview', 'menu', 'ing', 'tables', 'kitchen', 'staff', 'system', 'bills'];
+const TABS = ['shop', 'ask', 'forecast', 'breakeven', 'overview', 'menu', 'ing', 'tables', 'kitchen', 'staff', 'system', 'bills'];
 let tab = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'shop';
 function showTab(t, push = true) {
   tab = t;
@@ -423,6 +479,8 @@ function showTab(t, push = true) {
   if (t === 'forecast') loadPace();
   if (t === 'breakeven') loadBe();   // โหลดเมื่อเปิดแท็บ (เก่ากว่า 10 นาที → คำนวณใหม่)
   if (t === 'overview' && report) renderChart();   // กราฟวัดความกว้างใหม่ตอนแท็บกลับมาแสดง
+  if (t === 'ask') { renderAsk(); setTimeout(() => $('#askQ').focus(), 50); }
+  if (t === 'shop') loadAiShop();
 }
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) showTab(b.dataset.t); });
 
@@ -506,6 +564,7 @@ function renderSales() {
   $('#openLine').textContent = `ตอนนี้ยังเปิดอยู่ ${r.open.length} โต๊ะ ยอดรอเก็บ ${baht(openSum)} ฿ ยังไม่นับรวมในยอดขาย`;
   renderChart(); renderHeat(); renderPay(); renderCatBreak(); renderTop(); renderTimes(); renderStaff(); renderSlow(); renderBills();
   renderMenuPerf(); renderTables(); renderHealth(); renderAnalysis(); renderShop();
+  if (tab === 'shop') loadAiShop();
 }
 
 // ---------- เวลาครัว (cook) / เวลานั่ง (sit) ----------
@@ -1218,7 +1277,7 @@ $('#ingCards').addEventListener('click', e => { const b = e.target.closest('[dat
 const FC_TAG = { busy: ['🔥', 'ยุ่ง/ขายดีกว่าปกติ'], quiet: ['🧊', 'เงียบกว่าปกติ'], normal: ['➖', 'ใกล้เคียงปกติ'] };
 const FC_CONF = { high: 'สูง', mid: 'กลาง', low: 'ต่ำ' };
 async function loadForecast() {
-  try { [fc, wx] = await Promise.all([api('/api/forecast'), api('/api/weather').catch(() => null)]); fcAt = Date.now(); renderForecast(); renderWx(); }
+  try { [fc, wx] = await Promise.all([api('/api/forecast'), api('/api/weather').catch(() => null)]); fcAt = Date.now(); renderForecast(); renderWx(); loadAiFc(); }
   catch (err) { $('#fcTop').innerHTML = `<h2>คำนวณไม่ได้</h2><p>${esc(err.message)}</p>`; }
 }
 const fcDayName = (d, i) => i === 0 ? `พรุ่งนี้ (วัน${DOW_L[d.dow]} ${thDate(d.date, { day: 'numeric', month: 'short' })})` : `วัน${DOW_L[d.dow]} ${thDate(d.date, { day: 'numeric', month: 'short' })}`;
@@ -1542,6 +1601,132 @@ function renderHealth() {
 }
 $('#hRefresh').onclick = async () => { try { health = await api(`/api/health?from=${report.from}&to=${report.to}`); renderHealth(); } catch (err) { toast(err.message, true); } };
 
+// ================= AI (Gemini ที่เครื่องหลัก · ตั้งคีย์ที่ หลังร้าน › 🤖 AI) =================
+const aiOn = () => !!S.settings?.ai?.hasKey;
+const aiNoKey = what => `<div class="aicard"><div class="aih"><span class="aib">✨ AI</span></div><h2 style="font-size:19px">${what}</h2>
+  <p class="story" style="margin:0">ใส่ API key ของ Gemini (ฟรี) ที่ <a href="admin.html#ai">หลังร้าน › 🤖 AI</a> แล้วกลับมาที่หน้านี้</p></div>`;
+const aiWait = t => `<div class="aiwait"><i></i><i></i><i></i><span>${t}</span></div>`;
+const hm2 = ts => new Date(ts).toTimeString().slice(0, 5);
+// ข้อความจาก AI → HTML (หนีอักขระก่อน แล้วค่อยทำ **ตัวหนา** และรายการ "- ")
+function aiMd(t) {
+  const lines = esc(t || '').split('\n'), out = []; let ul = false;
+  for (const raw of lines) {
+    const l = raw.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    const m = /^\s*(?:[-•*]|\d+\.)\s+(.*)$/.exec(l);
+    if (m) { if (!ul) { out.push('<ul>'); ul = true; } out.push(`<li>${m[1]}</li>`); continue; }
+    if (ul) { out.push('</ul>'); ul = false; }
+    if (l.trim()) out.push(`<p>${l}</p>`);
+  }
+  if (ul) out.push('</ul>');
+  return out.join('');
+}
+function aiChart(c) {
+  if (!c) return '';
+  if (c.type === 'line' && typeof lineChart === 'function')
+    return `<div class="hbars"><div class="ct">${esc(c.title)}${c.unit ? ` (${esc(c.unit)})` : ''}</div>${lineChart([{ pts: c.values.map((v, i) => [i, v]), cls: 'a' }], c.labels, { h: 170 })}</div>`;
+  const max = Math.max(...c.values.map(Math.abs), 1);
+  return `<div class="hbars"><div class="ct">${esc(c.title)}${c.unit ? ` (${esc(c.unit)})` : ''}</div>${c.labels.map((l, i) =>
+    `<div class="hb"><span title="${esc(l)}">${esc(l)}</span><i style="width:${Math.max(1, Math.abs(c.values[i]) / max * 100)}%"></i><b>${baht(c.values[i])}</b></div>`).join('')}</div>`;
+}
+
+// ---------- ถาม AI ----------
+const ASK_SUGGEST = ['สัปดาห์นี้เทียบสัปดาห์ที่แล้วเป็นยังไง', 'เดือนนี้เมนูไหนขายดีขึ้น เมนูไหนแย่ลง', 'ช่วงเวลาไหนขายดีที่สุด ควรจัดคนยังไง',
+  'ทำไมเมื่อวานยอดน้อยกว่าปกติ', 'ลูกค้าคนไทยกับต่างชาติสั่งต่างกันยังไง', 'เมนูไหนต้นทุนสูงเกินไป ควรขึ้นราคาไหม'];
+let askLog = [];   // [{q, a, chart, followups, tools, err, at}] จำในเครื่องนี้
+try { askLog = JSON.parse(localStorage.getItem('edposAsk') || '[]'); } catch {}
+let asking = false;
+const TOOL_TH = { get_sales: 'ยอดขาย', get_today_live: 'ยอดวันนี้', get_forecast: 'พยากรณ์', get_month: 'ยอดเดือน', get_ingredient_usage: 'วัตถุดิบ', get_dish_cost: 'ต้นทุน', get_menu: 'เมนู', get_weather: 'อากาศ' };
+function renderAsk() {
+  if (!S.settings) return;
+  $('#askEmpty').innerHTML = !aiOn() ? aiNoKey('ถามเรื่องยอดขายเป็นภาษาพูด แล้ว AI จะไปดูตัวเลขของร้านมาตอบ')
+    : askLog.length ? '' : `<div class="aicard"><div class="aih"><span class="aib">✨ ถาม AI</span></div><h2 style="font-size:19px">ถามเรื่องยอดขายได้เลย AI จะไปดูตัวเลขจริงของร้านมาตอบ</h2>
+      <p class="story">ถามได้ทั้งย้อนหลัง เทียบช่วงเวลา หาสาเหตุ หรือขอคำแนะนำ เช่น</p><div class="chips2">${ASK_SUGGEST.map(q => `<button data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`;
+  $('#askQ').disabled = $('#askGo').disabled = !aiOn() || asking;
+  $('#chat').innerHTML = askLog.map((m, i) => `<div class="msg-u">${esc(m.q)}</div>` + (m.a == null && !m.err ? `<div class="msg-a">${aiWait('กำลังดูข้อมูลร้าน…')}</div>`
+    : m.err ? `<div class="msg-a err">${esc(m.err)} <button class="linkbtn" data-retry="${i}">ลองอีกครั้ง</button></div>`
+    : `<div class="msg-a">${aiMd(m.a)}${aiChart(m.chart)}${m.tools?.length ? `<div class="used">ดูข้อมูล: ${[...new Set(m.tools)].map(t => TOOL_TH[t] || t).join(' · ')} · ${hm2(m.at)}</div>` : ''}
+      ${i === askLog.length - 1 && m.followups?.length ? `<div class="chips2" style="margin-top:10px">${m.followups.map(q => `<button data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>` : ''}</div>`)).join('')
+    + (askLog.length && !asking ? `<div style="text-align:right"><button class="linkbtn" id="askClear">ล้างบทสนทนา</button></div>` : '');
+}
+async function ask(q) {
+  q = String(q || '').trim(); if (!q || asking || !aiOn()) return;
+  asking = true; $('#askQ').value = '';
+  const history = askLog.filter(m => m.a).slice(-5).map(m => ({ q: m.q, a: m.a }));
+  const m = { q, a: null, at: Date.now() }; askLog.push(m); renderAsk();
+  scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  try { const r = await api('/api/ai/ask', { q, history }); Object.assign(m, { a: r.answer, chart: r.chart, followups: r.followups, tools: r.tools, at: Date.now() }); }
+  catch (e) { m.err = e.message; }
+  asking = false; askLog = askLog.slice(-30);
+  try { localStorage.setItem('edposAsk', JSON.stringify(askLog.filter(x => x.a))); } catch {}
+  renderAsk();
+}
+$('#askGo').onclick = () => ask($('#askQ').value);
+$('#askQ').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask($('#askQ').value); } });
+$('#askQ').addEventListener('input', e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(160, e.target.scrollHeight) + 'px'; });
+$('[data-p="ask"]').addEventListener('click', e => {
+  const b = e.target.closest('[data-q]'); if (b) return ask(b.dataset.q);
+  const r = e.target.closest('[data-retry]'); if (r) { const m = askLog.splice(+r.dataset.retry, 1)[0]; return ask(m.q); }
+  if (e.target.closest('#askClear')) { askLog = []; try { localStorage.removeItem('edposAsk'); } catch {} renderAsk(); }
+});
+
+// ---------- AI สรุปร้าน (ช่วงวันที่ด้านบน) ----------
+let aiSum = null, aiSumKey = '', aiSumBusy = false;
+async function loadAiShop(force) {
+  const box = $('#aiShop');
+  if (!S.settings) return;   // ยังไม่รู้ว่าตั้งคีย์ไหม (รอข้อมูลร้าน)
+  if (!aiOn()) { box.innerHTML = aiNoKey('ให้ AI อ่านตัวเลขทั้งหมดแล้วสรุปว่าร้านเป็นยังไง เพราะอะไร และควรทำอะไรต่อ'); return; }
+  if (!report) return;
+  const key = report.from + '|' + report.to + '|' + report.summary.subtotal + '|' + report.summary.bills;
+  if (!force && (aiSumBusy || (aiSum && aiSumKey === key))) return renderAiShop();
+  if (!report.summary.bills) { aiSum = null; box.innerHTML = ''; return; }
+  aiSumBusy = true; aiSumKey = key;
+  box.innerHTML = `<div class="aicard"><div class="aih"><span class="aib">✨ AI กำลังวิเคราะห์</span></div>${aiWait('อ่านตัวเลขของร้าน เทียบช่วงก่อน หาสาเหตุ…')}<div class="aiskel" style="width:70%"></div><div class="aiskel" style="width:92%"></div><div class="aiskel" style="width:55%"></div></div>`;
+  try { aiSum = await api('/api/ai/summary', { from: report.from, to: report.to, force: !!force }); }
+  catch (e) { aiSum = { err: e.message }; }
+  aiSumBusy = false; renderAiShop();
+}
+function renderAiShop() {
+  const box = $('#aiShop'), a = aiSum;
+  if (!a) { box.innerHTML = ''; return; }
+  if (a.err) { box.innerHTML = `<div class="aicard"><div class="aih"><span class="aib">✨ AI</span></div><p class="story" style="color:var(--brick)">${esc(a.err)}</p><button class="btn" data-aire="1">ลองอีกครั้ง</button></div>`; return; }
+  const col = (h, list) => list.length ? `<div><h3>${h}</h3><ul>${list.map(x => `<li>${esc(x.t)}${x.d ? `<small>${esc(x.d)}</small>` : ''}</li>`).join('')}</ul></div>` : '';
+  box.innerHTML = `<div class="aicard"><div class="aih"><span class="aib">✨ AI วิเคราะห์</span><span class="muted" style="font-size:13px">${esc(rangeText(a.from, a.to))}</span></div>
+    <h2 class="${a.tone}">${esc(a.headline)}</h2>${a.story ? `<p class="story">${esc(a.story)}</p>` : ''}
+    ${a.numbers.length ? `<div class="ainums">${a.numbers.map(n => `<div><span>${esc(n.label)}</span><b>${esc(n.value)}</b>${n.note ? `<small>${esc(n.note)}</small>` : ''}</div>`).join('')}</div>` : ''}
+    <div class="aicols">${col('✅ ดี', a.good)}${col('⚠️ ระวัง', a.watch)}${col('💡 ควรทำ', a.todo)}</div>
+    <div class="aifoot"><span>วิเคราะห์โดย AI${a.model ? ' · ' + esc(a.model) : ''} · ${hm2(a.at)} · ตรวจตัวเลขกับรายงานด้านล่างได้</span><button class="linkbtn" data-aire="1">วิเคราะห์ใหม่</button></div></div>`;
+}
+const rangeText = (f, t) => f === t ? thDate(f) : `${thDate(f)} – ${thDate(t)}`;
+$('#aiShop').addEventListener('click', e => { if (e.target.closest('[data-aire]')) loadAiShop(true); });
+
+// ---------- AI ปรับพยากรณ์ 7 วัน ----------
+let aiFc = null, aiFcBusy = false;
+async function loadAiFc(force) {
+  const box = $('#aiFc');
+  if (!S.settings) return;
+  if (!aiOn()) { box.innerHTML = aiNoKey('ให้ AI ปรับพยากรณ์ตามวันหยุด เทศกาล อีเวนต์ และฤดูท่องเที่ยว'); return; }
+  if (aiFcBusy || (aiFc && !force)) return renderAiFc();
+  if (!fc || !fc.normal || fc.days.every(d => d.none)) { box.innerHTML = ''; return; }
+  aiFcBusy = true;
+  box.innerHTML = `<div class="aicard"><div class="aih"><span class="aib">✨ AI กำลังดูวันหยุดและเทศกาล</span></div>${aiWait('ค้นวันหยุด เทศกาล อีเวนต์ในกรุงเทพ 7 วันข้างหน้า…')}<div class="aiskel" style="width:80%"></div><div class="aiskel" style="width:60%"></div></div>`;
+  try { aiFc = await api('/api/ai/forecast', { force: !!force }); } catch (e) { aiFc = { err: e.message }; }
+  aiFcBusy = false; renderAiFc();
+}
+function renderAiFc() {
+  const box = $('#aiFc'), a = aiFc;
+  if (!a) { box.innerHTML = ''; return; }
+  if (a.err) { box.innerHTML = `<div class="aicard"><div class="aih"><span class="aib">✨ AI พยากรณ์</span></div><p class="story" style="color:var(--brick)">${esc(a.err)}</p><button class="btn" data-aifc="1">ลองอีกครั้ง</button></div>`; return; }
+  const moved = a.days.filter(d => d.pct);
+  box.innerHTML = `<div class="aicard"><div class="aih"><span class="aib">✨ AI ปรับพยากรณ์</span><span class="muted" style="font-size:13px">${a.searched ? '🔎 ค้นเว็บแล้ว' : 'ใช้ความรู้ของ AI (ไม่ได้ค้นเว็บ)'}</span></div>
+    <h2 style="font-size:19px">${esc(a.overview || (moved.length ? `ปรับ ${moved.length} วัน` : '7 วันนี้ไม่มีอะไรพิเศษ ใช้พยากรณ์ปกติได้'))}</h2>
+    <div class="tscroll"><table class="t aitable"><thead><tr><th>วัน</th><th class="num">พยากรณ์ปกติ</th><th class="num">AI ปรับ</th><th class="num">AI คาด</th><th>เหตุผล</th></tr></thead><tbody>${a.days.map(d => `<tr>
+      <td>${shortDay(d.date)}</td><td class="num">${d.closed ? 'ปิด' : baht(d.base)}</td><td class="num"><span class="aip ${d.pct > 0 ? 'up' : d.pct < 0 ? 'down' : ''}">${d.pct ? sgn(d.pct) + '%' : '–'}</span></td>
+      <td class="num"><b>${d.closed ? '–' : baht(d.sales)}</b></td><td class="why">${esc(d.reason || '')}${d.events.length ? `<br>${d.events.map(x => '🎉 ' + esc(x)).join(' ')}` : ''}</td></tr>`).join('')}</tbody></table></div>
+    ${a.sources?.length ? `<p class="note">แหล่งข้อมูล: ${a.sources.map(x => `<a href="${esc(x.uri)}" target="_blank" rel="noopener">${esc(x.title || 'ลิงก์')}</a>`).join(' · ')}</p>` : ''}
+    <div class="aifoot"><span>คิดวันละครั้ง · ${hm2(a.at)}${a.model ? ' · ' + esc(a.model) : ''} · พยากรณ์ปกติด้านล่างยังไม่รวมที่ AI ปรับ</span><button class="linkbtn" data-aifc="1">คิดใหม่</button></div></div>`;
+}
+$('#aiFc').addEventListener('click', e => { if (e.target.closest('[data-aifc]')) loadAiFc(true); });
+
 showTab(tab, false);
 
 // ยอดวันนี้อัปเดตเองเมื่อมีบิลปิดเพิ่ม (รอ 1.5 วินาที รวมหลายการเปลี่ยนแปลงเป็นครั้งเดียว)
@@ -1549,6 +1734,10 @@ let reportTimer;
 live(() => {
   $('#shopTitle').innerHTML = `${esc(S.settings.shopName || 'ยอดขาย')}<small>ยอดขาย</small>`;
   if (!report || report.to === bizDay()) { clearTimeout(reportTimer); reportTimer = setTimeout(loadReport, report ? 1500 : 0); }
+  // ข้อมูลร้านมาแล้ว (รู้ว่าตั้งคีย์ AI ไหม) → แสดงส่วน AI ของแท็บที่เปิดอยู่
+  if (tab === 'ask' && !asking) renderAsk();
+  if (tab === 'forecast' && fc) loadAiFc();
+  if (tab === 'shop') loadAiShop();
 });
 </script>
 </body>
