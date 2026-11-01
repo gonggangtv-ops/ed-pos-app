@@ -27,6 +27,7 @@
     <button data-sec="ticket">ใบสั่งครัว</button>
     <button data-sec="orderui">หน้าสั่งอาหาร</button>
     <button data-sec="line">สรุปยอดเข้า LINE</button>
+    <button data-sec="ai">🤖 AI <small id="aiDot"></small></button>
     <button data-sec="shop">ข้อมูลร้าน</button>
     <button data-sec="backup">สำรองข้อมูล</button>
     <button data-sec="standby">เครื่องสำรอง <small id="sbDot"></small></button>
@@ -585,6 +586,33 @@
           <button class="btn" id="logoutAll">ออกจากระบบทุกเครื่อง</button></div>
       </div>
     </section>
+
+    <section id="sec-ai" hidden>
+      <h1>🤖 ผู้ช่วย AI (Gemini)</h1>
+      <p class="lede">ใส่ API key แล้วหน้ายอดขายจะมี <b>ถาม AI</b> (ถามเรื่องยอดขายเป็นภาษาพูด) · <b>AI สรุปร้าน</b> (บทวิเคราะห์ + สิ่งที่ควรทำ) · <b>AI ปรับพยากรณ์</b> (วันหยุด เทศกาล ฤดูท่องเที่ยว) · เครื่องหลักต้องต่ออินเทอร์เน็ต</p>
+      <div class="two">
+        <div class="panel">
+          <div class="stack">
+            <label class="field"><span>API key <span id="aiKeyState"></span></span><input type="password" id="aiKey" autocomplete="off" placeholder="วางคีย์ที่ขึ้นต้นด้วย AIza…">
+              <small>เว้นว่าง = ใช้คีย์เดิม · ใส่ - เพื่อลบคีย์ · คีย์เก็บในเครื่องหลักเท่านั้น หน้าเว็บอื่นมองไม่เห็น</small></label>
+            <label class="field"><span>รุ่น AI <small>(เว้นว่าง = เลือกให้เอง)</small></span><input type="text" id="aiModel" placeholder="gemini-3.1-flash" autocomplete="off"></label>
+          </div>
+          <div class="rowline" style="margin-top:12px"><div class="txt"><b>แนบบทวิเคราะห์ AI ในสรุป LINE</b><span>ท้ายสรุปรายวันและรายสัปดาห์ (ต้องเปิดสรุปยอดเข้า LINE ไว้)</span></div><label class="sw"><input type="checkbox" id="aiLine"><i></i></label></div>
+          <p class="muted" id="aiStat" style="margin:10px 0 0"></p>
+          <div class="actions"><button class="btn" id="aiTest">ทดสอบ</button><button class="btn primary" id="aiSave">บันทึก</button></div>
+        </div>
+        <div class="panel">
+          <h3 class="rc-h" style="margin-top:0">วิธีเอาคีย์ (ฟรี ทำครั้งเดียว)</h3>
+          <ol class="steps">
+            <li>เข้า <b>aistudio.google.com</b> ด้วยบัญชี Google</li>
+            <li>กด <b>Get API key</b> → <b>Create API key</b></li>
+            <li>คัดลอกคีย์ (ขึ้นต้นด้วย AIza…) มาวางช่องด้านซ้าย แล้วกด <b>ทดสอบ</b></li>
+          </ol>
+          <p class="muted" style="margin:10px 0 0">แบบฟรีมีโควตาต่อวัน ร้านเดียวใช้ปกติไม่น่าเกิน · ถ้าเกิน AI จะตอบไม่ได้จนโควตารีเซ็ต ส่วนอื่นของระบบใช้ได้ตามปกติ · แบบฟรี Google อาจนำข้อมูลที่ส่งไปปรับปรุงบริการ (ส่งเฉพาะยอดขาย/ชื่อเมนู ไม่มีข้อมูลลูกค้า)
+            · ใช้คีย์เดียวกับแอปผู้ช่วยครัวได้</p>
+        </div>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -623,6 +651,30 @@ let draft = null, draftOrig = '';      // เมนูที่กำลัง�
 let firstLoad = true;
 const dirty = new Set();               // ฟอร์มตั้งค่าที่แก้แล้วยังไม่บันทึก
 
+// ---------- AI (Gemini) ----------
+function aiStatText(st) {
+  $('#aiKeyState').innerHTML = st.hasKey ? `<span style="color:var(--jade)">✓ ตั้งแล้ว (…${esc(st.keyHint)})</span>` : '<span class="muted">ยังไม่ได้ใส่</span>';
+  $('#aiDot').textContent = st.hasKey ? '●' : '';
+  $('#aiStat').innerHTML = st.hasKey ? [st.usedModel ? `ใช้รุ่น ${esc(st.usedModel)}` : '', st.callsToday ? `วันนี้เรียก AI ${st.callsToday} ครั้ง` : '',
+    st.lastErr ? `<span style="color:var(--brick)">ล่าสุดผิดพลาด: ${esc(st.lastErr)}</span>` : ''].filter(Boolean).join(' · ') : '';
+}
+async function loadAi() {
+  try { const st = await api('/api/ai'); $('#aiKey').value = ''; $('#aiModel').value = st.model || ''; $('#aiLine').checked = st.line; aiStatText(st); } catch (e) { toast(e.message, true); }
+}
+$('#aiSave').onclick = async () => {
+  try { const st = await api('/api/ai/settings', { key: $('#aiKey').value.trim(), model: $('#aiModel').value.trim(), line: $('#aiLine').checked });
+    $('#aiKey').value = ''; aiStatText(st); toast('บันทึกแล้ว'); } catch (e) { toast(e.message, true); }
+};
+$('#aiTest').onclick = async () => {
+  const b = $('#aiTest'); b.disabled = true; b.textContent = 'กำลังทดสอบ…';
+  try {
+    if ($('#aiKey').value.trim()) await api('/api/ai/settings', { key: $('#aiKey').value.trim(), model: $('#aiModel').value.trim(), line: $('#aiLine').checked });
+    const r = await api('/api/ai/test', {}); $('#aiKey').value = '';
+    toast(`✓ ใช้ได้ · รุ่น ${r.model}`); aiStatText(await api('/api/ai'));
+  } catch (e) { toast(e.message, true); aiStatText(await api('/api/ai').catch(() => ({}))); }
+  finally { b.disabled = false; b.textContent = 'ทดสอบ'; }
+};
+
 // ---------- เปลี่ยนหน้า ----------
 function goSection(sec) { $(`nav.side button[data-sec="${sec}"]`).click(); }
 $$('nav.side button').forEach(b => b.onclick = () => {
@@ -640,6 +692,7 @@ $$('nav.side button').forEach(b => b.onclick = () => {
   if (section === 'printers' || section === 'screens') loadDevices();
   if (section === 'english') loadEnglish();
   if (section === 'ingredients') loadIngredients();
+  if (section === 'ai') loadAi();
 });
 document.addEventListener('click', e => { const a = e.target.closest('[data-go]'); if (a) { e.preventDefault(); goSection(a.dataset.go); } });
 

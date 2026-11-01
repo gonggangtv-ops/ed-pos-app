@@ -1987,7 +1987,14 @@ function linePost(token, to, text) {
 async function sendLine(k, kind = 'day', period) {
   const L = data.settings.line || {};
   if (!L.token) throw new Error('ยังไม่ได้ใส่ Channel access token');
-  await linePost(L.token, L.to, period ? lineRangeText(kind, period.from, period.to) : lineTextOf(kind, k));
+  let text = period ? lineRangeText(kind, period.from, period.to) : lineTextOf(kind, k);
+  // แนบบทวิเคราะห์ AI (ตั้งที่หลังร้าน › AI) · AI ล่ม/ไม่มีคีย์ = ส่งแบบเดิม
+  if (kind === 'day' || kind === 'week') {
+    const pr = period || (kind === 'week' ? lastPeriod('week', k, true) : { from: k, to: k });
+    const note = await AI.lineNote(kind, pr.from, pr.to);
+    if (note) text += '\n\n' + note;
+  }
+  await linePost(L.token, L.to, text.slice(0, 4900));
 }
 // ---------- แจ้งเตือนทันที ----------
 // kind: printer = เครื่องพิมพ์พิมพ์ไม่ออก/กลับมาได้ · standby = เครื่องสำรองหลุด/กลับมา · takeover = เครื่องสำรองรับงานแทน · void = ยกเลิกทั้งโต๊ะ
@@ -2198,6 +2205,13 @@ async function sendWithRetry(pr, payload, label, onSent) {
 
 const printQueue = {};
 const BACKUP_NAME = /^(data|before-restore)-[\w-]+\.json$/;
+
+// ---------- ผู้ช่วย AI (Gemini) ฝั่งเซิร์ฟเวอร์ · ai-engine.js ----------
+const AI = require('./ai-engine.js')({
+  data: () => data, dayKey: k => dayKey(k), addDays: (k, n) => addDays(k, n), buildReport: (f, t) => buildReport(f, t), paceToday: () => paceToday(),
+  forecastWeek: () => { const today = dayKey(Date.now()); return { ...forecastRange(addDays(today, 1), 7, today), accuracy: fcAccuracy(today) }; },
+  breakEven: () => breakEven(), usageReport: (f, t) => usageReport(f, t), dishCosts: () => dishCosts(), weatherInfo: () => weatherInfo(),
+});
 
 // ---------- API ----------
 const routes = {
@@ -2435,8 +2449,9 @@ const routes = {
     // only = 'config': เอาเฉพาะตั้งค่า เมนู หมวด ชุดตัวเลือก (ชื่ออังกฤษอยู่ในตั้งค่า) · บิล ยอดขาย รหัส พนักงาน ของเครื่องนี้อยู่ครบ
     // ใช้ย้ายเมนูจากเครื่องหนึ่งไปอีกเครื่อง เช่น จาก Termux มาแอป หรือแก้เมนูที่เครื่องอื่นแล้วเอามาใช้
     if (b.only === 'config') {
-      const lineNow = data.settings.line;
+      const lineNow = data.settings.line, aiNow = data.settings.ai;
       data.settings = JSON.parse(JSON.stringify(f.settings));
+      if (aiNow?.key && !data.settings.ai?.key) data.settings.ai = { ...(data.settings.ai || {}), key: aiNow.key };   // ไฟล์สำรองไม่มีคีย์ → ใช้คีย์เดิม
       // แจ้ง LINE: ไฟล์ไม่มีโทเค็น → ใช้ของเครื่องนี้ · วันที่ส่งสรุปล่าสุดใช้ของเครื่องนี้ (กันส่งซ้ำ/ไม่ส่ง)
       if (lineNow || data.settings.line) data.settings.line = { ...(lineNow || {}), ...(data.settings.line || {}),
         token: data.settings.line?.token || lineNow?.token || '', lastSent: lineNow?.lastSent || '', lastErr: '', alertErr: '' };
@@ -2515,6 +2530,22 @@ const routes = {
   'POST /api/ingredients': b => { data.ingredients = cleanIngredients(b.list); return { ok: true, list: data.ingredients }; },
   // ต้นทุนวัตถุดิบต่อจาน
   'GET /api/dishcost': () => ({ dishes: dishCosts() }),
+  // ---------- AI (Gemini) ----------
+  'GET /api/ai': () => AI.status(),
+  // {key ('-' = ลบ, ว่าง = คงเดิม), model, line}
+  'POST /api/ai/settings': b => {
+    const c = { ...(data.settings.ai || {}) };
+    const key = String(b.key ?? '').trim();
+    if (key === '-') delete c.key; else if (key) { if (!/^[\w-]{20,200}$/.test(key)) throw new Error('API key ไม่ถูกรูปแบบ (คัดลอกจาก aistudio.google.com)'); c.key = key; }
+    if (b.model !== undefined) c.model = String(b.model || '').trim().replace(/[^\w.-]/g, '').slice(0, 60);
+    if (b.line !== undefined) c.line = !!b.line;
+    data.settings.ai = c;
+    return AI.status();
+  },
+  'POST /api/ai/test': () => AI.test(),
+  'POST /api/ai/ask': b => AI.ask(b.q, b.history),
+  'POST /api/ai/summary': b => AI.summary(b.from, b.to, !!b.force),
+  'POST /api/ai/forecast': b => AI.forecast(!!b.force),
   'GET /api/usage': (b, q) => {
     const ok = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
     const to = ok(q.get('to')) ? q.get('to') : dayKey(Date.now()), from = ok(q.get('from')) ? q.get('from') : to;
@@ -2573,6 +2604,7 @@ const routes = {
     const settings = { ...data.settings, receipt: { ...rc, images: undefined, has: { logo: !!imgs.logo, footer: !!imgs.footer }, imgV: rc.imgV || 0 },
       // โทเค็น LINE ไม่ส่งออกไปหน้าเว็บ (หน้าสั่งอาหารก็อ่าน /api/state ได้)
       line: { ...(data.settings.line || {}), token: undefined, hasToken: !!data.settings.line?.token, counts: lineCountsOf() },
+      ai: { ...(data.settings.ai || {}), key: undefined, hasKey: !!data.settings.ai?.key },
       presetModified: presetModified() };
     return { rev: data.rev || 0, settings, menu: data.menu, categories: data.categories, optionSets: data.optionSets, ingredients: data.ingredients || [], orders,
              items: data.items.filter(i => ids.has(i.orderId)), events: data.events, now: Date.now() };
@@ -2580,6 +2612,8 @@ const routes = {
 
   'POST /api/settings': b => {
     const s = { ...data.settings, ...b };
+    s.ai = data.settings.ai;   // AI ตั้งที่ /api/ai/settings เท่านั้น (หน้าเว็บไม่มีคีย์ ส่งมาทับจะทำคีย์หาย)
+    if (!s.ai) delete s.ai;
     if (b.nodes) s.nodes = { main: normUrl(b.nodes.main), standby: normUrl(b.nodes.standby) };
     if (b.payments) {
       const p = { ...data.settings.payments, ...b.payments };
@@ -3150,7 +3184,7 @@ const server = http.createServer(async (req, res) => {
         const body = Buffer.concat(parts).toString('utf8');
         const result = await handler(body ? JSON.parse(body) : {}, url.searchParams, req);
         // เครื่องสำรองไม่บันทึกเอง (ข้อมูลมาจากเครื่องหลักเท่านั้น) · ขอกุญแจ/ใส่รหัสไม่ได้เปลี่ยนข้อมูล
-        if (req.method === 'POST' && role.role === 'main' && !['/api/print', '/api/login', '/api/sync/key'].includes(url.pathname)) { prune(); save(); broadcast(); }
+        if (req.method === 'POST' && role.role === 'main' && !['/api/print', '/api/login', '/api/sync/key', '/api/ai/ask', '/api/ai/test'].includes(url.pathname)) { prune(); save(); broadcast(); }
         res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });   // ห้ามแคช ข้อมูลต้องสดเสมอ
         res.end(JSON.stringify(result || { ok: true }));
       } catch (e) {
