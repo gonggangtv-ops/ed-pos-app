@@ -98,7 +98,7 @@
       contents,
       tools: [{ functionDeclarations: declarations(!!p.manager) }],
       toolConfig: { functionCallingConfig: { mode: 'ANY' } },
-      generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
+      generationConfig: { temperature: 0.4, maxOutputTokens: 8000 },
     };
   }
 

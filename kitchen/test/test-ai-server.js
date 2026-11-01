@@ -26,6 +26,22 @@ const fake = http.createServer((req, res) => {
       }
       return send(200, gem([{ functionCall: { name: 'get_sales', args: { from: mode.today, to: mode.today } }, thoughtSignature: 'sig1' }, { functionCall: { name: 'get_dish_cost', args: {} } }]));
     }
+    const firstText = (body.contents && body.contents[0] && body.contents[0].parts[0] && body.contents[0].parts[0].text) || '';
+    if (/^จัดข้อความ/.test(firstText)) {   // ขอให้จัดเป็น JSON
+      mode.repaired = (mode.repaired || 0) + 1;
+      const d0 = (/(\d{4}-\d{2}-\d{2})/.exec(firstText.split('----')[1] || '') || [])[1];
+      return send(200, gem([{ text: JSON.stringify({ overview: 'จัดรูปแบบแล้ว', days: [{ date: d0, pct: 10, reason: 'ซ่อมแล้ว' }] }) }]));
+    }
+    if (body.tools && body.tools.some(t => t.google_search) && mode.fcProse) {
+      const input = JSON.parse(firstText), d0 = input.base_forecast[0].date;
+      if (mode.fcProse === 'cite') return send(200, gem([{ text: `ผลการค้นหา:\n\`\`\`json\n{"overview": "มีเทศกาล [1]", "days": [{"date": "${d0}", "pct": 15, "reason": "ลอยกระทง" [2], "events": ["ลอยกระทง"],},],}\n\`\`\`\nหวังว่าจะช่วยได้` }]));
+      return send(200, gem([{ text: `วันที่ ${d0} น่าจะคึกคักเพราะมีเทศกาล ควรเพิ่ม 10%` }]));
+    }
+    if (/นักพยากรณ์/.test(sys) && !body.tools) { const input = JSON.parse(body.contents[0].parts[0].text); return send(200, gem([{ text: JSON.stringify({ overview: 'ไม่ได้ค้นเว็บ', days: [{ date: input.base_forecast[0].date, pct: 5, reason: 'ช่วงไฮซีซั่น' }] }) }])); }
+    if (body.generationConfig && body.generationConfig.responseMimeType === 'application/json' && mode.truncate) {
+      mode.truncate--;
+      return send(200, JSON.stringify({ candidates: [{ finishReason: 'MAX_TOKENS', content: { role: 'model', parts: [{ text: '{"headline": "ยอดดีขึ้นจา' }] } }] }));
+    }
     if (body.tools && body.tools.some(t => t.google_search)) {
       if (mode.noSearch) return send(400, JSON.stringify({ error: { code: 400, message: 'Search Grounding is not supported' } }));
       const input = JSON.parse(body.contents[0].parts[0].text);
@@ -39,7 +55,6 @@ const fake = http.createServer((req, res) => {
       mode.summaryInput = JSON.parse(body.contents[0].parts[0].text);
       return send(200, gem([{ text: JSON.stringify({ headline: 'ยอดดีขึ้นจากกุ้ง', tone: 'up', story: 'ลูกค้าสั่งกุ้งเยอะ', good: [{ t: 'กุ้งขายดี', d: '6 จาน' }], watch: [], todo: [{ t: 'เตรียมกุ้งเพิ่ม', d: 'พรุ่งนี้วันหยุด' }], numbers: [{ label: 'ยอด', value: '1,140' }] }) }]));
     }
-    if (/นักพยากรณ์/.test(sys)) { const input = JSON.parse(body.contents[0].parts[0].text); return send(200, gem([{ text: JSON.stringify({ overview: 'ไม่ได้ค้นเว็บ', days: [{ date: input.base_forecast[0].date, pct: 5, reason: 'ช่วงไฮซีซั่น' }] }) }])); }
     return send(200, gem([{ text: 'พร้อม' }]));
   });
 });
@@ -160,6 +175,20 @@ fake.listen(GPORT, async () => {
     mode.noSearch = true; seen.length = 0;
     const f3 = await api('/api/ai/forecast', { force: true });
     ok(seen.length === 2 && !seen[1].body.tools && !f3.searched && f3.days[0].pct === 5, 'รุ่นที่ค้นเว็บไม่ได้ → ลองใหม่แบบไม่ค้น: ' + f3.days[0].reason);
+    // ---------- คำตอบไม่เป็น JSON ----------
+    mode.noSearch = false;
+    mode.fcProse = 'cite'; seen.length = 0; mode.repaired = 0;
+    let fx = await api('/api/ai/forecast', { force: true });
+    ok(fx.days[0].pct === 15 && mode.repaired === 0 && seen.length === 1, 'มีเลขอ้างอิง [1] + จุลภาคเกิน + ```json → อ่านได้เลย: ' + fx.days[0].reason);
+    mode.fcProse = 'prose'; seen.length = 0;
+    fx = await api('/api/ai/forecast', { force: true });
+    ok(fx.days[0].pct === 10 && mode.repaired === 1, 'ตอบเป็นข้อความเฉยๆ → ให้ AI จัดเป็น JSON: ' + fx.days[0].reason);
+    mode.fcProse = null;
+    mode.truncate = 1; seen.length = 0;
+    const o2 = await api('/api/order', { table: 'y', items: [{ menuId: fr.id, qty: 1, choices: [{ g: 'เนื้อสัตว์', c: 'หมู' }, { g: 'ขนาด', c: 'S' }] }] });
+    await api('/api/order/pay', { orderId: o2.orderId, method: 'cash' });
+    const st2 = await api('/api/ai/summary', { from: mode.today, to: mode.today });
+    ok(st2.headline === 'ยอดดีขึ้นจากกุ้ง' && seen.length === 2 && seen[1].body.generationConfig.maxOutputTokens === 24000, 'ถูกตัดกลางคัน (MAX_TOKENS) → ลองใหม่ด้วยโควตาคำมากขึ้น');
     console.log(fail ? `${fail} FAILED` : 'all passed');
     done(fail ? 1 : 0);
   } catch (e) { console.log('ERR', e.stack); done(1); }

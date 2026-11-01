@@ -41,7 +41,7 @@ module.exports = function createAI(d) {
     const c = j && j.candidates && j.candidates[0];
     if (!c || !c.content) { const e = new Error(j && j.promptFeedback ? 'AI ไม่ยอมตอบคำถามนี้' : 'AI ไม่ได้ตอบอะไรกลับมา'); e.status = 200; throw e; }
     const today = d.dayKey(Date.now()); if (mem.day !== today) { mem.day = today; mem.calls = 0; } mem.calls++;
-    return { parts: c.content.parts || [], content: c.content, grounding: c.groundingMetadata };
+    return { parts: c.content.parts || [], content: c.content, grounding: c.groundingMetadata, finish: c.finishReason || '' };
   }
   // รุ่นนี้ไม่มี/เลิกแล้ว (ไม่ใช่ "ฟีเจอร์นี้ใช้ไม่ได้" เช่น ค้นเว็บ ซึ่งต้องให้คนเรียกจัดการเอง)
   const gone = e => e.status === 404 || (e.status === 400 && /models\/\S+ is not found|not supported for generateContent|is not available/i.test(e.raw || ''));
@@ -71,10 +71,38 @@ module.exports = function createAI(d) {
     throw last;
   }
   const textOf = parts => parts.filter(p => p.text && !p.thought).map(p => p.text).join('').trim();
+  // อ่าน JSON จากคำตอบ: ทนกับ ```json, ข้อความนำหน้า/ต่อท้าย, เลขอ้างอิง [1] จากการค้นเว็บ, จุลภาคเกินท้าย
   function jsonOf(t) {
-    t = String(t || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
-    const m = /\{[\s\S]*\}/.exec(t);
-    try { return JSON.parse(m ? m[0] : t); } catch { return null; }
+    t = String(t || '').replace(/```(?:json)?/gi, '').trim();
+    const a = t.indexOf('{'), b = t.lastIndexOf('}');
+    if (a < 0 || b <= a) return null;
+    const core = t.slice(a, b + 1);
+    for (const x of [core, core.replace(/\s*\[\d+(?:\s*,\s*\d+)*\]/g, ''), core.replace(/\s*\[\d+(?:\s*,\s*\d+)*\]/g, '').replace(/,\s*([}\]])/g, '$1')]) {
+      try { return JSON.parse(x); } catch {}
+    }
+    return null;
+  }
+  /**
+   * ขอคำตอบแบบ JSON ให้ได้: ลองครั้งแรก → ถูกตัดกลางคัน (AI คิดยาวจนหมดโควตาคำ) ลองใหม่ 1 ครั้ง
+   * → ยังอ่านไม่ได้ ส่งข้อความเดิมให้ AI จัดเป็น JSON (ไม่ค้นเว็บ ไม่เพิ่มข้อมูล)
+   */
+  async function genJSON(body, ok, shape) {
+    let r = await gen(body), j = jsonOf(textOf(r.parts));
+    if (ok(j)) return { r, j };
+    if (r.finish === 'MAX_TOKENS' || !textOf(r.parts)) {
+      const b2 = { ...body, generationConfig: { ...(body.generationConfig || {}), maxOutputTokens: 24000 } };
+      const r2 = await gen(b2), j2 = jsonOf(textOf(r2.parts));
+      if (ok(j2)) return { r: { ...r2, grounding: r2.grounding || r.grounding }, j: j2 };
+      if (textOf(r2.parts)) r = { ...r2, grounding: r2.grounding || r.grounding };
+    }
+    const raw = textOf(r.parts);
+    if (raw) {
+      const fx = await gen({ contents: [{ role: 'user', parts: [{ text: `จัดข้อความด้านล่างให้เป็น JSON ที่ถูกต้องตามรูปแบบนี้ (ห้ามเพิ่มข้อมูลใหม่ ถ้าข้อความถูกตัดกลางคัน ให้ปิดโครงสร้างให้ครบ):\n${shape}\n\n----\n${raw.slice(0, 20000)}` }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: 16000, responseMimeType: 'application/json' } });
+      const j3 = jsonOf(textOf(fx.parts));
+      if (ok(j3)) return { r, j: j3 };
+    }
+    const e = new Error('AI ตอบไม่ครบหรือไม่เป็นรูปแบบที่อ่านได้ ลองกดอีกครั้ง (ถ้าเป็นบ่อย ลองตั้งรุ่น AI เป็น gemini-flash-latest)'); e.code = 'format'; mem.lastErr = e.message; throw e;
   }
 
   // ---------- ข้อมูลร้านแบบย่อ ----------
@@ -178,7 +206,7 @@ module.exports = function createAI(d) {
     for (let round = 0; round <= 6; round++) {
       const last = round === 6;
       const r = await gen({ systemInstruction: { parts: [{ text: sys }] }, contents, tools: [{ functionDeclarations: decls(last ? ['respond'] : null) }],
-        toolConfig: { functionCallingConfig: { mode: 'ANY' } }, generationConfig: { temperature: 0.3, maxOutputTokens: 4096 } });
+        toolConfig: { functionCallingConfig: { mode: 'ANY' } }, generationConfig: { temperature: 0.3, maxOutputTokens: 12000 } });
       const calls = r.parts.filter(p => p.functionCall).map(p => ({ name: p.functionCall.name, args: p.functionCall.args || {} }));
       const fin = calls.find(c => c.name === 'respond');
       if (fin) return { answer: String(fin.args.answer || '').trim(), chart: cleanChart(fin.args.chart), followups: (fin.args.followups || []).slice(0, 3).map(String), tools: used, model: mem.model };
@@ -222,10 +250,9 @@ module.exports = function createAI(d) {
       ' "good": [{"t": "หัวข้อสั้น", "d": "รายละเอียด+ตัวเลข"}], "watch": [...], "todo": [{"t": "สิ่งที่ควรทำ", "d": "ทำไม/ทำยังไง"}], "numbers": [{"label": "...", "value": "...", "note": "..."}] }',
       'good/watch/todo อย่างละ 1-4 ข้อ · numbers 3-4 ตัวเลขสำคัญที่สุด',
     ].join('\n');
-    const r = await gen({ systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: 'user', parts: [{ text: JSON.stringify(cap(input, 30000)) }] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 3000, responseMimeType: 'application/json' } });
-    const j = jsonOf(textOf(r.parts));
-    if (!j || !j.headline) throw new Error('AI ตอบไม่เป็นรูปแบบที่อ่านได้ ลองใหม่อีกครั้ง');
+    const { j } = await genJSON({ systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: 'user', parts: [{ text: JSON.stringify(cap(input, 30000)) }] }],
+      generationConfig: { temperature: 0.3, maxOutputTokens: 12000, responseMimeType: 'application/json' } }, x => !!(x && x.headline),
+      '{"headline": "...", "tone": "up|down|flat", "story": "...", "good": [{"t": "...", "d": "..."}], "watch": [...], "todo": [...], "numbers": [{"label": "...", "value": "...", "note": "..."}]}');
     const list = a => (Array.isArray(a) ? a : []).slice(0, 5).map(x => ({ t: String(x.t || x.title || '').slice(0, 160), d: String(x.d || x.detail || '').slice(0, 400) })).filter(x => x.t);
     const out = { from, to, at: Date.now(), model: mem.model, headline: String(j.headline).slice(0, 200), tone: ['up', 'down', 'flat'].includes(j.tone) ? j.tone : 'flat',
       story: String(j.story || '').slice(0, 1200), good: list(j.good), watch: list(j.watch), todo: list(j.todo),
@@ -261,12 +288,13 @@ module.exports = function createAI(d) {
       'tourism ใส่เฉพาะสิ่งที่ค้นเจอจริง ถ้าค้นไม่เจอให้ summary เป็นข้อความว่าง',
     ].join('\n');
     const req = tools => ({ systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: 'user', parts: [{ text: JSON.stringify(cap(input, 24000)) }] }],
-      ...(tools ? { tools: [{ google_search: {} }] } : {}), generationConfig: { temperature: 0.2, maxOutputTokens: 3000 } });
-    let r, searched = true;
-    try { r = await gen(req(true)); }
-    catch (e) { if (e.status !== 400) throw e; searched = false; r = await gen(req(false)); }   // รุ่นนี้ค้นเว็บไม่ได้ → ใช้ความรู้ของ AI อย่างเดียว
-    const j = jsonOf(textOf(r.parts));
-    if (!j || !Array.isArray(j.days)) throw new Error('AI ตอบไม่เป็นรูปแบบที่อ่านได้ ลองใหม่อีกครั้ง');
+      ...(tools ? { tools: [{ google_search: {} }] } : { generationConfig: { temperature: 0.2, maxOutputTokens: 12000, responseMimeType: 'application/json' } }),
+      ...(tools ? { generationConfig: { temperature: 0.2, maxOutputTokens: 12000 } } : {}) });
+    const okFc = x => !!(x && Array.isArray(x.days));
+    const shape = '{"days": [{"date": "YYYY-MM-DD", "pct": 0, "reason": "...", "events": ["..."]}], "overview": "...", "tourism": {"summary": "...", "trend": "up|down|flat", "points": ["..."]}}';
+    let r, j, searched = true;
+    try { ({ r, j } = await genJSON(req(true), okFc, shape)); }
+    catch (e) { if (e.status !== 400) throw e; searched = false; ({ r, j } = await genJSON(req(false), okFc, shape)); }   // รุ่นนี้ค้นเว็บไม่ได้ → ใช้ความรู้ของ AI อย่างเดียว
     const by = new Map(j.days.map(x => [x.date, x]));
     const out = { asOf: today, at: Date.now(), model: mem.model, searched: searched && !!(r.grounding && (r.grounding.webSearchQueries || r.grounding.groundingChunks)),
       overview: String(j.overview || '').slice(0, 400),
@@ -293,7 +321,7 @@ module.exports = function createAI(d) {
   }
 
   async function test() {
-    const r = await gen({ contents: [{ role: 'user', parts: [{ text: 'ตอบคำว่า พร้อม คำเดียว' }] }], generationConfig: { maxOutputTokens: 20 } }, 30000);
+    const r = await gen({ contents: [{ role: 'user', parts: [{ text: 'ตอบคำว่า พร้อม คำเดียว' }] }], generationConfig: { maxOutputTokens: 1000 } }, 30000);
     return { ok: true, model: mem.model, reply: textOf(r.parts).slice(0, 40) };
   }
   function status() {

@@ -73,7 +73,7 @@
     return {
       systemInstruction: { parts: [{ text: sys.join('\n') }] },
       contents,
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: 500 },
+      generationConfig: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: 6000 },
     };
   }
 
