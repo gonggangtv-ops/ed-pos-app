@@ -34,7 +34,8 @@ module.exports = function createAI(d) {
     if (r.status !== 200) {
       const msg = (j && j.error && j.error.message) || text.slice(0, 200);
       const e = new Error(r.status === 429 ? 'ใช้ AI ครบโควตาแล้ว รอสักพักหรือพรุ่งนี้' : r.status === 400 && /API key/i.test(msg) ? 'API key ไม่ถูกต้อง'
-        : r.status === 401 || r.status === 403 ? 'API key ใช้ไม่ได้ (ตรวจคีย์อีกครั้ง)' : `AI ตอบกลับ ${r.status}: ${msg}`);
+        : r.status === 401 || r.status === 403 ? 'API key ใช้ไม่ได้ (ตรวจคีย์อีกครั้ง)'
+        : r.status === 503 || r.status === 500 || r.status === 504 ? 'AI ของ Google มีคนใช้เยอะชั่วคราว ลองใหม่อีกสักครู่' : `AI ตอบกลับ ${r.status}: ${msg}`);
       e.status = r.status; e.raw = msg; throw e;
     }
     const c = j && j.candidates && j.candidates[0];
@@ -44,15 +45,28 @@ module.exports = function createAI(d) {
   }
   // รุ่นนี้ไม่มี/เลิกแล้ว (ไม่ใช่ "ฟีเจอร์นี้ใช้ไม่ได้" เช่น ค้นเว็บ ซึ่งต้องให้คนเรียกจัดการเอง)
   const gone = e => e.status === 404 || (e.status === 400 && /models\/\S+ is not found|not supported for generateContent|is not available/i.test(e.raw || ''));
-  /** ลองรุ่นตามลำดับ (รุ่นที่ใช้ได้ล่าสุดก่อน) · 404 = รุ่นเลิกแล้ว → รุ่นถัดไป */
+  // รุ่นนี้ไม่ว่าง (503/500/504 คนใช้เยอะ) หรือโควตาของรุ่นนี้หมด (429 · แบบฟรีนับโควตาแยกรุ่น) → ลองรุ่นอื่น
+  const busy = e => [429, 500, 503, 504].includes(e.status);
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  /** ลองรุ่นตามลำดับ (รุ่นที่ใช้ได้ล่าสุดก่อน) · รุ่นเลิกแล้ว/ไม่ว่าง/โควตาหมด → รุ่นถัดไป · ไม่ว่าง (503) ลองซ้ำรุ่นเดิม 1 ครั้งก่อน */
   async function gen(body, ms) {
     const c = cfg();
-    const list = c.model ? [c.model] : mem.model ? [mem.model, ...MODELS.filter(m => m !== mem.model)] : MODELS;
-    let last;
+    const first = c.model || mem.model;
+    const list = first ? [first, ...MODELS.filter(m => m !== first)] : MODELS;
+    let last, busyHit = null;
     for (const m of list) {
-      try { const r = await call(m, body, ms); mem.model = m; mem.lastErr = ''; return r; }
-      catch (e) { last = e; if (!gone(e)) break; }
+      for (let tryN = 0; tryN < 2; tryN++) {
+        try { const r = await call(m, body, ms); mem.model = m; mem.lastErr = ''; return r; }
+        catch (e) {
+          last = e;
+          if (e.status === 503 && tryN === 0) { await wait(1500); continue; }   // ไม่ว่างชั่วคราว → รอแล้วลองรุ่นเดิมอีกครั้ง
+          break;
+        }
+      }
+      if (busy(last)) { busyHit = busyHit || last; continue; }
+      if (!gone(last)) break;
     }
+    if (busyHit && (!last || gone(last) || busy(last))) last = busyHit;   // ทุกรุ่นไม่ว่าง/หมดโควตา → บอกสาเหตุนั้น
     mem.lastErr = last ? last.message : 'error';
     throw last;
   }

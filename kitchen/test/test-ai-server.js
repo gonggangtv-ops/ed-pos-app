@@ -12,6 +12,7 @@ const fake = http.createServer((req, res) => {
     const body = JSON.parse(b || '{}'), model = decodeURIComponent(req.url.split('/models/')[1].split(':')[0]);
     seen.push({ model, key: req.headers['x-goog-api-key'], body });
     const send = (code, t) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(t); };
+    if (mode.busy && mode.busy[model]) { mode.busy[model]--; return send(mode.busyCode || 503, JSON.stringify({ error: { code: 503, message: 'This model is currently experiencing high demand.' } })); }
     if (model === 'gemini-3.5-flash') return send(404, JSON.stringify({ error: { code: 404, message: 'models/gemini-3.5-flash is not found' } }));   // รุ่นแรกเลิกแล้ว → ต้องลองรุ่นถัดไป
     const sys = JSON.stringify(body.systemInstruction || '');
     const fns = (body.tools || []).flatMap(t => t.functionDeclarations || []).map(f => f.name);
@@ -85,6 +86,21 @@ fake.listen(GPORT, async () => {
     ok(sr.status === 401, 'รหัสพนักงานใช้ AI ไม่ได้ (เจ้าของร้านเท่านั้น)');
     const t = await api('/api/ai/test', {});
     ok(t.ok && t.reply === 'พร้อม' && t.model === 'gemini-3.1-flash' && seen[0].model === 'gemini-3.5-flash' && seen[1].key === KEY, 'ทดสอบคีย์ + รุ่นแรก 404 → ใช้รุ่นถัดไป: ' + t.model);
+
+    // Google ไม่ว่าง (503): ลองซ้ำรุ่นเดิม 1 ครั้ง → ยังไม่ว่าง ไปรุ่นถัดไป
+    seen.length = 0; mode.busy = { 'gemini-3.1-flash': 2 };
+    let tb = await api('/api/ai/test', {});
+    ok(tb.ok && tb.model === 'gemini-flash-latest' && seen.filter(x => x.model === 'gemini-3.1-flash').length === 2, '503 → ลองซ้ำแล้วใช้รุ่นถัดไป: ' + tb.model);
+    mode.busy = { 'gemini-flash-latest': 1 }; seen.length = 0;
+    tb = await api('/api/ai/test', {});
+    ok(tb.ok && tb.model === 'gemini-flash-latest' && seen.length === 2, '503 ครั้งเดียว → ลองซ้ำรุ่นเดิมผ่าน');
+    mode.busy = { 'gemini-flash-latest': 2, 'gemini-2.5-flash': 2, 'gemini-flash-lite-latest': 2, 'gemini-2.5-flash-lite': 2, 'gemini-3.1-flash': 2 };
+    const eb = await err(api('/api/ai/test', {}));
+    ok(/มีคนใช้เยอะ/.test(eb || ''), 'ทุกรุ่นไม่ว่าง → บอกเป็นภาษาไทย: ' + eb);
+    mode.busy = { 'gemini-flash-latest': 1 }; mode.busyCode = 429; seen.length = 0;
+    tb = await api('/api/ai/test', {});
+    ok(tb.ok && tb.model !== 'gemini-flash-latest' && seen[0].model === 'gemini-flash-latest' && seen.filter(x => x.model === 'gemini-flash-latest').length === 1, 'โควตารุ่นนี้หมด (429) → รุ่นถัดไป: ' + tb.model);
+    mode.busy = null; mode.busyCode = 0;
 
     // ขายของ
     const menu = state.menu, fr = menu.find(m => m.name === 'ข้าวผัด');

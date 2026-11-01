@@ -646,18 +646,19 @@ function handle(r, text) {
 
 // ---------- AI ----------
 const thinkOn = () => cfg.think && TH;
-async function genWith(models0, okKey, body, timeout) {
-  let models = cfg.aiModel ? [cfg.aiModel] : models0.slice();
-  let good = ''; try { good = localStorage.getItem(okKey) || ''; } catch {}
-  if (!cfg.aiModel && good && models.includes(good)) models = [good, ...models.filter(m => m !== good)];
-  let res = null;
+async function genWith(models0, okKey, body, timeout, key) {
+  const first = cfg.aiModel || (() => { try { return localStorage.getItem(okKey) || ''; } catch { return ''; } })();
+  const models = first ? [first, ...models0.filter(m => m !== first)] : models0.slice();
+  let res = null, busyRes = null;
   for (const m of models) {
-    res = await call(id => K.ai(id, m, body, ''), timeout);
-    if (res.code === 404 || (res.code === 400 && /not found|not supported|function/i.test(res.text || ''))) continue;   // รุ่นนี้ไม่มี/ไม่รองรับ → รุ่นถัดไป
-    if (res.code === 200) { try { localStorage.setItem(okKey, m); } catch {} }
+    res = await call(id => K.ai(id, m, body, key || ''), timeout);
+    if (res.code === 503) { await new Promise(r => setTimeout(r, 1500)); res = await call(id => K.ai(id, m, body, key || ''), timeout); }   // ไม่ว่างชั่วคราว → ลองอีกครั้ง
+    if (res.code === 200) { try { localStorage.setItem(okKey, m); } catch {} res.model = m; return res; }
+    if ([429, 500, 503, 504].includes(res.code)) { busyRes = busyRes || res; continue; }   // ไม่ว่าง/โควตารุ่นนี้หมด → รุ่นถัดไป
+    if (res.code === 404 || (res.code === 400 && /not found|not supported/i.test(res.text || ''))) continue;   // รุ่นนี้ไม่มี → รุ่นถัดไป
     break;
   }
-  return res;
+  return busyRes && (!res || res.code !== 200) && ![400, 401, 403].includes(res && res.code) ? busyRes : res;
 }
 function saveMemory(text) {
   cfg.aiMemory = text;
@@ -725,16 +726,7 @@ async function askAIQuick(text) {
   const body = JSON.stringify(AI.buildRequest({ text, orders, menu, history, name: cfg.name, particle: cfg.particle, notes: cfg.aiNotes,
     manager, menuList: manager ? (shop.state && shop.state.menu) || [] : null,
     batch, timers: timers.map(t => ({ label: t.label, left_sec: Math.max(0, Math.round((t.end - Date.now()) / 1000)) })) }));
-  let models = cfg.aiModel ? [cfg.aiModel] : AI.MODELS.slice();
-  let good = ''; try { good = localStorage.getItem('aiModelOk') || ''; } catch {}
-  if (!cfg.aiModel && good) models = [good, ...models.filter(m => m !== good)];
-  let res = null;
-  for (const m of models) {
-    res = await call(id => K.ai(id, m, body, ''), 26000);
-    if (res.code === 404) continue;           // รุ่นนี้เลิกให้บริการ → ลองรุ่นถัดไป
-    if (res.code === 200) { try { localStorage.setItem('aiModelOk', m); } catch {} }
-    break;
-  }
+  const res = await genWith(AI.MODELS, 'aiModelOk', body, 26000);
   thinking = false; setStatus();
   if (!res || res.code !== 200) {
     let msg = ''; try { msg = JSON.parse(res.text).error.message; } catch {}
@@ -1012,9 +1004,9 @@ $('aiTest').onclick = async () => {
   if (!key && !cfg.aiKeySet) { msg.className = 'msg bad'; msg.textContent = 'ใส่คีย์ก่อน'; return; }
   msg.className = 'msg'; msg.textContent = 'กำลังถาม AI…';
   const body = JSON.stringify(AI.buildRequest({ text: 'ทดสอบระบบ ตอบสั้นๆ ว่าพร้อมช่วยงานครัวแล้ว', orders: [], name: $('sName').value || cfg.name, particle: draft.particle }));
-  const models = $('sAiModel').value.trim() ? [$('sAiModel').value.trim()] : AI.MODELS;
-  let r, used = '';
-  for (const m of models) { r = await call(id => K.ai(id, m, body, key), 26000); used = m; if (r.code !== 404) break; }
+  const pick = $('sAiModel').value.trim();
+  const r = await genWith(pick ? [pick, ...AI.MODELS.filter(m => m !== pick)] : AI.MODELS, 'aiModelOk', body, 26000, key.replace(/[\s\u200b-\u200f\u2060\ufeff"'`]/g, ''));
+  const used = r.model || '';
   if (r.code === 200) {
     const p = AI.parseResponse(r.text);
     msg.className = 'msg good'; msg.textContent = `✓ ใช้ได้ (${used}) · “${p.say || '…'}”`;
