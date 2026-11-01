@@ -68,7 +68,14 @@ fake.listen(GPORT, async () => {
     const staff = (await api('/api/login', { pin: '1234', want: 'staff' })).token;
     // ยังไม่มีคีย์
     ok(/API key/.test(await err(api('/api/ai/ask', { q: 'ยอดวันนี้' }))), 'ไม่มีคีย์ → บอกให้ใส่');
-    ok(/รูปแบบ/.test(await err(api('/api/ai/settings', { key: 'abc' }))), 'คีย์สั้น/ผิดรูปแบบ → ไม่รับ');
+    ok(/แปลก/.test(await err(api('/api/ai/settings', { key: 'abc' }))) && /แปลก/.test(await err(api('/api/ai/settings', { key: 'คีย์ภาษาไทยยาวๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆ' }))), 'คีย์สั้น/ตัวอักษรไทย → ไม่รับ');
+    // คีย์ที่คัดลอกมาแบบต่างๆ ต้องรับได้
+    for (const [raw, want] of [[' AIzaSyB1234567890abcdefghijklmnopqrstu \n', 'AIzaSyB1234567890abcdefghijklmnopqrstu'], ['"AIzaSyB1234567890abcdefghijklmnopqrst\u200bu"', 'AIzaSyB1234567890abcdefghijklmnopqrstu'],
+      ['API key: AIzaSyB1234567890abcdefghijklmnopqrstu', 'AIzaSyB1234567890abcdefghijklmnopqrstu'], ['AQ.Ab8RN6Kq_new-format.key1234567890', 'AQ.Ab8RN6Kq_new-format.key1234567890']]) {
+      const r = await err(api('/api/ai/settings', { key: raw }));
+      const st2 = await api('/api/ai');
+      ok(!r && st2.keyHint === want.slice(-4), `รับคีย์ ${JSON.stringify(raw).slice(0, 30)}… → …${st2.keyHint}${r ? ' ' + r : ''}`);
+    }
     const KEY = 'AIzaSyFAKE_key-1234567890abcdef';
     let st = await api('/api/ai/settings', { key: KEY, line: true });
     ok(st.hasKey && st.keyHint === 'cdef' && st.line && !JSON.stringify(st).includes(KEY), 'ตั้งคีย์ (ตอบกลับไม่มีคีย์เต็ม)');

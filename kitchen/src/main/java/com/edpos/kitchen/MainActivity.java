@@ -593,7 +593,7 @@ public class MainActivity extends Activity {
             try {
                 JSONObject o = new JSONObject(json);
                 SharedPreferences.Editor e = prefs.edit();
-                String key = o.optString("aiKey", "").trim();
+                String key = o.optString("aiKey", "").replaceAll("[\\s\\u200b-\\u200f\\u2060\\ufeff\"'`]", "");   // คัดลอกมาติดช่องว่าง/อักษรล่องหน/เครื่องหมายคำพูด
                 if (key.equals("-")) e.remove("aiKey"); else if (!key.isEmpty()) e.putString("aiKey", key);
                 for (String drop : new String[]{"aiKey", "aiKeySet", "aiKeyHint", "version"}) o.remove(drop);
                 e.putString("main", normalize(o.optString("main")))

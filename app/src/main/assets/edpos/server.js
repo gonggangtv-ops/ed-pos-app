@@ -2535,8 +2535,15 @@ const routes = {
   // {key ('-' = ลบ, ว่าง = คงเดิม), model, line}
   'POST /api/ai/settings': b => {
     const c = { ...(data.settings.ai || {}) };
-    const key = String(b.key ?? '').trim();
-    if (key === '-') delete c.key; else if (key) { if (!/^[\w-]{20,200}$/.test(key)) throw new Error('API key ไม่ถูกรูปแบบ (คัดลอกจาก aistudio.google.com)'); c.key = key; }
+    // คัดลอกมามักติดช่องว่าง/ขึ้นบรรทัด/อักษรล่องหน/เครื่องหมายคำพูด หรือข้อความรอบๆ → ล้างออก
+    // คีย์ Google มีหลายแบบ (AIza… และแบบใหม่ที่มีจุด) → รับตัวอักษร ASCII ที่ใช้ในคีย์ได้ แล้วให้ปุ่ม "ทดสอบ" ตรวจจริงกับ Google
+    let key = String(b.key ?? '').normalize('NFKC').replace(/[\s\u200b-\u200f\u2060\ufeff"'`“”‘’<>]/g, '');
+    const m = /AIza[\w-]{30,}/.exec(key); if (m) key = m[0];
+    if (key === '-') delete c.key;
+    else if (key) {
+      if (!/^[\x21-\x7e]{20,300}$/.test(key)) throw new Error('API key มีตัวอักษรแปลก (อาจคัดลอกมาไม่ครบ) · คัดลอกใหม่จาก aistudio.google.com แล้วกดทดสอบ');
+      c.key = key;
+    }
     if (b.model !== undefined) c.model = String(b.model || '').trim().replace(/[^\w.-]/g, '').slice(0, 60);
     if (b.line !== undefined) c.line = !!b.line;
     data.settings.ai = c;
