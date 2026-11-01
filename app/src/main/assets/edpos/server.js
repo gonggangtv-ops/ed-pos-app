@@ -832,6 +832,8 @@ function mergeFrom(b) {
   const money = n => '฿' + (Math.round((+n || 0) * 100) / 100).toLocaleString('en-US');
   const copyItems = (list, order, idMap) => list.forEach(i => {
     const n = { ...i, id: newId('i'), orderId: order.id, merged: true };
+    // สต๊อก: เครื่องเดิมตัดในข้อมูลของมันเอง (ซึ่งไม่ได้ใช้แล้ว) → ตัดที่เครื่องนี้แทน · จานที่ยกเลิกแล้วไม่ตัด
+    if (n.stk) n.stk = n.status !== 'cancelled' && stockSale(n, -1, 'รวมออเดอร์');
     idMap[i.id] = n.id; data.items.push(n); out.items++;
   });
   const mapPays = (pays, idMap) => (pays || []).map(p => renum({ ...p, lines: p.lines?.map(l => ({ ...l, id: idMap[l.id] || l.id })) }));
@@ -878,6 +880,7 @@ function mergeFrom(b) {
     if (busyHere) { copyItems(fresh, mine, idMap); tables.add(oa.table); out.review.push(`โต๊ะ ${oa.table}: เครื่องเดิม${what} แต่ที่นี่มีการสั่ง/รับเงินเพิ่ม · บิลยังเปิดอยู่ ตรวจแล้วปิดเอง`); continue; }
     copyItems(fresh, mine, idMap);
     // จานเดิมของบิล: ใช้สถานะจากเครื่องเดิม (เช่น ยกเลิกก่อนจ่าย)
+    for (const i of its) { const m = myItems.get(key(i)); if (m && m.orderId === mine.id && i.status === 'cancelled' && m.status !== 'cancelled') stockCancel(m, m.status === 'done' || !!i.doneAt, 'รวมออเดอร์'); }
     for (const i of its) { const m = myItems.get(key(i)); if (m && m.orderId === mine.id) Object.assign(m, { status: i.status, qty: i.qty, price: i.price, doneAt: i.doneAt, cancelledAt: i.cancelledAt, cancelledBy: i.cancelledBy }); }
     const { id, createdAt, payments, ...close } = oa;
     Object.assign(mine, close, { payments: payments ? mapPays(payments, idMap) : undefined, merged: true });
@@ -2964,6 +2967,8 @@ const routes = {
   'POST /api/item/status': b => {
     for (const id of [].concat(b.ids || b.id)) {
       const it = data.items.find(x => x.id === id);
+      // ใช้ได้แค่ new/done (ยกเลิกต้องผ่าน /api/item/cancel ที่ตรวจการจ่ายเงินและคืนสต๊อก)
+      if (!['new', 'done'].includes(b.status)) throw new Error('สถานะไม่ถูกต้อง');
       if (it && it.status !== 'cancelled') { it.status = b.status; it.doneAt = b.status === 'done' ? Date.now() : null; }
     }
   },
@@ -2972,6 +2977,8 @@ const routes = {
     const it = data.items.find(x => x.id === b.id);
     if (!it || it.status === 'cancelled') return;
     const ord = data.orders.find(o => o.id === it.orderId);
+    // บิลปิดแล้ว (จ่ายครบ/ยกเลิกทั้งโต๊ะ) → ห้ามแก้ ยอดที่รับเงินไปแล้วจะไม่ตรงกับรายการ และสต๊อกจะถูกคืนผิด
+    if (ord && ord.status !== 'open') throw new Error(`บิลนี้ปิดไปแล้ว ยกเลิก ${it.name} ไม่ได้`);
     if (ord && paidQtyOf(ord)[it.id]) throw new Error(`${it.name} จ่ายเงินไปแล้ว ยกเลิกไม่ได้`);
     if (ord?.payments?.some(p => p.kind === 'share')) throw new Error('บิลนี้เริ่มแยกจ่ายแล้ว ยกเลิกรายการไม่ได้');
     const wasCooking = onScreen(it) && it.status === 'new';
