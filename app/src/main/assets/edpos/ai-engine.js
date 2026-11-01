@@ -228,17 +228,23 @@ module.exports = function createAI(d) {
     const days = (base.days || []).filter(x => !x.none);
     if (!days.length) throw new Error('ยังพยากรณ์พื้นฐานไม่ได้ (ข้อมูลยอดขายยังน้อย)');
     const wx = d.weatherInfo();
+    const hist = sales(d.addDays(today, -56), d.addDays(today, -1));
+    const k = hist.customer_kind || {}, tot = hist.sales || 0;
     const input = {
+      customers: tot ? { thai_price_share_pct: Math.round(((k.thai && k.thai.amount) || 0) / tot * 100), note: 'ส่วนที่เหลือส่วนใหญ่เป็นลูกค้าต่างชาติ (ราคาปกติ)' } : undefined,
       base_forecast: days.map(x => ({ date: x.date, weekday: WD[new Date(x.date + 'T00:00:00').getDay()], closed: x.closed || undefined, sales: x.sales, low: x.low, high: x.high, dishes: x.dishes, tag: x.tag, pct_vs_normal: x.pct, weather: x.wx })),
       normal_day: base.normal, trend_pct: base.trend, accuracy_last_14d: base.accuracy, weather_next: wx.next, rain_effect: wx.rain,
-      last_8_weeks: sales(d.addDays(today, -56), d.addDays(today, -1)).daily,
+      last_8_weeks: hist.daily,
     };
     const sys = [
       'คุณคือนักพยากรณ์ยอดขายร้านอาหาร ปรับพยากรณ์พื้นฐาน (จากสถิติร้านเอง) ด้วยสิ่งที่สถิติไม่รู้',
       context(),
       'ค้นเว็บหา: วันหยุดราชการ/วันหยุดยาวของไทย เทศกาล (เช่น ลอยกระทง สงกรานต์ ตรุษจีน คริสต์มาส ปีใหม่) วันหยุดของประเทศที่นักท่องเที่ยวมาเยอะ (จีน เกาหลี ยุโรป อเมริกา) ฤดูท่องเที่ยว อีเวนต์/คอนเสิร์ตใหญ่ในกรุงเทพ ช่วงวันที่ใน base_forecast',
+      'ค้นข้อมูลนักท่องเที่ยวและเที่ยวบินด้วย: ยอดนักท่องเที่ยวต่างชาติเข้าไทยล่าสุดรายสัปดาห์และแนวโน้ม (กระทรวงการท่องเที่ยวฯ) แยกประเทศหลัก · ทอท./AOT คาดการณ์ผู้โดยสารหรือเที่ยวบินที่สุวรรณภูมิ/ดอนเมืองช่วงนี้ · สายการบินเพิ่ม/ลดเที่ยวบินหรือเส้นทางใหม่ · เหตุที่ทำให้นักท่องเที่ยวลด (ยกเลิกเที่ยวบิน พายุ นโยบายวีซ่า)',
       'ปรับเฉพาะวันที่มีเหตุผลชัด · ส่วนใหญ่ควรปรับ 0% · ช่วงที่ยอมรับ -50% ถึง +80% · คิดถึงลูกค้าต่างชาติเป็นหลัก (วันหยุดไทยบางวันร้านในย่านท่องเที่ยวอาจไม่ได้ขายดีขึ้น)',
-      'ตอบ JSON เท่านั้น: {"days": [{"date": "YYYY-MM-DD", "pct": ตัวเลขเปอร์เซ็นต์ที่ปรับจากพยากรณ์พื้นฐาน, "reason": "เหตุผลสั้นๆ ภาษาไทย", "events": ["ชื่อเหตุการณ์"]}], "overview": "สรุป 7 วันนี้ 1-2 ประโยค"}',
+      'ตอบ JSON เท่านั้น: {"days": [{"date": "YYYY-MM-DD", "pct": ตัวเลขเปอร์เซ็นต์ที่ปรับจากพยากรณ์พื้นฐาน, "reason": "เหตุผลสั้นๆ ภาษาไทย", "events": ["ชื่อเหตุการณ์"]}], "overview": "สรุป 7 วันนี้ 1-2 ประโยค",',
+      ' "tourism": {"summary": "สถานการณ์นักท่องเที่ยว/เที่ยวบินตอนนี้ 1-2 ประโยค พร้อมตัวเลขที่ค้นเจอ", "trend": "up|down|flat", "points": ["ข้อมูลสำคัญสั้นๆ เช่น จีน +12% สัปดาห์ก่อน"]}}',
+      'tourism ใส่เฉพาะสิ่งที่ค้นเจอจริง ถ้าค้นไม่เจอให้ summary เป็นข้อความว่าง',
     ].join('\n');
     const req = tools => ({ systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: 'user', parts: [{ text: JSON.stringify(cap(input, 24000)) }] }],
       ...(tools ? { tools: [{ google_search: {} }] } : {}), generationConfig: { temperature: 0.2, maxOutputTokens: 3000 } });
@@ -250,6 +256,8 @@ module.exports = function createAI(d) {
     const by = new Map(j.days.map(x => [x.date, x]));
     const out = { asOf: today, at: Date.now(), model: mem.model, searched: searched && !!(r.grounding && (r.grounding.webSearchQueries || r.grounding.groundingChunks)),
       overview: String(j.overview || '').slice(0, 400),
+      tourism: j.tourism && j.tourism.summary ? { summary: String(j.tourism.summary).slice(0, 400), trend: ['up', 'down', 'flat'].includes(j.tourism.trend) ? j.tourism.trend : 'flat',
+        points: (Array.isArray(j.tourism.points) ? j.tourism.points : []).slice(0, 5).map(x => String(x).slice(0, 120)) } : null,
       sources: ((r.grounding && r.grounding.groundingChunks) || []).map(x => x.web).filter(Boolean).slice(0, 6).map(w => ({ title: String(w.title || '').slice(0, 80), uri: String(w.uri || '') })),
       days: days.map(x => {
         const a = by.get(x.date) || {}, pct = Math.max(-50, Math.min(80, Math.round(+a.pct || 0)));

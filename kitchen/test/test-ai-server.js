@@ -30,7 +30,8 @@ const fake = http.createServer((req, res) => {
       const input = JSON.parse(body.contents[0].parts[0].text);
       mode.fcInput = input;
       const d0 = input.base_forecast[0].date;
-      return send(200, JSON.stringify({ candidates: [{ content: { role: 'model', parts: [{ text: '```json\n' + JSON.stringify({ overview: 'สัปดาห์นี้มีวันหยุดยาว', days: [{ date: d0, pct: 200, reason: 'วันหยุดยาว นักท่องเที่ยวเยอะ', events: ['วันหยุดยาว'] }] }) + '\n```' }] },
+      return send(200, JSON.stringify({ candidates: [{ content: { role: 'model', parts: [{ text: '```json\n' + JSON.stringify({ overview: 'สัปดาห์นี้มีวันหยุดยาว', days: [{ date: d0, pct: 200, reason: 'วันหยุดยาว นักท่องเที่ยวเยอะ', events: ['วันหยุดยาว'] }],
+        tourism: { summary: 'นักท่องเที่ยวต่างชาติสัปดาห์ก่อน 680,000 คน +8%', trend: 'up', points: ['จีน +12%', 'AOT คาดผู้โดยสารสุวรรณภูมิวันละ 190,000 คน'] } }) + '\n```' }] },
         groundingMetadata: { webSearchQueries: ['bangkok events'], groundingChunks: [{ web: { title: 'TAT', uri: 'https://www.tourismthailand.org' } }] } }] }));
     }
     if (body.generationConfig && body.generationConfig.responseMimeType === 'application/json') {
@@ -128,6 +129,7 @@ fake.listen(GPORT, async () => {
     const f1 = await api('/api/ai/forecast', {});
     const d0 = f1.days[0];
     ok(f1.days.length >= 6 && d0.pct === 80 && d0.sales === Math.round(d0.base * 1.8) && /วันหยุดยาว/.test(d0.reason) && f1.days[1].pct === 0, 'AI ปรับพยากรณ์ (จำกัด +80%): ' + JSON.stringify(d0));
+    ok(f1.tourism && f1.tourism.trend === 'up' && f1.tourism.points.length === 2 && /เที่ยวบิน/.test(seen[seen.length - 1].body.systemInstruction.parts[0].text) && mode.fcInput.customers, 'นักท่องเที่ยว/เที่ยวบิน: ' + (f1.tourism && f1.tourism.summary));
     ok(f1.searched && f1.sources[0].uri.includes('tourismthailand') && mode.fcInput.last_8_weeks.length >= 20 && seen[0].body.tools[0].google_search, 'ค้นเว็บ + ส่งยอด 8 สัปดาห์ให้ AI');
     const n1 = seen.length;
     const f2 = await api('/api/ai/forecast', {});

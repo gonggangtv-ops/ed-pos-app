@@ -148,6 +148,8 @@
   .askbar { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0 14px; display: flex; gap: 8px; align-items: flex-end; }
   .askbar textarea { flex: 1; min-height: 46px; max-height: 160px; resize: none; border: 1px solid var(--line); border-radius: 14px; padding: 11px 14px; font: inherit; font-size: 16px; background: var(--surface); }
   .askbar button { height: 46px; border-radius: 14px; padding: 0 18px; }
+  .aitour { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin: 12px 0 0; font-size: 14.5px; }
+  .aitour p { margin: 4px 0; line-height: 1.6; } .aitour ul { margin: 4px 0 0; padding-left: 20px; color: var(--muted); font-size: 13.5px; }
   .linkbtn { all: unset; cursor: pointer; color: var(--jade); font-weight: 600; font-size: 13.5px; }
   .linkbtn:hover { text-decoration: underline; }
   .aitable td.why { color: var(--muted); font-size: 13.5px; text-align: left; min-width: 180px; }
@@ -1704,11 +1706,11 @@ let aiFc = null, aiFcBusy = false;
 async function loadAiFc(force) {
   const box = $('#aiFc');
   if (!S.settings) return;
-  if (!aiOn()) { box.innerHTML = aiNoKey('ให้ AI ปรับพยากรณ์ตามวันหยุด เทศกาล อีเวนต์ และฤดูท่องเที่ยว'); return; }
+  if (!aiOn()) { box.innerHTML = aiNoKey('ให้ AI ปรับพยากรณ์ตามวันหยุด เทศกาล อีเวนต์ นักท่องเที่ยว และเที่ยวบิน'); return; }
   if (aiFcBusy || (aiFc && !force)) return renderAiFc();
   if (!fc || !fc.normal || fc.days.every(d => d.none)) { box.innerHTML = ''; return; }
   aiFcBusy = true;
-  box.innerHTML = `<div class="aicard"><div class="aih"><span class="aib">✨ AI กำลังดูวันหยุดและเทศกาล</span></div>${aiWait('ค้นวันหยุด เทศกาล อีเวนต์ในกรุงเทพ 7 วันข้างหน้า…')}<div class="aiskel" style="width:80%"></div><div class="aiskel" style="width:60%"></div></div>`;
+  box.innerHTML = `<div class="aicard"><div class="aih"><span class="aib">✨ AI กำลังดูวันหยุดและเทศกาล</span></div>${aiWait('ค้นวันหยุด เทศกาล อีเวนต์ นักท่องเที่ยว และเที่ยวบิน 7 วันข้างหน้า…')}<div class="aiskel" style="width:80%"></div><div class="aiskel" style="width:60%"></div></div>`;
   try { aiFc = await api('/api/ai/forecast', { force: !!force }); } catch (e) { aiFc = { err: e.message }; }
   aiFcBusy = false; renderAiFc();
 }
@@ -1722,6 +1724,8 @@ function renderAiFc() {
     <div class="tscroll"><table class="t aitable"><thead><tr><th>วัน</th><th class="num">พยากรณ์ปกติ</th><th class="num">AI ปรับ</th><th class="num">AI คาด</th><th>เหตุผล</th></tr></thead><tbody>${a.days.map(d => `<tr>
       <td>${shortDay(d.date)}</td><td class="num">${d.closed ? 'ปิด' : baht(d.base)}</td><td class="num"><span class="aip ${d.pct > 0 ? 'up' : d.pct < 0 ? 'down' : ''}">${d.pct ? sgn(d.pct) + '%' : '–'}</span></td>
       <td class="num"><b>${d.closed ? '–' : baht(d.sales)}</b></td><td class="why">${esc(d.reason || '')}${d.events.length ? `<br>${d.events.map(x => '🎉 ' + esc(x)).join(' ')}` : ''}</td></tr>`).join('')}</tbody></table></div>
+    ${a.tourism ? `<div class="aitour"><b>✈️ นักท่องเที่ยว/เที่ยวบิน ${a.tourism.trend === 'up' ? '<span class="delta2 up">▲ เพิ่มขึ้น</span>' : a.tourism.trend === 'down' ? '<span class="delta2 down">▼ ลดลง</span>' : ''}</b>
+      <p>${esc(a.tourism.summary)}</p>${a.tourism.points.length ? `<ul>${a.tourism.points.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>` : ''}
     ${a.sources?.length ? `<p class="note">แหล่งข้อมูล: ${a.sources.map(x => `<a href="${esc(x.uri)}" target="_blank" rel="noopener">${esc(x.title || 'ลิงก์')}</a>`).join(' · ')}</p>` : ''}
     <div class="aifoot"><span>คิดวันละครั้ง · ${hm2(a.at)}${a.model ? ' · ' + esc(a.model) : ''} · พยากรณ์ปกติด้านล่างยังไม่รวมที่ AI ปรับ</span><button class="linkbtn" data-aifc="1">คิดใหม่</button></div></div>`;
 }
