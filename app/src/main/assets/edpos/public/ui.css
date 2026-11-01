@@ -450,7 +450,11 @@ details.va li { display: flex; justify-content: space-between; align-items: cent
 details.va li .btn { padding: 4px 12px; min-height: 0; }
 /* หลังร้าน > วัตถุดิบ */
 .ingcard { padding: 16px 18px; }
-.ingtop { display: grid; grid-template-columns: minmax(0, 1fr) 110px auto; gap: 8px; margin-bottom: 10px; }
+.ingtop { display: grid; grid-template-columns: minmax(0, 1fr) 110px 150px auto; gap: 8px; margin-bottom: 10px; }
+.ingcost { position: relative; display: block; }
+.ingcost input { width: 100%; padding-right: 58px !important; font-weight: 500 !important; }
+.ingcost span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--faint); font-size: 13px; pointer-events: none; }
+@media (max-width: 620px) { .ingtop { grid-template-columns: minmax(0, 1fr) 96px; } .ingtop .ingcost { grid-column: 1; } }
 .ingtop input { font-weight: 600; }
 .inghead { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin: 4px 50px 6px 0; }
 .ingrow { display: grid; grid-template-columns: 100px minmax(0, 1fr) 110px 40px; gap: 8px; margin-bottom: 8px; }

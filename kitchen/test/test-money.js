@@ -1,4 +1,4 @@
-// ทดสอบเงิน/บิล/สต๊อกแบบครบวง กับเซิร์ฟเวอร์จริง: node kitchen/test/test-money.js
+// ทดสอบเงิน/บิลแบบครบวง กับเซิร์ฟเวอร์จริง: node kitchen/test/test-money.js
 const fs = require('fs'), os = require('os'), path = require('path'), { spawn } = require('child_process');
 const SRC = path.join(__dirname, '../../app/src/main/assets/edpos');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'edpos-'));
@@ -25,9 +25,6 @@ const err = p => p.then(() => null, e => e.message);
   const st = await api('/api/state');
   const fr = st.menu.find(m => m.name === 'ข้าวผัด');
   const ch = (meat, size) => [{ g: 'เนื้อสัตว์', c: meat }, { g: 'ขนาด', c: size }];
-  const ing = (await api('/api/ingredients', { list: [{ name: 'กุ้ง', unit: 'ตัว', uses: [{ t: 'c', r: 'กุ้ง+M', q: 7 }] }] })).list[0];
-  await api('/api/stock/setup', { id: ing.id, stock: 100 });
-  const stock = async () => (await api('/api/stock')).list[0].stock;
   const order = (table, items) => api('/api/order', { table, items });
   const bill = async id => { const s = await api('/api/state'); return { o: s.orders.find(o => o.id === id), its: s.items.filter(i => i.orderId === id) }; };
 
@@ -35,7 +32,6 @@ const err = p => p.then(() => null, e => e.message);
   let o = await order('1', [{ menuId: fr.id, qty: 1, choices: ch('กุ้ง', 'M') }, { menuId: fr.id, qty: 1, choices: ch('ไก่', 'S') }]);
   await api('/api/order/pay', { orderId: o.orderId, method: 'cash' });
   ok(!!(await err(api('/api/item/cancel', { id: o.added[0] }))), 'ยกเลิกจานในบิลที่ปิดแล้ว → ไม่ได้');
-  ok(await stock() === 93, 'สต๊อกหลังขาย กุ้ง M = 93: ' + await stock());
 
   // 2) หารเท่า 3 คน: รวมแล้วเท่ายอด · ปิดบิลคนสุดท้าย
   o = await order('2', [{ menuId: fr.id, qty: 2, choices: ch('กุ้ง', 'M') }]);   // 2 × 200 = 400
@@ -67,30 +63,27 @@ const err = p => p.then(() => null, e => e.message);
   ok(!!(await err(api('/api/item/status', { id: neg.added[0], status: 'cancelled' }))), 'เปลี่ยนสถานะเป็นยกเลิกทางลัด → ไม่ได้');
   ok(!!(await err(api('/api/order', { table: '4', items: [{ custom: { name: 'x', price: -50 }, qty: 1 }] }))), 'เมนูพิเศษราคาติดลบ → ไม่ได้');
 
-  // 5) ย้ายโต๊ะไปโต๊ะที่มีบิลเปิด → รวมบิล สต๊อกไม่เปลี่ยน
-  const s0 = await stock();
+  // 5) ย้ายโต๊ะไปโต๊ะที่มีบิลเปิด → รวมบิล
   const a = await order('5', [{ menuId: fr.id, qty: 1, choices: ch('กุ้ง', 'M') }]);
   const c = await order('6', [{ menuId: fr.id, qty: 1, choices: ch('ไก่', 'M') }]);
   await api('/api/order/move', { orderId: a.orderId, table: '6' }).catch(e => console.log('move', e.message));
   const s1 = await api('/api/state');
   const open6 = s1.orders.filter(x => x.table === '6' && x.status === 'open');
   ok(open6.length === 1 && s1.items.filter(i => i.orderId === open6[0].id && i.status !== 'cancelled').length === 2, 'ย้ายโต๊ะ 5 → 6 รวมเป็นบิลเดียว');
-  ok(await stock() === s0 - 7, 'ย้ายโต๊ะไม่ตัดสต๊อกซ้ำ');
-  // 6) ยกเลิกทั้งโต๊ะ (ยังไม่ทำ) → คืนสต๊อก
+  // 6) ยกเลิกทั้งโต๊ะ (ยังไม่ทำ)
   await api('/api/order/void', { orderId: open6[0].id });
-  ok(await stock() === s0, 'ยกเลิกทั้งโต๊ะ คืนกุ้ง: ' + await stock());
+  ok((await api('/api/state')).orders.find(x => x.id === open6[0].id).status === 'void', 'ยกเลิกทั้งโต๊ะ');
 
-  // 6.5) เครื่องหลักพัง → รวมออเดอร์จากเครื่องเดิม: จานที่ตัดสต๊อกที่โน่น ต้องตัดที่นี่ด้วย
+  // 6.5) เครื่องหลักพัง → รวมออเดอร์จากเครื่องเดิม
   const key = (await api('/api/sync/key', { pin: '1234' })).key;
-  const now = Date.now(), s2 = await stock();
+  const now = Date.now();
   const mg = await fetch(B + '/api/merge', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-sync-key': key }, body: JSON.stringify({ mergeId: 'mg1', from: 'old',
     orders: [{ id: 'oX', table: '20', status: 'open', createdAt: now }],
     items: [{ id: 'iX', orderId: 'oX', menuId: fr.id, name: 'ข้าวผัด', option: 'กุ้ง M', qty: 2, price: 200, status: 'new', createdAt: now, stk: true },
       { id: 'iY', orderId: 'oX', menuId: fr.id, name: 'ข้าวผัด', option: 'กุ้ง M', qty: 1, price: 200, status: 'cancelled', createdAt: now, stk: false }] }) }).then(r => r.json());
-  ok(mg.items === 2 && await stock() === s2 - 14, 'รวมออเดอร์จากเครื่องเดิม ตัดกุ้ง 14: ' + (s2 - await stock()));
+  ok(mg.items === 2, 'รวมออเดอร์จากเครื่องเดิม 2 จาน');
   const mOrder = (await api('/api/state')).orders.find(x => x.table === '20' && x.status === 'open');
   await api('/api/order/void', { orderId: mOrder.id });
-  ok(await stock() === s2, 'ยกเลิกบิลที่รวมมา คืนสต๊อกถูก: ' + await stock());
 
   // 7) รายงาน = ผลรวมบิลจริง
   const rep = await api('/api/report');

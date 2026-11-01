@@ -152,6 +152,11 @@ function loadData(raw) {
 // แปลงข้อมูลจากเวอร์ชันเครื่องพิมพ์เดียว
 function migrateData() {
   const s = data.settings;
+  // เลิกระบบสต๊อก (1 พ.ย. 2569): ลบคงเหลือ/ประวัติ · ราคาต่อหน่วย (cost) เก็บไว้ใช้คิดต้นทุน · เปิดเมนูที่ระบบสต๊อกปิดไว้คืน
+  if (data.stockLog) delete data.stockLog;
+  if (s.stock) delete s.stock;
+  for (const g of data.ingredients || []) for (const f of ['stock', 'min', 'costPrev', 'perKg']) delete g[f];
+  for (const m of data.menu || []) if (m.stockOff) { m.available = true; delete m.stockOff; }
   // รุ่นแรกสุด: เครื่องพิมพ์เดียว
   if (s.printerIp) {
     s.printers = { front: { ip: s.printerIp, port: s.printerPort || 9100, dots: s.paperDots || 576 },
@@ -832,8 +837,6 @@ function mergeFrom(b) {
   const money = n => '฿' + (Math.round((+n || 0) * 100) / 100).toLocaleString('en-US');
   const copyItems = (list, order, idMap) => list.forEach(i => {
     const n = { ...i, id: newId('i'), orderId: order.id, merged: true };
-    // สต๊อก: เครื่องเดิมตัดในข้อมูลของมันเอง (ซึ่งไม่ได้ใช้แล้ว) → ตัดที่เครื่องนี้แทน · จานที่ยกเลิกแล้วไม่ตัด
-    if (n.stk) n.stk = n.status !== 'cancelled' && stockSale(n, -1, 'รวมออเดอร์');
     idMap[i.id] = n.id; data.items.push(n); out.items++;
   });
   const mapPays = (pays, idMap) => (pays || []).map(p => renum({ ...p, lines: p.lines?.map(l => ({ ...l, id: idMap[l.id] || l.id })) }));
@@ -880,7 +883,6 @@ function mergeFrom(b) {
     if (busyHere) { copyItems(fresh, mine, idMap); tables.add(oa.table); out.review.push(`โต๊ะ ${oa.table}: เครื่องเดิม${what} แต่ที่นี่มีการสั่ง/รับเงินเพิ่ม · บิลยังเปิดอยู่ ตรวจแล้วปิดเอง`); continue; }
     copyItems(fresh, mine, idMap);
     // จานเดิมของบิล: ใช้สถานะจากเครื่องเดิม (เช่น ยกเลิกก่อนจ่าย)
-    for (const i of its) { const m = myItems.get(key(i)); if (m && m.orderId === mine.id && i.status === 'cancelled' && m.status !== 'cancelled') stockCancel(m, m.status === 'done' || !!i.doneAt, 'รวมออเดอร์'); }
     for (const i of its) { const m = myItems.get(key(i)); if (m && m.orderId === mine.id) Object.assign(m, { status: i.status, qty: i.qty, price: i.price, doneAt: i.doneAt, cancelledAt: i.cancelledAt, cancelledBy: i.cancelledBy }); }
     const { id, createdAt, payments, ...close } = oa;
     Object.assign(mine, close, { payments: payments ? mapPays(payments, idMap) : undefined, merged: true });
@@ -1166,7 +1168,6 @@ function summarizeLive(date) {
 
 const itemLabelSrv = i => i.name + (i.option ? ' ' + i.option : '');
 function prune() {
-  if (data.stockLog?.length) { const cut = Date.now() - 45 * 86400000; if (data.stockLog[0].at < cut) data.stockLog = data.stockLog.filter(x => x.at >= cut); }
   const keepFrom = new Date(bizStart(addDays(dayKey(Date.now()), -KEEP_DAYS)));
   const old = data.orders.filter(o => (o.status === 'paid' && o.paidAt < keepFrom.getTime())
     || (o.status === 'void' && o.voidedAt < keepFrom.getTime()));
@@ -1747,11 +1748,8 @@ function usageOf(d) {
 function cleanIngredients(list) {
   if (!Array.isArray(list)) throw new Error('รูปแบบไม่ถูกต้อง');
   const ids = new Set(data.menu.map(m => m.id));
-  // สต๊อก (คงเหลือ/ต้นทุน) เก็บจากของเดิมในเครื่องเสมอ · หน้าหลังร้านส่งของเก่ามาทับไม่ได้ (สต๊อกเปลี่ยนตลอดเวลาที่ขาย)
-  const old = new Map((data.ingredients || []).map(g => [g.id, g]));
-  const keep = g => { const o = old.get(g.id); if (!o) return {}; const k = {}; for (const f of STOCK_FIELDS) if (o[f] !== undefined) k[f] = o[f]; return k; };
   return list.slice(0, 100).map((g, i) => ({
-    ...keep(g),
+    ...(+g.cost > 0 && +g.cost < 1e6 ? { cost: Math.round(+g.cost * 10000) / 10000 } : {}),   // ราคาต่อหน่วย (บาท) ใส่เองที่หลังร้าน
     id: /^ing\w{1,20}$/.test(g.id) ? g.id : 'ing' + Date.now().toString(36) + i,
     name: String(g.name || '').trim().slice(0, 40), unit: String(g.unit || 'กรัม').trim().slice(0, 10) || 'กรัม',
     uses: (Array.isArray(g.uses) ? g.uses : []).slice(0, 200).map(u => {
@@ -1782,123 +1780,11 @@ function usageReport(from, to) {
   const n = dates.length, r2_ = v => Math.round(v * 100) / 100;
   return { from, to, days: n, dates, list: (data.ingredients || []).map(g => ({ id: g.id, name: g.name, unit: g.unit, total: r2_(tot[g.id] || 0),
     perDay: n ? r2_((tot[g.id] || 0) / n) : 0, by: Object.entries(by[g.id] || {}).map(([k, v]) => [k, r2_(v)]).sort((a, b) => b[1] - a[1]).slice(0, 20),
-    daily: dates.map((_, i) => r2_((daily[g.id] || [])[i] || 0)), cost: g.cost || null, perKg: g.perKg || null,
-    stock: tracked(g) ? g.stock : null, min: g.min || 0 })) };
+    daily: dates.map((_, i) => r2_((daily[g.id] || [])[i] || 0)), cost: g.cost || null })) };
 }
-// ================= สต๊อกวัตถุดิบ =================
-// data.ingredients[i] += stock (คงเหลือ หน่วยเดียวกับ unit · ไม่มีค่า = ยังไม่นับสต๊อกตัวนี้), min (เตือนเมื่อเหลือไม่เกิน),
-//   cost / costPrev (บาทต่อหน่วย จากบิลซื้อของ ล่าสุด/ก่อนหน้า)
-// ขาย = ตัดตามสูตร (uses) ตอนสั่ง · ยกเลิกจานที่ยังไม่ได้ทำ = คืน · item.stk = จานนี้ตัดสต๊อกแล้ว
-// data.stockLog = [{at, id, d (+/-), kind: sale|cancel|in|count|waste|adjust, by, item?, note?, cost?}] เก็บ 45 วัน
-// data.settings.stock = {autoClose: หมดสต๊อกแล้วปิดเมนูที่ใช้เอง (เติมแล้วเปิดคืนเอง)}
-// perKg = นับเป็นตัว/ชิ้นแต่ซื้อเป็นกิโล: กี่ตัวต่อกิโล (ล่าสุดที่บอก เช่น กุ้งวันนี้โลละ 40 ตัว) ใช้แปลงตอนรับ/นับเป็นกิโล
-const STOCK_FIELDS = ['stock', 'min', 'cost', 'costPrev', 'perKg'];
-const setPerKg = (g, v) => { v = Math.round(+v || 0); if (v > 0 && v < 10000) g.perKg = v; };
-const tracked = g => typeof g.stock === 'number';
-const stockCfg = () => ({ autoClose: false, ...(data.settings.stock || {}) });
-function itemUse(it) {
-  const out = {}, opts = String(it.option || '').split(' ');
-  for (const g of data.ingredients || []) {
-    if (!tracked(g)) continue;
-    let a = 0;
-    a += menuQty(g, it.menuId, opts) * (it.qty || 1);
-    a += optQty(g, opts) * (it.qty || 1);
-    if (a) out[g.id] = a;
-  }
-  return out;
-}
-function stockLog(id, d, kind, by, extra) {
-  (data.stockLog ||= []).push({ at: Date.now(), id, d: Math.round(d * 100) / 100, kind, by: by || '', ...(extra || {}) });
-  if (data.stockLog.length > 4000) data.stockLog = data.stockLog.slice(-4000);
-}
-const stockTxt = g => amtTxt(Math.max(0, g.stock), g.unit);
-/** สต๊อกเปลี่ยน → แจ้งใกล้หมด/หมด · ปิด/เปิดเมนูเองถ้าตั้งไว้ */
-function stockCross(g, before) {
-  if (before > 0 && g.stock <= 0) {
-    addEvent('stock', `${g.name} หมดสต๊อก`);
-    lineAlert('stock', `📦 ${g.name} หมดสต๊อก`);
-    if (stockCfg().autoClose) {
-      const off = data.menu.filter(m => m.available !== false && (g.uses || []).some(u => u.t === 'm' && u.r === m.id));
-      for (const m of off) { m.available = false; m.stockOff = true; }
-      if (off.length) addEvent('stock', `ปิดเมนูอัตโนมัติ (${g.name} หมด): ${off.map(m => m.name).join(', ')}`);
-    }
-  } else if (g.min > 0 && before > g.min && g.stock <= g.min && g.stock > 0) {
-    addEvent('stock', `${g.name} ใกล้หมด เหลือ ${stockTxt(g)}`);
-  }
-  if (before <= 0 && g.stock > 0) {   // เติมแล้ว → เปิดเมนูที่ระบบปิดเองคืน (ถ้าวัตถุดิบที่นับสต๊อกของเมนูนั้นมีครบ)
-    for (const m of data.menu) {
-      if (!m.stockOff) continue;
-      const need = (data.ingredients || []).filter(x => tracked(x) && (x.uses || []).some(u => u.t === 'm' && u.r === m.id));
-      if (need.every(x => x.stock > 0)) { m.available = true; delete m.stockOff; }
-    }
-  }
-}
-/** sign -1 = ขาย · +1 = คืน (ยกเลิก) */
-function stockSale(it, sign, by) {
-  const use = itemUse(it);
-  let any = false;
-  for (const id in use) {
-    const g = data.ingredients.find(x => x.id === id), before = g.stock;
-    g.stock = Math.round((g.stock + sign * use[id]) * 100) / 100;
-    stockLog(id, sign * use[id], sign < 0 ? 'sale' : 'cancel', by, { item: it.name });
-    stockCross(g, before);
-    any = true;
-  }
-  return any;
-}
-/** จานที่ยกเลิก: คืนสต๊อกเฉพาะที่ยังไม่ได้ทำ (ทำไปแล้ว = ใช้ของไปแล้ว) */
-function stockCancel(it, wasDone, by) {
-  if (!it.stk) return;
-  if (!wasDone) stockSale(it, +1, by);
-  it.stk = false;
-}
-function stockMove(b, by) {
-  const g = (data.ingredients || []).find(x => x.id === b.id);
-  if (!g) throw new Error('ไม่พบวัตถุดิบ');
-  const kind0 = ['in', 'waste', 'adjust', 'count', 'start'].includes(b.kind) ? b.kind : 'adjust';
-  const kind = kind0 === 'start' ? 'count' : kind0;   // start = ตั้งยอดตอนเริ่มนับสต๊อก (ไม่นับเป็นของหาย)
-  const qty = Math.round((+b.qty || 0) * 100) / 100;
-  if (!(qty >= 0) || qty > 1e7) throw new Error('จำนวนไม่ถูกต้อง');
-  if (kind !== 'count' && kind !== 'adjust' && !qty) throw new Error('ใส่จำนวน');
-  if (b.perKg) setPerKg(g, b.perKg);
-  const before = tracked(g) ? g.stock : 0;
-  if (!tracked(g)) g.stock = 0;
-  // count = นับได้เท่านี้ (ตั้งค่าใหม่) · waste = เสีย/ทิ้ง · in = รับเข้า · adjust = ปรับ +/- (b.delta)
-  const d = kind === 'count' ? qty - g.stock : kind === 'waste' ? -qty : kind === 'adjust' ? Math.round((+b.delta || 0) * 100) / 100 : qty;
-  g.stock = Math.round((g.stock + d) * 100) / 100;
-  const out = { id: g.id, name: g.name, unit: g.unit, stock: g.stock, d };
-  const cost = Math.round((+b.cost || 0) * 100) / 100;
-  if (kind === 'in' && cost > 0) {
-    const unit = Math.round(cost / qty * 10000) / 10000;
-    if (g.cost) g.costPrev = g.cost;
-    g.cost = unit;
-    out.cost = unit; out.costPrev = g.costPrev || null;
-    out.costChange = g.costPrev ? Math.round((unit / g.costPrev - 1) * 100) : null;
-  }
-  stockLog(g.id, d, kind0, by, { note: String(b.note || '').slice(0, 80) || undefined, cost: kind === 'in' && cost ? cost : undefined,
-    kg: +b.kg > 0 ? Math.round(b.kg * 100) / 100 : undefined, perKg: +b.kg > 0 && g.perKg ? g.perKg : undefined });
-  stockCross(g, before);
-  if (kind === 'in') addEvent('stock', `รับ ${g.name} ${amtTxt(qty, g.unit)} · เหลือ ${stockTxt(g)}`);
-  return out;
-}
-/** สถานะสต๊อก + รายการซื้อของ + ต้นทุนต่อจาน */
-function stockReport() {
-  const today = dayKey(Date.now()), tom = addDays(today, 1);
-  const u7 = usageReport(addDays(today, -7), addDays(today, -1));
-  const per = new Map(u7.list.map(x => [x.id, x.perDay]));
-  let fc = null;
-  try { fc = forecastRange(tom, 1, today).days[0]; } catch {}
-  const fuse = new Map(((fc && !fc.none && !fc.closed && fc.use) || []).map(u => [u.id, u]));
-  const list = (data.ingredients || []).map(g => {
-    const t = tracked(g), pd = per.get(g.id) || 0, f = fuse.get(g.id);
-    const need = f ? f.hi : pd * 1.2;
-    const toBuy = t ? Math.max(0, need + (g.min || 0) - g.stock) : 0;
-    return { id: g.id, name: g.name, unit: g.unit, tracked: t, stock: t ? g.stock : null, min: g.min || 0, cost: g.cost || null, costPrev: g.costPrev || null, perKg: g.perKg || null,
-      perDay: Math.round(pd * 100) / 100, daysLeft: t && pd > 0 ? Math.round(g.stock / pd * 10) / 10 : null,
-      tomorrow: f ? Math.round(f.hi * 100) / 100 : null, toBuy: Math.round(toBuy * 100) / 100,
-      low: t && (g.stock <= 0 || (g.min > 0 && g.stock <= g.min)), out: t && g.stock <= 0, uses: (g.uses || []).length };
-  });
-  // ต้นทุนวัตถุดิบต่อจาน (เฉพาะเมนูที่ทุกวัตถุดิบในสูตรมีราคาแล้ว)
+// ================= ต้นทุนวัตถุดิบต่อจาน (ราคาต่อหน่วยที่ใส่เองที่หลังร้าน) =================
+// เฉพาะเมนูที่ทุกวัตถุดิบในสูตรมีราคาแล้ว · เมนูที่สูตรแยกขนาด (กุ้งชุบ S/M/L) แยกแถว
+function dishCosts() {
   const dishes = [];
   for (const m of data.menu) {
     // แยกตามตัวเลือกที่สูตรระบุ (กุ้งชุบ S / M / L) · ไม่ระบุ = จานเดียว
@@ -1912,13 +1798,7 @@ function stockReport() {
       dishes.push({ id: m.id, name: m.name + (v ? ' ' + w.join(' ') : ''), price, cost, margin: Math.round((price - cost) * 100) / 100, pct: price ? Math.round(cost / price * 100) : null });
     }
   }
-  const names = new Map((data.ingredients || []).map(g => [g.id, g.name]));
-  const log = (data.stockLog || []).filter(x => x.kind !== 'sale' && x.kind !== 'cancel').slice(-60).reverse().map(x => ({ ...x, name: names.get(x.id) || '?' }));
-  // นับสต๊อกล่าสุดของแต่ละตัว: ส่วนต่าง (ของหาย/เสีย) 7 วัน
-  const since = Date.now() - 7 * 86400000, gap = {};
-  for (const x of data.stockLog || []) if (x.at >= since && (x.kind === 'count' || x.kind === 'waste')) gap[x.id] = Math.round(((gap[x.id] || 0) + x.d) * 100) / 100;
-  return { list, dishes: dishes.sort((a, b) => b.pct - a.pct), log, gap7: Object.entries(gap).map(([id, d]) => ({ id, name: names.get(id), d })),
-    tomorrow: fc && !fc.none ? { date: tom, closed: !!fc.closed, sales: fc.sales || null } : null, settings: stockCfg(), hasLine: !!data.settings.line?.token };
+  return dishes.sort((a, b) => b.pct - a.pct);
 }
 
 // "2,400 กรัม" → "2.4 กก." · "1,500 มล." → "1.5 ลิตร"
@@ -2633,37 +2513,8 @@ const routes = {
   },
   // วัตถุดิบ
   'POST /api/ingredients': b => { data.ingredients = cleanIngredients(b.list); return { ok: true, list: data.ingredients }; },
-  // ---------- สต๊อก ----------
-  'GET /api/stock': () => stockReport(),
-  'POST /api/stock/move': (b, q, req) => stockMove(b, whoOf(req).name),
-  // บิลซื้อของ (หลายรายการ เช่น อ่านจากรูปบิล): lines = [{id, qty, cost (ราคารวมบรรทัดนั้น)}]
-  'POST /api/stock/receipt': (b, q, req) => {
-    const lines = (Array.isArray(b.lines) ? b.lines : []).slice(0, 60).filter(l => l && l.id && +l.qty > 0);
-    if (!lines.length) throw new Error('ไม่มีรายการ');
-    for (const l of lines) if (!(data.ingredients || []).some(g => g.id === l.id)) throw new Error('ไม่พบวัตถุดิบบางรายการ');
-    const by = whoOf(req).name, note = String(b.note || 'บิลซื้อของ').slice(0, 60);
-    return { lines: lines.map(l => stockMove({ id: l.id, kind: 'in', qty: l.qty, cost: l.cost, kg: l.kg, perKg: l.perKg, note }, by)) };
-  },
-  // เริ่ม/เลิกนับสต๊อก และจุดเตือน: {id, track, stock?, min?}
-  'POST /api/stock/setup': (b, q, req) => {
-    const g = (data.ingredients || []).find(x => x.id === b.id);
-    if (!g) throw new Error('ไม่พบวัตถุดิบ');
-    if (b.track === false) { for (const f of STOCK_FIELDS) if (f === 'stock') delete g[f]; return { ok: true }; }
-    if (b.min != null) g.min = Math.max(0, Math.round((+b.min || 0) * 100) / 100);
-    if (b.perKg != null) { setPerKg(g, b.perKg); if (b.stock == null && b.min == null) return { ok: true, perKg: g.perKg || null }; }
-    if (b.stock != null) stockMove({ id: g.id, kind: tracked(g) ? 'count' : 'start', qty: b.stock, note: tracked(g) ? '' : 'เริ่มนับสต๊อก' }, whoOf(req).name);
-    else if (!tracked(g)) g.stock = 0;
-    return { ok: true, stock: g.stock, min: g.min || 0 };
-  },
-  'POST /api/stock/settings': b => { data.settings.stock = { ...stockCfg(), autoClose: !!b.autoClose }; return stockCfg(); },
-  // ส่งรายการซื้อของเข้า LINE ร้าน (ช่องเดียวกับสรุปยอด)
-  'POST /api/stock/line': async b => {
-    const L = data.settings.line || {};
-    if (!L.token) throw new Error('ยังไม่ได้ตั้ง LINE ที่หลังร้าน');
-    const text = String(b.text || '').trim().slice(0, 4000);
-    if (!text) throw new Error('ไม่มีข้อความ');
-    await linePost(L.token, L.to, text);
-  },
+  // ต้นทุนวัตถุดิบต่อจาน
+  'GET /api/dishcost': () => ({ dishes: dishCosts() }),
   'GET /api/usage': (b, q) => {
     const ok = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
     const to = ok(q.get('to')) ? q.get('to') : dayKey(Date.now()), from = ok(q.get('from')) ? q.get('from') : to;
@@ -2958,7 +2809,6 @@ const routes = {
         status: screens.length ? 'new' : 'done', createdAt: Date.now(),
       };
       data.items.push(item);
-      if (stockSale(item, -1, by)) item.stk = true;   // ตัดสต๊อกวัตถุดิบตามสูตร
       added.push(item.id);
     }
     return { orderId: order.id, added };
@@ -2982,7 +2832,6 @@ const routes = {
     if (ord && paidQtyOf(ord)[it.id]) throw new Error(`${it.name} จ่ายเงินไปแล้ว ยกเลิกไม่ได้`);
     if (ord?.payments?.some(p => p.kind === 'share')) throw new Error('บิลนี้เริ่มแยกจ่ายแล้ว ยกเลิกรายการไม่ได้');
     const wasCooking = onScreen(it) && it.status === 'new';
-    stockCancel(it, onScreen(it) && it.status === 'done', whoOf(req).name);
     it.status = 'cancelled';
     it.cancelledAt = Date.now(); it.cancelledBy = whoOf(req).name;
     it.kdsCancel = wasCooking; // ให้จอครัวแสดงว่า "ยกเลิก"
@@ -3023,7 +2872,6 @@ const routes = {
     const reason = String(b.reason || '').trim().slice(0, 100);
     const cooking = live.filter(i => onScreen(i) && i.status === 'new');
     for (const i of live) {
-      stockCancel(i, onScreen(i) && i.status === 'done', me.name);
       i.kdsCancel = onScreen(i) && i.status === 'new';   // จอครัวเตือน "ยกเลิก" เฉพาะจานที่ยังไม่ได้ทำ
       i.status = 'cancelled'; i.cancelledAt = now;
     }

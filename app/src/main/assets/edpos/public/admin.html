@@ -411,7 +411,8 @@
     <!-- ===== วัตถุดิบ: ใช้เท่าไรต่อจาน → หน้ายอดขายคำนวณว่าใช้ไปเท่าไร / ควรเตรียมพรุ่งนี้เท่าไร ===== -->
     <section id="sec-ingredients" hidden>
       <h1>วัตถุดิบ</h1>
-      <p class="lede">ตั้งว่าวัตถุดิบแต่ละอย่างใช้ในเมนูไหน จานละเท่าไร แล้วหน้ายอดขายจะบอกว่าใช้ไปเท่าไร (แท็บเมนู) และพรุ่งนี้ควรเตรียมเท่าไร (แท็บพยากรณ์ + LINE)
+      <p class="lede">ตั้งว่าวัตถุดิบแต่ละอย่างใช้ในเมนูไหน จานละเท่าไร แล้วหน้ายอดขายจะบอกว่าใช้ไปเท่าไร (แท็บ 🥬 วัตถุดิบ) และพรุ่งนี้ควรเตรียมเท่าไร (แท็บพยากรณ์ + LINE)
+        · ใส่<b>ราคาต่อหน่วย</b>ด้วย (เช่น กุ้งตัวละ 12 บาท) จะเห็นต้นทุนรวมและต้นทุนต่อจาน · ราคาเปลี่ยนก็แก้ตรงนี้
         · ใช้กับ "ตัวเลือก" ได้ด้วย เช่น ตัวเลือก <b>กุ้ง</b> (ทุกเมนูที่เลือกกุ้ง) ใช้กุ้ง 80 กรัม</p>
       <div id="ingList"></div>
       <div class="actions"><button class="btn" id="ingAdd">+ เพิ่มวัตถุดิบ</button><button class="btn primary" id="ingSave">บันทึกวัตถุดิบ</button></div>
@@ -1993,6 +1994,7 @@ function renderIngredients() {
   $('#ingList').innerHTML = ing.map((g, i) => `<div class="panel ingcard">
     <div class="ingtop"><input data-ig="name" data-i="${i}" value="${esc(g.name)}" placeholder="ชื่อวัตถุดิบ เช่น กุ้งแม่น้ำ">
       <select data-ig="unit" data-i="${i}">${[...new Set([...ING_UNITS, g.unit])].map(u => `<option ${u === g.unit ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select>
+      <label class="ingcost"><input data-ig="cost" data-i="${i}" type="number" inputmode="decimal" min="0" step="any" value="${g.cost ?? ''}" placeholder="ราคา"><span>฿/${esc(g.unit)}</span></label>
       <button class="btn" data-igdel="${i}" aria-label="ลบวัตถุดิบ">ลบ</button></div>
     <div class="inghead"><span>ใช้ใน</span><span>ต่อ 1 จาน (${esc(g.unit)})</span></div>
     ${g.uses.map((u, j) => `<div class="ingrow">

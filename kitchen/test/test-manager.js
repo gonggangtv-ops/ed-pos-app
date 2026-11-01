@@ -65,51 +65,16 @@ a = M.alerts(s, { breakeven: { month: '2026-10', be: 380000, soldNow: 381000 }, 
 ok(a.some(x => /คุ้มทุน/.test(x)), 'ถึงจุดคุ้มทุนวันนี้: ' + a);
 const ctxAi = M.aiContext({ pace, breakeven, forecast: { days: [{ ...forecast.days[0], date: M.dayKey(Date.now(), 1) }] }, report, state: { menu } }, false);
 ok(ctxAi.today.sales === undefined && ctxAi.today.bills === 21 && ctxAi.menus_closed[0] === 'ผัดไทย' && ctxAi.tomorrow.prep.length === 2, 'AI context ซ่อนเงินได้');
-// ---------- สต๊อก ----------
-const stock = { hasLine: true, tomorrow: { date: '2026-11-01' }, list: [
-  { id: 'g1', name: 'กุ้ง', unit: 'กรัม', tracked: true, stock: 1200, min: 500, perDay: 900, daysLeft: 1.3, tomorrow: 1500, toBuy: 800, cost: 0.4, costPrev: 0.35 },
-  { id: 'g2', name: 'ไข่ไก่', unit: 'ฟอง', tracked: true, stock: 20, min: 30, low: true, perDay: 40, toBuy: 55 },
-  { id: 'g3', name: 'น้ำมันหอย', unit: 'มล.', tracked: false, stock: null },
-  { id: 'g4', name: 'หมูสับ', unit: 'กก.', tracked: true, stock: 3, min: 1, toBuy: 0 },
-  { id: 'g5', name: 'กุ้งตัว', unit: 'ตัว', tracked: true, stock: 30, min: 20, toBuy: 0, perKg: 40 },
-  { id: 'g6', name: 'หมึก', unit: 'ตัว', tracked: true, stock: 10, min: 0, toBuy: 0 }],
-  dishes: [{ name: 'ต้มยำกุ้ง', price: 150, cost: 62, margin: 88, pct: 41 }, { name: 'ผัดกะเพรา', price: 70, cost: 20, margin: 50, pct: 29 }],
-  gap7: [{ id: 'g1', name: 'กุ้ง', d: -400 }] };
-const SP = t => M.parse(t, { ...ctx, stock });
-for (const [t, kind, check] of [
-  ['รับกุ้งมา 2 กิโล', 'stock-move', r => r.calls[0].body.kind === 'in' && r.calls[0].body.qty === 2000 && r.undo[0].body.delta === -2000],
-  ['ซื้อกุ้งมาสองกิโลครึ่ง ราคา 1,000 บาท', 'stock-move', r => r.calls[0].body.qty === 2500 && r.calls[0].body.cost === 1000],
-  ['รับกุ้ง 2.5 กิโล 950 บาท', 'stock-move', r => r.calls[0].body.qty === 2500 && r.calls[0].body.cost === 950],
-  ['เติมไข่ไก่ 2 แผง', 'stock-move', r => r.calls[0].body.qty === 60],
-  ['ได้หมูสับมา 5 ขีด', 'stock-move', r => r.calls[0].body.qty === 0.5],
-  ['กุ้งเหลือ 800 กรัม', 'stock-move', r => r.calls[0].body.kind === 'count' && r.calls[0].body.qty === 800 && /น้อยกว่าในระบบ 400 กรัม/.test(r.ask) && r.undo[0].body.qty === 1200],
-  ['นับน้ำมันหอยได้ 2 ลิตร', 'stock-move', r => r.calls[0].path === '/api/stock/setup' && r.calls[0].body.stock === 2000],
-  ['กุ้งเสีย 3 ขีด', 'stock-move', r => r.calls[0].body.kind === 'waste' && r.calls[0].body.qty === 300],
-  ['ทิ้งไข่ไก่ 5 ฟอง', 'stock-move', r => r.calls[0].body.kind === 'waste' && r.calls[0].body.qty === 5],
-  ['ไข่ไก่เหลือ 2 กิโล', 'say', r => /นับเป็นฟอง/.test(r.say)],
-  // ซื้อเป็นกิโล นับเป็นตัว
-  ['รับกุ้งตัว 3 กิโล โลละ 35 ตัว 1,200 บาท', 'stock-move', r => r.calls[0].body.qty === 105 && r.calls[0].body.perKg === 35 && r.calls[0].body.kg === 3 && r.calls[0].body.cost === 1200 && /โลละ 35/.test(r.ask)],
-  ['รับกุ้งตัว 2 กิโล', 'stock-move', r => r.calls[0].body.qty === 80 && r.calls[0].body.perKg === undefined && r.calls[0].body.kg === 2],
-  ['ซื้อกุ้งตัวสองกิโลครึ่ง กิโลละ 400 บาท', 'stock-move', r => r.calls[0].body.qty === 100 && r.calls[0].body.cost === 1000],
-  ['รับกุ้งตัว 2 กิโล ไซส์สี่สิบห้า', 'stock-move', r => r.calls[0].body.qty === 90 && r.calls[0].body.perKg === 45],
-  ['รับกุ้งตัว 1 กิโล 40 ตัวต่อโล', 'stock-move', r => r.calls[0].body.qty === 40 && r.calls[0].body.perKg === 40],
-  ['นับกุ้งตัวเหลือครึ่งกิโล', 'stock-move', r => r.calls[0].body.kind === 'count' && r.calls[0].body.qty === 20],
-  ['กุ้งตัวเสีย 2 ขีด', 'stock-move', r => r.calls[0].body.kind === 'waste' && r.calls[0].body.qty === 8],
-  ['รับหมึก 2 กิโล', 'say', r => /โลละกี่ตัว/.test(r.say)],
-  ['กุ้งตัววันนี้โลละ 38 ตัว', 'stock-move', r => r.calls[0].path === '/api/stock/setup' && r.calls[0].body.perKg === 38 && r.undo[0].body.perKg === 40],
-  ['รับกุ้ง 2 กิโล กิโลละ 350 บาท', 'stock-move', r => r.calls[0].body.qty === 2000 && r.calls[0].body.cost === 700],
-]) { const r = SP(t); ok(r && r.kind === kind && (!check || check(r)), `${t} → ${r && (r.ask || r.say || r.kind)}`); }
-for (const [t, topic] of [['กุ้งเหลือเท่าไร', 'ing'], ['สต๊อกกุ้ง', 'ing'], ['อะไรใกล้หมด', 'low'], ['ต้องซื้ออะไรบ้าง', 'buy'], ['พรุ่งนี้ไปแม็คโครซื้ออะไร', 'buy'],
-  ['ของหายไปเท่าไร', 'loss'], ['ต้มยำกุ้งต้นทุนเท่าไร', 'cost'], ['ต้นทุนเมนู', 'cost']]) {
-  const r = SP(t); ok(r && r.topic === topic, `${t} → ${r && r.topic}: ${r ? M.answer(r, { stock }) : ''}`);
-}
-let r2 = SP('ส่งรายการซื้อของเข้าไลน์'); ok(r2.kind === 'stock-line', 'ส่งไลน์');
-r2 = SP('กุ้งหมด'); ok(r2.kind === 'menu-off' && r2.calls.some(c => c.path === '/api/stock/move' && c.body.qty === 0) && /ศูนย์/.test(r2.ask), 'กุ้งหมด → ปิดเมนู + สต๊อก 0: ' + r2.ask);
-ok(SP('โต๊ะ 3 เสร็จ') === null && SP('กะเพรากี่จาน') === null, 'คำสั่งครัวไม่ชนกับสต๊อก');
-const txt = M.shopListText(stock, 'Mama Mia');
-ok(/กุ้ง 800 กรัม/.test(txt) && /ไข่ไก่ 55 ฟอง/.test(txt) && !/หมูสับ/.test(txt), 'รายการซื้อ:\n' + txt);
-const sa = {}; M.alerts(sa, { stock, now }, { stock: true });
-const st2 = JSON.parse(JSON.stringify(stock)); st2.list[0].low = true; st2.list[0].stock = 400; st2.list[1].out = true; st2.list[1].stock = 0;
-a = M.alerts(sa, { stock: st2, now: now + 60000 }, { stock: true }); ok(a.some(x => /กุ้งใกล้หมด เหลือ 400/.test(x)) && a.some(x => /ไข่ไก่หมดสต๊อก/.test(x)), 'เตือนสต๊อก: ' + a.join(' | '));
+// ---------- วัตถุดิบที่ใช้ / ต้นทุน (ไม่มีสต๊อกแล้ว) ----------
+const ings = [{ id: 'g1', name: 'กุ้ง' }, { id: 'g2', name: 'ไข่ไก่' }];
+const usage = { list: [{ id: 'g1', name: 'กุ้ง', unit: 'ตัว', total: 120, cost: 12, by: [['กุ้งชุบ M', 54], ['ตัวเลือก กุ้ง+M', 35]] }, { id: 'g2', name: 'ไข่ไก่', unit: 'ฟอง', total: 30 }] };
+const dishcost = { dishes: [{ name: 'ต้มยำกุ้ง', price: 150, cost: 62, margin: 88, pct: 41 }, { name: 'ผัดกะเพรา', price: 70, cost: 20, margin: 50, pct: 29 }] };
+const UP = t => M.parse(t, { ...ctx, ingredients: ings });
+let u = UP('วันนี้ใช้กุ้งไปเท่าไร'); ok(u && u.topic === 'use' && u.id === 'g1', 'ใช้กุ้งไปเท่าไร → use');
+let ans = M.answer(u, { usage }, {}); ok(/กุ้งไป 120 ตัว ประมาณ 1440 บาท/.test(ans) && /กุ้งชุบ M/.test(ans), ans);
+u = UP('วันนี้ใช้วัตถุดิบอะไรไปบ้าง'); ok(u && u.topic === 'use' && !u.id, 'ใช้อะไรไปบ้าง → use ทั้งหมด: ' + M.answer(u, { usage }, {}));
+u = UP('ต้มยำกุ้งต้นทุนเท่าไร'); ok(u && u.topic === 'cost' && /ต้นทุนวัตถุดิบ 62 บาท/.test(M.answer(u, { dishcost }, {})), 'ต้นทุนต่อจาน');
+ok(UP('รับกุ้งมา 2 กิโล') === null && UP('กุ้งเหลือเท่าไร') === null, 'คำสั่งสต๊อกเดิมไม่ถูกจับแล้ว');
+r = UP('กุ้งหมด'); ok(r.kind === 'menu-off' && r.calls.every(c => c.path === '/api/menu/available'), 'กุ้งหมด → ปิดเมนูอย่างเดียว');
 console.log(fail ? `${fail} FAILED` : 'all passed');
 process.exit(fail ? 1 : 0);

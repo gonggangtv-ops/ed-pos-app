@@ -2,8 +2,8 @@
  * ผู้ช่วยครัว — โหมด "คิดเอง" (test-1.58)
  * AI (Gemini) ค้นข้อมูลร้านเองได้หลายขั้นก่อนตอบ ด้วย function calling:
  *   ยอดขายช่วงไหนก็ได้ (เทียบช่วงก่อน รายวัน รายชั่วโมง เมนู พนักงาน ยกเลิก) · พยากรณ์ 7 วัน · เดือนนี้/คุ้มทุน · ยอดสดวันนี้
- *   สต๊อก/ต้นทุนต่อจาน/ของหาย · วัตถุดิบที่ใช้ · รายการเมนู · อากาศ · จดจำ/ลืมเรื่องของร้าน
- * · เครื่องมือข้อมูลอ่านอย่างเดียว · ทำอะไรกับร้านจริง (กดเสร็จ ปิดเมนู สต๊อก) ทำผ่าน action ของ respond
+ *   ต้นทุนต่อจาน · วัตถุดิบที่ใช้ · รายการเมนู · อากาศ · จดจำ/ลืมเรื่องของร้าน
+ * · เครื่องมือข้อมูลอ่านอย่างเดียว · ทำอะไรกับร้านจริง (กดเสร็จ ปิดเมนู) ทำผ่าน action ของ respond
  *   → ตรวจกับข้อมูลจริงใน ai.js toResult แล้วถามยืนยันก่อนทุกครั้ง (เหมือนเดิม)
  * · ข้อมูลยอดขายต้องเปิดโหมดผู้จัดการ (โทเค็นเจ้าของร้านอยู่ฝั่ง Java)
  * · โหมด auto = แอปให้ AI ตรวจร้านเองเป็นระยะ ถ้าไม่มีเรื่องสำคัญ say ว่าง = ไม่พูด
@@ -29,7 +29,7 @@
     { name: 'get_today_live', mgr: true, parameters: NONE, description: 'วันนี้ตอนนี้: ยอดสะสม บิล เทียบที่คาดและสัปดาห์ที่แล้วช่วงเดียวกัน คาดปิดวัน โต๊ะเปิดอยู่ อากาศ' },
     { name: 'get_forecast', mgr: true, parameters: NONE, description: 'พยากรณ์ 7 วันข้างหน้า: ยอด จำนวนจาน ของที่ควรเตรียม วัตถุดิบ อากาศ วันหยุด และความแม่นของพยากรณ์ที่ผ่านมา' },
     { name: 'get_month', mgr: true, parameters: NONE, description: 'เดือนนี้: ขายแล้ว จุดคุ้มทุน ค่าใช้จ่ายคงที่ % ต้นทุนอาหาร ต้องขายวันละเท่าไร คาดกำไร เทียบเดือนที่แล้ว' },
-    { name: 'get_stock', mgr: true, parameters: NONE, description: 'สต๊อกวัตถุดิบ: คงเหลือ ใช้ต่อวัน พอกี่วัน พรุ่งนี้ต้องใช้ ต้องซื้อ ต้นทุนต่อหน่วยและการเปลี่ยนราคา ต้นทุนต่อจาน ของหาย/เสีย 7 วัน ประวัติรับของล่าสุด' },
+    { name: 'get_dish_cost', mgr: true, parameters: NONE, description: 'ต้นทุนวัตถุดิบต่อจาน (จากราคาต่อหน่วยที่ร้านใส่ไว้): ราคาขาย ต้นทุน กำไรขั้นต้น ต้นทุน % · ร้านไม่ได้นับสต๊อกคงเหลือ' },
     { name: 'get_ingredient_usage', mgr: true, parameters: RANGE, description: 'วัตถุดิบที่ใช้ไปตามยอดขายในช่วงวันที่ แยกว่ามาจากเมนู/ตัวเลือกไหน' },
     { name: 'get_menu', mgr: true, parameters: NONE, description: 'รายการเมนูทั้งหมด: id ชื่อ หมวด ราคา ปิดขายอยู่ไหม' },
     { name: 'get_weather', mgr: true, parameters: NONE, description: 'อากาศ/ฝนวันนี้และวันถัดไปที่ร้าน และผลของฝนต่อยอดขายที่ผ่านมา' },
@@ -41,10 +41,9 @@
       say: S('คำตอบที่จะอ่านออกเสียง ภาษาไทยพูด ไม่มีสัญลักษณ์/อีโมจิ'),
       show: S('รายละเอียดเพิ่มเติมที่แสดงบนจอ (ตัวเลข ตาราง ขั้นตอน) ไม่ต้องใส่ถ้าคำพูดครบแล้ว'),
       action: { type: 'object', description: 'ทำกับร้านจริง (ระบบถามยืนยันผู้ใช้เองก่อน) ใส่เมื่อผู้ใช้สั่งชัดเจนเท่านั้น', properties: {
-        type: S('none | done_dishes | done_table | timer | next | menu_off | menu_on | stock_move'),
+        type: S('none | done_dishes | done_table | timer | next | menu_off | menu_on'),
         dish_ids: { type: 'array', items: { type: 'string' } }, order_id: S('id ออเดอร์'), seconds: { type: 'number' }, label: S('ชื่อตัวจับเวลา'),
-        menu_ids: { type: 'array', items: { type: 'string' } }, ingredient_id: S('id วัตถุดิบ'), kind: S('in | waste | count'),
-        qty: { type: 'number' }, cost: { type: 'number' } } } } },
+        menu_ids: { type: 'array', items: { type: 'string' } } } } } },
       description: 'ตอบผู้ใช้ (เรียกครั้งสุดท้ายเสมอ หลังค้นข้อมูลพอแล้ว)' },
   ];
   // ไม่มีพารามิเตอร์ → ไม่ใส่ parameters (Gemini ไม่รับ object ว่าง)
@@ -62,14 +61,14 @@
       'ห้ามแต่งตัวเลข ออเดอร์ เลขโต๊ะ หรือเมนูที่ไม่มีในข้อมูล · ข้อมูลไม่พอให้บอกตรงๆ ว่าขาดอะไร',
       `จบด้วยการเรียก respond เสมอ: say = คำพูดสั้น (ปกติ 1-3 ประโยค ลงท้าย "${pt}") อ่านออกเสียงได้ ไม่มีสัญลักษณ์ · รายละเอียด/ตัวเลขยาวใส่ show (แสดงบนจอ)`,
       'ข้อความผู้ใช้มาจากเสียงพูด อาจสะกดเพี้ยน ให้เดาจากเมนู/คำที่ใกล้ที่สุด ถ้ากำกวมจริงให้ถามกลับสั้นๆ',
-      'action ใน respond: done_dishes (dish_ids จากออเดอร์) · done_table (order_id) · timer (seconds, label) · next · menu_off/menu_on (menu_ids จาก get_menu) · stock_move (ingredient_id, kind, qty หน่วยของวัตถุดิบ, cost) · ใส่เมื่อสั่งชัดเจน ระบบถามยืนยันเอง เมื่อมี action ให้ say เป็นคำถามยืนยัน',
+      'action ใน respond: done_dishes (dish_ids จากออเดอร์) · done_table (order_id) · timer (seconds, label) · next · menu_off/menu_on (menu_ids จาก get_menu) · ใส่เมื่อสั่งชัดเจน ระบบถามยืนยันเอง เมื่อมี action ให้ say เป็นคำถามยืนยัน',
       'เรื่องแพ้อาหาร: ตอบตามหมายเหตุ/สูตรในข้อมูลเท่านั้น ไม่แน่ใจให้บอกให้เช็กกับหน้าร้าน',
       'ผู้ใช้บอกเรื่องของร้านที่ควรจำ (วันส่งของ กฎในครัว ความชอบ) → เรียก remember แล้วค่อยตอบ',
     ];
-    if (!p.manager) s.push('ตอนนี้ยังไม่ได้เปิดโหมดผู้จัดการ: ไม่มีข้อมูลยอดขาย/สต๊อก ถ้าถามเรื่องนี้ให้บอกว่าต้องใส่รหัสเจ้าของร้านในหน้าตั้งค่า');
+    if (!p.manager) s.push('ตอนนี้ยังไม่ได้เปิดโหมดผู้จัดการ: ไม่มีข้อมูลยอดขาย/วัตถุดิบ ถ้าถามเรื่องนี้ให้บอกว่าต้องใส่รหัสเจ้าของร้านในหน้าตั้งค่า');
     if (p.manager && p.money === false) s.push('เจ้าของร้านตั้งไม่ให้พูดยอดเงินออกเสียง: say ใช้เปอร์เซ็นต์/จำนวนบิล ตัวเลขเงินใส่ใน show ได้');
     if (p.mode === 'auto') s.push(
-      'รอบนี้ไม่มีใครถาม: คุณกำลังเดินตรวจร้านเอง ดูข้อมูลที่จำเป็น แล้วเลือกบอกเฉพาะเรื่องที่สำคัญและทำได้ตอนนี้ 1 เรื่อง (เช่น ยอดต่ำผิดปกติและควรทำอะไร ของจะหมดก่อนปิดร้าน ครัวช้าในเมนูไหน พรุ่งนี้ต้องสั่งของ)',
+      'รอบนี้ไม่มีใครถาม: คุณกำลังเดินตรวจร้านเอง ดูข้อมูลที่จำเป็น แล้วเลือกบอกเฉพาะเรื่องที่สำคัญและทำได้ตอนนี้ 1 เรื่อง (เช่น ยอดต่ำผิดปกติและควรทำอะไร ครัวช้าในเมนูไหน พรุ่งนี้ต้องเตรียมอะไรเพิ่ม เมนูที่ต้นทุนสูง)',
       'ถ้าไม่มีเรื่องใหม่ที่ควรรบกวนครัว ให้ respond say เป็นข้อความว่าง "" · ห้ามพูดซ้ำเรื่องที่บอกไปแล้วด้านล่าง · ไม่ใส่ action');
     if (p.notes) s.push('ข้อมูลร้านที่เจ้าของเขียนไว้:\n' + String(p.notes).slice(0, 3000));
     if (p.memory && p.memory.length) s.push('เรื่องที่คุณจดไว้เอง (เชื่อได้ ใช้ประกอบคำตอบ):\n' + p.memory.map(x => '- ' + x).join('\n'));
@@ -139,18 +138,12 @@
     };
   }
   const strip = (o, drop) => JSON.parse(JSON.stringify(o, (k, v) => drop.includes(k) ? undefined : v));
-  function stock(st) {
-    return { list: (st.list || []).map(x => ({ id: x.id, name: x.name, unit: x.unit, on_hand: x.tracked ? x.stock : 'ไม่ได้นับ', min: x.min || undefined,
-        per_day: x.perDay || undefined, days_left: x.daysLeft ?? undefined, tomorrow_need: x.tomorrow ?? undefined, to_buy: x.toBuy || undefined,
-        cost_per_unit: x.cost || undefined, cost_change_pct: x.cost && x.costPrev ? Math.round((x.cost / x.costPrev - 1) * 100) : undefined, pcs_per_kg: x.perKg || undefined })),
-      dish_cost: (st.dishes || []).slice(0, 40), loss_7d: st.gap7, recent_moves: (st.log || []).slice(0, 15) };
-  }
   const COMPACT = {
     get_sales: sales,
     get_today_live: x => strip(x, ['series']),
     get_forecast: x => strip(x, ['hours', 'series']),
     get_month: x => strip(x, ['series']),
-    get_stock: stock,
+    get_dish_cost: x => ({ dishes: (x.dishes || []).slice(0, 60) }),
     get_ingredient_usage: x => x,
     get_menu: x => ({ menu: (x.menu || []).map(m => ({ id: m.id, name: m.name, cat: m.category, price: m.price, closed: m.available === false || undefined })) }),
     get_weather: x => x,
@@ -168,7 +161,7 @@
       case 'get_today_live': return '/api/pace';
       case 'get_forecast': return '/api/forecast';
       case 'get_month': return '/api/breakeven';
-      case 'get_stock': return '/api/stock';
+      case 'get_dish_cost': return '/api/dishcost';
       case 'get_menu': return '/api/state';
       case 'get_weather': return '/api/weather';
     }
@@ -247,6 +240,6 @@
     return n / Math.min(A.size, B.size) > 0.6;
   }
 
-  const api = { MODELS, TOOL_DEFS, declarations, system, firstRequest, body, step, sales, stock, toolPath, cap, run, memList, memAdd, memForget, similar };
+  const api = { MODELS, TOOL_DEFS, declarations, system, firstRequest, body, step, sales, toolPath, cap, run, memList, memAdd, memForget, similar };
   if (isNode) module.exports = api; else root.KitchenThink = api;
 })(this);

@@ -31,7 +31,7 @@
   .uc .uh h3 { margin: 0; font-size: 18px; line-height: 1.3; }
   .uc .chip { font-size: 12.5px; padding: 3px 9px; border-radius: 99px; white-space: nowrap; background: var(--sunk); color: var(--muted); border: 1px solid var(--line); }
   .uc .chip.ok { background: var(--jade-soft); color: var(--jade); border-color: transparent; }
-  .uc .chip.low { background: var(--brick-soft); color: var(--brick); border-color: transparent; font-weight: 600; }
+  .uc a.chip { text-decoration: none; color: var(--jade); border-style: dashed; }
   .uc .big { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
   .uc .big b { font-size: 30px; line-height: 1.1; letter-spacing: -.01em; }
   .uc .big span { color: var(--muted); font-size: 14px; }
@@ -330,11 +330,15 @@
     <div class="mini" id="ingKpi"></div>
     <div class="ingbar">
       <span class="seg" id="ingSort" role="group" aria-label="เรียงตาม">
-        <button data-s="cost" aria-pressed="true">ต้นทุนสูงสุด</button><button data-s="qty">ใช้มากสุด</button><button data-s="chg">เปลี่ยนมากสุด</button><button data-s="low">ใกล้หมด</button></span>
+        <button data-s="cost" aria-pressed="true">ต้นทุนสูงสุด</button><button data-s="qty">ใช้มากสุด</button><button data-s="chg">เปลี่ยนมากสุด</button></span>
       <a class="btn" href="admin.html#ingredients">ตั้งสูตร/วัตถุดิบ</a>
     </div>
     <div class="ucards" id="ingCards"></div>
     <p class="note" id="ingNote"></p>
+    <div class="panel" id="dishCostBox" hidden style="margin-top:18px">
+      <div class="phead"><h2>💸 ต้นทุนวัตถุดิบต่อจาน</h2><span class="muted">เฉพาะเมนูที่ทุกวัตถุดิบมีราคาแล้ว</span></div>
+      <div id="dishCost"></div>
+    </div>
   </section>
 
   <section class="pane" data-p="tables" hidden>
@@ -1152,38 +1156,34 @@ function renderIng() {
   const sales = report?.summary?.subtotal || 0;
   const rows = u.list.map(x => {
     const p = prev.get(x.id), pd = usagePrev?.days ? p?.perDay || 0 : null;
-    const chg = pd ? Math.round((x.perDay / pd - 1) * 100) : null;
-    const left = x.stock != null && x.perDay > 0 ? x.stock / x.perDay : null;
-    return { ...x, money: x.cost ? x.total * x.cost : null, chg, left, low: x.stock != null && (x.stock <= 0 || (x.min > 0 && x.stock <= x.min) || (left != null && left < 1.5)) };
+    return { ...x, money: x.cost ? x.total * x.cost : null, chg: pd ? Math.round((x.perDay / pd - 1) * 100) : null };
   });
   const used = rows.filter(x => x.total > 0), costed = used.filter(x => x.money != null);
-  const spend = costed.reduce((a, x) => a + x.money, 0), lows = rows.filter(x => x.low);
+  const spend = costed.reduce((a, x) => a + x.money, 0), noPrice = used.filter(x => x.money == null);
   // หัว: สรุปเป็นประโยค
   const pct = sales && spend ? Math.round(spend / sales * 100) : null;
   const biggest = [...costed].sort((a, b) => b.money - a.money)[0];
   const jump = [...used].filter(x => x.chg != null && Math.abs(x.chg) >= 20).sort((a, b) => Math.abs(b.chg) - Math.abs(a.chg))[0];
-  top.className = 'verdict ' + (lows.length ? 'down' : 'up');
+  top.className = 'verdict up';
   top.innerHTML = `<h2>${used.length ? `ใช้วัตถุดิบ ${used.length} รายการ${spend ? ` · ต้นทุนประมาณ ${baht(Math.round(spend))} ฿` : ''}` : 'ช่วงนี้ยังไม่ได้ใช้วัตถุดิบที่ตั้งไว้'}</h2><p>${[
     pct != null ? `คิดเป็น <b>${pct}%</b> ของยอดขาย ${baht(sales)} ฿ (เฉพาะวัตถุดิบที่ใส่ราคาแล้ว)` : '',
     biggest ? `จ่ายมากสุดคือ <b>${esc(biggest.name)}</b> ${baht(Math.round(biggest.money))} ฿${spend ? ` (${Math.round(biggest.money / spend * 100)}%)` : ''}` : '',
     jump ? `${esc(jump.name)} ใช้ต่อวัน${jump.chg > 0 ? 'มากขึ้น' : 'น้อยลง'} <b class="delta2 ${jump.chg > 0 ? 'down' : 'up'}">${Math.abs(jump.chg)}%</b> จากช่วงก่อน` : '',
-    lows.length ? `⚠ ใกล้หมด: ${lows.map(x => esc(x.name)).join(', ')}` : '',
-  ].filter(Boolean).join(' · ') || 'ใส่ราคาตอนรับของ (หรือถ่ายบิลกับน้องมาม่า) เพื่อดูต้นทุน'}</p>`;
+    noPrice.length ? `ยังไม่ใส่ราคา: ${noPrice.map(x => esc(x.name)).join(', ')}` : '',
+  ].filter(Boolean).join(' · ') || 'ใส่ราคาต่อหน่วยที่ หลังร้าน › วัตถุดิบ เพื่อดูต้นทุน'}</p>`;
   kpi.innerHTML = [
     ['ต้นทุนวัตถุดิบ', spend ? baht(Math.round(spend)) + ' ฿' : '–', costed.length < used.length ? `มีราคา ${costed.length}/${used.length} รายการ` : 'ทุกรายการมีราคา'],
     ['% ของยอดขาย', pct != null ? pct + '%' : '–', sales ? `ยอดขาย ${baht(sales)} ฿` : 'ยังไม่มียอดขาย'],
     ['วันที่เปิดขาย', u.days + ' วัน', spend && u.days ? `เฉลี่ย ${baht(Math.round(spend / u.days))} ฿/วัน` : ''],
-    ['ใกล้หมด', lows.length ? lows.length + ' รายการ' : 'ไม่มี', lows.length ? lows.slice(0, 2).map(x => x.name).join(', ') : 'สต๊อกพอ'],
+    ['จ่ายมากสุด', biggest ? biggest.name : '–', biggest ? `${baht(Math.round(biggest.money))} ฿${spend ? ` · ${Math.round(biggest.money / spend * 100)}%` : ''}` : 'ใส่ราคาเพื่อดู'],
   ].map(([a, b, c]) => `<div><span>${a}</span><b>${b}</b><small>${esc(c)}</small></div>`).join('');
-  const key = { cost: x => x.money ?? -1 + x.total / 1e9, qty: x => x.total, chg: x => x.chg == null ? -1 : Math.abs(x.chg), low: x => x.left == null ? -1e9 : -x.left };
+  const key = { cost: x => x.money ?? -1 + x.total / 1e9, qty: x => x.total, chg: x => x.chg == null ? -1 : Math.abs(x.chg) };
   $$('#ingSort button').forEach(b => b.setAttribute('aria-pressed', b.dataset.s === ingSort));
   const list = [...rows].sort((a, b) => (b.total > 0) - (a.total > 0) || key[ingSort](b) - key[ingSort](a) || b.total - a.total);
   box.innerHTML = list.map(x => {
-    const chip = x.stock == null ? '<span class="chip">ไม่ได้นับสต๊อก</span>'
-      : x.low ? `<span class="chip low">${x.stock <= 0 ? 'หมด' : `เหลือ ${amtTxt(x.stock, x.unit)}${x.left != null ? ` · ~${x.left < 1 ? 'ไม่ถึงวัน' : Math.floor(x.left) + ' วัน'}` : ''}`}</span>`
-      : `<span class="chip ok">เหลือ ${amtTxt(x.stock, x.unit)}${x.left != null ? ` · พอ ~${Math.floor(x.left)} วัน` : ''}</span>`;
+    const chip = x.cost ? `<span class="chip ok">${baht(x.cost)} ฿/${esc(x.unit)}</span>` : '<a class="chip" href="admin.html#ingredients">ใส่ราคา</a>';
     if (!x.total) return `<div class="uc empty"><div class="uh"><h3>${esc(x.name)}</h3>${chip}</div><p class="hint2">ช่วงนี้ไม่ได้ใช้${x.by.length ? '' : ' · ยังไม่ได้ผูกกับเมนู'}</p></div>`;
-    const kg = x.perKg && !/กรัม|กก|มล|ลิตร/.test(x.unit) ? ` ≈ ${(Math.round(x.total / x.perKg * 10) / 10).toLocaleString('th-TH')} กก.` : '';
+    const kg = '';
     const open = ingOpen.has(x.id), src = open ? x.by : x.by.slice(0, 5), rest = x.by.slice(5).reduce((a, [, q]) => a + q, 0);
     const segs = [...x.by.slice(0, 8), ...(x.by.length > 8 ? [['อื่นๆ', x.by.slice(8).reduce((a, [, q]) => a + q, 0)]] : [])];
     const col = i => ING_COL[Math.min(i, ING_COL.length - 1)];
@@ -1191,14 +1191,25 @@ function renderIng() {
       <div class="uh"><h3>${esc(x.name)}</h3>${chip}</div>
       <div class="big"><b>${amtTxt(x.total, x.unit)}</b><span>${kg}${kg ? ' · ' : ''}เฉลี่ย ${amtTxt(x.perDay, x.unit)}/วัน</span>
         ${x.chg != null ? `<span class="delta2 ${x.chg > 0 ? 'down' : x.chg < 0 ? 'up' : ''}" title="ใช้ต่อวัน เทียบช่วงก่อนหน้ายาวเท่ากัน">${x.chg > 0 ? '▲' : x.chg < 0 ? '▼' : ''}${Math.abs(x.chg)}%</span>` : ''}</div>
-      ${x.money != null ? `<div class="money2"><span>ต้นทุน <b>${baht(Math.round(x.money))} ฿</b></span><span>${baht(x.cost)} ฿/${esc(x.unit)}${spend ? ` · ${Math.round(x.money / spend * 100)}% ของทั้งหมด` : ''}</span></div>` : ''}
+      ${x.money != null ? `<div class="money2"><span>ต้นทุน <b>${baht(Math.round(x.money))} ฿</b></span><span>${spend ? `${Math.round(x.money / spend * 100)}% ของต้นทุนทั้งหมด` : ''}${sales ? ` · ${(Math.round(x.money / sales * 1000) / 10)}% ของยอดขาย` : ''}</span></div>` : ''}
       ${sparkSvg(x.daily || [], u.dates || [], x.unit)}
       ${segs.length ? `<div class="stack" role="img" aria-label="สัดส่วนตามเมนู">${segs.map(([n, q], i) => `<i style="flex:${q};background:${col(i)}" title="${esc(n)} ${amtTxt(q, x.unit)}"></i>`).join('')}</div>
       <ul class="src">${src.map(([n, q], i) => `<li><i style="background:${col(i)}"></i><span title="${esc(n)}">${esc(n.replace(/^ตัวเลือก /, '+ '))}</span><b>${amtTxt(q, x.unit)}</b><em>${Math.round(q / x.total * 100)}%</em></li>`).join('')}</ul>
       ${x.by.length > 5 ? `<button class="more" data-ingmore="${x.id}">${open ? 'ย่อ' : `ดูอีก ${x.by.length - 5} รายการ (${amtTxt(rest, x.unit)})`}</button>` : ''}` : ''}
     </div>`;
   }).join('');
-  $('#ingNote').textContent = `${thDate(u.from)}${u.from !== u.to ? ' – ' + thDate(u.to) : ''} · นับจากบิลที่ปิดแล้ว ตามสูตรที่ตั้งไว้ (ไม่ใช่ของที่ตักจริง) · เทียบกับ ${usagePrev?.days || 0} วันที่เปิดในช่วงก่อนหน้ายาวเท่ากัน · ▲ ใช้มากขึ้น · ต้นทุนใช้ราคาล่าสุดที่รับของ`;
+  $('#ingNote').textContent = `${thDate(u.from)}${u.from !== u.to ? ' – ' + thDate(u.to) : ''} · นับจากบิลที่ปิดแล้ว ตามสูตรที่ตั้งไว้ (ไม่ใช่ของที่ตักจริง) · เทียบกับ ${usagePrev?.days || 0} วันที่เปิดในช่วงก่อนหน้ายาวเท่ากัน · ▲ ใช้มากขึ้น · ต้นทุน = ปริมาณ × ราคาต่อหน่วยที่ใส่ไว้ที่หลังร้าน`;
+  renderDishCost();
+}
+let dishCost = null;
+async function renderDishCost() {
+  try { dishCost = (await api('/api/dishcost')).dishes; } catch { dishCost = null; }
+  const box = $('#dishCostBox');
+  if (!dishCost || !dishCost.length) { box.hidden = true; return; }
+  box.hidden = false;
+  $('#dishCost').innerHTML = `<div class="tscroll"><table class="t"><thead><tr><th>เมนู</th><th class="num">ราคาขาย</th><th class="num">ต้นทุน</th><th class="num">เหลือ</th><th class="num">ต้นทุน %</th></tr></thead><tbody>${dishCost.map(d =>
+    `<tr class="${d.pct >= 45 ? 'worst' : d.pct <= 25 ? 'best' : ''}"><td>${esc(d.name)}</td><td class="num">${baht(d.price)}</td><td class="num">${baht(d.cost)}</td><td class="num">${baht(d.margin)}</td><td class="num"><b>${d.pct}%</b></td></tr>`).join('')}</tbody></table></div>
+    <div class="legend2"><span class="lw">ต้นทุน 45% ขึ้นไป (กำไรบาง)</span><span class="lb">ไม่เกิน 25%</span></div>`;
 }
 $('#ingSort').addEventListener('click', e => { const b = e.target.closest('[data-s]'); if (b) { ingSort = b.dataset.s; renderIng(); } });
 $('#ingCards').addEventListener('click', e => { const b = e.target.closest('[data-ingmore]'); if (b) { const id = b.dataset.ingmore; ingOpen.has(id) ? ingOpen.delete(id) : ingOpen.add(id); renderIng(); } });

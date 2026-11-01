@@ -8,7 +8,7 @@ const fc = (name, args) => ({ functionCall: { name, args } });
 
 // ---------- เครื่องมือ ----------
 const d0 = TH.declarations(false).map(x => x.name), d1 = TH.declarations(true).map(x => x.name);
-ok(!d0.includes('get_sales') && d0.includes('respond') && d0.includes('remember') && d1.includes('get_sales') && d1.includes('get_stock'), 'ไม่มีสิทธิ์ผู้จัดการ = ไม่มีเครื่องมือยอดขาย');
+ok(!d0.includes('get_sales') && d0.includes('respond') && d0.includes('remember') && d1.includes('get_sales') && d1.includes('get_dish_cost'), 'ไม่มีสิทธิ์ผู้จัดการ = ไม่มีเครื่องมือยอดขาย');
 ok(TH.declarations(true).every(x => !x.parameters || Object.keys(x.parameters.properties).length), 'ไม่มี parameters ว่าง');
 ok(TH.toolPath('get_sales', { from: '2026-10-31', to: '2026-10-01' }) === '/api/report?from=2026-10-01&to=2026-10-31', 'สลับวันที่ให้ถูก');
 ok(TH.toolPath('get_sales', { from: 'เมื่อวาน' }).error, 'วันที่ผิดรูปแบบ → error ให้ AI แก้');
