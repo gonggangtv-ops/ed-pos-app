@@ -32,6 +32,9 @@ const fake = http.createServer((req, res) => {
       const d0 = (/(\d{4}-\d{2}-\d{2})/.exec(firstText.split('----')[1] || '') || [])[1];
       return send(200, gem([{ text: JSON.stringify({ overview: 'จัดรูปแบบแล้ว', days: [{ date: d0, pct: 10, reason: 'ซ่อมแล้ว' }] }) }]));
     }
+    if (body.tools && body.tools.some(t => t.google_search) && mode.searchQuota) {
+      return send(429, JSON.stringify({ error: { code: 429, message: 'Quota exceeded for metric: generativelanguage.googleapis.com/search_grounding_requests, limit: 0, model: ' + model } }));
+    }
     if (body.tools && body.tools.some(t => t.google_search) && mode.fcProse) {
       const input = JSON.parse(firstText), d0 = input.base_forecast[0].date;
       if (mode.fcProse === 'cite') return send(200, gem([{ text: `ผลการค้นหา:\n\`\`\`json\n{"overview": "มีเทศกาล [1]", "days": [{"date": "${d0}", "pct": 15, "reason": "ลอยกระทง" [2], "events": ["ลอยกระทง"],},],}\n\`\`\`\nหวังว่าจะช่วยได้` }]));
@@ -189,6 +192,17 @@ fake.listen(GPORT, async () => {
     await api('/api/order/pay', { orderId: o2.orderId, method: 'cash' });
     const st2 = await api('/api/ai/summary', { from: mode.today, to: mode.today });
     ok(st2.headline === 'ยอดดีขึ้นจากกุ้ง' && seen.length === 2 && seen[1].body.generationConfig.maxOutputTokens === 24000, 'ถูกตัดกลางคัน (MAX_TOKENS) → ลองใหม่ด้วยโควตาคำมากขึ้น');
+    // ---------- ค้นเว็บครบโควตาฟรี → พยากรณ์แบบไม่ค้น ไม่ขึ้น error ----------
+    mode.searchQuota = true; mode.noSearch = false; seen.length = 0;
+    let fq = await api('/api/ai/forecast', { force: true });
+    ok(!fq.searched && fq.days[0].pct === 5 && seen.some(x => !x.body.tools), 'ค้นเว็บ 429 → พยากรณ์ด้วยความรู้ AI: ' + fq.days[0].reason);
+    const n429 = seen.filter(x => x.body.tools).length; seen.length = 0;
+    fq = await api('/api/ai/forecast', { force: true });
+    ok(!fq.searched && seen.every(x => !x.body.tools), `วันเดียวกันไม่ลองค้นเว็บซ้ำ (รอบแรกลอง ${n429} รุ่น)`);
+    const st429 = await api('/api/ai');
+    ok(st429.lastErr === '' || /ค้นเว็บ|ฟรี/.test(st429.lastErr), 'สถานะ: ' + (st429.lastErr || 'ปกติ'));
+    mode.searchQuota = false;
+
     console.log(fail ? `${fail} FAILED` : 'all passed');
     done(fail ? 1 : 0);
   } catch (e) { console.log('ERR', e.stack); done(1); }

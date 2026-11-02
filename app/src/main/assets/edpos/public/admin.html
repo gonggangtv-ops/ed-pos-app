@@ -656,7 +656,7 @@ function aiStatText(st) {
   $('#aiKeyState').innerHTML = st.hasKey ? `<span style="color:var(--jade)">✓ ตั้งแล้ว (…${esc(st.keyHint)})</span>` : '<span class="muted">ยังไม่ได้ใส่</span>';
   $('#aiDot').textContent = st.hasKey ? '●' : '';
   $('#aiStat').innerHTML = st.hasKey ? [st.usedModel ? `ใช้รุ่น ${esc(st.usedModel)}` : '', st.callsToday ? `วันนี้เรียก AI ${st.callsToday} ครั้ง` : '',
-    st.lastErr ? `<span style="color:var(--brick)">ล่าสุดผิดพลาด: ${esc(st.lastErr)}</span>` : ''].filter(Boolean).join(' · ') : '';
+    st.lastErr ? `<span style="color:var(--brick)">ล่าสุดผิดพลาด: ${esc(st.lastErr)}</span>${st.lastRaw ? `<br><small style="color:var(--faint)">${esc(st.lastRaw)}</small>` : ''}` : ''].filter(Boolean).join(' · ') : '';
 }
 async function loadAi() {
   try { const st = await api('/api/ai'); $('#aiKey').value = ''; $('#aiModel').value = st.model || ''; $('#aiLine').checked = st.line; aiStatText(st); } catch (e) { toast(e.message, true); }

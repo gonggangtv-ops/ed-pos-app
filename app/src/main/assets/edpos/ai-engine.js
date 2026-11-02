@@ -16,7 +16,7 @@ const WD = ['อาทิตย์', 'จันทร์', 'อังคาร',
 module.exports = function createAI(d) {
   // d = { data(), dayKey, addDays, buildReport, paceToday, forecastWeek, breakEven, usageReport, dishCosts, weatherInfo, lineTextOf }
   const cfg = () => ({ key: '', model: '', line: false, ...(d.data().settings.ai || {}) });
-  const mem = { model: '', lastErr: '', calls: 0, day: '' };
+  const mem = { model: '', lastErr: '', lastRaw: '', calls: 0, day: '' };
   const ok = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
   const r1 = n => n == null ? undefined : Math.round(n * 10) / 10;
 
@@ -33,10 +33,13 @@ module.exports = function createAI(d) {
     let j = null; try { j = JSON.parse(text); } catch {}
     if (r.status !== 200) {
       const msg = (j && j.error && j.error.message) || text.slice(0, 200);
-      const e = new Error(r.status === 429 ? 'ใช้ AI ครบโควตาแล้ว รอสักพักหรือพรุ่งนี้' : r.status === 400 && /API key/i.test(msg) ? 'API key ไม่ถูกต้อง'
+      // 429 แยกสาเหตุจากข้อความของ Google: รุ่นนี้ไม่มีในแบบฟรี (limit: 0) · ครบโควตารายวัน · เรียกถี่เกินต่อนาที · ค้นเว็บครบโควตา
+      const q = r.status === 429 ? (/limit:\s*0\b/i.test(msg) ? 'รุ่นนี้ใช้กับคีย์ฟรีไม่ได้' : /search|grounding/i.test(msg) ? 'การค้นเว็บของ AI ครบโควตาฟรีแล้ว'
+        : /per\s*day|PerDay|daily/i.test(msg) ? 'ใช้ AI ครบโควตาฟรีของวันนี้แล้ว (รีเซ็ตราวบ่าย 3 โมง)' : /per\s*minute|PerMinute/i.test(msg) ? 'เรียก AI ถี่เกินไป รอ 1 นาทีแล้วลองใหม่' : 'ใช้ AI ครบโควตาแล้ว รอสักพักแล้วลองใหม่') : '';
+      const e = new Error(r.status === 429 ? q : r.status === 400 && /API key/i.test(msg) ? 'API key ไม่ถูกต้อง'
         : r.status === 401 || r.status === 403 ? 'API key ใช้ไม่ได้ (ตรวจคีย์อีกครั้ง)'
         : r.status === 503 || r.status === 500 || r.status === 504 ? 'AI ของ Google มีคนใช้เยอะชั่วคราว ลองใหม่อีกสักครู่' : `AI ตอบกลับ ${r.status}: ${msg}`);
-      e.status = r.status; e.raw = msg; throw e;
+      e.status = r.status; e.raw = msg; mem.lastRaw = `${model}: ${r.status} ${String(msg).slice(0, 160)}`; throw e;
     }
     const c = j && j.candidates && j.candidates[0];
     if (!c || !c.content) { const e = new Error(j && j.promptFeedback ? 'AI ไม่ยอมตอบคำถามนี้' : 'AI ไม่ได้ตอบอะไรกลับมา'); e.status = 200; throw e; }
@@ -292,9 +295,13 @@ module.exports = function createAI(d) {
       ...(tools ? { generationConfig: { temperature: 0.2, maxOutputTokens: 12000 } } : {}) });
     const okFc = x => !!(x && Array.isArray(x.days));
     const shape = '{"days": [{"date": "YYYY-MM-DD", "pct": 0, "reason": "...", "events": ["..."]}], "overview": "...", "tourism": {"summary": "...", "trend": "up|down|flat", "points": ["..."]}}';
-    let r, j, searched = true;
-    try { ({ r, j } = await genJSON(req(true), okFc, shape)); }
-    catch (e) { if (e.status !== 400) throw e; searched = false; ({ r, j } = await genJSON(req(false), okFc, shape)); }   // รุ่นนี้ค้นเว็บไม่ได้ → ใช้ความรู้ของ AI อย่างเดียว
+    let r, j, searched = mem.noSearch !== today;   // วันนี้ค้นเว็บไม่ได้แล้ว → ไม่ลองซ้ำทั้งวัน
+    try { if (!searched) { const e = new Error('skip'); e.status = 429; throw e; } ({ r, j } = await genJSON(req(true), okFc, shape)); }
+    catch (e) {   // ค้นเว็บไม่ได้ (รุ่นไม่รองรับ 400 · ค้นเว็บครบโควตาฟรี/ไม่มีในแบบฟรี 429 · Google ไม่ว่าง) → ใช้ความรู้ของ AI อย่างเดียว
+      if (![400, 429, 500, 503, 504].includes(e.status) && e.code !== 'format') throw e;
+      if (searched && e.status === 429) mem.noSearch = today;
+      searched = false; ({ r, j } = await genJSON(req(false), okFc, shape));
+    }
     const by = new Map(j.days.map(x => [x.date, x]));
     const out = { asOf: today, at: Date.now(), model: mem.model, searched: searched && !!(r.grounding && (r.grounding.webSearchQueries || r.grounding.groundingChunks)),
       overview: String(j.overview || '').slice(0, 400),
@@ -326,7 +333,7 @@ module.exports = function createAI(d) {
   }
   function status() {
     const c = cfg();
-    return { hasKey: !!c.key, keyHint: c.key ? c.key.slice(-4) : '', model: c.model || '', usedModel: mem.model, line: !!c.line, lastErr: mem.lastErr, callsToday: mem.day === d.dayKey(Date.now()) ? mem.calls : 0 };
+    return { hasKey: !!c.key, keyHint: c.key ? c.key.slice(-4) : '', model: c.model || '', usedModel: mem.model, line: !!c.line, lastErr: mem.lastErr, lastRaw: mem.lastErr ? mem.lastRaw || '' : '', callsToday: mem.day === d.dayKey(Date.now()) ? mem.calls : 0 };
   }
   return { ask, summary, forecast, lineNote, test, status, runTool, sales, usage, MODELS };
 };
