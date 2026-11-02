@@ -204,6 +204,59 @@
   .poprow .pt2{margin-top:4px}.poprow i{font-style:normal;color:var(--accent);font-weight:700}
   .pophint{font-size:12px;color:var(--faint);text-align:center;padding:6px 0 2px}
   .morechip{position:fixed;left:16px;bottom:16px;z-index:35;font:inherit;font-size:14px;font-weight:700;padding:10px 16px;border-radius:24px;border:1px solid var(--accent);background:var(--panel);color:var(--accent);box-shadow:0 8px 24px -8px #000c;cursor:pointer}
+  /* ---- test-1.69: ติ๊กทีละจาน (จานที่สั่ง 2 ที่ขึ้นไป) ---- */
+  :root[data-pp="1"] li.dish.mq .qty{flex:none;min-width:0;width:calc(34px * var(--qz));height:calc(34px * var(--qz));border-radius:50%;padding:0;border:0;
+    background:var(--accent);color:#1a1100;display:grid;place-items:center;font-size:calc(19px * var(--qz))}
+  .plates{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:7px}
+  .plate{width:30px;height:30px;border-radius:8px;border:2px solid var(--faint);display:grid;place-items:center;font-size:15px;font-weight:900;color:transparent}
+  .plate.on{background:var(--fresh);border-color:var(--fresh);color:#06240f}
+  .pprog{font-size:13px;font-weight:700;color:var(--warn);margin-left:2px}
+  button.allq{font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--panel-2);color:var(--fg);border-radius:8px;padding:5px 9px;cursor:pointer;margin-left:auto}
+  .btn.done-all.armed{background:var(--warn);color:#1a1100}
+  /* ---- test-1.69: มุมมองตามเมนู (ร้านแน่น: รวมจานเดียวกันจากทุกโต๊ะ) ---- */
+  .mwrap{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,calc(420px * var(--fs,1))),1fr));gap:12px;align-content:start}
+  .mcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;zoom:var(--fs,1)}
+  .mcard[data-s=warn]{border-color:var(--warn)}.mcard[data-s=late]{border-color:var(--late);box-shadow:0 0 18px -8px var(--late)}
+  .mhead{display:flex;align-items:center;gap:12px}
+  .mqn{flex:none;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#1a1100;display:grid;place-items:center;font-size:26px;font-weight:800}
+  .mname{font-size:22px;font-weight:700;line-height:1.2}.msum{font-size:14px;color:var(--info);font-weight:600}
+  .mwait{font-size:12px;font-weight:700;padding:2px 7px;border-radius:7px;margin-left:6px;vertical-align:3px}
+  .mwait[data-s=fresh]{color:var(--fresh);background:color-mix(in srgb,var(--fresh) 15%,transparent)}
+  .mwait[data-s=warn]{color:var(--warn);background:color-mix(in srgb,var(--warn) 15%,transparent)}
+  .mwait[data-s=late]{color:var(--late);background:color-mix(in srgb,var(--late) 16%,transparent)}
+  .mall{margin-left:auto;flex:none;font:inherit;font-weight:700;font-size:14px;border:2px solid var(--fresh);color:var(--fresh);background:transparent;border-radius:10px;padding:9px 12px;cursor:pointer}
+  .mchips{display:flex;flex-wrap:wrap;gap:7px}
+  .mchip{font:inherit;display:flex;align-items:center;gap:7px;min-height:46px;padding:6px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel-2);color:var(--fg);cursor:pointer;font-size:15px;text-align:left}
+  .mchip .mt{font-weight:800}.mchip .mv{color:var(--info);font-weight:600}.mchip .mx{color:var(--accent);font-weight:800}.mchip .mr{color:var(--late);font-weight:600}
+  .mchip .md{width:9px;height:9px;border-radius:50%;flex:none}
+  .md[data-s=fresh]{background:var(--fresh)}.md[data-s=warn]{background:var(--warn)}.md[data-s=late]{background:var(--late)}
+  .mchip .mp{font-size:12px;color:var(--warn);font-weight:700}
+  /* ---- test-1.69: ซ่อนแถบด้านบนเมื่อไม่ได้แตะจอ ---- */
+  :root[data-ah="1"] .wrap{position:relative}
+  :root[data-ah="1"] .bar{position:absolute;top:0;left:0;right:0;z-index:45;transition:transform .18s ease;box-shadow:0 8px 24px -10px #000c}
+  :root[data-ah="1"] main{padding-top:16px}
+  :root[data-ah="1"][data-barup="0"] .bar{transform:translateY(-105%);box-shadow:none}
+  #peek{position:fixed;top:6px;right:10px;z-index:25;font-size:13px;font-weight:600;color:var(--muted);background:color-mix(in srgb,var(--panel) 88%,transparent);
+    border:1px solid var(--line);border-radius:20px;padding:4px 11px;pointer-events:none}
+  /* ---- test-1.69: ธีมเพิ่ม ---- */
+  :root[data-theme=ocean]{--bg:#0a1726;--panel:#10233a;--panel-2:#16304d;--line:#24476b;--fg:#eaf4ff;--muted:#9fbad6;--faint:#6a88a8;
+    --accent:#ffb84d;--fresh:#3ee0a8;--warn:#ffd34d;--late:#ff6b6b;--info:#62c7ff;--batch:#b9a2ff}
+  :root[data-theme=forest]{--bg:#0d1610;--panel:#142219;--panel-2:#1b2d21;--line:#2b4433;--fg:#ecf6ee;--muted:#a3bba9;--faint:#6e8a76;
+    --accent:#f4b942;--fresh:#5ee08a;--warn:#ffd54a;--late:#ff6a5c;--info:#7fd1ff;--batch:#c6a4ff}
+  :root[data-theme=coffee]{--bg:#17110d;--panel:#221912;--panel-2:#2c2118;--line:#45352a;--fg:#f6ede4;--muted:#c2ac98;--faint:#8c7663;
+    --accent:#ffa94d;--fresh:#7bd88f;--warn:#ffd166;--late:#ff6b5b;--info:#8fc9ff;--batch:#d0a8ff}
+  :root[data-theme=contrast]{--bg:#000000;--panel:#0b0b0b;--panel-2:#161616;--line:#5a5a5a;--fg:#ffffff;--muted:#d6d6d6;--faint:#a8a8a8;
+    --accent:#ffe600;--fresh:#00ff7f;--warn:#ffd000;--late:#ff3b3b;--info:#4dd2ff;--batch:#ff8cff}
+  :root[data-theme=contrast] .card,:root[data-theme=contrast] .mcard{border-width:2px}
+  :root[data-theme=dim]{--bg:#0b0606;--panel:#140c0c;--panel-2:#1c1212;--line:#3a2222;--fg:#ffd9cf;--muted:#c9998c;--faint:#8f6a60;
+    --accent:#ff9a5a;--fresh:#8fd18a;--warn:#ffc25a;--late:#ff5a4a;--info:#ffb59a;--batch:#e2a0c0}
+  :root[data-theme=cream]{--bg:#f4efe6;--panel:#fffdf8;--panel-2:#f3ece0;--line:#d9cdb8;--fg:#2a2118;--muted:#6b5c4b;--faint:#8f8170;
+    --accent:#d97706;--fresh:#15803d;--warn:#a16207;--late:#c2271c;--info:#1d5f9e;--batch:#7c3aed;color-scheme:light}
+  :root[data-theme=cream] .toast,:root[data-theme=cream] .pop,:root[data-theme=cream] .sheet{box-shadow:0 10px 30px -12px #0005}
+  .themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;margin:4px 0 8px}
+  .themes button{font:inherit;font-size:13px;font-weight:700;cursor:pointer;border-radius:10px;padding:8px;border:2px solid var(--line);display:flex;flex-direction:column;gap:6px;align-items:flex-start;text-align:left}
+  .themes button.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+  .themes .sw{display:flex;gap:4px}.themes .sw i{width:14px;height:14px;border-radius:50%;display:block}
 </style><script src="app-bridge.js"></script>
 </head><body>
 <div id="linkBar" hidden></div>
@@ -213,7 +266,8 @@
     <div class="stat">ออเดอร์ค้าง <b id="nOrders">0</b></div>
     <div class="stat">เมนูที่ต้องทำ <b id="nDishes">0</b></div>
     <div class="tabs" role="tablist">
-      <button role="tab" aria-selected="true" data-view="board">บอร์ดออเดอร์</button>
+      <button role="tab" aria-selected="true" data-view="board">ตามโต๊ะ</button>
+      <button role="tab" aria-selected="false" data-view="menu">ตามเมนู</button>
       <button role="tab" aria-selected="false" data-view="done">เสร็จแล้ว <span class="count" id="doneCount">0</span></button>
     </div>
     <button class="btn" id="doneClear" hidden>🗑 ล้างข้อมูล</button>
@@ -229,13 +283,26 @@
     </span>
   </div>
   <main id="board"></main>
+  <main id="menu" hidden></main>
   <main id="done" hidden></main>
 </div>
+<div id="peek" hidden></div>
 <div class="modal" id="viewModal" hidden>
   <div class="sheet">
     <div class="sheethead"><b>🎨 ปรับหน้าจอ</b><button class="btn" id="viewClose">เสร็จ</button></div>
-    <div class="vrow"><span>ธีม</span><div class="seg" id="segTheme">
-      <button class="btn" data-v="dark">🌙 มืด</button><button class="btn" data-v="light">☀️ สว่าง</button><button class="btn" data-v="auto">🔄 ตามเครื่อง</button></div></div>
+    <div class="sublabel">ธีมสี</div>
+    <div class="themes" id="segTheme">
+      <button data-v="dark" style="background:#171c24;color:#eef2f7">🌙 มืด<span class="sw"><i style="background:#ffb020"></i><i style="background:#34d27b"></i><i style="background:#ff5d55"></i></span></button>
+      <button data-v="light" style="background:#ffffff;color:#111827">☀️ สว่าง<span class="sw"><i style="background:#f59e0b"></i><i style="background:#15803d"></i><i style="background:#dc2626"></i></span></button>
+      <button data-v="ocean" style="background:#10233a;color:#eaf4ff">🌊 ทะเลคืน<span class="sw"><i style="background:#ffb84d"></i><i style="background:#3ee0a8"></i><i style="background:#62c7ff"></i></span></button>
+      <button data-v="forest" style="background:#142219;color:#ecf6ee">🌿 ใบตอง<span class="sw"><i style="background:#f4b942"></i><i style="background:#5ee08a"></i><i style="background:#ff6a5c"></i></span></button>
+      <button data-v="coffee" style="background:#221912;color:#f6ede4">☕ กาแฟ<span class="sw"><i style="background:#ffa94d"></i><i style="background:#7bd88f"></i><i style="background:#ff6b5b"></i></span></button>
+      <button data-v="contrast" style="background:#000;color:#fff">⚡ ชัดสุด<span class="sw"><i style="background:#ffe600"></i><i style="background:#00ff7f"></i><i style="background:#ff3b3b"></i></span></button>
+      <button data-v="dim" style="background:#140c0c;color:#ffd9cf">🕯 ถนอมตา<span class="sw"><i style="background:#ff9a5a"></i><i style="background:#8fd18a"></i><i style="background:#ff5a4a"></i></span></button>
+      <button data-v="cream" style="background:#fffdf8;color:#2a2118">🍚 ครีม<span class="sw"><i style="background:#d97706"></i><i style="background:#15803d"></i><i style="background:#c2271c"></i></span></button>
+      <button data-v="auto" style="background:linear-gradient(135deg,#171c24 50%,#ffffff 50%);color:#ffb020">🔄 ตามเครื่อง<span class="sw"><i style="background:#ffb020"></i><i style="background:#f59e0b"></i></span></button>
+    </div>
+    <label class="vrow"><span>สลับธีมเองตามเวลา (กลางวันใช้ธีมสว่าง หลัง 18:00 ใช้ธีมที่เลือก)</span><input type="checkbox" data-vk="dayl"></label>
     <div class="vrow"><span>ขนาดตัวอักษร</span><div class="seg" id="segFs">
       <button class="btn" id="fsMinus">A−</button><button class="btn" id="fsVal" disabled>100%</button><button class="btn" id="fsPlus">A+</button></div></div>
     <div class="vrow"><span>ความหนา</span><div class="seg" id="segFw">
@@ -245,6 +312,8 @@
     <div class="vrow"><span>แบบ</span><div class="seg" data-vk="qs"><button class="btn" data-v="plain">ตัวเลข</button><button class="btn" data-v="badge">ป้ายสี</button><button class="btn" data-v="box">กรอบ</button></div></div>
     <div class="vrow"><span>ขนาด</span><div class="seg" data-vk="qz"><button class="btn" data-v="1">ปกติ</button><button class="btn" data-v="1.4">ใหญ่</button><button class="btn" data-v="1.8">ใหญ่มาก</button></div></div>
     <div class="vrow"><span>สี</span><div class="seg" data-vk="qc"><button class="btn" data-v="accent">ส้ม</button><button class="btn" data-v="late">แดง</button><button class="btn" data-v="fresh">เขียว</button><button class="btn" data-v="info">ฟ้า</button><button class="btn" data-v="fg">ขาว/ดำ</button></div></div>
+    <label class="vrow"><span><b>ติ๊กทีละจาน</b> สำหรับจานที่สั่ง 2 ที่ขึ้นไป (วงกลมส้ม + ช่องติ๊ก แตะ 1 ครั้ง = เสร็จ 1 จาน)</span><input type="checkbox" data-vk="pp"></label>
+    <p class="vhint">กันทำไปจานเดียวแล้วกดเสร็จ · ปุ่ม “เสร็จทั้งโต๊ะ” ต้องแตะ 2 ครั้งถ้ายังติ๊กไม่ครบ · ปุ่ม “ทั้งหมด” ในบรรทัด = เสร็จทุกจานในบรรทัดนั้น</p>
     <label class="vrow"><span>จานที่สั่งตั้งแต่ 2 ที่ขึ้นไป เน้นเป็นป้ายแดง</span><input type="checkbox" data-vk="multi"></label>
     <label class="vrow"><span>รวมจานที่เหมือนกันเป๊ะในโต๊ะเป็นบรรทัดเดียว (×3 แทน 3 บรรทัด)</span><input type="checkbox" data-vk="merge"></label>
     <p class="vhint">รวมเฉพาะเมนู ตัวเลือก และหมายเหตุเหมือนกันทุกอย่าง ที่สั่งรอบเดียวกัน · แตะบรรทัดที่รวมแล้ว = เสร็จทั้งหมด</p>
@@ -265,6 +334,11 @@
     <div class="sublabel" style="margin-top:8px">การจัดวาง</div>
     <div class="vrow"><span>การ์ดโต๊ะ</span><div class="seg" data-vk="lay"><button class="btn" data-v="pack">เรียงแน่น เต็มจอ (แนะนำ)</button><button class="btn" data-v="row">แถวเดียว เลื่อนข้าง</button><button class="btn" data-v="grid">หลายแถว เลื่อนลง</button></div></div>
     <div class="vrow"><span>เรียงโต๊ะ</span><div class="seg" data-vk="sort"><button class="btn" data-v="old">รอนานสุดก่อน</button><button class="btn" data-v="new">ใหม่สุดก่อน</button></div></div>
+    <label class="vrow"><span>สลับเป็น “ตามเมนู” เองเมื่อออเดอร์ค้างตั้งแต่</span><select class="sel" data-vk="am"><option value="0">ไม่สลับเอง</option><option value="5">5 โต๊ะ</option><option value="6">6 โต๊ะ</option><option value="8">8 โต๊ะ</option><option value="10">10 โต๊ะ</option><option value="12">12 โต๊ะ</option></select></label>
+    <p class="vhint">ออเดอร์ลดลงต่ำกว่านี้ กลับเป็น “ตามโต๊ะ” เอง · ถ้ากดเลือกแท็บเอง จะไม่สลับให้ 3 นาที</p>
+    <div class="sublabel" style="margin-top:8px">แถบด้านบน</div>
+    <label class="vrow"><span>ซ่อนแถบและปุ่มตั้งค่าเมื่อไม่ได้แตะจอ</span><select class="sel" data-vk="ah"><option value="0">ไม่ซ่อน</option><option value="5">หลัง 5 วินาที</option><option value="10">หลัง 10 วินาที</option><option value="20">หลัง 20 วินาที</option><option value="30">หลัง 30 วินาที</option><option value="60">หลัง 1 นาที</option></select></label>
+    <p class="vhint">แตะตรงไหนก็ได้ แถบจะกลับมา · ตอนซ่อนจะเห็นเวลาและจำนวนโต๊ะเล็กๆ มุมขวาบน</p>
     <div class="vrow" style="justify-content:flex-end"><button class="btn" id="viewReset">คืนค่าเริ่มต้น</button></div>
   </div>
 </div>
@@ -282,6 +356,8 @@
       <label class="trow"><span>ความดัง</span><select id="sndVol" class="sel"><option value="0.3">เบา</option><option value="0.5">กลาง</option><option value="0.8">ดัง</option><option value="1">ดังมาก</option><option value="1.8">ดังพิเศษ (บูสต์)</option><option value="3">ดังสุดๆ (เสียงอาจแตก)</option></select></label>
       <label class="trow"><span>จำนวนรอบ</span><select id="sndRep" class="sel"><option value="1">1 รอบ</option><option value="2">2 รอบ</option><option value="3">3 รอบ</option><option value="5">5 รอบ</option><option value="8">8 รอบ</option><option value="10">10 รอบ</option></select></label>
       <label class="trow"><span>เสียงตอนโต๊ะสั่งเพิ่ม</span><select id="sndAdd" class="sel" data-sounds="same,off"></select></label>
+      <label class="trow"><span>เสียงตอนยกเลิกเมนู / ย้ายโต๊ะ</span><select id="sndCancel" class="sel" data-sounds="off"></select></label>
+      <label class="trow"><span>เสียงตอนแตะจานเสร็จ (ยืนยันว่าแตะโดน)</span><select id="sndTick" class="sel" data-sounds="off"></select></label>
       <label class="trow"><span>ดังซ้ำจนกว่าจะแตะจอ</span><select id="sndNag" class="sel"><option value="0">ไม่ซ้ำ</option><option value="15">ทุก 15 วินาที</option><option value="30">ทุก 30 วินาที</option><option value="60">ทุก 1 นาที</option><option value="120">ทุก 2 นาที</option></select></label>
       <div class="trow" style="cursor:default;flex-wrap:wrap"><span style="font-size:13px;color:var(--muted);flex:1 1 200px">ถ้ายังเบา ให้เร่งเสียงมีเดียของแท็บเล็ตหรือลำโพงบลูทูธให้สุดด้วย</span><button class="btn" id="sndTestAdd">▶ เสียงสั่งเพิ่ม</button><button class="btn on" id="sndTest">▶ ลองเสียง</button></div>
     </div>
@@ -320,6 +396,8 @@
       <label class="trow"><input type="checkbox" id="ttsGroup"><span>อ่านรวมเมนูเดียวกันในโต๊ะ (เช่น “กะเพรา 3 ที่ หมูกรอบ 2 ไก่ 1” แทนอ่านทีละจาน)</span></label>
       <label class="trow"><input type="checkbox" id="ttsBatch"><span>แจ้งเมื่อมีเมนูซ้ำที่ทำรวมได้</span></label>
       <div class="trow" style="cursor:default;display:block"><span>หมวดที่<b>ไม่อ่านออกเสียง</b>ตอนออเดอร์เข้า (แตะเพื่อเลือก เช่น ของทอด)</span><div id="ttsSkip" class="catpick"></div></div>
+      <label class="trow"><span>เสียงผู้พูด (ใช้กับเรียกโต๊ะด้วย)</span><select id="ttsVoice" class="sel"><option value="">อัตโนมัติ</option></select></label>
+      <label class="trow"><span>ระดับเสียง</span><select id="ttsPitch" class="sel"><option value="0.7">ต่ำ (ทุ้ม)</option><option value="1">ปกติ</option><option value="1.3">สูง</option><option value="1.6">สูงมาก (แหลม)</option></select></label>
       <label class="trow"><span>ความเร็วเสียง</span>
         <select id="ttsRate" class="sel"><option value="0.85">ช้า</option><option value="1">ปกติ</option><option value="1.2">เร็ว</option></select></label>
       <label class="trow"><span>พูดซ้ำ</span>
@@ -364,7 +442,7 @@ function autoEnd(){const now=new Date(),e=new Date(now);const b=hmin(HIDE.to);e.
 const hideActive=()=>!!(HIDE.cats&&HIDE.cats.length)&&(HIDE.on||(inAuto()&&!(HIDE.skip>Date.now())));
 const isHid=d=>hideActive()&&HIDE.cats.includes(d.cat);
 const visPend=o=>o.pending.filter(d=>!isHid(d));
-const boardEl=document.getElementById('board'), doneEl=document.getElementById('done');
+const boardEl=document.getElementById('board'), doneEl=document.getElementById('done'), menuEl=document.getElementById('menu');
 const esc=s=>(s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const toMs=t=>{t=Number(t)||0;return t<1e12?t*1000:t;};
 
@@ -390,10 +468,22 @@ const ARMED=new Set();      // first tap done, second tap hides
 let GONE=new Map();try{GONE=new Map(Object.entries(JSON.parse(localStorage.getItem('kds_gone')||'{}')));}catch(e){}
 (function(){const cut=Date.now()-24*3600e3;for(const [k,v] of [...GONE])if(!(v>cut))GONE.delete(k);})();
 const saveGone=()=>{try{localStorage.setItem('kds_gone',JSON.stringify(Object.fromEntries(GONE)));}catch(e){}};
-function markDone(o,d){if(!d||d.status==='completed')return;o.pending=o.pending.filter(x=>x.id!==d.id);callDone(o,d);
+function markDone(o,d,quiet){if(!d||d.status==='completed')return;o.pending=o.pending.filter(x=>x.id!==d.id);PLATE.delete(d.id);savePlate();if(!quiet)callDone(o,d);
   DONEDISH.set(d.id,{oid:o.id,dish:{...d,status:'completed'}});
   post('/api/dish/complete',{order_id:o.id,dishes_id:d.id,status:'completed'});}
 const ADDED=new Set();   // dishes added to a table after it first appeared — highlighted until done
+// ---- ติ๊กทีละจาน (test-1.69): จานที่สั่ง 2 ที่ขึ้นไป แตะ 1 ครั้ง = เสร็จ 1 จาน · เก็บในเครื่องนี้ id -> [จำนวนที่เสร็จ, เวลา] ----
+const PLATE=new Map();
+try{const o=JSON.parse(localStorage.getItem('kds_plate')||'{}'),cut=Date.now()-24*3600e3;for(const k in o)if(o[k]&&o[k][1]>cut)PLATE.set(k,o[k][0]);}catch(e){}
+const PLATE_T={};
+function savePlate(){try{const o={};for(const [k,v] of PLATE)o[k]=[v,PLATE_T[k]||Date.now()];localStorage.setItem('kds_plate',JSON.stringify(o));}catch(e){}}
+// จานในบรรทัด (อาจรวมหลายจาน) ที่ทำเสร็จไปแล้วกี่ที่
+const platesDone=(o,ids)=>ids.reduce((n,id)=>n+(o.pending.some(x=>x.id===id&&x.status==='pending')?(PLATE.get(id)||0):0),0);
+// แตะ 1 ครั้ง: จานแรกในบรรทัดที่ยังไม่ครบ +1 · ครบจำนวนของจานนั้น → ส่งเสร็จไปที่เซิร์ฟเวอร์
+function plateTick(o,ids){const d=ids.map(id=>o.pending.find(x=>x.id===id&&x.status==='pending')).find(Boolean);if(!d)return;
+  const c=(PLATE.get(d.id)||0)+1;tickSound();
+  if(c>=(+d.quantity||1)){markDone(o,d,true);}else{PLATE.set(d.id,c);PLATE_T[d.id]=Date.now();savePlate();}
+  callDone(o,{...d,quantity:1});}
 // ---- ทำรวม: เมนูชื่อเดียวกัน = กลุ่มเดียวกัน (ตั้งชื่อเมนูไว้แล้วในหลังร้าน จึงไม่ต้องมีกฎรวมกลุ่ม) ----
 const nz=s=>String(s==null?'':s).replace(/\s+/g,'');
 // เมนูที่ไม่ต้องทำรวม (ตักเสิร์ฟได้เลย) · เก็บในเครื่องนี้ · ค่าเริ่มต้น ข้าวสวย
@@ -428,12 +518,42 @@ function renderBoard(){
   const cards=list.map(cardHtml).join('');
   boardEl.innerHTML=!cards?'<div class="empty">ไม่มีออเดอร์ค้าง 🎉</div>':VIEW.lay==='pack'?`<div class="pack">${cards}</div>`:cards;
 }
+// ---- มุมมองตามเมนู (test-1.69): จานชื่อเดียวกันจากทุกโต๊ะรวมเป็นการ์ดเดียว เมนูที่มีโต๊ะรอนานสุดอยู่บนสุด ----
+// แตะป้ายโต๊ะ = เสร็จ 1 จาน (ติ๊กทีละจาน) หรือเสร็จทั้งป้าย (ถ้าปิดติ๊กทีละจาน) · "เสร็จหมด" = ทุกโต๊ะของเมนูนั้น
+function renderMenu(){if(!menuEl||view!=='menu')return;
+  const groups=new Map();
+  for(const o of ORDERS){const t0=startOf(o),w=o.table_num?('โต๊ะ '+o.table_num):(o.pick_up_code?('#'+o.pick_up_code):(o.third_party_platform||'เดลิเวอรี'));
+    for(const d of visPend(o)){if(d.status!=='pending')continue;
+      if(!groups.has(d.name))groups.set(d.name,{name:d.name,chips:new Map(),t0:Infinity,left:0,vs:new Map()});
+      const g=groups.get(d.name),v=variantOf(d),k=o.id+'|'+v+'|'+d.remark+'|'+(d.thai?1:0);
+      if(!g.chips.has(k))g.chips.set(k,{o,w,t0,v,rmk:d.remark,thai:d.thai,ids:[],q:0,done:0});
+      const c=g.chips.get(k);c.ids.push(d.id);c.q+=d.quantity;c.done+=PLATE.get(d.id)||0;
+      g.t0=Math.min(g.t0,t0);const lft=d.quantity-(PLATE.get(d.id)||0);g.left+=lft;g.vs.set(v||'ธรรมดา',(g.vs.get(v||'ธรรมดา')||0)+lft);}}
+  const sev=t=>{const m=Math.floor((Date.now()-t)/60000);return{m,s:m>=(+VIEW.late||10)?'late':m>=(+VIEW.warn||5)?'warn':'fresh'};};
+  const list=[...groups.values()].sort((a,b)=>a.t0-b.t0);
+  menuEl.innerHTML=list.length?`<div class="mwrap">${list.map(g=>{const a=sev(g.t0);
+    const chips=[...g.chips.values()].sort((x,y)=>x.t0-y.t0).map(c=>{const cs=sev(c.t0);
+      return `<button class="mchip" data-mo="${esc(c.o.id)}" data-mids="${esc(c.ids.join(','))}" data-mq="${c.q}"><span class="md" data-s="${cs.s}"></span><span class="mt">${esc(c.w)}</span>${c.v?`<span class="mv">${esc(c.v)}</span>`:''}${c.rmk?`<span class="mr">⚑ ${esc(c.rmk)}</span>`:''}${c.thai?'<span class="thb" style="margin:0">คนไทย</span>':''}${c.q>1?`<span class="mx">×${c.q}</span>`:''}${c.q>1&&VIEW.pp?`<span class="mp">${c.done}/${c.q}</span>`:''}</button>`;}).join('');
+    const sum=g.vs.size>1||(g.vs.size===1&&!g.vs.has('ธรรมดา'))?[...g.vs].filter(x=>x[1]>0).map(([v,q])=>esc(v)+' '+q).join(' · '):'';
+    return `<section class="mcard" data-s="${a.s}"><div class="mhead"><span class="mqn">${g.left}</span><div style="flex:1;min-width:0"><div class="mname">${esc(g.name)}<span class="mwait" data-s="${a.s}">${a.m} นาที</span></div>${sum?`<div class="msum">${sum}</div>`:''}</div>
+      <button class="mall" data-mall="${esc(g.name)}">เสร็จหมด</button></div><div class="mchips">${chips}</div></section>`;}).join('')}</div>`
+    :'<div class="empty">ไม่มีออเดอร์ค้าง 🎉</div>';}
+menuEl&&menuEl.addEventListener('click',e=>{
+  const ma=e.target.closest('[data-mall]');
+  if(ma){for(const o of ORDERS)for(const d of [...visPend(o)])if(d.name===ma.dataset.mall&&d.status==='pending')markDone(o,d);tickSound();render();toast('✅ เสร็จหมด',ma.dataset.mall);return;}
+  const c=e.target.closest('[data-mids]');if(!c)return;const o=ORDERS.find(x=>x.id===c.dataset.mo);if(!o)return;const ids=c.dataset.mids.split(',');
+  if(VIEW.pp&&+c.dataset.mq>1)plateTick(o,ids);else{for(const id of ids)markDone(o,o.pending.find(x=>x.id===id));tickSound();}
+  render();});
 // จานเหมือนกันเป๊ะ (ชื่อ สเปก ตัวเลือก หมายเหตุ) ในรอบเดียวกัน → บรรทัดเดียว จำนวนรวม · _ids = จานจริงทั้งหมดในบรรทัดนั้น
 function mergeSame(list,roundFn){if(!VIEW.merge)return list;const out=[],at=new Map();
   for(const d of list){const k=roundFn(d)+'|'+(d.thai?'th|':'')+d.name+'|'+d.spec+'|'+(d.extra_option||[]).join('/')+'|'+d.remark;
     const m=at.get(k);if(m){m.quantity+=d.quantity;m._ids.push(d.id);m.id=m._ids.join(',');continue;}
     const c={...d,_ids:[d.id]};at.set(k,c);out.push(c);}
   return out;}
+// "เสร็จทั้งโต๊ะ" ตอนยังติ๊กไม่ครบ (มีบรรทัด 2 ที่ขึ้นไป) → แตะครั้งแรกเตือน แตะอีกครั้งภายใน 4 วินาทีจึงเสร็จ
+const ALLARM={id:'',until:0};
+function hasMultiLine(o){if(!VIEW.pp)return false;const rst=roundStarts(o,((+VIEW.gap||0)||1)*60000);
+  return mergeSame(visPend(o),d=>roundOf(rst,d.at||o.order_at)).some(l=>l.quantity>1);}
 function cardHtml(o){const a=ageInfo(o);const[tl,tc]=OTYPE[o.order_type]||['',''];
     const head=o.table_num?('โต๊ะ '+o.table_num):(o.pick_up_code?('#'+o.pick_up_code):(o.third_party_platform||'เดลิเวอรี'));
     const flags=[];if(o.unpaid)flags.push('<span class="flag unpaid">💰 ยังไม่ได้ชำระ</span>');
@@ -447,14 +567,19 @@ function cardHtml(o){const a=ageInfo(o);const[tl,tc]=OTYPE[o.order_type]||['',''
       const opt=(d.extra_option||[]).length&&!ol?'<span class="opt">+ '+d.extra_option.map(esc).join(', ')+'</span>':'';
       const sub=[d.spec?esc(d.spec):'',opt,d.remark?'<span class="rmk">⚑ '+esc(d.remark)+'</span>':''].filter(Boolean).join(' · ');
       const multi=VIEW.multi&&st==='pending'&&d.quantity>1;
+      // ติ๊กทีละจาน: วงกลมจำนวน + ช่องติ๊กเท่าจำนวนจาน
+      const pp=VIEW.pp&&st==='pending'&&d.quantity>1&&o.id!=='_pv'?platesDone(o,ids):-1;
+      const ppHtml=pp<0?'':`<div class="plates">${d.quantity<=8?Array.from({length:d.quantity},(_,i)=>`<span class="plate${i<pp?' on':''}">✓</span>`).join(''):''}<span class="pprog">ทำแล้ว ${pp}/${d.quantity}</span><button class="allq" data-allq="1">ทั้งหมด ✓</button></div>`;
+      const ppPrev=VIEW.pp&&st==='pending'&&d.quantity>1&&o.id==='_pv'?`<div class="plates">${Array.from({length:d.quantity},(_,i)=>`<span class="plate${i<1?' on':''}">✓</span>`).join('')}<span class="pprog">ทำแล้ว 1/${d.quantity}</span></div>`:'';
       // เมนูเดียวกันในโต๊ะอื่น → ป้าย "รวม N" ท้ายชื่อ (จำนวนทั้งบอร์ด) · เมนูที่ไม่ต้องทำรวมไม่ขึ้น
       const others=st==='pending'&&o.id!=='_pv'&&!noBatch(d)?ORDERS.reduce((n,oo)=>n+(oo!==o?oo.pending.filter(x=>x.status==='pending'&&!isHid(x)&&bkey(x)===bkey(d)).length:0),0):0;
       const tot=others?ORDERS.reduce((n,oo)=>n+oo.pending.filter(x=>x.status==='pending'&&bkey(x)===bkey(d)).reduce((q,x)=>q+x.quantity,0),0):0;
       const nw=st==='pending'&&ids.some(x=>ADDED.has(x));
       const note=canc?`<div class="dsub tagc">${armed?'แตะอีกครั้งเพื่อซ่อน':'❌ ยกเลิก — แตะเพื่อรับทราบ'}</div>`:(done?`<div class="dsub tagc" style="color:var(--muted);font-weight:600">${armed?'แตะอีกครั้งเพื่อซ่อน':'เสร็จแล้ว · แตะ ✓ เพื่อย้อนกลับ'}</div>`:'');
-      return `<li class="dish${done?' done':''}${canc?' cancel':''}${armed?' armed':''}${nw?' new':''}${multi?' multi':''}" data-st="${st}" data-o="${esc(o.id)}" data-d="${esc(d.id)}"><span class="qty">×${d.quantity}</span>
+      const mq=VIEW.pp&&st==='pending'&&d.quantity>1;
+      return `<li class="dish${done?' done':''}${canc?' cancel':''}${armed?' armed':''}${nw?' new':''}${multi?' multi':''}${mq?' mq':''}" data-st="${st}" data-o="${esc(o.id)}" data-d="${esc(d.id)}" data-q="${d.quantity}"><span class="qty">${mq?d.quantity:'×'+d.quantity}</span>
         <span class="dmeta"><div class="dname">${esc(d.name)}${others?`<span class="bb" title="ทั้งบอร์ดมีเมนูนี้ ${tot} ที่ ทำรวมได้">รวม ${tot}</span>`:''}${d.thai?'<span class="thb">คนไทย</span>':''}${nw?'<span class="nb">เพิ่มใหม่</span>':''}</div>${ol?`<div class="dopts">${d.extra_option.map(x=>'<div>+ '+esc(x)+'</div>').join('')}</div>`:''}${sub?`<div class="dsub">${sub}</div>`:''}
-        ${note}${st==='pending'&&ids.some(x=>repeating(o,{...d,id:x}))?`<button class="ack" data-ack="${esc(d.id)}">🔇 ทราบแล้ว</button>`:''}</span>
+        ${ppHtml}${ppPrev}${note}${st==='pending'&&ids.some(x=>repeating(o,{...d,id:x}))?`<button class="ack" data-ack="${esc(d.id)}">🔇 ทราบแล้ว</button>`:''}</span>
         <span class="check">${canc?'✕':'✓'}</span></li>`;};
     const doneIds=new Set(),doneL=[];
     [...[...DONEDISH.values()].filter(e=>e.oid===o.id).map(e=>e.dish),...(o.finished||[])].forEach(d=>{if(doneIds.has(d.id)||GONE.has(d.id)||isHid(d))return;doneIds.add(d.id);doneL.push(d);});
@@ -468,7 +593,7 @@ function cardHtml(o){const a=ageInfo(o);const[tl,tc]=OTYPE[o.order_type]||['',''
     return `<article class="card${o.is_urge?' urge':''}${o.unpaid?' unpaid':''}" data-oid="${esc(o.id)}" data-s="${a.sev}"><header><span class="tbl">${headHtml}</span>
       ${tl&&tc?`<span class="otype ${tc}">${tl}</span>`:''}<span class="age" data-s="${a.sev}">${a.label}</span></header>
       ${flags.length?`<div class="flags">${flags.join('')}</div>`:''}
-      <ul class="dishes">${dishes}</ul><footer>${o.pending.some(d=>repeating(o,d))?`<button class="btn ack-all" data-ackall="${esc(o.id)}">🔇 ทราบแล้ว</button>`:''}<button class="btn done-all" data-all="${esc(o.id)}">เสร็จทั้งโต๊ะ</button></footer></article>`;
+      <ul class="dishes">${dishes}</ul><footer>${o.pending.some(d=>repeating(o,d))?`<button class="btn ack-all" data-ackall="${esc(o.id)}">🔇 ทราบแล้ว</button>`:''}<button class="btn done-all${ALLARM.id===o.id&&ALLARM.until>Date.now()?' armed':''}" data-all="${esc(o.id)}">${ALLARM.id===o.id&&ALLARM.until>Date.now()?'ยังติ๊กไม่ครบ · แตะอีกครั้ง':'เสร็จทั้งโต๊ะ'}</button></footer></article>`;
 }
 // ---- finished tables ("เสร็จแล้ว" tab) — kept in this browser for 24 hours ----
 let DONE=[];try{DONE=JSON.parse(localStorage.getItem(SKEY('kds_done'))||'[]');}catch(e){}
@@ -527,7 +652,7 @@ const CALL=(()=>{let c={};try{c=JSON.parse(localStorage.getItem('kds_call')||'{}
   return Object.assign({when:'dish',what:'dish',qty:true,pre:'',post:'',snd:'off',rep:'1',rate:'1',wait:'0.7',skip:null,tap:true},c);})();
 const saveCall=()=>{try{localStorage.setItem('kds_call',JSON.stringify(CALL));}catch(e){}};
 function callSay(text){if(!canSpeak||!text)return;
-  const go=()=>{for(let i=0;i<(+CALL.rep||1);i++){const u=new SpeechSynthesisUtterance(text);u.lang='th-TH';u.rate=+CALL.rate||1;if(VOICE)u.voice=VOICE;speechSynthesis.speak(u);}};
+  const go=()=>{for(let i=0;i<(+CALL.rep||1);i++)speechSynthesis.speak(utter(text,+CALL.rate||1));};
   if(CALL.snd&&CALL.snd!=='off'){playPat(CALL.snd,1);const w=soundUntil-Date.now();if(w>0){setTimeout(go,w);return;}}
   go();}
 const callSkip=d=>(CALL.skip||[]).includes(d.cat);
@@ -574,10 +699,15 @@ const canSpeak='speechSynthesis' in window;
 let VOICE=null;
 {const m=/^u(\d+)$/.exec(String(TTS.repeat));if(m){TTS.every=m[1];TTS.repeat='u';}}   // old settings: 'u30' = repeat every 30s until done
 function saveTts(){try{localStorage.setItem('kds_tts',JSON.stringify(TTS));}catch(e){}}
-function loadVoices(){if(!canSpeak)return;VOICE=speechSynthesis.getVoices().find(v=>/^th/i.test(v.lang))||null;
-  const h=document.getElementById('ttsHint');if(h)h.hidden=!!VOICE;}
+// เสียงผู้พูด: เลือกได้ถ้าเครื่องมีเสียงไทยหลายแบบ (test-1.69) · ไม่เลือก = เสียงไทยตัวแรก
+function loadVoices(){if(!canSpeak)return;const th=speechSynthesis.getVoices().filter(v=>/^th/i.test(v.lang));
+  VOICE=th.find(v=>v.voiceURI===TTS.voice)||th[0]||null;
+  const h=document.getElementById('ttsHint');if(h)h.hidden=!!VOICE;
+  const sel=document.getElementById('ttsVoice');if(sel){sel.innerHTML='<option value="">อัตโนมัติ'+(th.length>1?' (มี '+th.length+' เสียง)':'')+'</option>'+th.map((v,i)=>`<option value="${esc(v.voiceURI)}">${esc(v.name||('เสียงไทย '+(i+1)))}${v.localService?'':' · ใช้เน็ต'}</option>`).join('');
+    sel.value=th.some(v=>v.voiceURI===TTS.voice)?TTS.voice:'';}}
+const utter=(text,rate)=>{const u=new SpeechSynthesisUtterance(text);u.lang='th-TH';u.rate=rate;u.pitch=+TTS.pitch||1;if(VOICE)u.voice=VOICE;return u;};
 function speak(text){if(!TTS.on||!canSpeak||!text)return;
-  const go=()=>{const u=new SpeechSynthesisUtterance(text);u.lang='th-TH';u.rate=TTS.rate;if(VOICE)u.voice=VOICE;speechSynthesis.speak(u);};
+  const go=()=>speechSynthesis.speak(utter(text,TTS.rate));
   const w=soundUntil-Date.now();if(w>0)setTimeout(go,w);else go();}
 const spokenHead=o=>o.table_num?('โต๊ะ '+o.table_num):(o.pick_up_code?('รับกลับบ้าน หมายเลข '+o.pick_up_code):(o.third_party_platform||'เดลิเวอรี'));
 // รายละเอียดที่อ่านต่อท้ายชื่อจาน (ตัวเลือก สเปก หมายเหตุ ตามที่ตั้งไว้)
@@ -660,7 +790,7 @@ ttsBtn.addEventListener('click',()=>{
 document.getElementById('ttsCfg').addEventListener('click',()=>{
   document.getElementById('ttsOpts').checked=TTS.opts;document.getElementById('ttsSpec').checked=TTS.spec;
   document.getElementById('ttsBatch').checked=TTS.batch;document.getElementById('ttsGroup').checked=TTS.group!==false;document.getElementById('ttsRate').value=String(TTS.rate);
-  renderTtsDishes();document.getElementById('ttsRepeat').value=String(TTS.repeat);document.getElementById('ttsEvery').value=String(TTS.every||'15');renderRules();['min','every','gap','rep'].forEach(k=>document.getElementById('wait'+k[0].toUpperCase()+k.slice(1)).value=String(WAIT[k]));document.getElementById('waitSnd').value=WAIT.sound;document.getElementById('waitSpeak').checked=!!WAIT.speak;document.getElementById('sndType').value=SND.type;document.getElementById('sndVol').value=String(SND.vol);document.getElementById('sndRep').value=String(SND.rep);document.getElementById('sndAdd').value=String(SND.add);document.getElementById('sndNag').value=String(SND.nag);loadVoices();renderCallCfg();ttsModal.hidden=false;});
+  renderTtsDishes();document.getElementById('ttsRepeat').value=String(TTS.repeat);document.getElementById('ttsEvery').value=String(TTS.every||'15');renderRules();['min','every','gap','rep'].forEach(k=>document.getElementById('wait'+k[0].toUpperCase()+k.slice(1)).value=String(WAIT[k]));document.getElementById('waitSnd').value=WAIT.sound;document.getElementById('waitSpeak').checked=!!WAIT.speak;document.getElementById('sndType').value=SND.type;document.getElementById('sndVol').value=String(SND.vol);document.getElementById('sndRep').value=String(SND.rep);document.getElementById('sndAdd').value=String(SND.add);document.getElementById('sndNag').value=String(SND.nag);document.getElementById('sndCancel').value=SND.cancel;document.getElementById('sndTick').value=SND.tick;document.getElementById('ttsPitch').value=String(TTS.pitch||1);loadVoices();renderCallCfg();ttsModal.hidden=false;});
 function addTtsName(){const i=document.getElementById('ttsAddName'),n=i.value.trim();if(!n)return;
   const s=new Set(TTS.only||[]);s.add(n);TTS.only=[...s];saveTts();i.value='';renderTtsDishes();}
 document.getElementById('ttsAdd').addEventListener('click',addTtsName);
@@ -679,7 +809,9 @@ ttsModal.addEventListener('click',e=>{if(e.target===ttsModal)ttsModal.hidden=tru
 document.getElementById('callTest').addEventListener('click',()=>{if(!canSpeak){toast('⚠️ เครื่องนี้อ่านออกเสียงไม่ได้','');return;}
   speechSynthesis.cancel();const t=callDemo();if(CALL.when!=='off')callSay(t);toast('🔊 ตัวอย่าง',t,4000);});
 document.getElementById('ttsRate').addEventListener('change',e=>{TTS.rate=+e.target.value;saveTts();});
-[['sndType','type'],['sndVol','vol'],['sndRep','rep'],['sndAdd','add'],['sndNag','nag']].forEach(([id,k])=>document.getElementById(id).addEventListener('change',e=>{SND[k]=e.target.value;saveSnd();}));
+document.getElementById('ttsVoice').addEventListener('change',e=>{TTS.voice=e.target.value;saveTts();loadVoices();if(canSpeak){speechSynthesis.cancel();speechSynthesis.speak(utter('โต๊ะ 5 ผัดไท 2 ที่',TTS.rate||1));}});
+document.getElementById('ttsPitch').addEventListener('change',e=>{TTS.pitch=+e.target.value;saveTts();if(canSpeak){speechSynthesis.cancel();speechSynthesis.speak(utter('โต๊ะ 5 ผัดไท 2 ที่',TTS.rate||1));}});
+[['sndType','type'],['sndVol','vol'],['sndRep','rep'],['sndAdd','add'],['sndNag','nag'],['sndCancel','cancel'],['sndTick','tick']].forEach(([id,k])=>document.getElementById(id).addEventListener('change',e=>{SND[k]=e.target.value;saveSnd();}));
 document.getElementById('sndTest').addEventListener('click',()=>{const w=sound;sound=true;beep('order');sound=w;});
 document.getElementById('sndTestAdd').addEventListener('click',()=>{const w=sound;sound=true;if(SND.add==='off')toast('ปิดเสียงสั่งเพิ่มไว้','');beep('add');sound=w;});
 function renderRules(){document.getElementById('nobList').innerHTML=NOB.map((k,i)=>`<span class="chip" style="cursor:pointer" data-nob="${i}" title="แตะเพื่อลบ">${esc(k)} ✕</span>`).join('')||'<span class="thint" style="margin:0;background:none;border:0;padding:0;color:var(--faint)">ไม่มี — ทุกเมนูที่หลายโต๊ะสั่งขึ้นในทำรวม</span>';}
@@ -735,7 +867,7 @@ function renderPop(){
 // ---- จอกว้าง: แผงทำรวมชิดขวา ไม่ทับการ์ด (บอร์ดหดให้) · จอแคบ: ลอยเหมือนเดิม ----
 function layoutFix(){const r=document.documentElement,bar=document.querySelector('.bar');
   r.dataset.dock=innerWidth>=900?'1':'0';
-  if(bar)r.style.setProperty('--barh',Math.round(bar.getBoundingClientRect().bottom)+'px');
+  if(bar)r.style.setProperty('--barh',(r.dataset.ah==='1'?0:Math.round(bar.getBoundingClientRect().bottom))+'px');
   checkHidden();}
 addEventListener('resize',layoutFix);
 // ---- มีโต๊ะที่มองไม่เห็น (ล้นจอ) → ป้ายบอกจำนวน แตะเพื่อเลื่อนไปดู ----
@@ -780,7 +912,7 @@ document.getElementById('popBody').addEventListener('click',e=>{const r=e.target
   for(const o of ORDERS)for(const d of [...o.pending])if(bkey(d)===r.dataset.bk&&d.status==='pending')markDone(o,d);
   render();toast('✅ ทำเสร็จทั้งชุด',r.dataset.bn);});
 
-function render(){renderBoard();renderPop();requestAnimationFrame(checkHidden);
+function render(){renderBoard();renderMenu();renderPop();requestAnimationFrame(checkHidden);
   document.getElementById('nOrders').textContent=ORDERS.length;
   document.getElementById('nDishes').textContent=ORDERS.reduce((n,o)=>n+o.pending.filter(d=>d.status==='pending'&&!isHid(d)).length,0);
   paintHide();}
@@ -803,11 +935,16 @@ boardEl.addEventListener('click',e=>{
         DONEDISH.delete(one);o.finished=(o.finished||[]).filter(x=>x.id!==one);
         o.pending.push({...d0,status:'pending'});post('/api/dish/complete',{order_id:o.id,dishes_id:one,status:'pending'});}
       ARMED.delete(id);render();return;}
-    if(st==='pending'){for(const one of ids)markDone(o,o.pending.find(x=>x.id===one));render();return;}
+    if(st==='pending'){
+      if(e.target.closest('[data-allq]')||!(VIEW.pp&&+li.dataset.q>1)){for(const one of ids)markDone(o,o.pending.find(x=>x.id===one));if(VIEW.pp)tickSound();render();return;}
+      plateTick(o,ids);render();return;}
     if(ARMED.has(id)){for(const one of ids){GONE.set(one,Date.now());DONEDISH.delete(one);CANCELD.delete(one);}saveGone();ARMED.delete(id);}else ARMED.add(id);
     render();return;}
   const all=e.target.closest('[data-all]');
   if(all){const ho=ORDERS.find(x=>x.id===all.dataset.all);
+    if(ho&&hasMultiLine(ho)&&!(ALLARM.id===ho.id&&ALLARM.until>Date.now())){ALLARM.id=ho.id;ALLARM.until=Date.now()+4000;render();
+      setTimeout(()=>{if(ALLARM.id===ho.id&&ALLARM.until<=Date.now()){ALLARM.id='';render();}},4100);return;}
+    ALLARM.id='';
     if(ho&&ho.pending.some(d=>d.status==='pending'&&isHid(d))){visPend(ho).forEach(d=>markDone(ho,d));render();toast('✅ เสร็จเฉพาะจานที่เห็น','จานในหมวดที่ซ่อนยังค้างอยู่');return;}}
   if(all){post('/api/order/complete',{order_id:all.dataset.all,status:'completed',screen:SCREEN});
     const fo=ORDERS.find(x=>x.id===all.dataset.all);if(fo){const pd=fo.pending.filter(d=>d.status==='pending'&&!isHid(d));if(pd.length&&new Set(pd.map(d=>d.name)).size<=3)pd.forEach(d=>callDone(fo,d));else callDone(fo,null);recordDone(fo);}ORDERS=ORDERS.filter(x=>x.id!==all.dataset.all);render();}});
@@ -824,9 +961,18 @@ doneEl.addEventListener('click',async e=>{const b=e.target.closest('[data-recall
     is_urge:false,is_add_dish:false,is_need_cutlery:h.is_need_cutlery,is_cancel:false,order_at:h.order_at,pending:h.dishes.map(d=>({...d,status:'pending'})),finished:[]});
   render();toast('↩ เรียกกลับแล้ว',h.table_num?('โต๊ะ '+h.table_num):(h.pick_up_code||h.third_party_platform||''));});
 
-document.querySelectorAll('.tabs button').forEach(btn=>btn.addEventListener('click',()=>{view=btn.dataset.view;
-  document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',x===btn));
-  boardEl.hidden=view!=='board';doneEl.hidden=view!=='done';if(view==='done')renderDone();document.getElementById('doneClear').hidden=view!=='done';renderPop();}));
+// แท็บ: ตามโต๊ะ / ตามเมนู / เสร็จแล้ว · manual = ผู้ใช้กดเอง (หยุดสลับอัตโนมัติ 3 นาที)
+let manualViewAt=0;
+function setView(v,manual){view=v;if(manual)manualViewAt=Date.now();
+  document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',x.dataset.view===v));
+  boardEl.hidden=view!=='board';menuEl.hidden=view!=='menu';doneEl.hidden=view!=='done';if(view==='done')renderDone();if(view==='menu')renderMenu();
+  document.getElementById('doneClear').hidden=view!=='done';renderPop();}
+document.querySelectorAll('.tabs button').forEach(btn=>btn.addEventListener('click',()=>setView(btn.dataset.view,true)));
+// ออเดอร์ค้างถึงจำนวนที่ตั้ง → ตามเมนู · ลดลง (ต่ำกว่าที่ตั้ง 2 โต๊ะ) → กลับตามโต๊ะ
+function autoMenu(){const n=+VIEW.am||0;if(!n||view==='done'||Date.now()-manualViewAt<180000)return;
+  const c=ORDERS.filter(o=>!hideActive()||visPend(o).length).length;
+  if(view==='board'&&c>=n){setView('menu');toast('🍳 ออเดอร์เยอะ — สลับเป็น “ตามเมนู”',c+' โต๊ะ · กดแท็บ “ตามโต๊ะ” เพื่อกลับ');}
+  else if(view==='menu'&&c<=Math.max(0,n-2)){setView('board');toast('📋 กลับเป็น “ตามโต๊ะ”','ออเดอร์เหลือ '+c+' โต๊ะ');}}
 
 // ---- clear the finished list (tap twice to confirm) ----
 (function(){const b=document.getElementById('doneClear');let tm=0;
@@ -838,7 +984,7 @@ document.querySelectorAll('.tabs button').forEach(btn=>btn.addEventListener('cli
 // ---- change alerts: cancelled dish / cancelled order / moved table ----
 const NOTES={};
 function addNote(id,text){(NOTES[id]=NOTES[id]||[]).push(text);}
-function alertEv(id,title,detail,say){beep();addNote(id,title+(detail?' '+detail:''));toast(title,detail,12000);
+function alertEv(id,title,detail,say){beep('cancel');addNote(id,title+(detail?' '+detail:''));toast(title,detail,12000);
   if(say){speak(say);}}
 boardEl.addEventListener('click',e=>{const f=e.target.closest('[data-note]');if(!f)return;
   const [id,i]=f.dataset.note.split('#');if(NOTES[id]){NOTES[id].splice(+i,1);if(!NOTES[id].length)delete NOTES[id];}render();});
@@ -876,7 +1022,7 @@ applySize();
 
 const soundBtn=document.getElementById('soundBtn');soundBtn.addEventListener('click',()=>{sound=!sound;soundBtn.classList.toggle('on',sound);});
 // ---- loud alert sounds (Web Audio): bell / siren / chime, volume + repeat ----
-const SND=Object.assign({type:'bell',vol:'1',rep:'2',add:'chime',nag:'0'},(()=>{try{return JSON.parse(localStorage.getItem('kds_snd')||'{}');}catch(e){return {};}})());
+const SND=Object.assign({type:'bell',vol:'1',rep:'2',add:'chime',nag:'0',cancel:'warn',tick:'off'},(()=>{try{return JSON.parse(localStorage.getItem('kds_snd')||'{}');}catch(e){return {};}})());
 const saveSnd=()=>{try{localStorage.setItem('kds_snd',JSON.stringify(SND));}catch(e){}};
 let actx,master,soundUntil=0;
 function ac(){try{actx=actx||new(window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume();
@@ -911,12 +1057,31 @@ const PATTERNS={
   rise:(t0)=>{for(let k=0;k<3;k++)tone(600,t0+k*.38,.32,'sine',.8,1800);return 1.2;},
   tri:(t0)=>{for(let i=0;i<3;i++)tone(1500,t0+i*.2,.1,'sine',.9);return .65;},
   windchime:(t0)=>{[2093,2637,3136,2349,2794,3520].forEach((f,i)=>tone(f,t0+i*.13,.9,'sine',.45,0,true));return 1.6;},
-  phone:(t0)=>{for(let k=0;k<2;k++)for(let i=0;i<10;i++)tone(i%2?1250:1000,t0+k*.6+i*.045,.04,'square',.45);return 1.1;}};
+  phone:(t0)=>{for(let k=0;k<2;k++)for(let i=0;i<10;i++)tone(i%2?1250:1000,t0+k*.6+i*.045,.04,'square',.45);return 1.1;},
+  // ---- test-1.69: เสียงเพิ่ม ----
+  kbell:(t0)=>{for(let k=0;k<2;k++){const t=t0+k*.7;tone(1568,t,1.1,'sine',1,0,true);tone(4320,t,.5,'sine',.35,0,true);tone(2350,t,.8,'triangle',.3,0,true);}return 1.8;},
+  ding3:(t0)=>{for(let k=0;k<3;k++){tone(2093,t0+k*.28,.5,'sine',1,0,true);tone(4186,t0+k*.28,.25,'sine',.3,0,true);}return 1.2;},
+  coin:(t0)=>{for(let k=0;k<2;k++){tone(988,t0+k*.45,.08,'square',.5);tone(1319,t0+k*.45+.08,.3,'square',.5,0,true);}return 1.2;},
+  bubble:(t0)=>{for(let i=0;i<4;i++)tone(320,t0+i*.16,.12,'sine',.9,1100);return .8;},
+  drum:(t0)=>{[0,.22,.44,.8].forEach(d=>{tone(160,t0+d,.3,'sine',1,55,true);tone(900,t0+d,.03,'square',.25);});return 1.2;},
+  fanfare:(t0)=>{[[523,0],[659,.14],[784,.28],[1047,.42]].forEach(([f,d])=>{tone(f,t0+d,d===.42?.7:.13,'sawtooth',.35);tone(f/2,t0+d,d===.42?.7:.13,'triangle',.45);});return 1.25;},
+  sonar:(t0)=>{for(let k=0;k<2;k++){tone(1200,t0+k*.8,.75,'sine',1,0,true);tone(1205,t0+k*.8,.75,'sine',.4,0,true);}return 1.6;},
+  tock:(t0)=>{for(let i=0;i<8;i++)tone(i%2?1000:1500,t0+i*.16,.035,'square',.6);return 1.3;},
+  ring:(t0)=>{for(let i=0;i<24;i++)tone(i%2?1400:1480,t0+i*.05,.045,'sine',.7);return 1.25;},
+  ponglang:(t0)=>{[880,784,659,587,523,587,659].forEach((f,i)=>{tone(f,t0+i*.13,.3,'triangle',1,0,true);tone(f*3,t0+i*.13,.06,'sine',.2,0,true);});return 1.25;},
+  kalimba:(t0)=>{[784,988,1175,988,1568].forEach((f,i)=>{tone(f,t0+i*.17,.55,'sine',.9,0,true);tone(f*5.4,t0+i*.17,.05,'sine',.15,0,true);});return 1.4;},
+  bird:(t0)=>{for(let i=0;i<5;i++)tone(2600,t0+i*.13,.08,'sine',.6,i%2?3600:4100);return .9;},
+  success:(t0)=>{tone(1319,t0,.18,'sine',.9,0,true);tone(1760,t0+.12,.45,'sine',.9,0,true);tone(3520,t0+.12,.2,'sine',.2,0,true);return .65;},
+  pop:(t0)=>{tone(700,t0,.08,'sine',.9,1400,true);return .15;},
+  click:(t0)=>{tone(2200,t0,.025,'square',.5);return .08;}};
 // รายการเสียง (ใช้สร้างตัวเลือกในทุกช่องเลือกเสียง) · same/off = ตัวเลือกพิเศษบางช่อง
 const SOUNDS=[['bell','กริ่งดัง (แนะนำ)'],['alarm','นาฬิกาปลุก (เร็ว ถี่)'],['digital','บี๊บดิจิทัล'],['ting','กระดิ่งเคาน์เตอร์ ติ๊ง!'],
   ['dingdong','ออดประตู ติ๊งต่อง'],['chime','ติ๊งหน่อง'],['siren','ไซเรน'],['horn','แตร'],['warn','บี๊บสั้น 2 ครั้ง'],
   ['xylo','ระนาดไล่เสียง'],['marimba','มาริมบา'],['whistle','นกหวีด'],['pager','เพจเจอร์'],['gong','ฆ้อง'],['buzzer','ออดเกมโชว์'],
-  ['cuckoo','นกกาเหว่า'],['police','หวอตำรวจ'],['rise','ไล่เสียงขึ้น'],['tri','ติ๊ด ติ๊ด ติ๊ด'],['windchime','กระดิ่งลม'],['phone','โทรศัพท์บ้าน']];
+  ['cuckoo','นกกาเหว่า'],['police','หวอตำรวจ'],['rise','ไล่เสียงขึ้น'],['tri','ติ๊ด ติ๊ด ติ๊ด'],['windchime','กระดิ่งลม'],['phone','โทรศัพท์บ้าน'],
+  ['kbell','ระฆังครัว (ใหม่)'],['ding3','ติ๊ง 3 ครั้ง (ใหม่)'],['coin','เหรียญเกม (ใหม่)'],['bubble','ฟองน้ำ ปุ๊ปปั๊บ (ใหม่)'],['drum','กลองตุ้ม (ใหม่)'],
+  ['fanfare','แตรเปิดงาน (ใหม่)'],['sonar','โซนาร์ (ใหม่)'],['tock','ติ๊กต็อก (ใหม่)'],['ring','กริ่งโรงเรียน (ใหม่)'],['ponglang','โปงลาง (ใหม่)'],
+  ['kalimba','คาลิมบา (ใหม่)'],['bird','นกร้อง (ใหม่)'],['success','สำเร็จ ติ๊งติ๊ง (ใหม่)'],['pop','ป๊อป สั้นๆ (ใหม่)'],['click','คลิก สั้นๆ (ใหม่)']];
 const SND_EXTRA={same:'เหมือนออเดอร์ใหม่',off:'ไม่มีเสียง'};
 document.querySelectorAll('select[data-sounds]').forEach(sel=>{const ex=sel.dataset.sounds.split(',').filter(Boolean);
   sel.innerHTML=[...ex.filter(k=>k==='same').map(k=>[k,SND_EXTRA[k]]),...SOUNDS,...ex.filter(k=>k==='off').map(k=>[k,SND_EXTRA[k]])]
@@ -927,7 +1092,8 @@ document.querySelectorAll('select[data-sounds]').forEach(sel=>sel.addEventListen
 // kind: 'order' (chosen sound x rounds) | 'urge' (siren x3) | 'add' (one chime) | undefined (short warning beep)
 function beep(kind){if(!sound)return;const a=ac();if(!a)return;
   let pat,rep;if(kind==='order'){pat=SND.type;rep=+SND.rep||2;}else if(kind==='urge'){pat='siren';rep=3;}
-  else if(kind==='add'){if(SND.add==='off')return;if(SND.add==='same'){pat=SND.type;rep=+SND.rep||2;}else{pat=SND.add;rep=1;}}else{pat='warn';rep=1;}
+  else if(kind==='add'){if(SND.add==='off')return;if(SND.add==='same'){pat=SND.type;rep=+SND.rep||2;}else{pat=SND.add;rep=1;}}
+  else if(kind==='cancel'){if(SND.cancel==='off')return;pat=SND.cancel||'warn';rep=1;}else{pat='warn';rep=1;}
   if(!PATTERNS[pat])pat='bell';
   let t=a.currentTime+.03;for(let i=0;i<rep;i++){t+=PATTERNS[pat](t)+.25;}
   soundUntil=Date.now()+(t-a.currentTime)*1000;}
@@ -936,29 +1102,36 @@ document.addEventListener('pointerdown',()=>{ac();stopNag();},{passive:true});  
 let nag=null;const nagBar=document.getElementById('nagBar');
 function alertSound(kind){beep(kind);const s=+SND.nag||0;if(!s||!sound||(kind==='add'&&SND.add==='off'))return;
   if(!nag||kind!=='add')nag={kind,next:Date.now()+s*1000};nagBar.hidden=false;}
+// เสียงสั้นตอนแตะจานเสร็จ (ตั้งได้ ปิดไว้เป็นค่าเริ่มต้น) · ไม่เลื่อนเสียงพูดเรียกโต๊ะ
+function tickSound(){if(!sound||!SND.tick||SND.tick==='off')return;const a=ac();if(!a||!PATTERNS[SND.tick])return;PATTERNS[SND.tick](a.currentTime+.01);}
 function stopNag(){if(nag){nag=null;nagBar.hidden=true;}}
 function nagTick(){if(!nag)return;const s=+SND.nag||0;if(!s||!sound){stopNag();return;}
   if(Date.now()>=nag.next){beep(nag.kind);nag.next=Date.now()+s*1000;}}
 function toast(tt,td,ms){const el=document.createElement('div');el.className='toast';el.innerHTML=`<div class="tt">${esc(tt)}</div>${td?`<div class="td">${esc(td)}</div>`:''}`;document.getElementById('toasts').appendChild(el);setTimeout(()=>{el.style.opacity=0;el.style.transition='opacity .4s';setTimeout(()=>el.remove(),400);},ms||4500);}
 
 // ---- look & feel: theme, text size, weight ----
-const VIEW_DEF={merge:true,theme:'dark',fs:1,fw:'1',qs:'plain',qz:'1',qc:'accent',multi:false,ol:'0',rk:'text',warn:'5',late:'10',hc:false,gap:'10',lay:'pack',sort:'old'};
+const VIEW_DEF={merge:true,theme:'dark',fs:1,fw:'1',qs:'plain',qz:'1',qc:'accent',multi:false,ol:'0',rk:'text',warn:'5',late:'10',hc:false,gap:'10',lay:'pack',sort:'old',
+  pp:true,am:'0',ah:'10',dayl:false};   // test-1.69: ติ๊กทีละจาน · สลับตามเมนูเอง · ซ่อนแถบ · สลับธีมตามเวลา
 const VIEW=Object.assign({...VIEW_DEF},(()=>{try{return JSON.parse(localStorage.getItem('kds_view')||'{}');}catch(e){return {};}})());
 // อัปเดตรุ่นที่มี "เรียงแน่น": เปลี่ยนเป็นเรียงแน่นครั้งเดียว (ปรับกลับได้ที่ ปรับหน้าจอ)
 if(!VIEW.pk){VIEW.lay='pack';VIEW.pk=1;try{localStorage.setItem('kds_view',JSON.stringify(VIEW));}catch(e){}}
 const mqLight=window.matchMedia?matchMedia('(prefers-color-scheme: light)'):null;
+// ธีมที่ใช้จริงตอนนี้: ตามเครื่อง / ตามเวลา (06:00–18:00 ใช้ธีมสว่าง ถ้าธีมที่เลือกเป็นธีมมืด)
+let CUR_THEME='';
+function themeNow(){let th=VIEW.theme==='auto'?(mqLight&&mqLight.matches?'light':'dark'):VIEW.theme;
+  if(VIEW.dayl&&th!=='light'&&th!=='cream'){const h=new Date().getHours();if(h>=6&&h<18)th='light';}return th;}
 function applyView(){const r=document.documentElement;
-  const th=VIEW.theme==='auto'?(mqLight&&mqLight.matches?'light':'dark'):VIEW.theme;
-  r.dataset.theme=th;r.style.setProperty('--fs',VIEW.fs);r.dataset.fw=String(VIEW.fw);
+  const th=themeNow();CUR_THEME=th;
+  r.dataset.theme=th;r.dataset.pp=VIEW.pp?'1':'0';r.dataset.ah=+VIEW.ah>0?'1':'0';if(!(+VIEW.ah>0))r.dataset.barup='1';r.style.setProperty('--fs',VIEW.fs);r.dataset.fw=String(VIEW.fw);
   r.dataset.qs=VIEW.qs;r.dataset.rk=VIEW.rk;r.dataset.hc=VIEW.hc?'1':'0';r.dataset.lay=VIEW.lay;r.style.setProperty('--qz',VIEW.qz);
   r.style.setProperty('--qc',VIEW.qc==='fg'?'var(--fg)':'var(--'+VIEW.qc+')');r.style.setProperty('--qct',VIEW.qc==='accent'||VIEW.qc==='fg'?'var(--bg)':'#fff');
   document.querySelectorAll('[data-vk]').forEach(el=>{const v=VIEW[el.dataset.vk];
     if(el.classList.contains('seg'))el.querySelectorAll('.btn').forEach(b=>b.classList.toggle('on',b.dataset.v===String(v)));
     else if(el.type==='checkbox')el.checked=!!v;else el.value=String(v);});
   if(typeof render==='function'&&boardEl){render();renderViewPrev();}
-  const m=document.querySelector('meta[name=theme-color]');if(m)m.content=th==='light'?'#eef1f5':'#0e1116';
+  const m=document.querySelector('meta[name=theme-color]');if(m)m.content=(getComputedStyle(r).getPropertyValue('--bg')||'#0e1116').trim();layoutFix();
   document.getElementById('fsVal').textContent=Math.round(VIEW.fs*100)+'%';
-  document.querySelectorAll('#segTheme .btn').forEach(b=>b.classList.toggle('on',b.dataset.v===VIEW.theme));
+  document.querySelectorAll('#segTheme [data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===VIEW.theme));
   document.querySelectorAll('#segFw .btn').forEach(b=>b.classList.toggle('on',b.dataset.v===String(VIEW.fw)));
   try{localStorage.setItem('kds_view',JSON.stringify(VIEW));}catch(e){}}
 document.getElementById('segTheme').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(b){VIEW.theme=b.dataset.v;applyView();}});
@@ -1104,7 +1277,19 @@ document.getElementById('viewBtn').addEventListener('click',()=>setTimeout(rende
 let hideWas=null;
 function tick(){const ha=hideActive();if(hideWas!==null&&ha!==hideWas){render();toast(ha?'🙈 ซ่อน '+HIDE.cats.join(', '):'👀 แสดงทุกหมวดแล้ว',ha?'ตามช่วงเวลาที่ตั้ง':'');}hideWas=ha;waitCheck();const d=new Date();document.getElementById('clock').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
   document.querySelectorAll('#board .card[data-oid]').forEach(c=>{const o=ORDERS.find(x=>x.id===c.dataset.oid);if(!o)return;const a=ageInfo(o);c.dataset.s=a.sev;const el=c.querySelector('.age');if(el){el.textContent=a.label;el.dataset.s=a.sev;}});
-  nagTick();}
+  nagTick();autoMenu();barTick();if(VIEW.dayl&&themeNow()!==CUR_THEME)applyView();}
+// ---- ซ่อนแถบด้านบนเมื่อไม่ได้แตะจอ (test-1.69) · แตะตรงไหนก็ได้ = แถบกลับมา · เปิดหน้าตั้งค่าค้างไว้ = ไม่ซ่อน ----
+let lastTouch=Date.now();const peekEl=document.getElementById('peek');
+function barUp(){lastTouch=Date.now();const r=document.documentElement;if(r.dataset.barup!=='1'){r.dataset.barup='1';peekEl.hidden=true;}}
+function barTick(){const s=+VIEW.ah||0,r=document.documentElement;
+  if(!s){peekEl.hidden=true;return;}
+  const modal=[...document.querySelectorAll('.modal')].some(m=>!m.hidden);
+  if(modal||Date.now()-lastTouch<s*1000){if(r.dataset.barup!=='1')barUp();return;}
+  r.dataset.barup='0';peekEl.hidden=false;
+  const n=ORDERS.filter(o=>!hideActive()||visPend(o).length).length;
+  peekEl.textContent=document.getElementById('clock').textContent+' · '+(n?n+' โต๊ะ':'ไม่มีออเดอร์')+' · แตะจอเพื่อเปิดเมนู';}
+document.addEventListener('pointerdown',barUp,{passive:true,capture:true});
+document.addEventListener('keydown',barUp);
 poll();setInterval(poll,2500);tick();setInterval(tick,1000);
 
 (function(){const t=document.getElementById('tools'),b=document.getElementById('toolsBtn');
