@@ -236,8 +236,9 @@
   :root[data-ah="1"] .bar{position:absolute;top:0;left:0;right:0;z-index:45;transition:transform .18s ease;box-shadow:0 8px 24px -10px #000c}
   :root[data-ah="1"] main{padding-top:16px}
   :root[data-ah="1"][data-barup="0"] .bar{transform:translateY(-105%);box-shadow:none}
-  #peek{position:fixed;top:6px;right:10px;z-index:25;font-size:13px;font-weight:600;color:var(--muted);background:color-mix(in srgb,var(--panel) 88%,transparent);
-    border:1px solid var(--line);border-radius:20px;padding:4px 11px;pointer-events:none}
+  #peek{position:fixed;top:6px;right:10px;z-index:46;font-size:13px;font-weight:600;color:var(--muted);background:color-mix(in srgb,var(--panel) 88%,transparent);
+    border:1px solid var(--line);border-radius:20px;padding:8px 13px;cursor:pointer;font-family:inherit}
+  body{touch-action:manipulation}   /* แตะ 2 ครั้งไม่ซูมจอ */
   /* ---- test-1.69: ธีมเพิ่ม ---- */
   :root[data-theme=ocean]{--bg:#0a1726;--panel:#10233a;--panel-2:#16304d;--line:#24476b;--fg:#eaf4ff;--muted:#9fbad6;--faint:#6a88a8;
     --accent:#ffb84d;--fresh:#3ee0a8;--warn:#ffd34d;--late:#ff6b6b;--info:#62c7ff;--batch:#b9a2ff}
@@ -286,7 +287,7 @@
   <main id="menu" hidden></main>
   <main id="done" hidden></main>
 </div>
-<div id="peek" hidden></div>
+<button id="peek" hidden></button>
 <div class="modal" id="viewModal" hidden>
   <div class="sheet">
     <div class="sheethead"><b>🎨 ปรับหน้าจอ</b><button class="btn" id="viewClose">เสร็จ</button></div>
@@ -338,7 +339,8 @@
     <p class="vhint">ออเดอร์ลดลงต่ำกว่านี้ กลับเป็น “ตามโต๊ะ” เอง · ถ้ากดเลือกแท็บเอง จะไม่สลับให้ 3 นาที</p>
     <div class="sublabel" style="margin-top:8px">แถบด้านบน</div>
     <label class="vrow"><span>ซ่อนแถบและปุ่มตั้งค่าเมื่อไม่ได้แตะจอ</span><select class="sel" data-vk="ah"><option value="0">ไม่ซ่อน</option><option value="5">หลัง 5 วินาที</option><option value="10">หลัง 10 วินาที</option><option value="20">หลัง 20 วินาที</option><option value="30">หลัง 30 วินาที</option><option value="60">หลัง 1 นาที</option></select></label>
-    <p class="vhint">แตะตรงไหนก็ได้ แถบจะกลับมา · ตอนซ่อนจะเห็นเวลาและจำนวนโต๊ะเล็กๆ มุมขวาบน</p>
+    <label class="vrow"><span>เปิดแถบที่ซ่อนอยู่</span><select class="sel" data-vk="aht"><option value="2">แตะที่ว่าง 2 ครั้ง (แนะนำ)</option><option value="1">แตะตรงไหนก็ได้ 1 ครั้ง</option></select></label>
+    <p class="vhint">แตะ 2 ครั้ง: แตะจานเสร็จแถบจะไม่ลงมาบัง · แตะ 2 ครั้งเร็วๆ ที่พื้นที่ว่าง หรือแตะป้ายมุมขวาบน แถบจะลงมา · แตะจานแถบไม่ลงมา</p>
     <div class="vrow" style="justify-content:flex-end"><button class="btn" id="viewReset">คืนค่าเริ่มต้น</button></div>
   </div>
 </div>
@@ -1111,7 +1113,7 @@ function toast(tt,td,ms){const el=document.createElement('div');el.className='to
 
 // ---- look & feel: theme, text size, weight ----
 const VIEW_DEF={merge:true,theme:'dark',fs:1,fw:'1',qs:'plain',qz:'1',qc:'accent',multi:false,ol:'0',rk:'text',warn:'5',late:'10',hc:false,gap:'10',lay:'pack',sort:'old',
-  pp:true,am:'0',ah:'10',dayl:false};   // test-1.69: ติ๊กทีละจาน · สลับตามเมนูเอง · ซ่อนแถบ · สลับธีมตามเวลา
+  pp:true,am:'0',ah:'10',aht:'2',dayl:false};   // test-1.69: ติ๊กทีละจาน · สลับตามเมนูเอง · ซ่อนแถบ · สลับธีมตามเวลา
 const VIEW=Object.assign({...VIEW_DEF},(()=>{try{return JSON.parse(localStorage.getItem('kds_view')||'{}');}catch(e){return {};}})());
 // อัปเดตรุ่นที่มี "เรียงแน่น": เปลี่ยนเป็นเรียงแน่นครั้งเดียว (ปรับกลับได้ที่ ปรับหน้าจอ)
 if(!VIEW.pk){VIEW.lay='pack';VIEW.pk=1;try{localStorage.setItem('kds_view',JSON.stringify(VIEW));}catch(e){}}
@@ -1281,14 +1283,27 @@ function tick(){const ha=hideActive();if(hideWas!==null&&ha!==hideWas){render();
 // ---- ซ่อนแถบด้านบนเมื่อไม่ได้แตะจอ (test-1.69) · แตะตรงไหนก็ได้ = แถบกลับมา · เปิดหน้าตั้งค่าค้างไว้ = ไม่ซ่อน ----
 let lastTouch=Date.now();const peekEl=document.getElementById('peek');
 function barUp(){lastTouch=Date.now();const r=document.documentElement;if(r.dataset.barup!=='1'){r.dataset.barup='1';peekEl.hidden=true;}}
+// test-1.70: แตะจานเสร็จแล้วแถบลงมาบัง → ค่าเริ่มต้นเปิดแถบด้วยการแตะที่ว่าง 2 ครั้ง (หรือแตะป้ายมุมขวาบน)
+// ที่ที่แตะแล้วไม่นับเป็นการเปิดแถบ: จาน ปุ่ม ป้ายโต๊ะ เลขโต๊ะ แผงทำรวม (แตะ 2 ครั้งตรงนั้น = ติ๊ก 2 จาน ไม่ใช่เปิดแถบ)
+const ACTIVE_SEL='li.dish,button,a,input,select,label,.mchip,.tbl,.poprow,.pophead,.pophandle,.flag,.toast,#nagBar,.morechip';
+let tap1={t:0,x:0,y:0};
+function onTouch(e){const r=document.documentElement,up=r.dataset.barup!=='0';
+  const inBar=e.target.closest&&e.target.closest('.bar,.modal');
+  if(up){if(inBar||VIEW.aht==='1')lastTouch=Date.now();return;}   // แถบเปิดอยู่: ใช้แถบ = ยืดเวลา · แตะจาน = ไม่ยืด (ซ่อนตามเวลา)
+  if(VIEW.aht==='1'){barUp();return;}
+  if(e.target.closest&&e.target.closest(ACTIVE_SEL)){tap1.t=0;return;}
+  const now=Date.now(),x=e.clientX||0,y=e.clientY||0;
+  if(now-tap1.t<450&&Math.abs(x-tap1.x)<60&&Math.abs(y-tap1.y)<60){tap1.t=0;barUp();return;}
+  tap1={t:now,x,y};}
 function barTick(){const s=+VIEW.ah||0,r=document.documentElement;
   if(!s){peekEl.hidden=true;return;}
   const modal=[...document.querySelectorAll('.modal')].some(m=>!m.hidden);
   if(modal||Date.now()-lastTouch<s*1000){if(r.dataset.barup!=='1')barUp();return;}
   r.dataset.barup='0';peekEl.hidden=false;
   const n=ORDERS.filter(o=>!hideActive()||visPend(o).length).length;
-  peekEl.textContent=document.getElementById('clock').textContent+' · '+(n?n+' โต๊ะ':'ไม่มีออเดอร์')+' · แตะจอเพื่อเปิดเมนู';}
-document.addEventListener('pointerdown',barUp,{passive:true,capture:true});
+  peekEl.textContent=document.getElementById('clock').textContent+' · '+(n?n+' โต๊ะ':'ไม่มีออเดอร์')+' · '+(VIEW.aht==='1'?'แตะจอเพื่อเปิดเมนู':'☰ แตะเพื่อเปิดเมนู');}
+peekEl.addEventListener('click',barUp);
+document.addEventListener('pointerdown',onTouch,{passive:true,capture:true});
 document.addEventListener('keydown',barUp);
 poll();setInterval(poll,2500);tick();setInterval(tick,1000);
 
