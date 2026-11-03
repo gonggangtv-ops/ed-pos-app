@@ -3035,7 +3035,8 @@ const routes = {
       const its = data.items.filter(i => i.orderId === o.id && mine(i));
       const pend = its.filter(i => i.status === 'new');
       if (!pend.length) continue; // ทำครบทุกจาน → หลุดจากรายการ จอจะย้ายไปแท็บ "เสร็จแล้ว" เอง
-      const dish = i => ({ id: i.id, name: i.name, quantity: i.qty, spec: '', at: i.createdAt, thai: !!i.thai, cat: catOf(i),   // cat = หมวด (จอครัวซ่อนหมวดได้ เช่น ของทอดช่วงยุ่ง)   // thai = ราคาคนไทย   // at = เวลาที่สั่งจานนี้ (จอครัวใช้นับเวลาใหม่เมื่อสั่งเพิ่ม)
+      const dish = i => ({ id: i.id, name: i.name, quantity: i.qty, spec: '', at: i.createdAt, thai: !!i.thai, cat: catOf(i),
+        price: r2((i.price || 0) * i.qty), by: i.by || '',   // test-1.72: จอครัว 2.0 แสดงราคา/ชื่อคนสั่งได้ (จอเดิมไม่ใช้)   // cat = หมวด (จอครัวซ่อนหมวดได้ เช่น ของทอดช่วงยุ่ง)   // thai = ราคาคนไทย   // at = เวลาที่สั่งจานนี้ (จอครัวใช้นับเวลาใหม่เมื่อสั่งเพิ่ม)
         extra_option: i.opts || (i.option ? [i.option] : []),
         // จานที่ห่อกลับทั้งที่นั่งโต๊ะ → ขึ้นเป็นหมายเหตุสีแดง "กลับบ้าน" (ออเดอร์กลับบ้านทั้งบิลมีป้ายที่หัวการ์ดอยู่แล้ว)
         remark: [...(i.alerts || []).map(a => '⚠ ' + a),
@@ -3054,6 +3055,7 @@ const routes = {
         is_need_cutlery: false,
         is_cancel: false,
         order_at: o.createdAt,
+        by: o.openedBy || '',
         pending_dishes: pend.map(dish),
         completed_dishes: its.filter(i => i.status === 'done').map(dish),
         cancelled_dishes: its.filter(i => i.status === 'cancelled' && i.kdsCancel).map(dish),
@@ -3161,7 +3163,7 @@ const server = http.createServer(async (req, res) => {
   if (role.role === 'standby' && (url.pathname === '/' || url.pathname === '/index.html')) url.pathname = '/standby.html';
   // เครื่องสำรองใช้สั่งอาหาร/หลังร้านไม่ได้ (อ่านอย่างเดียว ใส่รหัสแล้วก็เข้าไม่ได้) → ไปหน้าเครื่องสำรอง
   // ซึ่งจะพาไปหน้าเดียวกันของเครื่องหลักเองเมื่อติดต่อเครื่องหลักได้ (เช่น แอปเปิดตอนเครื่องหลักยังไม่พร้อม)
-  const sbPage = role.role === 'standby' && req.method === 'GET' && url.pathname.match(/^\/(order|kds|admin|sales)\.html$/);
+  const sbPage = role.role === 'standby' && req.method === 'GET' && url.pathname.match(/^\/(order|kds2?|admin|sales)\.html$/);
   if (sbPage) { res.writeHead(302, { Location: '/standby.html?go=' + sbPage[1], 'Cache-Control': 'no-store' }); return res.end(); }
 
   // รูปบนใบเสร็จ: /receipt-img/logo  /receipt-img/footer
