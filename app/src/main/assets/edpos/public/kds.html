@@ -234,9 +234,9 @@
   /* ---- test-1.69: ซ่อนแถบด้านบนเมื่อไม่ได้แตะจอ ---- */
   :root[data-ah="1"] .wrap{position:relative}
   :root[data-ah="1"] .bar{position:absolute;top:0;left:0;right:0;z-index:45;transition:transform .18s ease;box-shadow:0 8px 24px -10px #000c}
-  :root[data-ah="1"] main{padding-top:16px}
+  :root[data-ah="1"] main{padding-top:52px}   /* test-1.71: เว้นที่ให้ป้ายเวลามุมซ้ายบน ไม่ทับการ์ดโต๊ะ */
   :root[data-ah="1"][data-barup="0"] .bar{transform:translateY(-105%);box-shadow:none}
-  #peek{position:fixed;top:6px;right:10px;z-index:46;font-size:13px;font-weight:600;color:var(--muted);background:color-mix(in srgb,var(--panel) 88%,transparent);
+  #peek{position:fixed;top:7px;left:12px;z-index:46;font-size:13px;font-weight:600;color:var(--muted);background:color-mix(in srgb,var(--panel) 88%,transparent);
     border:1px solid var(--line);border-radius:20px;padding:8px 13px;cursor:pointer;font-family:inherit}
   body{touch-action:manipulation}   /* แตะ 2 ครั้งไม่ซูมจอ */
   /* ---- test-1.69: ธีมเพิ่ม ---- */
