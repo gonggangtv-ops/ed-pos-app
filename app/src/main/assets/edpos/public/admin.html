@@ -429,6 +429,9 @@
           <div class="rowline"><div class="txt"><b>สรุปยอดรายวัน</b><span id="lnStatus"></span></div><label class="sw"><input type="checkbox" id="lnOn"><i></i></label></div>
           <div class="rowline"><div class="txt"><b>สรุปรายสัปดาห์</b><span>จันทร์–อาทิตย์ ส่งคืนวันอาทิตย์ เทียบสัปดาห์ก่อน <span id="lnWeekSt"></span></span></div><label class="sw"><input type="checkbox" id="lnWeekly"><i></i></label></div>
           <div class="rowline"><div class="txt"><b>สรุปรายเดือน</b><span>ส่งคืนวันสุดท้ายของเดือน เทียบเดือนก่อน <span id="lnMonthSt"></span></span></div><label class="sw"><input type="checkbox" id="lnMonthly"><i></i></label></div>
+          <h3 class="rc-h">รูปแบบข้อความ</h3>
+          <div class="seg" id="lnStyle" role="group" aria-label="รูปแบบข้อความ" style="margin-bottom:4px"><button type="button" data-st="text">ตัวหนังสือ</button><button type="button" data-st="card">การ์ด (มีกราฟ แถบสี)</button></div>
+          <p class="muted" style="margin:0 0 6px">การ์ด = ข้อความแบบกล่องของ LINE ตัวเลขใหญ่ มีกราฟแท่ง · ในหน้าแจ้งเตือนจะเห็นเป็นข้อความสั้น เช่น “สรุปยอดขาย 4 พ.ย. · 12,450 ฿” · ถ้า LINE ไม่รับการ์ด ระบบส่งแบบตัวหนังสือแทนเอง</p>
           <h3 class="rc-h">เนื้อหาที่ส่ง</h3>
           <p class="muted" style="margin:0 0 6px">เลือกว่าสรุปรายวัน/สัปดาห์/เดือนจะมีอะไรบ้าง · ตัวอย่างข้อความด้านขวาเปลี่ยนตามทันที</p>
           <div class="seg" id="lnPreset" role="group" aria-label="เลือกเร็ว" style="margin-bottom:6px;flex-wrap:wrap">
@@ -478,6 +481,7 @@
           <div class="seg" id="lnKind" role="group" aria-label="ตัวอย่างของ" style="margin-bottom:10px">
             <button data-k="day" aria-pressed="true">วันนี้</button><button data-k="week">สัปดาห์ล่าสุด</button><button data-k="month">เดือนล่าสุด</button></div>
           <pre class="lnprev" id="lnPrev">กำลังโหลด…</pre>
+          <div id="lnCard" hidden style="background:#D9E2EC;border-radius:12px;padding:14px;max-height:72vh;overflow:auto"></div>
         </div>
       </div>
     </section>
@@ -1940,6 +1944,7 @@ function loadLine() {
   $('#lnAlertErr').textContent = L.alertErr ? '· แจ้งเตือนล่าสุดส่งไม่สำเร็จ: ' + L.alertErr : '';
   $('#lnWeekly').checked = !!L.weekly; $('#lnMonthly').checked = !!L.monthly;
   paintLnParts({ ...(L.parts || {}), forecast: L.forecast !== false && (L.parts || {}).forecast !== false });
+  lnStyle = L.style === 'card' ? 'card' : 'text'; paintLnStyle();
   loadCounts();
   // lastWeek = วันอาทิตย์ของสัปดาห์ที่ส่งล่าสุด · lastMonth = วันสุดท้ายของเดือนที่ส่งล่าสุด
   $('#lnWeekSt').textContent = L.weekly && L.lastWeek ? `· ส่งถึงสัปดาห์ที่จบ ${thDate(L.lastWeek)}` : '';
@@ -1949,7 +1954,9 @@ function loadLine() {
 let lnKind = 'day';
 const LN_KIND = { day: 'สรุปวันนี้', week: 'สรุปสัปดาห์ล่าสุด', month: 'สรุปเดือนล่าสุด' };
 async function loadLinePrev() {
-  try { $('#lnPrev').textContent = (await api('/api/line/preview?kind=' + lnKind + '&parts=' + encodeURIComponent(JSON.stringify(lnParts())))).text; } catch (err) { $('#lnPrev').textContent = err.message; }
+  try { const r = await api('/api/line/preview?kind=' + lnKind + '&parts=' + encodeURIComponent(JSON.stringify(lnParts())) + (lnStyle === 'card' ? '&flex=1' : ''));
+    $('#lnPrev').textContent = r.text; $('#lnPrev').hidden = lnStyle === 'card'; $('#lnCard').hidden = lnStyle !== 'card';
+    if (lnStyle === 'card' && r.flex) $('#lnCard').innerHTML = fxBubbleHtml(r.flex); } catch (err) { $('#lnPrev').textContent = err.message; }
 }
 $('#lnKind').addEventListener('click', e => {
   const b = e.target.closest('[data-k]'); if (!b) return;
@@ -2019,7 +2026,43 @@ function paintLnParts(p) { $$('[data-part]').forEach(x => { const k = x.dataset.
 function markLnPreset() { const p = lnParts(); $$('#lnPreset [data-lp]').forEach(b => b.setAttribute('aria-pressed', Object.keys(LN_PART_DEF).every(k => !!LN_PRESET[b.dataset.lp][k] === !!p[k]))); }
 $('#lnPreset').addEventListener('click', e => { const b = e.target.closest('[data-lp]'); if (!b) return; paintLnParts(LN_PRESET[b.dataset.lp]); dirty.add('line'); loadLinePrev(); });
 $('#lnForm').addEventListener('change', e => { if (e.target.dataset.part) { markLnPreset(); loadLinePrev(); } });
-const lineBody = () => ({ on: $('#lnOn').checked, weekly: $('#lnWeekly').checked, monthly: $('#lnMonthly').checked, forecast: $('#lnFc').checked, parts: lnParts(),
+// รูปแบบ ตัวหนังสือ / การ์ด (test-1.74) · ตัวอย่างการ์ด = วาดจาก Flex JSON ที่เซิร์ฟเวอร์สร้าง (ใกล้เคียงใน LINE)
+let lnStyle = 'text';
+function paintLnStyle() { $$('#lnStyle [data-st]').forEach(b => b.setAttribute('aria-pressed', b.dataset.st === lnStyle)); }
+$('#lnStyle').addEventListener('click', e => { const b = e.target.closest('[data-st]'); if (!b) return; lnStyle = b.dataset.st; paintLnStyle(); dirty.add('line'); loadLinePrev(); });
+const FXS = { xxs: 11, xs: 12, sm: 13, md: 15, lg: 17, xl: 19, xxl: 23, '3xl': 30, '4xl': 38, '5xl': 50 };
+const FXG = { none: 0, xs: 2, sm: 4, md: 8, lg: 12, xl: 16, xxl: 20 };
+const fxPx = v => v == null ? '' : /px|%$/.test(v) ? v : (FXG[v] != null ? FXG[v] + 'px' : v);
+function fxHtml(n, parent) {
+  if (!n) return '';
+  const st = [];
+  // flex 0 = กว้างตามเนื้อหา (แบบ LINE) · ไม่ระบุในแนวนอน = 1
+  if (parent === 'horizontal' || parent === 'baseline') st.push(n.flex === 0 ? 'flex:none' : n.flex != null ? `flex:${n.flex} 1 0` : n.width ? '' : 'flex:1 1 0');
+  else if (n.flex != null && n.flex !== 0) st.push(`flex:${n.flex} 1 0`);
+  if (n.width) st.push('width:' + n.width, 'flex:none'); if (n.height) st.push('height:' + n.height);
+  if (n.backgroundColor) st.push('background:' + n.backgroundColor); if (n.cornerRadius) st.push('border-radius:' + fxPx(n.cornerRadius), 'overflow:hidden');
+  if (n.paddingAll) st.push('padding:' + fxPx(n.paddingAll));
+  ['Top', 'Bottom', 'Start', 'End'].forEach(x => { if (n['padding' + x]) st.push(`padding-${{ Top: 'top', Bottom: 'bottom', Start: 'left', End: 'right' }[x]}:${fxPx(n['padding' + x])}`); });
+  if (n.margin) st.push((parent === 'horizontal' ? 'margin-left:' : 'margin-top:') + fxPx(n.margin));
+  if (n.offsetTop) st.push('position:relative;top:' + n.offsetTop);
+  if (n.type === 'text') {
+    st.push(`font-size:${FXS[n.size] || (/px/.test(n.size || '') ? parseFloat(n.size) : 15)}px`, 'line-height:1.35', 'min-width:0');
+    if (n.weight === 'bold') st.push('font-weight:700'); if (n.color) st.push('color:' + n.color); if (n.align) st.push('text-align:' + ({ start: 'left', end: 'right', center: 'center' })[n.align]);
+    st.push(n.wrap === false ? 'white-space:nowrap;overflow:hidden' : 'white-space:pre-wrap;word-break:break-word');
+    return `<div style="${st.join(';')}">${esc(n.text)}</div>`;
+  }
+  if (n.type === 'separator') return `<div style="height:1px;background:${n.color || '#ddd'}"></div>`;
+  if (n.type === 'box') {
+    const lay = n.layout; st.push('display:flex', 'box-sizing:border-box', 'flex-direction:' + (lay === 'vertical' ? 'column' : 'row'));
+    if (lay !== 'vertical') st.push('align-items:' + (n.alignItems === 'center' ? 'center' : lay === 'baseline' ? 'baseline' : 'stretch'));
+    if (n.justifyContent) st.push('justify-content:' + n.justifyContent);
+    if (n.spacing) st.push('gap:' + fxPx(n.spacing));
+    return `<div style="${st.join(';')}">${(n.contents || []).map(c => fxHtml(c, lay)).join('')}</div>`;
+  }
+  return '';
+}
+function fxBubbleHtml(m) { const b = m.contents; return `<div style="font-size:12px;color:#4a5561;margin-bottom:6px">แจ้งเตือน: ${esc(m.altText)}</div><div style="width:300px;max-width:100%;background:#fff;border-radius:16px;overflow:hidden;font-family:system-ui,sans-serif;color:#1F2328">${fxHtml(b.header, 'vertical')}${fxHtml(b.body, 'vertical')}</div>`; }
+const lineBody = () => ({ style: lnStyle, on: $('#lnOn').checked, weekly: $('#lnWeekly').checked, monthly: $('#lnMonthly').checked, forecast: $('#lnFc').checked, parts: lnParts(),
   counts: lnCnt.filter(c => c.name.trim()),
   time: $('#lnTime').value, to: $('#lnTo').value.trim(), token: $('#lnToken').value.trim(),
   alerts: Object.fromEntries($$('[data-alert]').map(x => [x.dataset.alert, x.checked])) });

@@ -1343,6 +1343,7 @@ function cleanLine(l, old = {}) {
     counts: Array.isArray(l.counts) ? cleanCounts(l.counts) : old.counts,
     lastWeek: l.weekly && !old.weekly ? lastPeriod('week').to : old.lastWeek || '',
     lastMonth: l.monthly && !old.monthly ? lastPeriod('month').to : old.lastMonth || '',
+    style: l.style === 'card' || l.style === 'text' ? l.style : old.style === 'card' ? 'card' : 'text',   // test-1.74: แบบตัวหนังสือ / การ์ด
     lastSent: old.lastSent || '', lastErr: old.lastErr || '', alertErr: old.alertErr || '' };
 }
 // ---------- นับจำนวนที่ขาย (เช่น กุ้งแม่น้ำ ปู หมึก) ใส่ในสรุป LINE ทุกแบบ ----------
@@ -2019,8 +2020,161 @@ function lineTextOf(kind, k = dayKey(Date.now())) {
   if (kind === 'week' || kind === 'month') { const p = lastPeriod(kind, k, true); return lineRangeText(kind, p.from, p.to); }
   return lineText(k);
 }
+// ================= สรุป LINE แบบการ์ด (Flex Message) · test-1.74 =================
+// settings.line.style = 'text' (เดิม) | 'card' · ใช้ "เนื้อหาที่ส่ง" (LP) เดียวกับแบบตัวหนังสือ · สร้างการ์ดไม่ได้ → ส่งแบบตัวหนังสือแทน
+const FX = {
+  t: (text, o = {}) => ({ type: 'text', text: String(text == null || text === '' ? ' ' : text).slice(0, 2000), wrap: true, ...o }),
+  box: (layout, contents, o = {}) => ({ type: 'box', layout, contents, ...o }),
+  sep: () => ({ type: 'separator', margin: 'none', color: '#E6EAF0' }),
+  sec: (title, rows, o = {}) => ({ type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '14px', paddingTop: '10px', paddingBottom: '10px',
+    contents: [{ type: 'text', text: title, size: 'xs', weight: 'bold', color: '#5A6572', wrap: true }, ...rows], ...o }),
+  row: (l, r, o = {}) => ({ type: 'box', layout: 'horizontal', contents: [{ type: 'text', text: String(l || ' '), size: 'sm', flex: 3, wrap: true, color: o.lc || '#1F2328' },
+    { type: 'text', text: String(r || ' '), size: 'sm', flex: 2, align: 'end', weight: 'bold', wrap: true, color: o.rc || '#1F2328' }] }),
+  // แถบแนวนอน (สัดส่วน 0–1)
+  bar: (frac, color) => ({ type: 'box', layout: 'vertical', height: '7px', backgroundColor: '#EEF1F5', cornerRadius: '4px',
+    contents: [{ type: 'box', layout: 'vertical', contents: [], height: '7px', width: Math.max(2, Math.round(Math.min(1, frac) * 100)) + '%', backgroundColor: color, cornerRadius: '4px' }] }),
+};
+const fxFmt = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+function fxHeader(title, sub, ing) {
+  return FX.box('vertical', [FX.t(title, { size: 'xs', weight: 'bold', color: ing ? '#A8E6C0' : '#FFB37A' }), FX.t(sub, { size: 'md', weight: 'bold', color: '#FFFFFF' })],
+    { backgroundColor: ing ? '#1D5A3A' : '#1E2A36', paddingAll: '14px', paddingTop: '12px', paddingBottom: '12px' });
+}
+function fxSales(total, pct, pctTxt, stats, fee) {
+  const rows = [FX.t(fxFmt(total) + ' ฿', { size: '3xl', weight: 'bold' })];
+  // ป้าย ▲▼ เท่าความยาวข้อความ (กล่องสี flex 0 + ที่ว่างด้านขวา)
+  if (pct != null) rows.push(FX.box('horizontal', [FX.box('vertical', [FX.t(`${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct)}% ${pctTxt}`, { size: 'xs', weight: 'bold', color: pct >= 0 ? '#0F7A3E' : '#B42318', wrap: false })],
+    { backgroundColor: pct >= 0 ? '#DDF4E6' : '#FDE4E1', cornerRadius: '6px', paddingStart: '7px', paddingEnd: '7px', paddingTop: '1px', paddingBottom: '1px', flex: 0 }), FX.box('vertical', [], { flex: 1 })]));
+  rows.push(FX.box('horizontal', stats.map(([l, v]) => FX.box('vertical', [FX.t(l, { size: 'xxs', color: '#5A6572' }), FX.t(v, { size: 'md', weight: 'bold' })],
+    { backgroundColor: '#F3F5F8', cornerRadius: '8px', paddingAll: '7px', flex: 1 })), { spacing: 'sm', margin: 'md' }));
+  if (fee) rows.push(FX.t(`รับจริง ${fxFmt(fee.total)} ฿ (รวมค่าธรรมเนียมบัตร ${fxFmt(fee.fee)} ฿)`, { size: 'xs', color: '#5A6572' }));
+  return FX.box('vertical', rows, { paddingAll: '14px', spacing: 'xs' });
+}
+function fxPay(d) {
+  const C = { cash: '#E8590C', transfer: '#2B7BB9', card: '#7B61C9' }, tot = ['cash', 'transfer', 'card'].reduce((a, m) => a + (d.byMethod[m] || 0), 0);
+  const ms = ['cash', 'transfer', 'card'].filter(m => d.billsByMethod[m]);
+  if (!ms.length || !tot) return null;
+  return FX.sec('ช่องทางชำระ', [
+    FX.box('horizontal', ms.map(m => FX.box('vertical', [], { width: Math.max(3, Math.round(d.byMethod[m] / tot * 100)) + '%', height: '10px', backgroundColor: C[m] })), { cornerRadius: '5px', height: '10px' }),
+    ...ms.map(m => FX.box('horizontal', [FX.box('vertical', [], { width: '9px', height: '9px', backgroundColor: C[m], cornerRadius: '5px', offsetTop: '4px' }),
+      FX.t(`${PAY_TH[m]} ${fxFmt(d.byMethod[m])} ฿ (${d.billsByMethod[m]} บิล)`, { size: 'xs', margin: 'sm', color: '#3A4450' })]))]);
+}
+// กราฟแท่งแนวตั้ง: [[ป้าย, ค่า]] · แท่งสูงสุดสีเข้ม
+function fxBars(title, pts) {
+  const mx = Math.max(...pts.map(p => p[1]), 0);
+  if (!mx || pts.length < 2) return null;
+  const many = pts.length > 14;
+  return FX.sec(title, [
+    FX.box('horizontal', pts.map(([, v]) => FX.box('vertical', [FX.box('vertical', [], { height: Math.max(3, Math.round(v / mx * 100)) + '%', backgroundColor: v === mx ? '#E8590C' : '#F7C6A3', cornerRadius: '2px' })],
+      { justifyContent: 'flex-end', flex: 1, height: '60px' })), { spacing: many ? 'none' : 'xs', height: '60px' }),
+    FX.box('horizontal', pts.map(([l], i) => FX.t(many && i % 5 ? ' ' : l, { size: 'xxs', color: '#5A6572', align: 'center', flex: 1, wrap: false })), { spacing: many ? 'none' : 'xs' })]);
+}
+function fxIng(from, to, big) {
+  if (!(data.ingredients || []).length) return [FX.sec('วัตถุดิบที่ใช้', [FX.t('ยังไม่ได้ตั้งวัตถุดิบ (หลังร้าน › วัตถุดิบ)', { size: 'sm', color: '#5A6572' })])];
+  const r = usageReport(from, to), used = r.list.filter(g => g.total > 0), multi = r.days > 1;
+  if (!used.length) return [FX.sec('วัตถุดิบที่ใช้', [FX.t('ยังไม่มีการใช้วัตถุดิบในช่วงนี้', { size: 'sm', color: '#5A6572' })])];
+  const rows = used.map(g => ({ g, c: g.cost ? g.total * g.cost : null })).sort((a, b) => (b.c || 0) - (a.c || 0) || b.g.total - a.g.total);
+  const cost = rows.reduce((a, x) => a + (x.c || 0), 0), miss = rows.filter(x => x.c == null).length, mxc = Math.max(...rows.map(x => x.c || 0), 0);
+  let sales = 0; for (let k = from; k <= to; k = addDays(k, 1)) sales += dayOf(k).subtotal || 0;
+  const pct = cost && sales ? Math.round(cost / sales * 100) : null, out = [];
+  if (big && cost) out.push(FX.box('horizontal', [
+    FX.box('vertical', [FX.t(multi ? `ต้นทุนวัตถุดิบ (${r.days} วัน)` : 'ต้นทุนวัตถุดิบวันนี้', { size: 'xs', color: '#5A6572' }), FX.t('~' + fxFmt(Math.round(cost)) + ' ฿', { size: 'xxl', weight: 'bold' })], { flex: 3 }),
+    ...(pct != null ? [FX.box('vertical', [FX.t(pct + '% ของยอดขาย', { size: 'xs', weight: 'bold', color: '#8A4B00', align: 'center' })], { backgroundColor: '#FFF1D6', cornerRadius: '6px', paddingAll: '5px', flex: 2, justifyContent: 'center' })] : [])],
+    { paddingAll: '14px', spacing: 'md', alignItems: 'center' }), FX.sep());
+  const list = rows.slice(0, 10).map(({ g, c }) => c != null
+    ? FX.box('vertical', [FX.row(g.name, `${amtTxt(g.total, g.unit)} · ${fxFmt(Math.round(c))} ฿`), FX.bar(mxc ? c / mxc : 0, '#2E9D5E'),
+      ...(multi ? [FX.t(`เฉลี่ย ${amtTxt(g.perDay, g.unit)}/วัน`, { size: 'xxs', color: '#5A6572' })] : [])], { spacing: 'xs' })
+    : FX.row(g.name, `${amtTxt(g.total, g.unit)} · ยังไม่ใส่ราคา`, { lc: '#5A6572', rc: '#5A6572' }));
+  if (rows.length > 10) list.push(FX.t(`และอีก ${rows.length - 10} รายการ`, { size: 'xs', color: '#5A6572' }));
+  const head = big || !cost ? (multi ? `ใช้ไป ${r.days} วัน` : 'ใช้ไปวันนี้') : `วัตถุดิบที่ใช้ · ต้นทุน ~${fxFmt(Math.round(cost))} ฿${pct != null ? ` (${pct}%)` : ''}`;
+  out.push(FX.sec(head, [...list, ...(miss && cost ? [FX.t(`${miss} รายการยังไม่ได้ใส่ราคา`, { size: 'xxs', color: '#5A6572' })] : [])]));
+  return out;
+}
+// บรรทัดข้อความ (จากแบบตัวหนังสือ) → กล่องท้ายการ์ด
+const fxStrip = s => String(s).replace(/^[\u{1F300}-\u{1FAFF}☀-➿️⚠❌🔮🧺🥬👉👨‍🍳🪑⏰📋]+\s*/u, '');
+function fxFoot(lines, bg, fg) {
+  if (!lines.length) return null;
+  return FX.box('vertical', [FX.t(fxStrip(lines[0]), { size: 'xs', weight: 'bold', color: fg }), ...lines.slice(1).map(l => FX.t(fxStrip(l).replace(/^•\s*/, '• '), { size: 'sm', color: '#1F2328' }))],
+    { backgroundColor: bg, paddingAll: '14px', paddingTop: '10px', paddingBottom: '10px', spacing: 'xs' });
+}
+function fxText(title, lines) { return lines.length ? FX.sec(title, lines.map(l => FX.t(fxStrip(l), { size: 'sm' }))) : null; }
+function fxBubble(parts) {
+  const body = []; parts.filter(Boolean).forEach((p, i) => { if (i && !p.backgroundColor) body.push(FX.sep()); body.push(p); });
+  return { type: 'bubble', size: 'mega', header: parts.header, body: FX.box('vertical', body, { paddingAll: '0px' }) };
+}
+function lineFlexDay(k) {
+  const d = dayOf(k), dt = new Date(k + 'T00:00:00'), dateTxt = `วัน${TH_DAY[dt.getDay()]} ${dt.getDate()} ${TH_MON[dt.getMonth()]} ${dt.getFullYear() + 543}`;
+  const ingOnly = !LP('sales') && (LP('ing') || LP('fcing')), P = [];
+  if (!d.bills) P.push(FX.sec(' ', [FX.t('วันนี้ยังไม่มีบิลที่ปิด', { size: 'md', weight: 'bold' })]));
+  else {
+    if (LP('sales')) {
+      const pv = prevPeriod(k, 1, k), pct = pv.subtotal ? Math.round((d.subtotal - pv.subtotal) / pv.subtotal * 100) : null;
+      P.push(fxSales(d.subtotal, pct, `จาก${TH_DAY[dt.getDay()]}ที่แล้ว`, [['บิล', String(d.bills)], ['เฉลี่ย/บิล', fxFmt(Math.round(d.subtotal / d.bills)) + ' ฿'], ['จาน', String(d.dishes)]], d.fee ? d : null));
+    }
+    if (LP('pay')) P.push(fxPay(d));
+    if (LP('hour')) {
+      const hs = Object.keys(d.byHour).map(Number).filter(h => d.byHour[h] > 0);
+      if (hs.length) {
+        const ord = hs.sort((a, b) => relH(a) - relH(b)), pts = [];
+        for (let h = ord[0], n = 0; n < 24; h = (h + 1) % 24, n++) { pts.push([String(h), d.byHour[h] || 0]); if (h === ord[ord.length - 1]) break; }
+        const best = Object.entries(d.byHour).sort((a, b) => b[1] - a[1])[0];
+        P.push(fxBars(`ยอดรายชั่วโมง · ขายดีสุด ${best[0]}:00 (${fxFmt(best[1])} ฿)`, pts));
+      }
+    }
+    if (LP('top')) { const top = Object.values(d.items).sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 5);
+      if (top.length) P.push(FX.sec('ขายดี', top.map((it, i) => FX.row(`${i + 1}. ${it.name}${sizeTxt(it)}`, '× ' + it.qty)))); }
+    if (LP('counts')) { const cl = countLines(k, k); if (cl.length) P.push(fxText('จำนวนที่ขาย', cl.slice(1))); }
+    if (LP('ing')) P.push(...fxIng(k, k, ingOnly));
+    if (LP('time')) P.push(fxText('เวลาครัว / เวลานั่ง', timeLines(d)));
+  }
+  if (d.cancelled.qty && LP('cancel')) P.push(fxText('ยกเลิก', [`${d.cancelled.qty} จาน (${fxFmt(d.cancelled.amount)} ฿)${d.voids?.bills ? ` · ยกเลิกทั้งโต๊ะ ${d.voids.bills} โต๊ะ` : ''}`]));
+  if (k === dayKey(Date.now()) && LP('open')) {
+    const open = data.orders.filter(o => o.status === 'open');
+    if (open.length) { const due = open.reduce((s, o) => s + data.items.filter(i => i.orderId === o.id && i.status !== 'cancelled').reduce((a, i) => a + i.price * i.qty, 0) - (o.payments || []).reduce((a, p) => a + p.amount, 0), 0);
+      P.push(fxText('ยังเปิดอยู่', [`${open.length} โต๊ะ ยอดรอเก็บ ${fxFmt(r2(due))} ฿ (ยังไม่นับในยอดขาย)`])); }
+  }
+  if (LP('forecast')) P.push(fxFoot(forecastLines(k), '#FFF4EC', '#B4430A'));
+  else if (LP('fcing')) P.push(fxFoot(fcIngLines(k), '#EAF6EF', '#1D5A3A'));
+  P.header = fxHeader(lineTitle(), dateTxt, ingOnly);
+  const alt = ingOnly ? (() => { const r = usageReport(k, k); const c = r.list.reduce((a, g) => a + (g.cost ? g.total * g.cost : 0), 0); return `${lineTitle()} ${dt.getDate()} ${TH_MON[dt.getMonth()]}${c ? ` · ต้นทุน ~${fxFmt(Math.round(c))} ฿` : ''}`; })()
+    : `${lineTitle()} ${dt.getDate()} ${TH_MON[dt.getMonth()]}${d.bills && LP('sales') ? ` · ${fxFmt(d.subtotal)} ฿` : ''}`;
+  return { type: 'flex', altText: alt.slice(0, 400), contents: fxBubble(P) };
+}
+function lineFlexRange(kind, from, to) {
+  const dt = k => new Date(k + 'T00:00:00'), short = k => `${dt(k).getDate()} ${TH_MON[dt(k).getMonth()]}`;
+  const r = buildReport(from, to), d = r.summary, ingOnly = !LP('sales') && LP('ing'), P = [];
+  const sub = kind === 'week' ? `${short(from)} – ${short(to)} ${dt(to).getFullYear() + 543}` : `${TH_MON[dt(from).getMonth()]} ${dt(from).getFullYear() + 543}`;
+  if (!d.bills) P.push(FX.sec(' ', [FX.t(kind === 'week' ? 'สัปดาห์นี้ไม่มีบิลที่ปิด' : 'เดือนนี้ไม่มีบิลที่ปิด', { size: 'md', weight: 'bold' })]));
+  else {
+    const open = r.days.filter(x => x.bills);
+    if (LP('sales')) {
+      const pt = addDays(from, -1), pf = kind === 'week' ? addDays(from, -7) : pt.slice(0, 8) + '01';
+      let prev = 0; for (let k = pf; k <= pt; k = addDays(k, 1)) prev = r2(prev + dayOf(k).subtotal);
+      P.push(fxSales(d.subtotal, prev ? Math.round((d.subtotal - prev) / prev * 100) : null, kind === 'week' ? 'จากสัปดาห์ก่อน' : 'จากเดือนก่อน',
+        [['บิล', String(d.bills)], ['เฉลี่ย/วัน', fxFmt(Math.round(d.subtotal / Math.max(1, open.length))) + ' ฿'], ['เปิดขาย', open.length + ' วัน']], d.fee ? d : null));
+      P.push(fxBars('ยอดรายวัน', r.days.map(x => [String(dt(x.date).getDate()), x.subtotal || 0])));
+    }
+    if (LP('pay')) P.push(fxPay(d));
+    if (LP('hour')) { const best = Object.entries(d.byHour).sort((a, b) => b[1] - a[1])[0]; if (best) P.push(fxText('ช่วงขายดี', [`${best[0]}:00–${best[0]}:59 (รวม ${fxFmt(best[1])} ฿)`])); }
+    if (LP('top')) { const top = d.items_list.sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 10);
+      if (top.length) P.push(FX.sec('ขายดี', top.map((it, i) => FX.row(`${i + 1}. ${it.name}${sizeTxt(it)}`, '× ' + it.qty)))); }
+    if (LP('counts')) { const cl = countLines(from, to); if (cl.length) P.push(fxText('จำนวนที่ขาย', cl.slice(1))); }
+    if (LP('ing')) P.push(...fxIng(from, to, ingOnly));
+    if (LP('time')) P.push(fxText('เวลาครัว / เวลานั่ง', timeLines(d)));
+    if (d.cancelled.qty && LP('cancel')) P.push(fxText('ยกเลิก', [`${d.cancelled.qty} จาน (${fxFmt(d.cancelled.amount)} ฿)${d.voids?.bills ? ` · ยกเลิกทั้งโต๊ะ ${d.voids.bills} โต๊ะ` : ''}`]));
+  }
+  if (kind === 'week' && LP('forecast')) P.push(fxFoot(weekAheadLines(addDays(to, 1)), '#FFF4EC', '#B4430A'));
+  const title = lineTitle() + (kind === 'week' ? 'รายสัปดาห์' : 'ประจำเดือน');
+  P.header = fxHeader(title, sub, ingOnly);
+  return { type: 'flex', altText: `${title} ${sub}${d.bills && LP('sales') ? ` · ${fxFmt(d.subtotal)} ฿` : ''}`.slice(0, 400), contents: fxBubble(P) };
+}
+function lineFlexOf(kind, k = dayKey(Date.now()), period) {
+  if (kind === 'week' || kind === 'month') { const p = period || lastPeriod(kind, k, true); return lineFlexRange(kind, p.from, p.to); }
+  return lineFlexDay(k);
+}
 function linePost(token, to, text) {
-  const body = JSON.stringify(to ? { to, messages: [{ type: 'text', text }] } : { messages: [{ type: 'text', text }] });
+  // text = ข้อความ หรือรายการข้อความ LINE (การ์ด Flex + ข้อความ) ไม่เกิน 5 อัน
+  const messages = (Array.isArray(text) ? text : [text]).map(m => (typeof m === 'string' ? { type: 'text', text: m } : m)).slice(0, 5);
+  const body = JSON.stringify(to ? { to, messages } : { messages });
   return new Promise((ok, fail) => {
     const req = https.request({ host: 'api.line.me', path: to ? '/v2/bot/message/push' : '/v2/bot/message/broadcast', method: 'POST', timeout: 15000,
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, 'Content-Length': Buffer.byteLength(body) } }, res => {
@@ -2041,10 +2195,20 @@ async function sendLine(k, kind = 'day', period) {
   if (!L.token) throw new Error('ยังไม่ได้ใส่ Channel access token');
   let text = period ? lineRangeText(kind, period.from, period.to) : lineTextOf(kind, k);
   // แนบบทวิเคราะห์ AI (ตั้งที่หลังร้าน › AI) · AI ล่ม/ไม่มีคีย์ = ส่งแบบเดิม
+  let note = '';
   if ((kind === 'day' || kind === 'week') && LP('ai')) {
     const pr = period || (kind === 'week' ? lastPeriod('week', k, true) : { from: k, to: k });
-    const note = await AI.lineNote(kind, pr.from, pr.to);
+    note = await AI.lineNote(kind, pr.from, pr.to);
     if (note) text += '\n\n' + note;
+  }
+  // แบบการ์ด: การ์ด + บทวิเคราะห์ AI เป็นข้อความต่อท้าย · สร้างการ์ดไม่ได้ หรือ LINE ไม่รับการ์ด → ส่งตัวหนังสือแทน
+  if (L.style === 'card') {
+    let flex = null;
+    try { flex = lineFlexOf(kind, k, period); if (JSON.stringify(flex).length > 29000) flex = null; } catch (e) { console.log('สร้างการ์ด LINE ไม่ได้: ' + e.message); }
+    if (flex) {
+      try { await linePost(L.token, L.to, note ? [flex, note.slice(0, 4900)] : [flex]); return; }
+      catch (e) { if (!/LINE ตอบกลับ 400/.test(e.message)) throw e; console.log('LINE ไม่รับการ์ด ส่งตัวหนังสือแทน: ' + e.message); }
+    }
   }
   await linePost(L.token, L.to, text.slice(0, 4900));
 }
@@ -2532,7 +2696,8 @@ const routes = {
   'GET /api/line/preview': (b, q) => {
     // parts = ค่าที่ยังไม่บันทึก (ดูตัวอย่างก่อนบันทึก)
     try { const p = JSON.parse(q.get('parts') || 'null'); linePartsOvr = p && typeof p === 'object' ? cleanParts(p, LINE_PARTS) : null; } catch { linePartsOvr = null; }
-    try { return { text: lineTextOf(q.get('kind'), /^\d{4}-\d{2}-\d{2}$/.test(q.get('date') || '') ? q.get('date') : dayKey(Date.now())) }; }
+    try { const k = /^\d{4}-\d{2}-\d{2}$/.test(q.get('date') || '') ? q.get('date') : dayKey(Date.now());
+      return { text: lineTextOf(q.get('kind'), k), ...(q.get('flex') ? { flex: lineFlexOf(q.get('kind'), k) } : {}) }; }
     finally { linePartsOvr = null; }
   },
   'POST /api/line/test-alert': async () => {
