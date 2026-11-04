@@ -62,6 +62,7 @@
   .dr{display:flex;align-items:center;gap:calc(10px*var(--z));padding:var(--pad);border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;cursor:pointer;width:100%;color:var(--text)}
   .dr.isnew{background:#6cc4ff1a}
   .dr.done{opacity:.45}.dr.done .nm{text-decoration:line-through}
+  .card.dn .dr.dh{opacity:.85}.fin.go{border-color:#2fd07a;color:#2fd07a;font-weight:700}.fin small{font-weight:600;opacity:.8}
   .dr.canc{background:#d93a331f;color:#ff7a72}.dr.canc .nm{text-decoration:line-through}
   .qc{flex:none;width:calc(var(--fs-qty)*var(--z));height:calc(var(--fs-qty)*var(--z));border-radius:50%;background:var(--qty);color:var(--qink);display:flex;align-items:center;justify-content:center;font-size:calc(var(--fs-qty)*.56*var(--z));font-weight:700}
   .q1{flex:none;width:calc(var(--fs-qty)*var(--z));text-align:center;font-size:calc(var(--fs-opt)*var(--z));color:var(--muted)}
@@ -248,9 +249,9 @@ const NOB=Array.isArray(OLD.nob)?OLD.nob:['ข้าวสวย'];
 const BASE={layout:'card',cols:'auto',density:'normal',rail:'right',sort:'wait',barHide:'10',barOpen:'double',warn:10,late:15,
   sz:{table:30,name:20,qty:32,opt:15,rmk:15,time:15},
   cl:{table:'#F3F5F7',name:'#F3F5F7',qty:'#FF9F1C',opt:'#6CC4FF',rmk:'#D93A33',card:'#171B21',bg:'#0B0D10'},
-  show:{wait:true,at:true,type:true,staff:false,opt:true,rmk:true,thai:true,newTag:true,batch:true,boxes:true,price:false,merge:true},
+  show:{wait:true,at:true,type:true,staff:false,opt:true,rmk:true,thai:true,newTag:true,batch:true,boxes:false,price:false,merge:true},
   snd:{vol:'same',tts:true,call:true,tick:false},
-  card:{zoom:100,wMode:'auto',w:300,hMode:'auto',limit:5,gap:'normal',radius:'round',box:'m',status:'top',flow:'pack'},
+  card:{zoom:100,wMode:'auto',w:300,hMode:'auto',limit:5,gap:'normal',radius:'round',box:'m',status:'top',flow:'pack',confirm:false},
   voice:{order:'table-menu',qty:true,opt:true,rmk:true,pre:'none',group:true,rep:'2',rate:'1',callOrder:'table-menu',post:'none',only:false}};
 const clone=o=>JSON.parse(JSON.stringify(o));
 const DEF={normal:BASE,
@@ -275,6 +276,8 @@ ST.presets=ST.presets||{};ST.names=ST.names||{};ST.list=Array.isArray(ST.list)&&
 ST.auto=Object.assign({busyOn:true,busyAt:6,timeOn:false,busyFrom:'18:00',busyTo:'21:00',nightFrom:'22:00'},ST.auto||{});
 if(!ST.list.includes(ST.active))ST.active=ST.list[0];
 const saveST=()=>LS.set('kds2_cfg',ST);
+// test-1.77: ผู้ใช้ขอเอาช่องติ๊กออก → ล้างค่าเดิมทุกชุดครั้งเดียว (ยังเปิดกลับได้ในปรับแต่ง)
+if(!ST.mig177){Object.values(ST.presets).forEach(p=>{if(p&&p.show)delete p.show.boxes;if(p&&p.card)delete p.card.confirm;});ST.mig177=1;saveST();}
 function cfg(k){const b=DEF[k]||(ST.presets[k]&&ST.presets[k]._base&&DEF[ST.presets[k]._base])||BASE,o=ST.presets[k]||{},r=Object.assign({},b,o);
   GROUPS.forEach(g=>{r[g]=Object.assign({},b[g],o[g]||{});});return r;}
 function patch(k,p){const o=ST.presets[k]||(ST.presets[k]={});
@@ -377,7 +380,7 @@ function dishHtml(o,d,st,c,bcount){
   const price=c.show.price&&d.price!=null&&!canc?`<span class="pr">฿${esc(d.price)}</span>`:'';
   let bx='';
   if(!canc){if(c.show.boxes&&d.q<=8)bx=Array.from({length:d.q},(_,j)=>`<span class="b${j<n?' on':''}">✓</span>`).join('');
-    else if(c.show.boxes)bx=`<span class="bp">${n}/${d.q}</span>`;else bx=`<span class="b${done?' on':''}">✓</span>`;}
+    else if(c.show.boxes)bx=`<span class="bp">${n}/${d.q}</span>`;else if(!done&&n>0)bx=`<span class="bp">เสร็จ ${n}/${d.q}</span>`;}
   const cls=done?' done':canc?' canc':(isNewD(d)&&c.show.newTag?' isnew':'');
   return `<button class="dr${cls}" data-act="${canc?'ack':done?'undo':'tick'}" data-o="${esc(o.id)}" data-d="${esc(d.id)}">${qv}
     <span class="dm"><span class="nl"><span class="nm">${esc(d.name)}</span>${tags.join('')}</span>${opt}${rmk}${note}</span>${price}<span class="bx">${bx}</span></button>`;}
@@ -398,7 +401,7 @@ function cardHtml(o,c,bcount,opts){opts=opts||{};
   const armed=ARMED.id===o.id&&ARMED.until>Date.now()&&left>0;
   const fin2=left===0?`<button class="fin ok" data-act="finish" data-o="${esc(o.id)}">เสร็จทั้งโต๊ะ ✓</button>`
     :armed?`<button class="fin armed" data-act="finish" data-o="${esc(o.id)}">ยังเหลือ ${left} จาน · แตะอีกครั้งเพื่อปิด</button>`
-    :`<button class="fin" data-act="finish" data-o="${esc(o.id)}">เหลือ ${left} จาน · ปิดทั้งโต๊ะ</button>`;
+    :`<button class="fin${c.card.confirm?'':' go'}" data-act="finish" data-o="${esc(o.id)}">${c.card.confirm?`เหลือ ${left} จาน · ปิดทั้งโต๊ะ`:`ปิดทั้งโต๊ะ = เสร็จหมด ✓ <small>(${left} จาน)</small>`}</button>`;
   const head=`<div class="ch"><span class="tl" data-act="say" data-o="${esc(o.id)}">${esc(label(o,c.density==='tight'))}</span>${c.show.wait?`<span class="tm ${a.s}" data-age="${esc(o.id)}">${a.m} นาที</span>`:''}</div>`;
   const metaH=meta.length||flags.length?`<div class="meta">${meta.length?'<span>'+esc(meta.join(' · '))+'</span>':''}${flags.join('')}</div>`:'';
   const mvH=mv?`<button class="alert" data-act="ackmove" data-o="${esc(o.id)}">${esc(mv)} · แตะรับทราบ</button>`:'';
@@ -445,13 +448,18 @@ let DONE=LS.get(SK('kds2_done'),[]);if(!Array.isArray(DONE))DONE=[];
 const trimDone=()=>{const cut=Date.now()-864e5;DONE=DONE.filter(x=>x&&x.done_at>cut).slice(0,100);};trimDone();
 const saveDone=()=>LS.set(SK('kds2_done'),DONE);
 function recordDone(o){if(DONE.some(x=>x.id===o.id))return;const ids=new Set(),dishes=[];
-  [...(o.fin||[]),...o.pend].forEach(d=>{if(ids.has(d.id))return;ids.add(d.id);dishes.push({id:d.id,name:d.name,q:d.q,opt:d.opt,rmk:d.rmk});});
+  [...(o.fin||[]),...o.pend].forEach(d=>{if(ids.has(d.id))return;ids.add(d.id);dishes.push({id:d.id,name:d.name,q:d.q,opt:d.opt,rmk:d.rmk,thai:d.thai});});
   DONE.unshift({id:o.id,table:o.table,code:o.code,plat:o.plat,type:o.type,at:o.at,done_at:Date.now(),dishes});trimDone();saveDone();}
+function doneCard(h){const ds=C.show.merge?mergeL((h.dishes||[]).map(d=>({...d,opt:d.opt||[],rmk:d.rmk||''})),false):h.dishes;
+  return `<article class="card dn"><div class="ch"><span class="tl">${esc(label(h))}</span><span class="tm">${hhmm(h.done_at)}</span></div>
+    <div class="meta">ใช้เวลา ${Math.max(0,Math.round((h.done_at-h.at)/60000))} นาที · ${(h.dishes||[]).reduce((n,d)=>n+(+d.q||1),0)} จาน</div><div class="rows">${ds.map(d=>`<div class="dr dh" style="cursor:default">${d.q>1?`<span class="qc">${d.q}</span>`:'<span class="q1">1</span>'}<span class="dm"><span class="nl"><span class="nm">${esc(d.name)}</span>${C.show.thai&&d.thai?'<span class="tag thai">คนไทย</span>':''}</span>${(d.opt||[]).length?`<span class="op">${esc(d.opt.join(' · '))}</span>`:''}${d.rmk?`<span class="rk">${esc(d.rmk)}</span>`:''}</span></div>`).join('')}</div>
+    <div class="cf"><button class="recall" data-act="recall" data-o="${esc(h.id)}">↩ เรียกกลับ</button></div></article>`;}
 function renderDone(){const b=$('#board');$('#doneN').textContent=DONE.length;
   if(!DONE.length){b.innerHTML='<div class="empty">ยังไม่มีโต๊ะที่เสร็จ</div>';return;}
-  b.innerHTML=`<div class="grid" style="grid-template-columns:${gridCols(Object.assign({},C,{layout:'card'}))}">${DONE.map(h=>`<article class="card dn"><div class="ch"><span class="tl">${esc(label(h))}</span><span class="tm">${hhmm(h.done_at)}</span></div>
-    <div class="meta">ใช้เวลา ${Math.max(0,Math.round((h.done_at-h.at)/60000))} นาที</div><div class="rows">${h.dishes.map(d=>`<div class="dr done" style="cursor:default">${d.q>1?`<span class="qc">${d.q}</span>`:'<span class="q1">1</span>'}<span class="dm"><span class="nm">${esc(d.name)}</span>${(d.opt||[]).length?`<span class="op">${esc(d.opt.join(' · '))}</span>`:''}</span></div>`).join('')}</div>
-    <div class="cf"><button class="recall" data-act="recall" data-o="${esc(h.id)}">↩ เรียกกลับ</button></div></article>`).join('')}</div>`;}
+  const P=Object.assign({},C,{layout:'card',card:Object.assign({},C.card,{flow:'pack',hMode:'auto'})});
+  const{n,w}=packCols(P),cols=Array.from({length:n},()=>({h:0,html:[]}));
+  for(const x of DONE){const h=doneCard(x),est=2.6+(h.match(/class="dr/g)||[]).length;const col=cols.reduce((m,y)=>y.h<m.h?y:m,cols[0]);col.h+=est;col.html.push(h);}
+  b.innerHTML=`<div style="display:flex;gap:var(--gap);align-items:flex-start">${cols.map(x=>`<div style="${w?`flex:none;width:${w}px`:'flex:1 1 0'};min-width:0;display:flex;flex-direction:column;gap:var(--gap)">${x.html.join('')}</div>`).join('')}</div>`;}
 function renderRail(){const bs=batches(),mode=C.rail,shown=mode!=='off'&&!RAILHIDE?mode:RAILFORCE?'right':'';
   const html=`<div class="rh"><b>ทำรวม ${bs.length} เมนู</b><button class="rx" data-act="railx" aria-label="ซ่อนแผงทำรวม">✕</button></div><div class="rb">${bs.map(b=>`<button class="ri" data-act="batch" data-n="${esc(b.name)}"><span class="t"><b>×${b.total}</b><span>${esc(b.name)}</span><i>${b.tables.size} โต๊ะ</i></span>${[...b.vars].map(([v,x])=>`<span class="v"><b>${esc(x.opt)} ×${x.q}</b><span>โต๊ะ ${esc(x.w.join(', '))}</span>${x.rmk?`<em class="vr">${esc(x.rmk)}</em>`:''}</span>`).join('')}</button>`).join('')||'<div class="rnote" style="padding:20px 6px">ยังไม่มีเมนูที่หลายโต๊ะสั่งซ้ำกัน</div>'}${bs.length?'<div class="rnote">แตะเมนู = เสร็จทั้งชุดทุกโต๊ะ</div>':''}</div>`;
   const L=$('#railL'),R=$('#railR');const on=view==='table'&&shown;
@@ -494,9 +502,10 @@ function tick(o,d){const n=plates(d)+1;stopRep(o.id);
 function undo(o,id){const d=(o.fin||[]).find(x=>x.id===id);if(!d)return;o.fin=o.fin.filter(x=>x.id!==id);o.pend.push(d);PLATE.delete(id);savePlate();
   LOCALUNDO.set(id,Date.now());LOCALDONE.delete(id);post('/api/dish/complete',{order_id:o.id,dishes_id:id,status:'pending'});}
 function finishTable(o){const left=leftOfO(o);
-  if(left>0&&!(ARMED.id===o.id&&ARMED.until>Date.now())){ARMED={id:o.id,until:Date.now()+4000};render();setTimeout(()=>{if(ARMED.id===o.id&&ARMED.until<=Date.now()){ARMED.id='';render();}},4100);return;}
+  if(left>0&&C.card.confirm&&!(ARMED.id===o.id&&ARMED.until>Date.now())){ARMED={id:o.id,until:Date.now()+4000};render();setTimeout(()=>{if(ARMED.id===o.id&&ARMED.until<=Date.now()){ARMED.id='';render();}},4100);return;}
   ARMED.id='';stopRep(o.id);post('/api/order/complete',{order_id:o.id,status:'completed',screen:SCREEN});
-  o.pend.forEach(d=>{PLATE.delete(d.id);});savePlate();callDone(o,null);recordDone(o);ORDERS=ORDERS.filter(x=>x!==o);render();}
+  o.pend.forEach(d=>{PLATE.delete(d.id);});savePlate();callDone(o,null);recordDone(o);ORDERS=ORDERS.filter(x=>x!==o);render();
+  toast(label(o)+' เสร็จแล้ว','ปิดผิด → แท็บ “เสร็จแล้ว” › ↩ เรียกกลับ',3500);}
 function batchDone(name){let n=0;for(const o of ORDERS)for(const d of[...o.pend])if(d.name===name){completeDish(o,d);callDone(o,d);n++;}
   tickSound();render();toast('เสร็จทั้งชุด',name+(n?' · '+n+' รายการ':''));}
 document.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(!t)return;const a=t.dataset.act,o=t.dataset.o?findO(t.dataset.o):null;
@@ -752,6 +761,7 @@ function renderSet(){ACTS=[];const c=cfg(ED),sv=p=>{patch(ED,p);afterSet();};
     h+=stepH('แสดงสูงสุด',K.hMode==='limit'?'จานที่เกินขึ้น “อีก N จาน” แตะเพื่อดู':'ใช้เมื่อเลือก “จำกัดจำนวนจาน”',+K.limit,K.limit+' จาน',2,15,v=>sv({card:{limit:v,hMode:'limit'}}));
     h+=segH('ระยะห่างระหว่างการ์ด','',K.gap,[['tight','ชิด'],['normal','ปกติ'],['wide','ห่าง']],v=>sv({card:{gap:v}}));
     h+=segH('มุมการ์ด','',K.radius,[['square','เหลี่ยม'],['round','มน'],['pill','มนมาก']],v=>sv({card:{radius:v}}));
+    h+=segH('ปุ่มปิดทั้งโต๊ะ',K.confirm?'ถ้ายังมีจานค้าง ต้องแตะซ้ำอีกครั้งภายใน 4 วินาที':'แตะครั้งเดียว = เสร็จหมดทั้งโต๊ะ · ปิดผิดเรียกกลับได้ในแท็บ “เสร็จแล้ว”',K.confirm?'2':'1',[['1','แตะครั้งเดียว'],['2','แตะ 2 ครั้ง (กันพลาด)']],v=>sv({card:{confirm:v==='2'}}));
     h+=segH('ขนาดช่องติ๊ก','ใหญ่ = แตะง่ายตอนมือเปียก',K.box,[['s','เล็ก'],['m','กลาง'],['l','ใหญ่']],v=>sv({card:{box:v}}));
     h+=segH('สีบอกเวลารอ','',K.status,[['top','แถบบน'],['head','ทั้งหัวการ์ด'],['border','ขอบการ์ด']],v=>sv({card:{status:v}}));
   }else if(SEC==='style'){
@@ -775,7 +785,7 @@ function renderSet(){ACTS=[];const c=cfg(ED),sv=p=>{patch(ED,p);afterSet();};
   }else if(SEC==='fields'){
     [['wait','เวลารอ','มุมขวาบนของการ์ด'],['at','เวลาที่สั่ง','เช่น สั่ง 18:31'],['type','ประเภทออเดอร์','กินที่ร้าน / กลับบ้าน'],['staff','ชื่อคนสั่ง','ใช้ได้เมื่อตั้งพนักงานรายคนในหลังร้าน'],
      ['opt','ตัวเลือก','เนื้อสัตว์ ขนาด ความเผ็ด'],['rmk','หมายเหตุ / แพ้อาหาร','แนะนำให้เปิดไว้เสมอ'],['thai','ป้ายคนไทย',''],['newTag','ป้าย “ใหม่” จานที่สั่งเพิ่ม',''],
-     ['merge','รวมจานที่เหมือนกันเป็นบรรทัดเดียว','เช่น กะเพราหมู 5 จาน = บรรทัดเดียว มีช่องติ๊ก 5 ช่อง · ช่วยโต๊ะที่สั่งเยอะ'],['batch','ป้าย “รวม N” เมนูซ้ำหลายโต๊ะ',''],['boxes','ช่องติ๊กทีละจาน','ปิด = แตะครั้งเดียวเสร็จทั้งบรรทัด'],['price','ราคา','']].forEach(([k,l,hi])=>{h+=togH(l,hi,c.show[k],v=>sv({show:{[k]:v}}));});
+     ['merge','รวมจานที่เหมือนกันเป็นบรรทัดเดียว','เช่น กะเพราหมู 5 จาน = บรรทัดเดียว เลขวงกลม 5 · ช่วยโต๊ะที่สั่งเยอะ'],['batch','ป้าย “รวม N” เมนูซ้ำหลายโต๊ะ',''],['boxes','ช่องติ๊กทีละจาน','ค่าเริ่มต้นปิด · ปิดอยู่ = ไม่มีช่องติ๊ก กด “ปิดทั้งโต๊ะ” = เสร็จหมด (แตะชื่อจานยังทำทีละจานได้)'],['price','ราคา','']].forEach(([k,l,hi])=>{h+=togH(l,hi,c.show[k],v=>sv({show:{[k]:v}}));});
   }else if(SEC==='sound'){const V=c.voice,svv=k=>v=>sv({voice:{[k]:v}});
     const D=[{name:'กะเพรา',q:2,opt:['หมูกรอบ'],rmk:'ไม่เผ็ด'},{name:'ต้มยำกุ้ง',q:1,opt:['น้ำข้น'],rmk:''}];
     h+=`<div class="row"><span class="l"><b>เสียงเตือน 36 แบบ และเสียงผู้พูดภาษาไทย</b><span>ใช้ค่าจาก ⚙️ ตั้งค่าเสียง ของจอเดิม (ตั้งที่เดียว ใช้ได้ทั้งสองจอ) · กด “จอเดิม” ที่แถบบนเพื่อไปตั้ง</span></span></div>`;
