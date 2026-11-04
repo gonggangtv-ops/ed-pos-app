@@ -23,6 +23,9 @@
   #bar{position:fixed;top:0;left:0;right:0;z-index:40;min-height:64px;padding:8px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
     background:var(--card);border-bottom:1px solid var(--line);box-shadow:0 10px 30px #0009}
   body.pin #bar{position:static;box-shadow:none}
+  body.glass:not(.pin) #bar{background:color-mix(in srgb,var(--card) 62%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 6px 18px #0005}
+  body.glass2:not(.pin) #bar{background:color-mix(in srgb,var(--card) 30%,transparent);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);box-shadow:none}
+  #bar{transition:opacity .25s}#bar.fade{opacity:0;pointer-events:none}
   body.pin #strip{display:none}
   .brand{font-size:19px;font-weight:700;margin-right:4px}
   .seg{display:flex;padding:4px;gap:4px;border-radius:11px;background:var(--card2)}
@@ -62,7 +65,7 @@
   .dr{display:flex;align-items:center;gap:calc(10px*var(--z));padding:var(--pad);border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;cursor:pointer;width:100%;color:var(--text)}
   .dr.isnew{background:#6cc4ff1a}
   .dr.done{opacity:.45}.dr.done .nm{text-decoration:line-through}
-  .card.dn .dr.dh{opacity:.85}.fin.go{border-color:#2fd07a;color:#2fd07a;font-weight:700}.fin small{font-weight:600;opacity:.8}
+  .fin.go{border-color:#2fd07a;color:#2fd07a;font-weight:700}.fin small{font-weight:600;opacity:.8}
   .dr.canc{background:#d93a331f;color:#ff7a72}.dr.canc .nm{text-decoration:line-through}
   .qc{flex:none;width:calc(var(--fs-qty)*var(--z));height:calc(var(--fs-qty)*var(--z));border-radius:50%;background:var(--qty);color:var(--qink);display:flex;align-items:center;justify-content:center;font-size:calc(var(--fs-qty)*.56*var(--z));font-weight:700}
   .q1{flex:none;width:calc(var(--fs-qty)*var(--z));text-align:center;font-size:calc(var(--fs-opt)*var(--z));color:var(--muted)}
@@ -246,7 +249,7 @@ const OLD={snd:Object.assign({type:'bell',vol:'1',rep:'2',add:'chime',cancel:'wa
 const NOB=Array.isArray(OLD.nob)?OLD.nob:['ข้าวสวย'];
 
 // ================= ค่าตั้ง (ชุดค่าตั้ง) =================
-const BASE={layout:'card',cols:'auto',density:'normal',rail:'right',sort:'wait',barHide:'10',barOpen:'double',warn:10,late:15,
+const BASE={layout:'card',cols:'auto',density:'normal',rail:'right',sort:'wait',barHide:'4',barOpen:'double',barGlass:'glass',warn:10,late:15,
   sz:{table:30,name:20,qty:32,opt:15,rmk:15,time:15},
   cl:{table:'#F3F5F7',name:'#F3F5F7',qty:'#FF9F1C',opt:'#6CC4FF',rmk:'#D93A33',card:'#171B21',bg:'#0B0D10'},
   show:{wait:true,at:true,type:true,staff:false,opt:true,rmk:true,thai:true,newTag:true,batch:true,boxes:false,price:false,merge:true},
@@ -277,6 +280,7 @@ ST.auto=Object.assign({busyOn:true,busyAt:6,timeOn:false,busyFrom:'18:00',busyTo
 if(!ST.list.includes(ST.active))ST.active=ST.list[0];
 const saveST=()=>LS.set('kds2_cfg',ST);
 // test-1.77: ผู้ใช้ขอเอาช่องติ๊กออก → ล้างค่าเดิมทุกชุดครั้งเดียว (ยังเปิดกลับได้ในปรับแต่ง)
+if(!ST.mig178){Object.values(ST.presets).forEach(p=>{if(p&&['5','10','30'].includes(String(p.barHide)))delete p.barHide;});ST.mig178=1;saveST();}
 if(!ST.mig177){Object.values(ST.presets).forEach(p=>{if(p&&p.show)delete p.show.boxes;if(p&&p.card)delete p.card.confirm;});ST.mig177=1;saveST();}
 function cfg(k){const b=DEF[k]||(ST.presets[k]&&ST.presets[k]._base&&DEF[ST.presets[k]._base])||BASE,o=ST.presets[k]||{},r=Object.assign({},b,o);
   GROUPS.forEach(g=>{r[g]=Object.assign({},b[g],o[g]||{});});return r;}
@@ -312,7 +316,8 @@ function varsOf(c){const z=(+c.card.zoom||100)/100,card=c.cl.card,text=c.cl.name
 const styleStr=v=>Object.keys(v).map(k=>k+':'+v[k]).join(';');
 function applyVars(){C=cfg(activeKey());const v=varsOf(C),r=document.documentElement;Object.keys(v).forEach(k=>r.style.setProperty(k,v[k]));
   const m=document.querySelector('meta[name=theme-color]');if(m)m.content=C.cl.bg;
-  document.body.classList.toggle('pin',+C.barHide===0);}
+  document.body.classList.toggle('pin',+C.barHide===0);
+  document.body.classList.toggle('glass',C.barGlass==='glass');document.body.classList.toggle('glass2',C.barGlass==='clear');}
 
 // ================= ข้อมูลออเดอร์ =================
 let ORDERS=[],primed=false,KNOWN=[],CATS=[];
@@ -450,16 +455,11 @@ const saveDone=()=>LS.set(SK('kds2_done'),DONE);
 function recordDone(o){if(DONE.some(x=>x.id===o.id))return;const ids=new Set(),dishes=[];
   [...(o.fin||[]),...o.pend].forEach(d=>{if(ids.has(d.id))return;ids.add(d.id);dishes.push({id:d.id,name:d.name,q:d.q,opt:d.opt,rmk:d.rmk,thai:d.thai});});
   DONE.unshift({id:o.id,table:o.table,code:o.code,plat:o.plat,type:o.type,at:o.at,done_at:Date.now(),dishes});trimDone();saveDone();}
-function doneCard(h){const ds=C.show.merge?mergeL((h.dishes||[]).map(d=>({...d,opt:d.opt||[],rmk:d.rmk||''})),false):h.dishes;
-  return `<article class="card dn"><div class="ch"><span class="tl">${esc(label(h))}</span><span class="tm">${hhmm(h.done_at)}</span></div>
-    <div class="meta">ใช้เวลา ${Math.max(0,Math.round((h.done_at-h.at)/60000))} นาที · ${(h.dishes||[]).reduce((n,d)=>n+(+d.q||1),0)} จาน</div><div class="rows">${ds.map(d=>`<div class="dr dh" style="cursor:default">${d.q>1?`<span class="qc">${d.q}</span>`:'<span class="q1">1</span>'}<span class="dm"><span class="nl"><span class="nm">${esc(d.name)}</span>${C.show.thai&&d.thai?'<span class="tag thai">คนไทย</span>':''}</span>${(d.opt||[]).length?`<span class="op">${esc(d.opt.join(' · '))}</span>`:''}${d.rmk?`<span class="rk">${esc(d.rmk)}</span>`:''}</span></div>`).join('')}</div>
-    <div class="cf"><button class="recall" data-act="recall" data-o="${esc(h.id)}">↩ เรียกกลับ</button></div></article>`;}
 function renderDone(){const b=$('#board');$('#doneN').textContent=DONE.length;
   if(!DONE.length){b.innerHTML='<div class="empty">ยังไม่มีโต๊ะที่เสร็จ</div>';return;}
-  const P=Object.assign({},C,{layout:'card',card:Object.assign({},C.card,{flow:'pack',hMode:'auto'})});
-  const{n,w}=packCols(P),cols=Array.from({length:n},()=>({h:0,html:[]}));
-  for(const x of DONE){const h=doneCard(x),est=2.6+(h.match(/class="dr/g)||[]).length;const col=cols.reduce((m,y)=>y.h<m.h?y:m,cols[0]);col.h+=est;col.html.push(h);}
-  b.innerHTML=`<div style="display:flex;gap:var(--gap);align-items:flex-start">${cols.map(x=>`<div style="${w?`flex:none;width:${w}px`:'flex:1 1 0'};min-width:0;display:flex;flex-direction:column;gap:var(--gap)">${x.html.join('')}</div>`).join('')}</div>`;}
+  b.innerHTML=`<div class="grid" style="grid-template-columns:${gridCols(Object.assign({},C,{layout:'card'}))}">${DONE.map(h=>`<article class="card dn"><div class="ch"><span class="tl">${esc(label(h))}</span><span class="tm">${hhmm(h.done_at)}</span></div>
+    <div class="meta">ใช้เวลา ${Math.max(0,Math.round((h.done_at-h.at)/60000))} นาที</div><div class="rows">${h.dishes.map(d=>`<div class="dr done" style="cursor:default">${d.q>1?`<span class="qc">${d.q}</span>`:'<span class="q1">1</span>'}<span class="dm"><span class="nm">${esc(d.name)}</span>${(d.opt||[]).length?`<span class="op">${esc(d.opt.join(' · '))}</span>`:''}</span></div>`).join('')}</div>
+    <div class="cf"><button class="recall" data-act="recall" data-o="${esc(h.id)}">↩ เรียกกลับ</button></div></article>`).join('')}</div>`;}
 function renderRail(){const bs=batches(),mode=C.rail,shown=mode!=='off'&&!RAILHIDE?mode:RAILFORCE?'right':'';
   const html=`<div class="rh"><b>ทำรวม ${bs.length} เมนู</b><button class="rx" data-act="railx" aria-label="ซ่อนแผงทำรวม">✕</button></div><div class="rb">${bs.map(b=>`<button class="ri" data-act="batch" data-n="${esc(b.name)}"><span class="t"><b>×${b.total}</b><span>${esc(b.name)}</span><i>${b.tables.size} โต๊ะ</i></span>${[...b.vars].map(([v,x])=>`<span class="v"><b>${esc(x.opt)} ×${x.q}</b><span>โต๊ะ ${esc(x.w.join(', '))}</span>${x.rmk?`<em class="vr">${esc(x.rmk)}</em>`:''}</span>`).join('')}</button>`).join('')||'<div class="rnote" style="padding:20px 6px">ยังไม่มีเมนูที่หลายโต๊ะสั่งซ้ำกัน</div>'}${bs.length?'<div class="rnote">แตะเมนู = เสร็จทั้งชุดทุกโต๊ะ</div>':''}</div>`;
   const L=$('#railL'),R=$('#railR');const on=view==='table'&&shown;
@@ -541,8 +541,8 @@ Kiosk.bind($('#fsBtn'),{label:(on,locked)=>locked?{text:'🔒 ล็อกเต
 
 // ================= แถบด้านบน: ซ่อนเมื่อไม่แตะ · เปิดด้วยแตะที่ว่าง 2 ครั้ง =================
 let barUpAt=Date.now(),barShown=false;
-function showBar(){barShown=true;barUpAt=Date.now();$('#bar').hidden=false;}
-function hideBar(){if(+C.barHide===0)return;barShown=false;$('#bar').hidden=true;}
+function showBar(){barShown=true;barUpAt=Date.now();const e=$('#bar');e.hidden=false;e.classList.remove('fade');}
+function hideBar(){if(+C.barHide===0)return;barShown=false;const e=$('#bar');e.classList.add('fade');setTimeout(()=>{if(!barShown){e.hidden=true;e.classList.remove('fade');}},260);}
 function barTick(){if(+C.barHide===0){$('#bar').hidden=false;return;}
   if(!barShown)return;if(!$('#set').hidden)return;if(Date.now()-barUpAt>(+C.barHide)*1000)hideBar();}
 const ACTIVE='[data-act],button,a,input,select,label,.rail,#bar,#set,.toast,#nagBar';
@@ -748,7 +748,8 @@ function renderSet(){ACTS=[];const c=cfg(ED),sv=p=>{patch(ED,p);afterSet();};
     h+=segH('ความแน่น','แน่น = เห็นได้หลายโต๊ะขึ้น',c.density,[['comfy','สบายตา'],['normal','ปกติ'],['tight','แน่น']],v=>sv({density:v}));
     h+=segH('แผงทำรวม','',c.rail,[['left','ซ้าย'],['right','ขวา'],['off','ซ่อน']],v=>sv({rail:v}));
     h+=segH('เรียงโต๊ะ','',c.sort,[['wait','รอนานสุด'],['new','ใหม่สุด'],['table','เลขโต๊ะ']],v=>sv({sort:v}));
-    h+=segH('ซ่อนแถบด้านบน','',c.barHide,[['0','ไม่ซ่อน'],['5','5 วิ'],['10','10 วิ'],['30','30 วิ']],v=>sv({barHide:v}));
+    h+=segH('ซ่อนแถบด้านบน','',c.barHide,[['0','ไม่ซ่อน'],['2','2 วิ'],['4','4 วิ'],['7','7 วิ'],['15','15 วิ']],v=>sv({barHide:v}));
+    h+=segH('พื้นแถบด้านบน','โปร่งแสง = เห็นการ์ดด้านล่างผ่านแถบ',c.barGlass,[['solid','ทึบ'],['glass','โปร่งแสง'],['clear','ใสมาก']],v=>sv({barGlass:v}));
     h+=segH('เปิดแถบที่ซ่อนอยู่','แตะจานไม่ทำให้แถบลงมาบัง · ปุ่ม ☰ เมนู มุมขวาบนใช้ได้เสมอ',c.barOpen,[['double','แตะที่ว่าง 2 ครั้ง'],['single','แตะครั้งเดียว']],v=>sv({barOpen:v}));
     h+=stepH('ขึ้นสีเหลืองเมื่อรอเกิน','',+c.warn,c.warn+' นาที',2,60,v=>sv({warn:v}));
     h+=stepH('ขึ้นสีแดงเมื่อรอเกิน','',+c.late,c.late+' นาที',3,90,v=>sv({late:v}));
