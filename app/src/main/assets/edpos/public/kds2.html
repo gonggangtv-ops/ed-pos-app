@@ -248,9 +248,9 @@ const NOB=Array.isArray(OLD.nob)?OLD.nob:['ข้าวสวย'];
 const BASE={layout:'card',cols:'auto',density:'normal',rail:'right',sort:'wait',barHide:'10',barOpen:'double',warn:10,late:15,
   sz:{table:30,name:20,qty:32,opt:15,rmk:15,time:15},
   cl:{table:'#F3F5F7',name:'#F3F5F7',qty:'#FF9F1C',opt:'#6CC4FF',rmk:'#D93A33',card:'#171B21',bg:'#0B0D10'},
-  show:{wait:true,at:true,type:true,staff:false,opt:true,rmk:true,thai:true,newTag:true,batch:true,boxes:true,price:false},
+  show:{wait:true,at:true,type:true,staff:false,opt:true,rmk:true,thai:true,newTag:true,batch:true,boxes:true,price:false,merge:true},
   snd:{vol:'same',tts:true,call:true,tick:false},
-  card:{zoom:100,wMode:'auto',w:300,hMode:'auto',limit:5,gap:'normal',radius:'round',box:'m',status:'top'},
+  card:{zoom:100,wMode:'auto',w:300,hMode:'auto',limit:5,gap:'normal',radius:'round',box:'m',status:'top',flow:'pack'},
   voice:{order:'table-menu',qty:true,opt:true,rmk:true,pre:'none',group:true,rep:'2',rate:'1',callOrder:'table-menu',post:'none',only:false}};
 const clone=o=>JSON.parse(JSON.stringify(o));
 const DEF={normal:BASE,
@@ -349,18 +349,26 @@ function batches(){const m=new Map();
   for(const o of ORDERS)for(const d of o.pend){if(noBatch(d))continue;const l=d.q-plates(d);if(!l)continue;
     if(!m.has(d.name))m.set(d.name,{name:d.name,total:0,tables:new Set(),vars:new Map()});
     const b=m.get(d.name);b.total+=l;b.tables.add(o.id);const v=d.opt[0]||'ธรรมดา';
-    if(!b.vars.has(v))b.vars.set(v,{q:0,w:[]});const x=b.vars.get(v);x.q+=l;x.w.push(where(o).replace('โต๊ะ ','')+(l>1?' ×'+l:''));}
+    if(!b.vars.has(v))b.vars.set(v,{q:0,wm:new Map()});const x=b.vars.get(v);x.q+=l;const wk=where(o).replace('โต๊ะ ','');x.wm.set(wk,(x.wm.get(wk)||0)+l);}
+  for(const b of m.values())for(const x of b.vars.values())x.w=[...x.wm].map(([k,q])=>k+(q>1?' ×'+q:''));
   return[...m.values()].filter(b=>b.tables.size>1).sort((a,b)=>b.total-a.total);}
 
 // ================= วาดหน้าจอ =================
 let view='table',viewManual=false;
 function sortO(list,c){const by=c.sort;return[...list].sort((a,b)=>by==='new'?startOf(b)-startOf(a):by==='table'?String(a.table||a.code).localeCompare(String(b.table||b.code),'th',{numeric:true}):startOf(a)-startOf(b));}
+// test-1.75: จานที่เหมือนกันทุกอย่าง (ชื่อ ตัวเลือก หมายเหตุ คนไทย ใหม่) ในโต๊ะเดียวกัน → บรรทัดเดียว · id = "i1,i2,…"
+const isNewD=d=>(d._ids||[d.id]).some(x=>ADDED.has(x));
+function mergeL(list,pend){const out=[],at=new Map();
+  for(const d of list){const k=d.name+'|'+d.opt.join('/')+'|'+d.rmk+'|'+(d.thai?1:0)+'|'+(isNewD(d)?1:0);const m=at.get(k);
+    if(m){m.q+=d.q;m._ids.push(d.id);m.id=m._ids.join(',');if(pend)m._plates+=plates(d);continue;}
+    const g={...d,_ids:[d.id],_plates:pend?plates(d):0};at.set(k,g);out.push(g);}
+  return out;}
 function dishHtml(o,d,st,c,bcount){
-  const done=st==='done',canc=st==='cancel',n=done?d.q:plates(d);
+  const done=st==='done',canc=st==='cancel',n=done?d.q:(d._ids?d._plates:plates(d));
   const multi=d.q>1&&!canc;
   const qv=multi?`<span class="qc">${d.q}</span>`:`<span class="q1">${canc?'×'+d.q:'1'}</span>`;
   const tags=[];
-  if(!done&&!canc&&c.show.newTag&&ADDED.has(d.id))tags.push('<span class="tag new">ใหม่</span>');
+  if(!done&&!canc&&c.show.newTag&&isNewD(d))tags.push('<span class="tag new">ใหม่</span>');
   if(c.show.thai&&d.thai)tags.push('<span class="tag thai">คนไทย</span>');
   if(!done&&!canc&&c.show.batch&&bcount&&bcount[d.name])tags.push(`<span class="tag bat">รวม ${bcount[d.name]}</span>`);
   const opt=c.show.opt&&d.opt.length?`<span class="op">${esc(optTxt(d))}</span>`:'';
@@ -370,7 +378,7 @@ function dishHtml(o,d,st,c,bcount){
   let bx='';
   if(!canc){if(c.show.boxes&&d.q<=8)bx=Array.from({length:d.q},(_,j)=>`<span class="b${j<n?' on':''}">✓</span>`).join('');
     else if(c.show.boxes)bx=`<span class="bp">${n}/${d.q}</span>`;else bx=`<span class="b${done?' on':''}">✓</span>`;}
-  const cls=done?' done':canc?' canc':(ADDED.has(d.id)&&c.show.newTag?' isnew':'');
+  const cls=done?' done':canc?' canc':(isNewD(d)&&c.show.newTag?' isnew':'');
   return `<button class="dr${cls}" data-act="${canc?'ack':done?'undo':'tick'}" data-o="${esc(o.id)}" data-d="${esc(d.id)}">${qv}
     <span class="dm"><span class="nl"><span class="nm">${esc(d.name)}</span>${tags.join('')}</span>${opt}${rmk}${note}</span>${price}<span class="bx">${bx}</span></button>`;}
 function cancelsOf(o){const l=[...o.canc,...[...GHOSTC.values()].filter(e=>e.oid===o.id).map(e=>e.d)];
@@ -380,7 +388,8 @@ function cardHtml(o,c,bcount,opts){opts=opts||{};
   const a=sevOf(startOf(o),c),left=leftOfO(o);
   const meta=[c.show.type?TYPE[o.type]||'':'',c.show.at?'สั่ง '+hhmm(o.at):'',c.show.staff&&(o.by||(o.pend[0]&&o.pend[0].by))?'โดย '+(o.by||o.pend[0].by):''].filter(Boolean);
   const flags=[];if(o.unpaid)flags.push('<span class="tag unpaid">ยังไม่จ่าย</span>');if(o.urge)flags.push('<span class="tag unpaid">เร่ง</span>');
-  const pend=[...o.pend].sort((x,y)=>(x.at||0)-(y.at||0)).map(d=>['p',d]),fin=(o.fin||[]).filter(d=>!ACK.has('h'+d.id)).map(d=>['d',d]),canc=cancelsOf(o).map(d=>['c',d]);
+  const pl=[...o.pend].sort((x,y)=>(x.at||0)-(y.at||0)),fl=(o.fin||[]).filter(d=>!ACK.has('h'+d.id));
+  const pend=(c.show.merge?mergeL(pl,true):pl).map(d=>['p',d]),fin=(c.show.merge?mergeL(fl,false):fl).map(d=>['d',d]),canc=cancelsOf(o).map(d=>['c',d]);
   let rows=[...pend,...fin,...canc],more=0;
   if(c.card.hMode==='limit'&&!EXP.has(o.id)&&!opts.preview){const lim=+c.card.limit||5;more=Math.max(0,rows.length-lim);rows=rows.slice(0,lim);}
   if(opts.preview&&c.card.hMode==='limit'){const lim=+c.card.limit||5;more=Math.max(0,rows.length-lim);rows=rows.slice(0,lim);}
@@ -404,9 +413,19 @@ function gridCols(c){const z=(+c.card.zoom||100)/100;
   if(c.card.wMode==='fixed')return `repeat(auto-fill,${Math.round(c.card.w*z)}px)`;
   if(c.cols==='auto')return `repeat(auto-fill,minmax(${Math.round(280*z)}px,1fr))`;
   return `repeat(${+c.cols||3},minmax(0,1fr))`;}
+// test-1.75: เรียงแน่น = การ์ดต่อกันลงล่างในแต่ละคอลัมน์ ไม่มีช่องว่างใต้การ์ดสั้น · ใส่ลงคอลัมน์ที่สั้นสุด (ประมาณจากจำนวนบรรทัด)
+function packCols(c){const b=$('#board'),W=b.clientWidth||innerWidth-40,gap=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gap'))||12,z=(+c.card.zoom||100)/100;
+  if(c.card.wMode==='fixed'){const w=Math.round(c.card.w*z);return{n:Math.max(1,Math.floor((W+gap)/(w+gap))),w};}
+  if(c.cols==='auto'){const w=Math.round(280*z);return{n:Math.max(1,Math.floor((W+gap)/(w+gap))),w:0};}
+  return{n:Math.max(1,+c.cols||3),w:0};}
+const usePack=c=>c.card.flow!=='grid'&&c.card.hMode!=='equal'&&c.layout!=='row';
 function renderTable(){const b=$('#board');const list=sortO(ORDERS,C);
   if(!list.length){b.innerHTML='<div class="empty">ไม่มีออเดอร์ค้าง</div>';return;}
   const bc={};batches().forEach(x=>{bc[x.name]=x.total;});
+  if(usePack(C)){const{n,w}=packCols(C),cols=Array.from({length:n},()=>({h:0,html:[]}));
+    for(const o of list){const h=cardHtml(o,C,bc),est=2.4+(h.match(/class="dr/g)||[]).length+(/class="meta"/.test(h)?.6:0)+(/class="more"/.test(h)?.6:0)+(/class="alert"/.test(h)?.8:0);
+      const col=cols.reduce((m,x)=>x.h<m.h?x:m,cols[0]);col.h+=est;col.html.push(h);}
+    b.innerHTML=`<div style="display:flex;gap:var(--gap);align-items:flex-start">${cols.map(x=>`<div style="${w?`flex:none;width:${w}px`:'flex:1 1 0'};min-width:0;display:flex;flex-direction:column;gap:var(--gap)">${x.html.join('')}</div>`).join('')}</div>`;return;}
   b.innerHTML=`<div class="grid${C.card.hMode==='equal'?' eq':''}" style="grid-template-columns:${gridCols(C)}">${list.map(o=>cardHtml(o,C,bc)).join('')}</div>`;}
 function renderMenu(){const b=$('#board'),g=new Map();
   for(const o of ORDERS){const t0=startOf(o);
@@ -456,6 +475,7 @@ function checkMore(){const chip=$('#moreChip'),b=$('#board');if(view!=='table'){
   const canBusy=ST.list.includes('busy')&&activeKey()!=='busy';
   chip.textContent=`อีก ${hid} โต๊ะล้นจอ · `+(canBusy?'แตะเพื่อใช้ชุด “'+pname('busy')+'”':'แตะเพื่อเลื่อนดู');
   chip.onclick=()=>{if(canBusy){setActive('busy',true);toast('ใช้ชุด “'+pname('busy')+'”','เห็นได้หลายโต๊ะขึ้น');}else b.scrollBy({top:r.height-120,behavior:'smooth'});};}
+addEventListener('resize',()=>{clearTimeout(window._rz);window._rz=setTimeout(()=>{if($('#set').hidden)render();},200);});
 b0:{const b=document.getElementById('board');b.addEventListener('scroll',()=>{clearTimeout(window._mt);window._mt=setTimeout(checkMore,120);},{passive:true});}
 function setActive(k,manual){if(manual){manualAt=Date.now();autoP='';ST.active=k;saveST();}
   const prevLayout=C.layout;C=cfg(activeKey());
@@ -480,8 +500,8 @@ function finishTable(o){const left=leftOfO(o);
 function batchDone(name){let n=0;for(const o of ORDERS)for(const d of[...o.pend])if(d.name===name){completeDish(o,d);callDone(o,d);n++;}
   tickSound();render();toast('เสร็จทั้งชุด',name+(n?' · '+n+' รายการ':''));}
 document.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(!t)return;const a=t.dataset.act,o=t.dataset.o?findO(t.dataset.o):null;
-  if(a==='tick'&&o){const d=o.pend.find(x=>x.id===t.dataset.d);if(d){tick(o,d);render();}return;}
-  if(a==='undo'&&o){undo(o,t.dataset.d);render();return;}
+  if(a==='tick'&&o){const ids=t.dataset.d.split(','),d=ids.map(id=>o.pend.find(x=>x.id===id)).find(x=>x&&plates(x)<x.q);if(d){tick(o,d);render();}return;}
+  if(a==='undo'&&o){const ids=t.dataset.d.split(',').filter(id=>(o.fin||[]).some(x=>x.id===id));if(ids.length){undo(o,ids[ids.length-1]);render();}return;}
   if(a==='mundo'&&o){const d=o.pend.find(x=>x.id===t.dataset.d);if(d){PLATE.set(d.id,0);savePlate();render();}else{undo(o,t.dataset.d);render();}return;}
   if(a==='ack'){ACK.set(t.dataset.d,Date.now());saveAck();GHOSTC.delete(t.dataset.d);render();return;}
   if(a==='ackmove'){MOVED.delete(t.dataset.o);render();return;}
@@ -727,7 +747,8 @@ function renderSet(){ACTS=[];const c=cfg(ED),sv=p=>{patch(ED,p);afterSet();};
     h+=stepH('ขนาดทั้งการ์ด','ขยายทั้งตัวอักษร วงกลมจำนวน และช่องติ๊กพร้อมกัน',+K.zoom,K.zoom+'%',60,180,v=>sv({card:{zoom:v}}),10);
     h+=segH('ความกว้างการ์ด',K.wMode==='auto'?'แบ่งตามจำนวนคอลัมน์ในหมวดการจัดวาง':'กว้าง '+eff+' px · จอนี้ได้ราว '+perRow(eff)+' โต๊ะต่อแถว',K.wMode,[['auto','ตามจำนวนคอลัมน์'],['fixed','กำหนดเอง']],v=>sv({card:{wMode:v}}));
     h+=stepH('กว้าง',K.wMode==='fixed'?'':'ใช้เมื่อเลือก “กำหนดเอง”',+K.w,K.w+' px',160,600,v=>sv({card:{w:v,wMode:'fixed'}}),20);
-    h+=segH('ความสูงการ์ด','',K.hMode,[['auto','ตามจำนวนจาน'],['equal','เท่ากันทั้งแถว'],['limit','จำกัดจำนวนจาน']],v=>sv({card:{hMode:v}}));
+    h+=segH('การเรียงการ์ด',K.flow==='grid'?'การ์ดแถวเดียวกันเริ่มตรงกัน · ใต้การ์ดสั้นจะมีช่องว่าง':'การ์ดต่อกันลงล่าง ไม่มีช่องว่าง เห็นได้หลายโต๊ะขึ้น',K.flow,[['pack','เรียงแน่น ไม่มีช่องว่าง'],['grid','เป็นแถวตรงกัน']],v=>sv({card:{flow:v}}));
+    h+=segH('ความสูงการ์ด',K.hMode==='equal'?'เท่ากันทั้งแถว ใช้กับแบบ “เป็นแถวตรงกัน” เท่านั้น':'',K.hMode,[['auto','ตามจำนวนจาน'],['equal','เท่ากันทั้งแถว'],['limit','จำกัดจำนวนจาน']],v=>sv({card:{hMode:v}}));
     h+=stepH('แสดงสูงสุด',K.hMode==='limit'?'จานที่เกินขึ้น “อีก N จาน” แตะเพื่อดู':'ใช้เมื่อเลือก “จำกัดจำนวนจาน”',+K.limit,K.limit+' จาน',2,15,v=>sv({card:{limit:v,hMode:'limit'}}));
     h+=segH('ระยะห่างระหว่างการ์ด','',K.gap,[['tight','ชิด'],['normal','ปกติ'],['wide','ห่าง']],v=>sv({card:{gap:v}}));
     h+=segH('มุมการ์ด','',K.radius,[['square','เหลี่ยม'],['round','มน'],['pill','มนมาก']],v=>sv({card:{radius:v}}));
@@ -754,7 +775,7 @@ function renderSet(){ACTS=[];const c=cfg(ED),sv=p=>{patch(ED,p);afterSet();};
   }else if(SEC==='fields'){
     [['wait','เวลารอ','มุมขวาบนของการ์ด'],['at','เวลาที่สั่ง','เช่น สั่ง 18:31'],['type','ประเภทออเดอร์','กินที่ร้าน / กลับบ้าน'],['staff','ชื่อคนสั่ง','ใช้ได้เมื่อตั้งพนักงานรายคนในหลังร้าน'],
      ['opt','ตัวเลือก','เนื้อสัตว์ ขนาด ความเผ็ด'],['rmk','หมายเหตุ / แพ้อาหาร','แนะนำให้เปิดไว้เสมอ'],['thai','ป้ายคนไทย',''],['newTag','ป้าย “ใหม่” จานที่สั่งเพิ่ม',''],
-     ['batch','ป้าย “รวม N” เมนูซ้ำหลายโต๊ะ',''],['boxes','ช่องติ๊กทีละจาน','ปิด = แตะครั้งเดียวเสร็จทั้งบรรทัด'],['price','ราคา','']].forEach(([k,l,hi])=>{h+=togH(l,hi,c.show[k],v=>sv({show:{[k]:v}}));});
+     ['merge','รวมจานที่เหมือนกันเป็นบรรทัดเดียว','เช่น กะเพราหมู 5 จาน = บรรทัดเดียว มีช่องติ๊ก 5 ช่อง · ช่วยโต๊ะที่สั่งเยอะ'],['batch','ป้าย “รวม N” เมนูซ้ำหลายโต๊ะ',''],['boxes','ช่องติ๊กทีละจาน','ปิด = แตะครั้งเดียวเสร็จทั้งบรรทัด'],['price','ราคา','']].forEach(([k,l,hi])=>{h+=togH(l,hi,c.show[k],v=>sv({show:{[k]:v}}));});
   }else if(SEC==='sound'){const V=c.voice,svv=k=>v=>sv({voice:{[k]:v}});
     const D=[{name:'กะเพรา',q:2,opt:['หมูกรอบ'],rmk:'ไม่เผ็ด'},{name:'ต้มยำกุ้ง',q:1,opt:['น้ำข้น'],rmk:''}];
     h+=`<div class="row"><span class="l"><b>เสียงเตือน 36 แบบ และเสียงผู้พูดภาษาไทย</b><span>ใช้ค่าจาก ⚙️ ตั้งค่าเสียง ของจอเดิม (ตั้งที่เดียว ใช้ได้ทั้งสองจอ) · กด “จอเดิม” ที่แถบบนเพื่อไปตั้ง</span></span></div>`;

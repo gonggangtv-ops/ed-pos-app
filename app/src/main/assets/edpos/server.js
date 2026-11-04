@@ -1344,6 +1344,15 @@ function cleanLine(l, old = {}) {
     lastWeek: l.weekly && !old.weekly ? lastPeriod('week').to : old.lastWeek || '',
     lastMonth: l.monthly && !old.monthly ? lastPeriod('month').to : old.lastMonth || '',
     style: l.style === 'card' || l.style === 'text' ? l.style : old.style === 'card' ? 'card' : 'text',   // test-1.74: แบบตัวหนังสือ / การ์ด
+    // test-1.75: รอบส่งเพิ่ม (รายวัน) เช่น 16:00 เฉพาะวัตถุดิบ · [{id, on, time, parts, lastSent}] ไม่เกิน 5 รอบ
+    // เพิ่ง/เปิดรอบใหม่หลังเวลาส่งของวันนี้ → นับว่าส่งวันนี้แล้ว (ไม่ส่งทันที กด "ส่งทดสอบ" ดูได้)
+    rounds: Array.isArray(l.rounds) ? l.rounds.slice(0, 5).map((r, i) => {
+      const o = (old.rounds || []).find(x => x.id === r.id) || {}, time = /^([01]\d|2[0-3]):[0-5]\d$/.test(r.time) ? r.time : '16:00', on = !!r.on;
+      // เปิดใหม่ / เปลี่ยนเวลา: เวลาผ่านไปแล้ว = นับว่าส่งวันนี้แล้ว · ยังไม่ถึง = ส่งวันนี้ตามเวลาใหม่
+      const changed = on && (!o.on || o.time !== time);
+      return { id: /^r\w{1,20}$/.test(r.id) ? r.id : 'r' + Date.now().toString(36) + i, on, time, parts: cleanParts(r.parts || {}, LINE_PARTS),
+        lastSent: changed ? (lineTimePassed(new Date(), time) ? dayKey(Date.now()) : '') : o.lastSent || '' };
+    }) : old.rounds || [],
     lastSent: old.lastSent || '', lastErr: old.lastErr || '', alertErr: old.alertErr || '' };
 }
 // ---------- นับจำนวนที่ขาย (เช่น กุ้งแม่น้ำ ปู หมึก) ใส่ในสรุป LINE ทุกแบบ ----------
@@ -1393,6 +1402,14 @@ function countSold(from, to, day = dayOf) {
 function soloGroup(name) { const m = data.menu.find(x => x.name === name), gs = m ? groupsOf(m).filter(g => !g.alert) : []; return gs.length === 1 ? gs[0] : null; }
 const soloLabel = (g, o) => g.name + (/^[ก-๙]/.test(o) ? '' : ' ') + o;
 // "ช้าง × 5 (ขวดเล็ก 3 · ขวดใหญ่ 2)"
+// test-1.75: ชนิด (ขวดเล็ก/ขวดใหญ่) แยกเป็นบรรทัดย่อยใต้ชื่อ · [[ป้าย, จำนวน]]
+function sizeRows(it) {
+  const g = soloGroup(it.name), e = Object.entries(it.opts || {}).sort((a, b) => b[1] - a[1]);
+  if (!g || !e.length) return [];
+  const rest = it.qty - e.reduce((a, x) => a + x[1], 0);
+  return [...e.map(([o, q]) => [soloLabel(g, o), q]), ...(rest > 0 ? [['ไม่ระบุ', rest]] : [])];
+}
+const sizeLines = it => sizeRows(it).map(([l, q]) => `   · ${l} ${q}`);
 function sizeTxt(it) {
   const g = soloGroup(it.name), e = Object.entries(it.opts || {}).sort((a, b) => b[1] - a[1]);
   return g && e.length ? ` (${e.map(([o, q]) => `${soloLabel(g, o)} ${q}`).join(' · ')})` : '';
@@ -1404,7 +1421,8 @@ function countLines(from, to) {
   return ['📋 จำนวนที่ขาย', ...rows.map(r => {
     const by = Object.entries(r.by).sort((a, b) => b[1] - a[1]);
     const short = n => n.replace(r.name, '').trim() || n;   // "กุ้งแม่น้ำเผา" → "เผา"
-    const detail = by.length > 1 || r.sized ? ` (${by.slice(0, 6).map(([n, q]) => `${short(n)} ${q}`).join(' · ')}${by.length > 6 ? ' …' : ''})` : '';
+    if (r.sized) return [`• ${r.name} ${r.qty}`, ...by.slice(0, 8).map(([n, q]) => `   · ${short(n)} ${q}`)].join('\n');   // เบียร์: ขวดเล็ก/ขวดใหญ่ แยกบรรทัด
+    const detail = by.length > 1 ? ` (${by.slice(0, 6).map(([n, q]) => `${short(n)} ${q}`).join(' · ')}${by.length > 6 ? ' …' : ''})` : '';
     return `• ${r.name} ${r.qty} ที่${detail}`;
   })];
 }
@@ -1841,8 +1859,9 @@ function forecastLines(k) {
     L.push('🧺 เตรียมของ (คาด · เผื่อ)');
     for (const p of prep) {
       const by = Object.entries(p.by).sort((a, b) => b[1] - a[1]), short = n => n.replace(p.name, '').trim() || n;
-      const detail = by.length > 1 || p.sized ? ` (${by.slice(0, 4).map(([n, q]) => `${short(n)} ${q}`).join(' · ')})` : '';
+      const detail = by.length > 1 && !p.sized ? ` (${by.slice(0, 4).map(([n, q]) => `${short(n)} ${q}`).join(' · ')})` : '';
       L.push(`• ${p.name} ~${p.qty}${p.hi > p.qty ? ` · เผื่อ ${p.hi}` : ''}${detail}`);
+      if (p.sized) by.slice(0, 6).forEach(([n, q]) => L.push(`   · ${short(n)} ~${q}`));
     }
   }
   if (f.use?.length) L.push('🥬 วัตถุดิบ', ...f.use.map(u => `• ${u.name} ~${amtTxt(u.qty, u.unit)}${u.hi > u.qty * 1.05 ? ` · เผื่อ ${amtTxt(u.hi, u.unit, true)}` : ''}`));
@@ -1907,8 +1926,8 @@ function fcIngLines(k) {
   return [fl[0].replace('🔮 พรุ่งนี้', '🧺 วัตถุดิบที่ต้องเตรียมพรุ่งนี้'), ...fl.slice(i + 1, j)];
 }
 const lineTitle = () => (['sales', 'pay', 'hour', 'top', 'counts', 'time', 'cancel', 'open'].some(LP) ? 'สรุปยอดขาย' : LP('ing') || LP('fcing') ? 'สรุปวัตถุดิบ' : 'สรุป');
-function lineTimePassed(now = new Date()) {
-  const rel = (h, m) => relH(h) * 60 + m, [sh, sm] = String(data.settings.line?.time || '23:00').split(':').map(Number);
+function lineTimePassed(now = new Date(), time = data.settings.line?.time || '23:00') {
+  const rel = (h, m) => relH(h) * 60 + m, [sh, sm] = String(time).split(':').map(Number);
   return rel(now.getHours(), now.getMinutes()) >= rel(sh, sm);
 }
 function lineText(k) {
@@ -1930,7 +1949,7 @@ function lineText(k) {
     const best = Object.entries(d.byHour).sort((a, b) => b[1] - a[1])[0];
     if (best && LP('hour')) L.push('', `⏰ ช่วงขายดี ${best[0]}:00–${best[0]}:59 · ${fmt(best[1])} ฿`);
     const top = Object.values(d.items).sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 5);
-    if (top.length && LP('top')) L.push('', '🏆 ขายดี', ...top.map((it, i) => `${i + 1}. ${it.name} × ${it.qty}${sizeTxt(it)}`));
+    if (top.length && LP('top')) L.push('', '🏆 ขายดี', ...top.map((it, i) => [`${i + 1}. ${it.name} × ${it.qty}`, ...sizeLines(it)].join('\n')));
     const cl = LP('counts') ? countLines(k, k) : [];
     if (cl.length) L.push('', ...cl);
     if (LP('ing')) L.push('', ...ingLines(k, k));
@@ -2004,7 +2023,7 @@ function lineRangeText(kind, from, to) {
   const best = Object.entries(d.byHour).sort((a, b) => b[1] - a[1])[0];
   if (best && LP('hour')) L.push('', `⏰ ช่วงขายดี ${best[0]}:00–${best[0]}:59 (รวม ${fmt(best[1])} ฿)`);
   const top = d.items_list.sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 10);
-  if (top.length && LP('top')) L.push('', '🏆 ขายดี', ...top.map((it, i) => `${i + 1}. ${it.name} × ${it.qty}${sizeTxt(it)}`));
+  if (top.length && LP('top')) L.push('', '🏆 ขายดี', ...top.map((it, i) => [`${i + 1}. ${it.name} × ${it.qty}`, ...sizeLines(it)].join('\n')));
   const cl = LP('counts') ? countLines(from, to) : [];
   if (cl.length) L.push('', ...cl);
   if (LP('ing')) L.push('', ...ingLines(from, to));
@@ -2121,7 +2140,7 @@ function lineFlexDay(k) {
       }
     }
     if (LP('top')) { const top = Object.values(d.items).sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 5);
-      if (top.length) P.push(FX.sec('ขายดี', top.map((it, i) => FX.row(`${i + 1}. ${it.name}${sizeTxt(it)}`, '× ' + it.qty)))); }
+      if (top.length) P.push(FX.sec('ขายดี', top.flatMap((it, i) => [FX.row(`${i + 1}. ${it.name}`, '× ' + it.qty), ...sizeRows(it).map(([l, q]) => FX.row('    · ' + l, String(q), { lc: '#5A6572', rc: '#5A6572' }))]))); }
     if (LP('counts')) { const cl = countLines(k, k); if (cl.length) P.push(fxText('จำนวนที่ขาย', cl.slice(1))); }
     if (LP('ing')) P.push(...fxIng(k, k, ingOnly));
     if (LP('time')) P.push(fxText('เวลาครัว / เวลานั่ง', timeLines(d)));
@@ -2156,7 +2175,7 @@ function lineFlexRange(kind, from, to) {
     if (LP('pay')) P.push(fxPay(d));
     if (LP('hour')) { const best = Object.entries(d.byHour).sort((a, b) => b[1] - a[1])[0]; if (best) P.push(fxText('ช่วงขายดี', [`${best[0]}:00–${best[0]}:59 (รวม ${fxFmt(best[1])} ฿)`])); }
     if (LP('top')) { const top = d.items_list.sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 10);
-      if (top.length) P.push(FX.sec('ขายดี', top.map((it, i) => FX.row(`${i + 1}. ${it.name}${sizeTxt(it)}`, '× ' + it.qty)))); }
+      if (top.length) P.push(FX.sec('ขายดี', top.flatMap((it, i) => [FX.row(`${i + 1}. ${it.name}`, '× ' + it.qty), ...sizeRows(it).map(([l, q]) => FX.row('    · ' + l, String(q), { lc: '#5A6572', rc: '#5A6572' }))]))); }
     if (LP('counts')) { const cl = countLines(from, to); if (cl.length) P.push(fxText('จำนวนที่ขาย', cl.slice(1))); }
     if (LP('ing')) P.push(...fxIng(from, to, ingOnly));
     if (LP('time')) P.push(fxText('เวลาครัว / เวลานั่ง', timeLines(d)));
@@ -2190,13 +2209,15 @@ function linePost(token, to, text) {
     req.end(body);
   });
 }
-async function sendLine(k, kind = 'day', period) {
+// parts = เนื้อหาของรอบส่งเพิ่ม (ไม่ระบุ = ตั้งค่าหลัก)
+async function sendLine(k, kind = 'day', period, parts) {
   const L = data.settings.line || {};
   if (!L.token) throw new Error('ยังไม่ได้ใส่ Channel access token');
-  let text = period ? lineRangeText(kind, period.from, period.to) : lineTextOf(kind, k);
+  const withParts = f => { const prev = linePartsOvr; if (parts) linePartsOvr = parts; try { return f(); } finally { linePartsOvr = prev; } };
+  let text = withParts(() => (period ? lineRangeText(kind, period.from, period.to) : lineTextOf(kind, k)));
   // แนบบทวิเคราะห์ AI (ตั้งที่หลังร้าน › AI) · AI ล่ม/ไม่มีคีย์ = ส่งแบบเดิม
   let note = '';
-  if ((kind === 'day' || kind === 'week') && LP('ai')) {
+  if ((kind === 'day' || kind === 'week') && withParts(() => LP('ai'))) {
     const pr = period || (kind === 'week' ? lastPeriod('week', k, true) : { from: k, to: k });
     note = await AI.lineNote(kind, pr.from, pr.to);
     if (note) text += '\n\n' + note;
@@ -2204,7 +2225,7 @@ async function sendLine(k, kind = 'day', period) {
   // แบบการ์ด: การ์ด + บทวิเคราะห์ AI เป็นข้อความต่อท้าย · สร้างการ์ดไม่ได้ หรือ LINE ไม่รับการ์ด → ส่งตัวหนังสือแทน
   if (L.style === 'card') {
     let flex = null;
-    try { flex = lineFlexOf(kind, k, period); if (JSON.stringify(flex).length > 29000) flex = null; } catch (e) { console.log('สร้างการ์ด LINE ไม่ได้: ' + e.message); }
+    try { flex = withParts(() => lineFlexOf(kind, k, period)); if (JSON.stringify(flex).length > 29000) flex = null; } catch (e) { console.log('สร้างการ์ด LINE ไม่ได้: ' + e.message); }
     if (flex) {
       try { await linePost(L.token, L.to, note ? [flex, note.slice(0, 4900)] : [flex]); return; }
       catch (e) { if (!/LINE ตอบกลับ 400/.test(e.message)) throw e; console.log('LINE ไม่รับการ์ด ส่งตัวหนังสือแทน: ' + e.message); }
@@ -2257,18 +2278,22 @@ let lineRetryAt = 0, lineBusy = false;
 // รายสัปดาห์/รายเดือน: ส่งต่อจากสรุปของวันอาทิตย์/วันสิ้นเดือน · เครื่องหลักปิดอยู่คืนนั้น → ส่งคืนถัดไปตามเวลาเดิม
 setInterval(async () => {
   const L = data.settings.line, k = dayKey(Date.now());
-  if (!L?.token || !(L.on || L.weekly || L.monthly) || role.role !== 'main' || lineBusy || !lineTimePassed() || Date.now() < lineRetryAt) return;
+  if (!L?.token || role.role !== 'main' || lineBusy || Date.now() < lineRetryAt) return;
   const jobs = [];
+  // รอบส่งเพิ่ม (ตามเวลาของแต่ละรอบ)
+  for (const r of L.rounds || []) if (r.on && r.lastSent !== k && lineTimePassed(new Date(), r.time)) jobs.push({ kind: 'day', parts: r.parts, mark: () => (r.lastSent = k) });
+  if (lineTimePassed()) {
   if (L.on && L.lastSent !== k) jobs.push({ kind: 'day', mark: () => (L.lastSent = k) });
   for (const [kind, key] of [['week', 'lastWeek'], ['month', 'lastMonth']]) {
     if (!L[kind === 'week' ? 'weekly' : 'monthly']) continue;
     const p = lastPeriod(kind, k, true);
     if (L[key] !== p.to) jobs.push({ kind, period: p, mark: () => (L[key] = p.to) });
   }
+  }
   if (!jobs.length) return;
   lineBusy = true;
   try {
-    for (const j of jobs) { await sendLine(k, j.kind, j.period); j.mark(); console.log(`ส่งสรุปยอด (${j.kind}) เข้า LINE แล้ว`); }
+    for (const j of jobs) { await sendLine(k, j.kind, j.period, j.parts); j.mark(); console.log(`ส่งสรุปยอด (${j.kind}) เข้า LINE แล้ว`); }
     L.lastErr = '';
   } catch (e) { L.lastErr = e.message; lineRetryAt = Date.now() + 10 * 60000; healthEvent('line', { err: e.message }); console.log('ส่ง LINE ไม่สำเร็จ: ' + e.message); }
   finally { lineBusy = false; save(); broadcast(); }
@@ -2707,7 +2732,9 @@ const routes = {
   },
   'POST /api/line/test': async b => {
     const L = data.settings.line || (data.settings.line = cleanLine({}));
-    try { await sendLine(dayKey(Date.now()), ['week', 'month'].includes(b.kind) ? b.kind : 'day'); L.lastErr = ''; } catch (e) { L.lastErr = e.message; throw e; }
+    // b.parts = ทดสอบรอบส่งเพิ่ม (เนื้อหาที่ยังไม่บันทึกก็ได้)
+    const parts = b.parts && typeof b.parts === 'object' ? cleanParts(b.parts, LINE_PARTS) : undefined;
+    try { await sendLine(dayKey(Date.now()), ['week', 'month'].includes(b.kind) ? b.kind : 'day', undefined, parts); L.lastErr = ''; } catch (e) { L.lastErr = e.message; throw e; }
   },
 
   // สั่งด้วยเสียง: สอนคำที่ร้านเรียก → เมนู (เช่น "ช้างใหญ่" = ช้าง ขวดใหญ่) · พนักงานสอนได้ตอนเลือกคำที่ระบบไม่แน่ใจ

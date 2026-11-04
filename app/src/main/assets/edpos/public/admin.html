@@ -449,12 +449,16 @@
           <div class="rowline"><div class="txt"><b>🧺 วัตถุดิบที่ต้องเตรียมพรุ่งนี้</b><span>เฉพาะส่วนวัตถุดิบของพยากรณ์ (ใช้เมื่อปิดพยากรณ์ด้านบน)</span></div><label class="sw"><input type="checkbox" data-part="fcing"><i></i></label></div>
           <div class="rowline"><div class="txt"><b>🤖 บทวิเคราะห์ AI</b><span>ต้องเปิด “แนบใน LINE” ที่ หลังร้าน › AI ด้วย</span></div><label class="sw"><input type="checkbox" data-part="ai"><i></i></label></div>
           <div class="stack" style="margin-top:12px">
-            <label class="field"><span>เวลาส่ง</span><input type="time" id="lnTime">
+            <label class="field"><span>เวลาส่ง (รอบหลัก)</span><input type="time" id="lnTime">
               <small>ใช้กับทั้งรายวัน รายสัปดาห์ และรายเดือน · ตั้งหลังปิดร้าน บิลที่ปิดหลังเวลานี้จะไม่อยู่ในข้อความของวันนั้น · ร้านเปิดเลยเที่ยงคืน ตั้ง <a href="#" data-go="shop">ตัดรอบวันขาย</a> ด้วย สรุปจะได้รวมยอดทั้งคืน</small></label>
             <label class="field"><span>Channel access token</span><input type="password" id="lnToken" autocomplete="off"></label>
             <label class="field"><span>ส่งถึง (User ID / Group ID)</span><input type="text" id="lnTo" placeholder="เว้นว่าง = ทุกคนที่เพิ่ม LINE OA เป็นเพื่อน" autocomplete="off">
               <small>อยากส่งถึงเจ้าของคนเดียว: ใส่ "Your user ID" จาก LINE Developers > Basic settings</small></label>
           </div>
+          <h3 class="rc-h">รอบส่งเพิ่ม (รายวัน)</h3>
+          <p class="muted" style="margin:0 0 6px">ส่งอีกรอบในเวลาอื่น เนื้อหาไม่เหมือนรอบหลักได้ เช่น 16:00 ส่งเฉพาะวัตถุดิบไว้สั่งของ แล้วรอบหลักตามเวลาส่งด้านบนส่งยอดขาย · ใช้รูปแบบ (ตัวหนังสือ/การ์ด) เดียวกัน</p>
+          <div id="lnRounds"></div>
+          <button class="btn sm" id="lnRoundAdd" style="margin-top:8px">+ เพิ่มรอบส่ง</button>
           <h3 class="rc-h">แจ้งเตือนทันที</h3>
           <p class="muted" style="margin:0 0 6px">ส่งเข้า LINE ทันทีที่เกิดเรื่อง (ใช้โทเค็นและ "ส่งถึง" เดียวกัน) <span id="lnAlertErr" style="color:var(--brick)"></span></p>
           <div class="rowline"><div class="txt"><b>เครื่องพิมพ์พิมพ์ไม่ออก</b><span>แจ้งครั้งเดียวต่อรอบ และแจ้งอีกครั้งเมื่อกลับมาพิมพ์ได้</span></div><label class="sw"><input type="checkbox" data-alert="printer"><i></i></label></div>
@@ -1945,6 +1949,7 @@ function loadLine() {
   $('#lnWeekly').checked = !!L.weekly; $('#lnMonthly').checked = !!L.monthly;
   paintLnParts({ ...(L.parts || {}), forecast: L.forecast !== false && (L.parts || {}).forecast !== false });
   lnStyle = L.style === 'card' ? 'card' : 'text'; paintLnStyle();
+  lnRounds = JSON.parse(JSON.stringify(L.rounds || [])); lnRoundOpen = -1; renderRounds();
   loadCounts();
   // lastWeek = วันอาทิตย์ของสัปดาห์ที่ส่งล่าสุด · lastMonth = วันสุดท้ายของเดือนที่ส่งล่าสุด
   $('#lnWeekSt').textContent = L.weekly && L.lastWeek ? `· ส่งถึงสัปดาห์ที่จบ ${thDate(L.lastWeek)}` : '';
@@ -1954,13 +1959,13 @@ function loadLine() {
 let lnKind = 'day';
 const LN_KIND = { day: 'สรุปวันนี้', week: 'สรุปสัปดาห์ล่าสุด', month: 'สรุปเดือนล่าสุด' };
 async function loadLinePrev() {
-  try { const r = await api('/api/line/preview?kind=' + lnKind + '&parts=' + encodeURIComponent(JSON.stringify(lnParts())) + (lnStyle === 'card' ? '&flex=1' : ''));
+  try { const r = await api('/api/line/preview?kind=' + lnKind + '&parts=' + encodeURIComponent(JSON.stringify(lnPrevParts || lnParts())) + (lnStyle === 'card' ? '&flex=1' : ''));
     $('#lnPrev').textContent = r.text; $('#lnPrev').hidden = lnStyle === 'card'; $('#lnCard').hidden = lnStyle !== 'card';
     if (lnStyle === 'card' && r.flex) $('#lnCard').innerHTML = fxBubbleHtml(r.flex); } catch (err) { $('#lnPrev').textContent = err.message; }
 }
 $('#lnKind').addEventListener('click', e => {
   const b = e.target.closest('[data-k]'); if (!b) return;
-  lnKind = b.dataset.k; $$('#lnKind button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  lnKind = b.dataset.k; lnPrevParts = null; $$('#lnKind button').forEach(x => x.setAttribute('aria-pressed', x === b));
   $('#lnTest').textContent = 'ส่ง' + LN_KIND[lnKind] + 'ทดสอบ'; loadLinePrev();
 });
 // ---------- นับจำนวนที่ขาย: [{name, menus: [menuId], opts: [ชื่อตัวเลือก]}] ----------
@@ -2024,8 +2029,8 @@ const LN_PRESET = { all: { ...LN_PART_DEF, ing: true }, sales: { ...LN_PART_DEF,
 const lnParts = () => Object.fromEntries($$('[data-part]').map(x => [x.dataset.part, x.checked]));
 function paintLnParts(p) { $$('[data-part]').forEach(x => { const k = x.dataset.part; x.checked = p[k] === undefined ? LN_PART_DEF[k] : !!p[k]; }); markLnPreset(); }
 function markLnPreset() { const p = lnParts(); $$('#lnPreset [data-lp]').forEach(b => b.setAttribute('aria-pressed', Object.keys(LN_PART_DEF).every(k => !!LN_PRESET[b.dataset.lp][k] === !!p[k]))); }
-$('#lnPreset').addEventListener('click', e => { const b = e.target.closest('[data-lp]'); if (!b) return; paintLnParts(LN_PRESET[b.dataset.lp]); dirty.add('line'); loadLinePrev(); });
-$('#lnForm').addEventListener('change', e => { if (e.target.dataset.part) { markLnPreset(); loadLinePrev(); } });
+$('#lnPreset').addEventListener('click', e => { const b = e.target.closest('[data-lp]'); if (!b) return; lnPrevParts = null; paintLnParts(LN_PRESET[b.dataset.lp]); dirty.add('line'); loadLinePrev(); });
+$('#lnForm').addEventListener('change', e => { if (e.target.dataset.part) { lnPrevParts = null; markLnPreset(); loadLinePrev(); } });
 // รูปแบบ ตัวหนังสือ / การ์ด (test-1.74) · ตัวอย่างการ์ด = วาดจาก Flex JSON ที่เซิร์ฟเวอร์สร้าง (ใกล้เคียงใน LINE)
 let lnStyle = 'text';
 function paintLnStyle() { $$('#lnStyle [data-st]').forEach(b => b.setAttribute('aria-pressed', b.dataset.st === lnStyle)); }
@@ -2062,7 +2067,34 @@ function fxHtml(n, parent) {
   return '';
 }
 function fxBubbleHtml(m) { const b = m.contents; return `<div style="font-size:12px;color:#4a5561;margin-bottom:6px">แจ้งเตือน: ${esc(m.altText)}</div><div style="width:300px;max-width:100%;background:#fff;border-radius:16px;overflow:hidden;font-family:system-ui,sans-serif;color:#1F2328">${fxHtml(b.header, 'vertical')}${fxHtml(b.body, 'vertical')}</div>`; }
-const lineBody = () => ({ style: lnStyle, on: $('#lnOn').checked, weekly: $('#lnWeekly').checked, monthly: $('#lnMonthly').checked, forecast: $('#lnFc').checked, parts: lnParts(),
+// ---- รอบส่งเพิ่ม (test-1.75) · แต่ละรอบ: เปิด/ปิด เวลา เนื้อหา (ปุ่มลัด หรือเลือกเอง) ----
+const LN_PART_TH = { sales: 'ยอดขาย', pay: 'ช่องทางชำระ', hour: 'ช่วงขายดี', top: 'เมนูขายดี', counts: 'จำนวนที่ขาย', ing: 'วัตถุดิบที่ใช้', time: 'เวลาครัว', cancel: 'ยกเลิก', open: 'โต๊ะที่ยังเปิด', forecast: 'พยากรณ์', fcing: 'เตรียมวัตถุดิบพรุ่งนี้', ai: 'บทวิเคราะห์ AI' };
+let lnRounds = [], lnRoundOpen = -1;
+const roundPreset = r => Object.keys(LN_PRESET).find(k => Object.keys(LN_PART_DEF).every(x => !!LN_PRESET[k][x] === !!(r.parts || {})[x])) || 'custom';
+function renderRounds() {
+  $('#lnRounds').innerHTML = lnRounds.map((r, i) => { const pr = i === lnRoundOpen ? 'custom' : roundPreset(r);
+    return `<div class="panel" style="padding:10px 12px;margin:0 0 8px;background:var(--bg2,transparent)">
+      <div class="rowline" style="border:0;padding:0"><div class="txt" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b>รอบที่ ${i + 2}</b>
+        <input type="time" data-rt="${i}" value="${esc(r.time)}" style="font:inherit;padding:6px 8px">
+        <span class="seg" role="group" style="flex-wrap:wrap">${[['ing', 'เฉพาะวัตถุดิบ'], ['sales', 'เฉพาะยอดขาย'], ['all', 'ทุกอย่าง'], ['custom', 'เลือกเอง']].map(([k, l]) => `<button type="button" data-rp="${i}" data-k="${k}" aria-pressed="${pr === k}">${l}</button>`).join('')}</span></div>
+        <label class="sw"><input type="checkbox" data-ro="${i}" ${r.on ? 'checked' : ''}><i></i></label></div>
+      ${pr === 'custom' ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${Object.keys(LN_PART_DEF).map(k => `<label style="display:flex;align-items:center;gap:5px;font-size:14px;padding:4px 8px;border:1px solid var(--line,#ccc);border-radius:8px"><input type="checkbox" data-rpart="${i}" data-k="${k}" ${(r.parts || {})[k] ? 'checked' : ''}>${LN_PART_TH[k]}</label>`).join('')}</div>` : ''}
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm" data-rprev="${i}">ดูตัวอย่างรอบนี้</button><button type="button" class="btn sm" data-rtest="${i}">ส่งรอบนี้ทดสอบ</button><button type="button" class="btn sm" data-rdel="${i}" style="margin-left:auto;color:var(--brick)">ลบ</button></div></div>`; }).join('') || '<p class="muted" style="margin:0">ยังไม่มีรอบส่งเพิ่ม</p>';
+}
+let lnPrevParts = null;   // ดูตัวอย่างของรอบส่งเพิ่ม (null = รอบหลัก)
+$('#lnRoundAdd').onclick = () => { if (lnRounds.length >= 5) return toast('เพิ่มได้สูงสุด 5 รอบ', true); lnRounds.push({ on: true, time: '16:00', parts: { ...LN_PRESET.ing } }); dirty.add('line'); renderRounds(); };
+$('#lnRounds').addEventListener('click', async e => {
+  const t = e.target.closest('button'); if (!t) return; const d = t.dataset;
+  if (d.rp != null) { const r = lnRounds[+d.rp]; if (d.k === 'custom') lnRoundOpen = +d.rp; else { r.parts = { ...LN_PRESET[d.k] }; lnRoundOpen = -1; } dirty.add('line'); renderRounds(); if (lnPrevParts) { lnPrevParts = r.parts; loadLinePrev(); } }
+  else if (d.rdel != null) { lnRounds.splice(+d.rdel, 1); dirty.add('line'); lnPrevParts = null; renderRounds(); loadLinePrev(); }
+  else if (d.rprev != null) { lnPrevParts = lnRounds[+d.rprev].parts; lnKind = 'day'; $$('#lnKind button').forEach(x => x.setAttribute('aria-pressed', x.dataset.k === 'day')); loadLinePrev(); toast('ตัวอย่างด้านขวา = รอบที่ ' + (+d.rprev + 2) + ' · กด “วันนี้” เพื่อกลับไปดูรอบหลัก'); }
+  else if (d.rtest != null) { try { t.disabled = true; if (dirty.has('line')) { await api('/api/settings', { line: lineBody() }); dirty.delete('line'); } await api('/api/line/test', { kind: 'day', parts: lnRounds[+d.rtest].parts }); toast('ส่งรอบที่ ' + (+d.rtest + 2) + ' ทดสอบแล้ว ลองเปิด LINE ดู'); } catch (err) { toast(err.message, true); } finally { t.disabled = false; } }
+});
+$('#lnRounds').addEventListener('change', e => { const t = e.target, d = t.dataset;
+  if (d.rt != null) lnRounds[+d.rt].time = t.value; else if (d.ro != null) lnRounds[+d.ro].on = t.checked;
+  else if (d.rpart != null) { const r = lnRounds[+d.rpart]; r.parts = { ...(r.parts || {}), [d.k]: t.checked }; lnRoundOpen = +d.rpart; renderRounds(); if (lnPrevParts) { lnPrevParts = r.parts; loadLinePrev(); } }
+  dirty.add('line'); });
+const lineBody = () => ({ style: lnStyle, rounds: lnRounds.map(r => ({ id: r.id, on: !!r.on, time: r.time, parts: r.parts })), on: $('#lnOn').checked, weekly: $('#lnWeekly').checked, monthly: $('#lnMonthly').checked, forecast: $('#lnFc').checked, parts: lnParts(),
   counts: lnCnt.filter(c => c.name.trim()),
   time: $('#lnTime').value, to: $('#lnTo').value.trim(), token: $('#lnToken').value.trim(),
   alerts: Object.fromEntries($$('[data-alert]').map(x => [x.dataset.alert, x.checked])) });
