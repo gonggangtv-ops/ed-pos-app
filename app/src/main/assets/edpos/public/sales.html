@@ -106,7 +106,8 @@
   /* พยากรณ์: ไม่ใช้ช่วงวันที่ด้านบน */
   body[data-tab="forecast"] #range, body[data-tab="forecast"] #customBox, body[data-tab="forecast"] #rangeLabel,
   body[data-tab="breakeven"] #range, body[data-tab="breakeven"] #customBox, body[data-tab="breakeven"] #rangeLabel,
-  body[data-tab="ask"] #range, body[data-tab="ask"] #customBox, body[data-tab="ask"] #rangeLabel { display: none !important; }
+  body[data-tab="ask"] #range, body[data-tab="ask"] #customBox, body[data-tab="ask"] #rangeLabel,
+  body[data-tab="trends"] #range, body[data-tab="trends"] #customBox, body[data-tab="trends"] #rangeLabel { display: none !important; }
   /* ===== AI ===== */
   .aicard { background: linear-gradient(135deg, #F3F7FF 0%, var(--surface) 55%); border: 1px solid #C9D6F2; border-radius: 16px; padding: 18px 20px; margin-bottom: 18px; }
   .aicard .aih { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
@@ -215,6 +216,169 @@
     .fcd .track { grid-column: 1 / -1; grid-row: 2; }
   }
   @media (max-width: 860px) { .tabs { top: 84px; } .topbar { padding: 10px 16px; } }
+
+  /* ===== เมนู (test-1.79) ===== */
+  :root { --q-star: #1E6B58; --q-star-s: #DCEBE5; --q-plow: #8A5E00; --q-plow-s: #F5ECD5; --q-puz: #2B4C96; --q-puz-s: #E1E7F4; --q-dog: #A93824; --q-dog-s: #F6E1DC; }
+  .mkpis { display: flex; flex-wrap: wrap; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-bottom: 12px; }
+  .mkpis > div { flex: 1 1 175px; background: var(--surface); padding: 14px 16px; min-width: 0; }
+  .mkpis span { display: block; color: var(--muted); font-size: 13.5px; }
+  .mkpis b { display: block; font-size: 22px; line-height: 1.3; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mkpis small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .mjump { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 16px; padding-bottom: 2px; scrollbar-width: none; }
+  .mjump a { flex: none; text-decoration: none; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 99px; padding: 6px 13px; font-size: 14px; }
+  .mjump a:hover { border-color: var(--jade); color: var(--jade); }
+  #secList, #secEng, #secMove, #secAddon, #secSlow { scroll-margin-top: 110px; }
+  .psub { margin: 3px 0 0; color: var(--muted); font-size: 14.5px; max-width: 62ch; }
+  .mtools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+  .mtools .seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .mtools .seg button { white-space: nowrap; flex: none; }
+  .msearch { flex: 1 1 200px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 9px; padding: 0 10px; background: var(--surface); min-height: 40px; }
+  .msearch:focus-within { border-color: var(--jade); box-shadow: 0 0 0 3px var(--jade-soft); }
+  .msearch input { border: 0 !important; min-height: 38px; padding: 0; box-shadow: none !important; background: transparent; }
+  .mchips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 6px; scrollbar-width: thin; }
+  .mchips button { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 5px 12px; font-size: 14px; cursor: pointer; color: var(--muted); }
+  .mchips button:hover { border-color: #B9C2BC; }
+  .mchips button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .mchips button small { opacity: .75; margin-left: 2px; }
+  .mrow { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 4px 12px; padding: 13px 0 12px; border-top: 1px solid var(--line); align-items: start; }
+  .mrow:first-child { border-top: 0; }
+  .mrow .rk { font-size: 15px; color: var(--faint); font-weight: 700; text-align: center; padding-top: 1px; }
+  .mrow .rk.top { color: var(--jade); }
+  .mrow .nm { font-size: 16.5px; font-weight: 700; line-height: 1.4; display: flex; flex-wrap: wrap; gap: 3px 8px; align-items: center; min-width: 0; }
+  .mrow .cat { font-size: 12.5px; font-weight: 500; color: var(--muted); background: var(--sunk); border: 1px solid var(--line); border-radius: 99px; padding: 0 8px; }
+  .qb { font-size: 12.5px; font-weight: 700; border-radius: 99px; padding: 1px 8px; white-space: nowrap; }
+  .qb.star { background: var(--q-star-s); color: var(--q-star); } .qb.plow { background: var(--q-plow-s); color: var(--q-plow); }
+  .qb.puzzle { background: var(--q-puz-s); color: var(--q-puz); } .qb.dog { background: var(--q-dog-s); color: var(--q-dog); }
+  .mrow .num { text-align: right; white-space: nowrap; line-height: 1.35; }
+  .mrow .num b { font-size: 18px; } .mrow .num span { display: block; font-size: 13.5px; color: var(--muted); }
+  .mrow .share { grid-column: 2 / -1; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+  .mrow .share .trk { flex: 1; height: 8px; border-radius: 4px; background: var(--sunk); overflow: hidden; }
+  .mrow .share .trk i { display: block; height: 100%; background: var(--jade); border-radius: 4px; }
+  .mv { font-size: 13px; font-weight: 700; white-space: nowrap; } .mv.up { color: var(--jade); } .mv.down { color: var(--brick); } .mv.new { color: var(--card); } .mv.same { color: var(--faint); font-weight: 500; }
+  .mrow .ogs { grid-column: 2 / -1; display: grid; gap: 7px; margin-top: 5px; }
+  .ogsum { all: unset; cursor: pointer; font-size: 13.5px; color: var(--ink); line-height: 1.5; justify-self: start; }
+  .ogsum span { color: var(--muted); } .ogsum b { color: var(--jade); margin-left: 2px; }
+  .ogsum:hover b, .ogsum:focus-visible b { text-decoration: underline; }
+  .og { display: grid; grid-template-columns: 78px 150px minmax(0, 1fr); gap: 4px 12px; align-items: center; font-size: 13.5px; }
+  .og > span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .og .ost { display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px; background: var(--sunk); }
+  .og .ost i { display: block; min-width: 3px; height: 100%; }
+  .og .olg { display: flex; flex-wrap: wrap; gap: 1px 12px; }
+  .og .olg em { font-style: normal; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .og .olg em::before { content: ""; width: 9px; height: 9px; border-radius: 2px; background: var(--c); flex: none; }
+  .og .olg em b { font-weight: 600; } .og .olg em small { color: var(--muted); font-size: 12.5px; }
+  .mcath { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; padding: 16px 0 4px; border-top: 2px solid var(--line); margin-top: 4px; }
+  .mcath:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+  .mcath b { font-size: 17px; } .mcath span { color: var(--muted); font-size: 14px; }
+  .mempty { color: var(--muted); padding: 18px 0; text-align: center; }
+  .mlmore { margin-top: 10px; }
+  /* วิเคราะห์มือโปร */
+  .mecat { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .mecat select { width: auto; min-height: 38px; padding: 6px 10px; max-width: 220px; }
+  .mesum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 2px 0 14px; }
+  .mesum div { border-radius: 12px; padding: 10px 12px; display: grid; gap: 1px; align-content: start; }
+  .mesum b { font-size: 24px; line-height: 1.15; } .mesum span { font-size: 14px; font-weight: 700; } .mesum small { font-size: 12.5px; opacity: .9; }
+  .mesum .star { background: var(--q-star-s); color: var(--q-star); } .mesum .plow { background: var(--q-plow-s); color: var(--q-plow); }
+  .mesum .puzzle { background: var(--q-puz-s); color: var(--q-puz); } .mesum .dog { background: var(--q-dog-s); color: var(--q-dog); }
+  .mechart { position: relative; margin: 0 -4px; }
+  .mechart svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .mechart text { font-family: inherit; }
+  .mechart .ax { font-size: 12px; fill: var(--faint); }
+  .mechart .ql { font-size: 13px; font-weight: 700; }
+  .mechart .lb { font-size: 12px; fill: var(--ink); paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
+  .mechart circle { stroke: #fff; stroke-width: 1.5; cursor: pointer; }
+  .mechart circle:hover, .mechart circle.on { stroke: var(--ink); stroke-width: 2; }
+  .mechart .tip { white-space: normal; width: max-content; max-width: 240px; line-height: 1.45; }
+  .mequad { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  .mq { border-radius: 14px; padding: 14px 16px; border: 1px solid var(--line); border-top: 5px solid var(--qc); background: var(--surface); min-width: 0; }
+  .mq.star { --qc: var(--q-star); --qs: var(--q-star-s); } .mq.plow { --qc: var(--q-plow); --qs: var(--q-plow-s); }
+  .mq.puzzle { --qc: var(--q-puz); --qs: var(--q-puz-s); } .mq.dog { --qc: var(--q-dog); --qs: var(--q-dog-s); }
+  .mq h3 { margin: 0; font-size: 17px; color: var(--qc); display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .mq h3 small { font-size: 13px; font-weight: 600; }
+  .mq .what { margin: 3px 0 8px; font-size: 14px; color: var(--muted); line-height: 1.5; }
+  .mq .todo { background: var(--qs); border-radius: 10px; padding: 8px 11px; font-size: 14px; line-height: 1.55; margin-bottom: 6px; }
+  .mq .todo b { color: var(--qc); }
+  .mq ul { list-style: none; margin: 0; padding: 0; }
+  .mq li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14.5px; }
+  .mq li:first-child { border-top: 0; }
+  .mq li .n { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mq li .v { text-align: right; color: var(--muted); font-size: 13.5px; white-space: nowrap; }
+  .mq li .h { grid-column: 1 / -1; font-size: 13px; color: var(--qc); font-weight: 600; }
+  .mq li .h.est::after { content: " · ต้นทุนประมาณ"; color: var(--faint); font-weight: 500; }
+  .mq .more { all: unset; cursor: pointer; color: var(--qc); font-size: 13.5px; font-weight: 600; margin-top: 6px; display: inline-block; }
+  .mq .none { color: var(--muted); font-size: 14px; margin: 6px 0 0; }
+  .menote { font-size: 13px; color: var(--muted); margin: 12px 0 0; line-height: 1.6; }
+  .menote a { color: var(--jade); }
+  /* ขายขึ้น/ลง */
+  .mvr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .mvr:first-child { border-top: 0; }
+  .mvr b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mvr .d { text-align: right; font-weight: 700; white-space: nowrap; } .mvr .d.up { color: var(--jade); } .mvr .d.down { color: var(--brick); }
+  .mvr .d small { font-weight: 500; color: var(--muted); }
+  .mvr .bars { grid-column: 1 / -1; display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 3px 8px; align-items: center; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .mvr .bars i { display: block; height: 7px; border-radius: 4px; min-width: 2px; }
+  .mvr .bars .p { background: #C5CDC8; } .mvr .bars .c { background: var(--jade); } .mvr .bars .c.down { background: var(--brick); }
+  details.slowz summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+  details.slowz[open] summary { margin-bottom: 6px; }
+  /* แถบเทรนด์บนแท็บเมนู */
+  .trstrip { display: flex; align-items: center; gap: 10px; background: linear-gradient(90deg, #FFF1E4, var(--surface) 70%); border: 1px solid #F0D2B4; border-radius: 12px; padding: 8px 10px 8px 12px; margin-bottom: 12px; min-width: 0; }
+  .trstrip > b { flex: none; color: #A8420C; font-size: 14.5px; }
+  .trstrip .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
+  .trstrip .chips button { flex: none; border: 1px solid #F0D2B4; background: #fff; border-radius: 99px; padding: 4px 11px; font-size: 14px; cursor: pointer; color: var(--ink); }
+  .trstrip .chips button small { color: var(--jade); font-weight: 700; margin-left: 3px; }
+  .trstrip > button.go { flex: none; all: unset; cursor: pointer; color: #A8420C; font-weight: 700; font-size: 14px; white-space: nowrap; }
+  /* แท็บกำลังฮิต */
+  .trbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; }
+  .trgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-bottom: 18px; }
+  .trc { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 15px 17px; display: grid; gap: 7px; align-content: start; min-width: 0; }
+  .trc .trh { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .trc .trk { font-size: 12.5px; font-weight: 700; padding: 2px 9px; white-space: nowrap; border-radius: 99px; background: var(--sunk); color: var(--muted); }
+  .trc .trk.food { background: #FCE9DC; color: #9C3D0E; } .trc .trk.dessert { background: #F6E3F0; color: #8A2E6B; } .trc .trk.drink { background: #DFF0F4; color: #1E6377; }
+  .trc .trheat { font-size: 14px; letter-spacing: -1px; white-space: nowrap; } .trc .trheat i { font-style: normal; opacity: .22; }
+  .trc h3 { margin: 0; font-size: 19px; line-height: 1.3; } .trc .en { color: var(--muted); font-size: 14px; margin-top: -4px; }
+  .trc p { margin: 0; font-size: 14.5px; line-height: 1.6; }
+  .trc .where { color: var(--muted); font-size: 13.5px; }
+  .trc .fit { border-radius: 10px; padding: 7px 10px; font-size: 14px; line-height: 1.5; }
+  .trc .fit.have { background: var(--jade-soft); color: var(--jade); } .trc .fit.similar { background: var(--q-plow-s); color: var(--q-plow); } .trc .fit.new { background: var(--card-soft); color: var(--card); }
+  .trc .fit b { font-weight: 700; }
+  .trc .idea { background: var(--sunk); border-radius: 10px; padding: 7px 10px; }
+  .trc .linkbtn { justify-self: start; }
+  .trnews { display: grid; gap: 0; }
+  .trnews div { padding: 10px 0; border-top: 1px solid var(--line); } .trnews div:first-child { border-top: 0; }
+  .trnews b { display: block; font-weight: 600; } .trnews span { color: var(--muted); font-size: 14px; }
+  .trsrc a { color: var(--jade); }
+  /* ถาม AI (test-1.79) */
+  .aimem { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; margin-bottom: 14px; }
+  .aimem summary { cursor: pointer; padding: 10px 0; font-size: 14.5px; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 8px; }
+  .aimem summary::-webkit-details-marker { display: none; }
+  .aimem summary span { color: var(--muted); font-weight: 500; }
+  .aimem ul { list-style: none; margin: 0; padding: 0 0 6px; }
+  .aimem li { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 7px 0; border-top: 1px solid var(--line); font-size: 14.5px; }
+  .aimem li button { all: unset; cursor: pointer; color: var(--brick); font-size: 13px; padding: 2px 6px; }
+  .aimem form { display: flex; gap: 8px; padding: 8px 0 12px; border-top: 1px solid var(--line); }
+  .aimem form input { min-height: 38px; }
+  .aimem .hint { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+  .msg-a { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+  .msg-a h4 { font-size: 16px; margin: 12px 0 4px; } .msg-a h4:first-child { margin-top: 0; }
+  .msg-a ol { margin: 6px 0; padding-left: 22px; }
+  .msg-a a { color: var(--jade); overflow-wrap: anywhere; }
+  .msg-a code { background: var(--sunk); border-radius: 4px; padding: 0 4px; font-size: 14px; }
+  .msg-a .mdt { overflow-x: auto; margin: 8px 0; }
+  .msg-a .mdt table { border-collapse: collapse; font-size: 14px; min-width: 60%; }
+  .msg-a .mdt th, .msg-a .mdt td { border: 1px solid var(--line); padding: 5px 9px; text-align: left; vertical-align: top; }
+  .msg-a .mdt th { background: var(--sunk); font-weight: 600; }
+  .msg-a .mdt td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .msg-a .src { font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.6; }
+  .msg-a .src a { margin-right: 8px; }
+  .msg-a .acts { display: flex; gap: 14px; justify-content: flex-end; margin-top: 6px; }
+  .aiwait .steps { color: var(--card); font-size: 13.5px; }
+  @media (max-width: 760px) {
+    .mesum { grid-template-columns: 1fr 1fr; } .mequad { grid-template-columns: 1fr; }
+    .mrow { grid-template-columns: 26px minmax(0, 1fr) auto; gap: 4px 8px; }
+    .mrow .share { flex-wrap: wrap; gap: 4px 10px; } .mrow .share .trk { flex: 1 1 100%; }
+    .mtools .seg { flex: 1 1 100%; } .mtools .seg button { flex: 1 0 auto; padding: 6px 10px; } .og { grid-template-columns: 64px minmax(0, 1fr); } .og .olg { grid-column: 2; }
+    .mecat { width: 100%; } .mecat select { flex: 1; max-width: none; }
+  }
 </style>
 <script src="app-bridge.js"></script>
 </head>
@@ -247,6 +411,7 @@
   <nav class="tabs" id="tabs" role="tablist" aria-label="หัวข้อ">
     <button role="tab" data-t="shop">สรุปร้าน</button>
     <button role="tab" data-t="ask">🤖 ถาม AI</button>
+    <button role="tab" data-t="trends">🔥 กำลังฮิต</button>
     <button role="tab" data-t="forecast">🔮 พยากรณ์</button>
     <button role="tab" data-t="breakeven">💰 คุ้มทุน</button>
     <button role="tab" data-t="overview" aria-selected="true">ภาพรวม</button>
@@ -274,8 +439,9 @@
   <!-- ===== ถาม AI: ถามเรื่องยอดขายเป็นภาษาพูด (AI ค้นข้อมูลร้านเอง) ===== -->
   <section class="pane" data-p="ask" hidden>
     <div id="askEmpty"></div>
+    <div id="askMem"></div>
     <div class="chat" id="chat" aria-live="polite"></div>
-    <div class="askbar"><textarea id="askQ" rows="1" placeholder="ถามเรื่องยอดขาย เช่น ทำไมยอดตก"></textarea><button class="btn primary" id="askGo">ถาม</button></div>
+    <div class="askbar"><textarea id="askQ" rows="1" placeholder="ถามได้ทุกเรื่อง เช่น ทำไมยอดตก · เขียนโพสต์โปรโมต · จำไว้ว่า…"></textarea><button class="btn primary" id="askGo">ถาม</button></div>
   </section>
 
   <!-- ===== พยากรณ์: พรุ่งนี้ + เตรียมของ + 7 วันข้างหน้า (ไม่ขึ้นกับช่วงวันที่ด้านบน) ===== -->
@@ -355,30 +521,66 @@
     </div>
   </section>
 
-  <!-- ===== เมนู ===== -->
+  <!-- ===== เมนู (test-1.79 จัดใหม่: สรุป · รายการเมนู · วิเคราะห์มือโปร · ขึ้น/ลง · ตัวเลือก · ขายไม่ออก) ===== -->
   <section class="pane" data-p="menu" hidden>
-    <div class="panel">
-      <div class="phead"><h2>เมนูขายดี</h2>
+    <div id="mxTrend"></div>
+    <div class="mkpis" id="mxKpi"></div>
+    <nav class="mjump" aria-label="ไปที่หัวข้อ">
+      <a href="#secList">📋 รายการเมนู</a><a href="#secEng">🧭 วิเคราะห์มือโปร</a><a href="#secMove">📈 ขายขึ้น/ลง</a><a href="#secAddon">➕ ตัวเลือกบวกราคา</a><a href="#secSlow">😴 ขายไม่ออก</a>
+    </nav>
+
+    <div class="panel" id="secList">
+      <div class="phead"><h2>📋 รายการเมนู</h2><span class="muted" id="mlNote"></span></div>
+      <div class="mtools">
+        <label class="msearch"><span aria-hidden="true">🔍</span><input type="search" id="mlQ" placeholder="ค้นหาเมนู" aria-label="ค้นหาเมนู"></label>
         <div class="seg" id="topSort" role="group" aria-label="เรียงตาม">
-          <button data-s="qty" aria-pressed="true">ตามจำนวน</button><button data-s="amount">ตามยอดเงิน</button><button data-s="cat">ตามหมวด</button></div></div>
+          <button data-s="qty" aria-pressed="true">จำนวน</button><button data-s="amount">ยอดเงิน</button><button data-s="gp">กำไร</button><button data-s="up">มาแรง</button></div>
+        <div class="seg" id="mlView" role="group" aria-label="แสดงแบบ">
+          <button data-v="rank" aria-pressed="true">อันดับ</button><button data-v="cat">แยกหมวด</button></div>
+      </div>
+      <div class="mchips" id="mlCats" role="group" aria-label="เลือกหมวด"></div>
       <div id="topList"></div>
     </div>
-    <div class="two">
-      <div class="panel"><div class="phead"><h2>ขายเพิ่มขึ้น</h2><span class="muted" id="upNote"></span></div><div id="upList"></div></div>
-      <div class="panel"><div class="phead"><h2>ขายลดลง</h2><span class="muted" id="downNote"></span></div><div id="downList"></div></div>
+
+    <div class="panel" id="secEng">
+      <div class="phead"><div><h2>🧭 วิเคราะห์เมนูแบบมือโปร</h2><p class="psub">แต่ละเมนูขายดีแค่ไหน × ได้กำไรต่อจานเท่าไร → รู้ว่าเมนูไหนควรเชียร์ ขึ้นราคา โปรโมต หรือตัดทิ้ง</p></div>
+        <button class="btn sm" id="meAsk">🤖 ให้ AI วางแผนต่อ</button></div>
+      <div class="mtools">
+        <div class="seg" id="meScope" role="group" aria-label="วิเคราะห์กลุ่ม"></div>
+        <label class="mecat"><span class="muted">หรือหมวดเดียว</span><select id="meCat" aria-label="เลือกหมวด"></select></label>
+      </div>
+      <div id="meBody"></div>
     </div>
-    <div class="panel">
-      <div class="phead"><h2>ตัวเลือกที่บวกราคา</h2><span class="muted">เช่น ไข่ดาว เพิ่มกุ้ง</span></div>
+
+    <div class="two" id="secMove">
+      <div class="panel"><div class="phead"><h2>📈 ขายเพิ่มขึ้น</h2><span class="muted" id="upNote"></span></div><div id="upList"></div></div>
+      <div class="panel"><div class="phead"><h2>📉 ขายลดลง</h2><span class="muted" id="downNote"></span></div><div id="downList"></div></div>
+    </div>
+    <div class="panel" id="secAddon">
+      <div class="phead"><h2>➕ ตัวเลือกที่บวกราคา</h2><span class="muted">เช่น ไข่ดาว เพิ่มกุ้ง</span></div>
       <div id="addonList"></div>
     </div>
     <div class="panel">
       <div class="phead"><h2>🥬 วัตถุดิบที่ใช้</h2><a href="#ing" class="muted" data-goto="ing">ดูละเอียด ›</a></div>
       <div id="useList"></div>
     </div>
-    <div class="panel">
-      <div class="phead"><h2>เมนูที่ขายไม่ออก</h2><span class="muted" id="slowNote"></span></div>
+    <div class="panel" id="secSlow">
+      <div class="phead"><h2>😴 เมนูที่ขายไม่ออก</h2><span class="muted" id="slowNote"></span></div>
       <div id="slowList"></div>
     </div>
+  </section>
+
+  <!-- ===== 🔥 เมนูไทยที่กำลังไวรัลในชาวต่างชาติ (AI ค้นเว็บวันละครั้ง) ===== -->
+  <section class="pane" data-p="trends" hidden>
+    <div id="trTop"></div>
+    <div class="trbar" id="trBar" hidden>
+      <div class="seg" id="trKind" role="group" aria-label="ประเภท">
+        <button data-k="" aria-pressed="true">ทั้งหมด</button><button data-k="food">อาหาร</button><button data-k="dessert">ขนม</button><button data-k="drink">เครื่องดื่ม</button></div>
+      <span class="muted" id="trCount"></span>
+    </div>
+    <div class="trgrid" id="trList"></div>
+    <div class="panel" id="trNewsBox" hidden><div class="phead"><h2>📰 ข่าวที่ควรรู้</h2></div><div id="trNews"></div></div>
+    <p class="note" id="trSrc"></p>
   </section>
 
   <!-- ===== โต๊ะ ===== -->
@@ -469,7 +671,7 @@ function cats() { const c = [...(S.categories || [])]; S.menu.forEach(m => c.inc
 $('#lockBtn').onclick = e => { e.preventDefault(); PIN.lock(); };
 
 // ---------- แท็บ (จำแท็บล่าสุดใน #hash เปิดลิงก์ sales.html#tables ได้ตรงแท็บ) ----------
-const TABS = ['shop', 'ask', 'forecast', 'breakeven', 'overview', 'menu', 'ing', 'tables', 'kitchen', 'staff', 'system', 'bills'];
+const TABS = ['shop', 'ask', 'trends', 'forecast', 'breakeven', 'overview', 'menu', 'ing', 'tables', 'kitchen', 'staff', 'system', 'bills'];
 let tab = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'shop';
 function showTab(t, push = true) {
   tab = t;
@@ -481,7 +683,9 @@ function showTab(t, push = true) {
   if (t === 'forecast') loadPace();
   if (t === 'breakeven') loadBe();   // โหลดเมื่อเปิดแท็บ (เก่ากว่า 10 นาที → คำนวณใหม่)
   if (t === 'overview' && report) renderChart();   // กราฟวัดความกว้างใหม่ตอนแท็บกลับมาแสดง
-  if (t === 'ask') { renderAsk(); setTimeout(() => $('#askQ').focus(), 50); }
+  if (t === 'ask') { renderAsk(); if (aiNotes == null) loadNotes(); setTimeout(() => $('#askQ').focus(), 50); }
+  if (t === 'trends') loadTrends();
+  if (t === 'menu') { loadTrendsCached(); if (meAll) setTimeout(() => drawMe(meData()), 0); }
   if (t === 'shop') loadAiShop();
 }
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) showTab(b.dataset.t); });
@@ -516,7 +720,10 @@ async function loadReport() {
     const [r, h, u, up] = await Promise.all([api(`/api/report?from=${from}&to=${to}`), api(`/api/health?from=${from}&to=${to}`).catch(() => null),
       api(`/api/usage?from=${from}&to=${to}`).catch(() => null), api(`/api/usage?from=${ymd(pFrom)}&to=${ymd(pTo)}`).catch(() => null)]);
     if (n !== loading) return;          // มีคำขอใหม่กว่าแล้ว
-    report = r; health = h; usage = u; usagePrev = up; renderSales(); renderUsage(); renderIng();
+    const same = report && report.from === r.from && report.to === r.to;
+    report = r; health = h; usage = u; usagePrev = up;
+    if (!same) { meAll = null; meSel = null; }
+    renderSales(); renderUsage(); renderIng(); renderMe(); loadMe();
   } catch (err) { toast(err.message, true); }
 }
 $('#range').addEventListener('click', e => {
@@ -676,8 +883,8 @@ function renderSlow() {
   const low = menu.filter(m => sold.has(m.name)).sort((a, b) => sold.get(a.name).qty - sold.get(b.name).qty).slice(0, 10);
   $('#slowNote').textContent = `จาก ${menu.length} เมนูที่เปิดขาย`;
   const byCat = cats().map(c => [c, zero.filter(m => m.category === c)]).filter(([, l]) => l.length);
-  box.innerHTML = `<h4 style="margin:0 0 4px">ไม่มีคนสั่งเลย ${zero.length} เมนู</h4>
-    ${zero.length ? byCat.map(([c, l]) => `<div class="slowcat"><b>${esc(c)} (${l.length})</b><span>${l.map(m => esc(m.name)).join(' · ')}</span></div>`).join('')
+  box.innerHTML = `${zero.length ? `<details class="slowz"><summary>ไม่มีคนสั่งเลย ${zero.length} เมนู <span class="muted" style="font-weight:400">· แตะเพื่อดูรายชื่อ</span></summary>
+      ${byCat.map(([c, l]) => `<div class="slowcat"><b>${esc(c)} (${l.length})</b><span>${l.map(m => esc(m.name)).join(' · ')}</span></div>`).join('')}</details>`
       : '<p class="muted">ทุกเมนูมีคนสั่ง 👍</p>'}
     ${low.length ? `<h4 style="margin:18px 0 4px">ขายน้อยที่สุด</h4>
     <table class="t"><thead><tr><th>เมนู</th><th class="hide-sm">หมวด</th><th class="r">จำนวน</th><th class="r">ยอดเงิน</th></tr></thead><tbody>
@@ -769,56 +976,245 @@ function renderCatBreak() {
     : '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>';
 }
 
+// ================= แท็บเมนู (test-1.79): สรุป · รายการเมนู · วิเคราะห์มือโปร =================
+let mlCat = '', mlView = 'rank', mlQ = '', meAll = null, meSel = null, meScope = '', meBusy = 0;
+const meOpen = new Set();
+const OPT_COL = ['#1E6B58', '#2B4C96', '#C27A00', '#B03A27', '#6B4FA0', '#2A8C9C', '#7A8C2E', '#A0527A'];
+const QL = {
+  star: { e: '⭐', t: 'ดาวเด่น', badge: '⭐ ดาวเด่น', what: 'ขายดี และได้กำไรต่อจานดี',
+    todo: '<b>รักษาไว้:</b> คุมรสชาติและปริมาณให้เหมือนเดิม วางไว้ตำแหน่งเด่นในเมนูและรูปภาพ ให้พนักงานแนะนำ ไม่ต้องลดราคา' },
+  plow: { e: '🐴', t: 'ขายดี แต่กำไรน้อย', badge: '🐴 ขายดีกำไรน้อย', what: 'ลูกค้าชอบสั่ง แต่ได้กำไรต่อจานน้อยกว่าเฉลี่ย',
+    todo: '<b>เพิ่มกำไร:</b> ลองขึ้นราคาทีละน้อย 5–10 ฿ ลดต้นทุน (ปริมาณ วัตถุดิบ ซื้อส่ง) หรือขายคู่กับของกำไรดี เช่น ไข่ดาว เครื่องดื่ม' },
+  puzzle: { e: '💎', t: 'กำไรดี แต่ขายน้อย', badge: '💎 กำไรดีขายน้อย', what: 'ได้กำไรต่อจานดี แต่คนสั่งน้อย',
+    todo: '<b>ทำให้คนสั่งมากขึ้น:</b> ถ่ายรูปสวยๆ ย้ายขึ้นหน้าแรกของเมนู เขียนชื่อและคำอธิบายภาษาอังกฤษให้น่าสั่ง ให้พนักงานแนะนำ ทำเป็นเมนูแนะนำของวัน' },
+  dog: { e: '🪨', t: 'ขายน้อย กำไรน้อย', badge: '🪨 ควรพิจารณา', what: 'คนสั่งน้อย และกำไรต่อจานน้อยกว่าเฉลี่ย',
+    todo: '<b>ตัดสินใจ:</b> ตัดออกให้เมนูสั้นลง (ครัวเร็วขึ้น ของเสียน้อยลง) ปรับสูตรหรือราคาใหม่ หรือรวมเป็นเซ็ต · เมนูที่ลูกค้าประจำชอบเก็บไว้ได้' },
+};
+const QORDER = ['star', 'plow', 'puzzle', 'dog'];
+const SCOPE_TH = { food: 'อาหาร', drink: 'เครื่องดื่ม', dessert: 'ของหวาน', all: 'ทั้งร้าน' };
+const num0 = n => Math.round(n).toLocaleString('th-TH');
 // ชื่อตัวเลือกให้อ่านง่าย: เมนูที่มีกลุ่มตัวเลือกกลุ่มเดียว (เช่น เบียร์ ขวด: เล็ก/ใหญ่) → "ขวดเล็ก"
 function optLabel(menuName, o) {
   const m = S.menu.find(x => x.name === menuName), gs = m ? groupsOf(m).filter(g => !g.alert) : [];
   return gs.length === 1 ? gs[0].name + (/^[ก-๙]/.test(o) ? '' : ' ') + o : o;
 }
-// ---------- ทุกเมนูแยกหมวด: ยอดรวมหมวด · ทุกเมนู · ตัวเลือก · เทียบช่วงก่อน ----------
-function renderTopByCat() {
-  const s = report.summary, pv = report.prev || {}, pi = pv.items || {}, pc = pv.cats || {};
-  const hasPrev = Object.keys(pi).length > 0, tot = s.subtotal || 1;
-  const byCat = new Map();
-  for (const it of s.items_list) { if (!byCat.has(it.category)) byCat.set(it.category, []); byCat.get(it.category).push(it); }
-  const order = [...cats().filter(c => byCat.has(c)), ...[...byCat.keys()].filter(c => !cats().includes(c))];
-  const dq = (a, b) => (b == null || !hasPrev ? '' : a === b ? '<span class="muted">=</span>' : `<em class="delta2 ${a > b ? 'up' : 'down'}">${a > b ? '▲' : '▼'}${Math.abs(a - b)}</em>`);
-  $('#topList').innerHTML = `<p class="muted" style="margin:0 0 10px">${order.length} หมวด · ${s.items_list.length} เมนูที่ขายได้${hasPrev ? ' · ▲▼ = จำนวนเทียบช่วงก่อนหน้า' : ''}</p>
-    <div class="tscroll"><table class="t catt"><thead><tr><th>เมนู</th><th class="r">จำนวน</th><th class="r">ยอดเงิน</th><th class="r hide-sm">% หมวด</th><th class="r hide-sm">เฉลี่ย/จาน</th>${hasPrev ? '<th class="r">ช่วงก่อน</th>' : ''}</tr></thead>
-    ${order.map(c => { const list = byCat.get(c).sort((a, b) => b.qty - a.qty || b.amount - a.amount);
-      const cq = list.reduce((n, x) => n + x.qty, 0), ca = s.cats[c] || list.reduce((n, x) => n + x.amount, 0), pa = pc[c];
-      return `<tbody><tr class="cath"><td><b>${esc(c)}</b> <span class="muted">${list.length} เมนู · ${Math.round(ca / tot * 100)}% ของยอดขาย</span></td>
-          <td class="r"><b>${cq.toLocaleString('th-TH')}</b></td><td class="r"><b>${baht(r2(ca))}</b></td><td class="r hide-sm"></td><td class="r hide-sm"></td>
-          ${hasPrev ? `<td class="r">${pa ? dEm(pctOf(ca, pa)) + `<br><small class="muted">${baht(pa)}</small>` : '<small class="muted">ใหม่</small>'}</td>` : ''}</tr>
-        ${list.map(it => { const opts = Object.entries(it.opts || {}).sort((a, b) => b[1] - a[1]);
-          return `<tr><td>${esc(it.name)}${opts.length ? `<div class="optl">${opts.map(([o, q]) => `${esc(optLabel(it.name, o))} <b>${q}</b>`).join(' · ')}</div>` : ''}</td>
-            <td class="r">${it.qty.toLocaleString('th-TH')}</td><td class="r">${baht(it.amount)}</td>
-            <td class="r hide-sm">${Math.round(it.amount / (ca || 1) * 100)}%</td><td class="r hide-sm">${baht(Math.round(it.amount / it.qty))}</td>
-            ${hasPrev ? `<td class="r">${dq(it.qty, pi[it.name]?.qty ?? 0)}</td>` : ''}</tr>`; }).join('')}</tbody>`; }).join('')}
-    </table></div>`;
+// ตัวเลือกที่ขาย "หมู M ไข่ดาว" → แยกตามกลุ่มของเมนู: เนื้อสัตว์ หมู/ไก่/กุ้ง · ขนาด S/M/L · ไข่ ไข่ดาว
+function optGroupsOf(it) {
+  const opts = Object.entries(it.opts || {}); if (!opts.length) return [];
+  const m = S.menu.find(x => x.name === it.name), gs = m ? groupsOf(m).filter(g => !g.alert) : [];
+  const grid = m?.grid?.groups || [];
+  const groups = [...gs.map(g => ({ name: g.name, names: (g.choices || []).map(c => c.name), req: !!g.required || grid.includes(g.name) })),
+    ...grid.filter(n => !gs.some(g => g.name === n)).map((n, i) => ({ name: n, req: true,
+      names: [...new Set(Object.keys(m.grid.prices || {}).map(k => k.split('|')[i] ?? k))] }))];
+  const cnt = groups.map(() => new Map()), other = new Map();
+  for (const [o, q] of opts) for (const w of o.split(' ').filter(Boolean)) {
+    const gi = groups.findIndex(g => g.names.includes(w));
+    const mp = gi < 0 ? other : cnt[gi]; mp.set(w, (mp.get(w) || 0) + q);
+  }
+  const out = groups.map((g, i) => ({ name: g.name, req: g.req, list: [...cnt[i]].sort((a, b) => b[1] - a[1]) })).filter(g => g.list.length);
+  if (other.size) out.push({ name: 'อื่นๆ', req: false, list: [...other].sort((a, b) => b[1] - a[1]) });
+  return out;
+}
+const mlOpen = new Set();
+function ogHtml(it) {
+  const gs = optGroupsOf(it); if (!gs.length) return '';
+  const rows = gs.map(g => { const n = g.list.reduce((a, x) => a + x[1], 0), den = g.req ? Math.max(n, 1) : Math.max(it.qty, n);
+    return { ...g, n, den, pct: x => Math.round(x[1] / den * 100) }; });
+  const open = mlOpen.has(it.name);
+  const sumTxt = rows.map(g => `${esc(g.list[0][0])} ${g.pct(g.list[0])}%`).join(' · ');
+  if (!open) return `<button class="ogsum" data-og="${esc(it.name)}" aria-expanded="false"><span>ลูกค้าเลือก:</span> ${sumTxt} <b>▾</b></button>`;
+  return `<button class="ogsum" data-og="${esc(it.name)}" aria-expanded="true"><span>ตัวเลือกที่ลูกค้าเลือก</span> <b>▴</b></button>` + rows.map(g => {
+    const top = g.list.slice(0, 5), rest = g.list.slice(5), restN = rest.reduce((a, x) => a + x[1], 0);
+    const seg = [...top.map((x, i) => [x[1], OPT_COL[i]]), ...(restN ? [[restN, '#B9C1BC']] : [])];
+    return `<div class="og"><span title="${esc(g.name)}">${esc(g.name)}</span>
+      <span class="ost" role="img" aria-label="${esc(g.name)}: ${esc(top.map(x => `${x[0]} ${g.pct(x)}%`).join(', '))}">${seg.map(([v, c]) => `<i style="flex:${v};background:${c}"></i>`).join('')}${g.req ? '' : `<i style="flex:${Math.max(0, g.den - g.n)};background:transparent"></i>`}</span>
+      <span class="olg">${top.map((x, i) => `<em style="--c:${OPT_COL[i]}"><b>${esc(x[0])}</b> <small>${g.pct(x)}% · ${num0(x[1])}</small></em>`).join('')}${rest.length ? `<em style="--c:#B9C1BC"><small>อื่นๆ ${rest.length} แบบ · ${num0(restN)}</small></em>` : ''}</span></div>`;
+  }).join('');
+}
+// รายการเมนูรวมข้อมูลกำไร/กลุ่มจากการวิเคราะห์มือโปร (ถ้ามี)
+function menuItems() {
+  const me = new Map((meAll?.items || []).map(x => [x.name, x])), pv = report.prev?.items || {};
+  return report.summary.items_list.filter(x => x.qty > 0).map(it => {
+    const e = me.get(it.name), prev = pv[it.name]?.qty ?? 0;
+    return { ...it, cls: e?.cls || '', gp: e ? e.gp : null, cm: e?.cm ?? null, costSrc: e?.costSrc || '', prevQty: prev, dq: it.qty - prev };
+  });
+}
+const hasPrevItems = () => report.prev && Object.keys(report.prev.items || {}).length > 0;
+function mvTag(x) {
+  if (!hasPrevItems()) return '';
+  if (!x.prevQty) return '<span class="mv new">ใหม่</span>';
+  const p = Math.round(x.dq / x.prevQty * 100);
+  return !x.dq ? '<span class="mv same">เท่าเดิม</span>' : `<span class="mv ${x.dq > 0 ? 'up' : 'down'}" title="ช่วงก่อน ${x.prevQty} จาน">${x.dq > 0 ? '▲' : '▼'} ${Math.abs(x.dq)} จาน (${p > 0 ? '+' : ''}${p}%)</span>`;
+}
+function mrowHtml(x, i, tq, max, key) {
+  const v = key === 'amount' ? x.amount : key === 'gp' ? (x.gp || 0) : x.qty;
+  return `<div class="mrow"><span class="rk${i < 3 ? ' top' : ''}">${i + 1}</span>
+    <div class="nm"><span>${esc(x.name)}</span><span class="cat">${esc(x.category)}</span>${x.cls ? `<span class="qb ${x.cls}" title="${esc(QL[x.cls].what)}">${QL[x.cls].badge}</span>` : ''}</div>
+    <div class="num"><b>${num0(x.qty)} จาน</b><span>${baht(x.amount)} ฿${key === 'gp' && x.gp != null ? ` · กำไร ~${baht(Math.round(x.gp))}` : ''}</span></div>
+    <div class="share"><span class="trk"><i style="width:${Math.max(1, v / (max || 1) * 100)}%"></i></span><span>${tq ? (x.qty / tq * 100).toFixed(1) : 0}% ของจาน</span>${mvTag(x)}</div>
+    <div class="ogs">${ogHtml(x)}</div></div>`;
+}
+function renderMenuKpi() {
+  const s = report.summary, list = s.items_list.filter(x => x.qty > 0), box = $('#mxKpi');
+  if (!list.length) { box.innerHTML = ''; return; }
+  const Q = list.reduce((a, x) => a + x.qty, 0), A = list.reduce((a, x) => a + x.amount, 0), avail = S.menu.filter(m => m.available !== false).length;
+  const byAmt = [...list].sort((a, b) => b.amount - a.amount), byQty = [...list].sort((a, b) => b.qty - a.qty);
+  let acc = 0, n80 = 0; for (const x of byAmt) { acc += x.amount; n80++; if (acc >= A * 0.8) break; }
+  const me = meAll;
+  box.innerHTML = `<div><span>เมนูที่ขายได้</span><b>${list.length} <small style="display:inline;font-size:15px">จาก ${avail}</small></b><small>${avail - list.length > 0 ? `ยังไม่มีคนสั่ง ${avail - list.length} เมนู` : 'ขายได้ทุกเมนู'}</small></div>
+    <div><span>จานที่ขาย</span><b>${num0(Q)} จาน</b><small>เฉลี่ย ${baht(Math.round(A / Q))} ฿/จาน</small></div>
+    <div><span>ทำเงินสูงสุด</span><b title="${esc(byAmt[0].name)}">${esc(byAmt[0].name)}</b><small>${baht(byAmt[0].amount)} ฿ · ${num0(byAmt[0].qty)} จาน</small></div>
+    <div><span>80% ของยอดขายมาจาก</span><b>${n80} เมนู</b><small>${Math.round(n80 / list.length * 100)}% ของเมนูที่ขายได้</small></div>
+    ${me ? `<div><span>กำไรขั้นต้นจากเมนู</span><b>~${baht(Math.round(me.gp))} ฿</b><small>${me.gpPct ?? '–'}% ของยอด · ${me.coverage.recipe ? `ต้นทุนจากสูตร ${me.coverage.recipe} เมนู` : 'ต้นทุนประมาณ'}</small></div>` : ''}`;
 }
 function renderTop() {
   if (!report) return;
-  if (topSort === 'cat') { if (!report.summary.items_list.length) { $('#topList').innerHTML = '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>'; return; } return renderTopByCat(); }
-  const list = [...report.summary.items_list].sort((a, b) => b[topSort] - a[topSort] || b.qty - a.qty);
-  if (!list.length) { $('#topList').innerHTML = '<p class="muted">ยังไม่มีบิลในช่วงนี้</p>'; return; }
-  const max = list[0][topSort] || 1, shown = showAllTop ? list : list.slice(0, 10);
-  $('#topList').innerHTML = `<table class="t"><thead><tr><th class="rank">#</th><th>เมนู</th><th class="hide-sm">หมวด</th>
-      <th class="r">จำนวน</th><th class="r">ยอดเงิน</th><th class="share hide-sm"></th></tr></thead><tbody>
-    ${shown.map((it, i) => {
-      const opts = Object.entries(it.opts || {}).sort((a, b) => b[1] - a[1]);
-      return `<tr class="top" data-n="${esc(it.name)}"><td class="rank">${i + 1}</td>
-        <td><b>${esc(it.name)}</b>${opts.length ? ` <span class="muted">${openTop.has(it.name) ? '▾' : '▸'} ${opts.length} แบบ</span>` : ''}</td>
-        <td class="hide-sm muted">${esc(it.category)}</td><td class="r">${it.qty.toLocaleString('th-TH')}</td>
-        <td class="r">${baht(it.amount)}</td><td class="share hide-sm"><i style="width:${it[topSort] / max * 100}%"></i></td></tr>
-        ${openTop.has(it.name) && opts.length ? `<tr class="opts"><td></td><td colspan="5">${opts.map(([o, q]) => `<span>${esc(optLabel(it.name, o))} × ${q}</span>`).join('')}</td></tr>` : ''}`;
-    }).join('')}</tbody></table>
-    ${list.length > 10 ? `<button class="btn sm more" id="topMore">${showAllTop ? 'แสดง 10 อันดับ' : `ดูทั้งหมด ${list.length} เมนู`}</button>` : ''}`;
+  renderMenuKpi();
+  const all = menuItems(), box = $('#topList');
+  $('#mlNote').textContent = all.length ? `${all.length} เมนูที่ขายได้` : '';
+  if (!all.length) { $('#mlCats').innerHTML = ''; box.innerHTML = '<p class="mempty">ยังไม่มีบิลในช่วงนี้</p>'; return; }
+  // หมวด (เรียงตามลำดับหมวดของร้าน)
+  const cc = new Map(); for (const x of all) cc.set(x.category, (cc.get(x.category) || 0) + 1);
+  const order = [...cats().filter(c => cc.has(c)), ...[...cc.keys()].filter(c => !cats().includes(c))];
+  if (mlCat && !cc.has(mlCat)) mlCat = '';
+  $('#mlCats').innerHTML = `<button data-c="" aria-pressed="${!mlCat}">ทั้งหมด <small>${all.length}</small></button>` + order.map(c => `<button data-c="${esc(c)}" aria-pressed="${mlCat === c}">${esc(c)} <small>${cc.get(c)}</small></button>`).join('');
+  const q = mlQ.trim().toLowerCase();
+  let list = all.filter(x => (!mlCat || x.category === mlCat) && (!q || x.name.toLowerCase().includes(q)));
+  const key = topSort, val = x => key === 'amount' ? x.amount : key === 'gp' ? (x.gp ?? -1e9) : key === 'up' ? x.dq : x.qty;
+  list.sort((a, b) => val(b) - val(a) || b.qty - a.qty);
+  const tq = all.reduce((a, x) => a + x.qty, 0);
+  if (!list.length) { box.innerHTML = `<p class="mempty">ไม่พบเมนู${q ? ` “${esc(mlQ)}”` : ''}</p>`; return; }
+  if (key === 'up' && !hasPrevItems()) box.dataset.note = '1';
+  const max = Math.max(...list.map(x => Math.abs(key === 'amount' ? x.amount : key === 'gp' ? (x.gp || 0) : x.qty)), 1);
+  const head = key === 'up' && !hasPrevItems() ? '<p class="note" style="margin:0 0 6px">ยังไม่มียอดช่วงก่อนหน้าให้เทียบ เลยเรียงตามจำนวนแทน</p>' : key === 'gp' && !meAll ? '<p class="note" style="margin:0 0 6px">กำลังคำนวณกำไร…</p>' : '';
+  if (mlView === 'cat' && !mlCat) {
+    const byC = new Map(); for (const x of list) { if (!byC.has(x.category)) byC.set(x.category, []); byC.get(x.category).push(x); }
+    const tot = report.summary.subtotal || 1;
+    const co = [...byC.entries()].sort((a, b) => b[1].reduce((s, x) => s + x.amount, 0) - a[1].reduce((s, x) => s + x.amount, 0));
+    box.innerHTML = head + co.map(([c, l]) => { const ca = l.reduce((s, x) => s + x.amount, 0), cq = l.reduce((s, x) => s + x.qty, 0);
+      return `<div class="mcath"><b>${esc(c)}</b><span>${l.length} เมนู · ${num0(cq)} จาน · ${baht(ca)} ฿ · ${Math.round(ca / tot * 100)}% ของยอดขาย</span></div>`
+        + l.map((x, i) => mrowHtml(x, i, tq, max, key)).join(''); }).join('');
+    return;
+  }
+  const lim = showAllTop || q ? list.length : 15, shown = list.slice(0, lim);
+  box.innerHTML = head + shown.map((x, i) => mrowHtml(x, i, tq, max, key)).join('')
+    + (list.length > 15 && !q ? `<button class="btn sm mlmore" id="topMore">${showAllTop ? 'แสดง 15 อันดับแรก' : `ดูทั้งหมด ${list.length} เมนู`}</button>` : '');
 }
 $('#topList').addEventListener('click', e => {
   if (e.target.id === 'topMore') { showAllTop = !showAllTop; renderTop(); return; }
-  const tr = e.target.closest('tr.top'); if (!tr) return;
-  openTop.has(tr.dataset.n) ? openTop.delete(tr.dataset.n) : openTop.add(tr.dataset.n); renderTop();
+  const b = e.target.closest('[data-og]'); if (b) { const n = b.dataset.og; mlOpen.has(n) ? mlOpen.delete(n) : mlOpen.add(n); renderTop(); }
 });
+$('#mlCats').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (!b) return; mlCat = b.dataset.c; showAllTop = false; renderTop(); });
+$('#mlView').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (!b) return; mlView = b.dataset.v; $$('#mlView button').forEach(x => x.setAttribute('aria-pressed', x === b)); renderTop(); });
+let mlT; $('#mlQ').addEventListener('input', e => { clearTimeout(mlT); mlT = setTimeout(() => { mlQ = e.target.value; renderTop(); }, 150); });
+document.querySelector('.mjump').addEventListener('click', e => { const a = e.target.closest('a[href^="#sec"]'); if (!a) return; e.preventDefault(); document.querySelector(a.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+
+// ---------- วิเคราะห์มือโปร ----------
+async function loadMe() {
+  if (!report) return;
+  const n = ++meBusy, f = report.from, t = report.to;
+  try {
+    const all = await api(`/api/menu-eng?from=${f}&to=${t}&scope=groups`);
+    if (n !== meBusy) return;
+    meAll = all; meSel = null;
+    if (!meScope || (['food', 'drink', 'dessert'].includes(meScope) && !(all.scopes[meScope] > 0))) meScope = all.scopes.food >= 4 ? 'food' : 'all';
+    if (meScope === 'all' || meScope.startsWith('cat:')) meSel = await api(`/api/menu-eng?from=${f}&to=${t}&scope=${encodeURIComponent(meScope)}`);
+    if (n !== meBusy) return;
+  } catch (e) { if (n === meBusy) { meAll = meAll && meAll.from === f && meAll.to === t ? meAll : null; $('#meBody').innerHTML = `<p class="muted">คำนวณไม่ได้: ${esc(e.message)}</p>`; } return; }
+  renderTop(); renderMe();
+}
+function meData() {
+  if (!meAll) return null;
+  if (meSel && meSel.scope === meScope) return meSel;
+  if (!['food', 'drink', 'dessert'].includes(meScope)) return null;
+  const g = meAll.groups?.[meScope], items = meAll.items.filter(x => x.group === meScope);
+  const gp = items.reduce((a, x) => a + x.gp, 0), sales = items.reduce((a, x) => a + x.amount, 0);
+  return { ...meAll, scope: meScope, items, n: items.length, qty: g?.qty, popMinPct: g?.popMinPct, cmAvg: g?.cmAvg, gp, sales, gpPct: sales ? Math.round(gp / sales * 100) : null,
+    coverage: { recipe: items.filter(x => x.costSrc === 'recipe').length, est: items.filter(x => x.costSrc !== 'recipe').length } };
+}
+function renderMe() {
+  const box = $('#meBody'), me = meData();
+  const sc = meAll?.scopes || {};
+  $('#meScope').innerHTML = ['food', 'drink', 'dessert', 'all'].filter(k => k === 'all' || sc[k] >= 2)
+    .map(k => `<button data-s="${k}" aria-pressed="${meScope === k}">${SCOPE_TH[k]} <small class="muted">${sc[k] ?? ''}</small></button>`).join('');
+  $('#meCat').innerHTML = `<option value="">— ทุกหมวดในกลุ่ม —</option>` + (meAll?.cats || []).filter(c => c.n >= 2).map(c => `<option value="cat:${esc(c.cat)}"${meScope === 'cat:' + c.cat ? ' selected' : ''}>${esc(c.cat)} (${c.n})</option>`).join('');
+  if (!report?.summary.items_list.length) { box.innerHTML = '<p class="mempty">ยังไม่มีบิลในช่วงนี้</p>'; return; }
+  if (!me) { box.innerHTML = aiWait('กำลังคำนวณ…'); return; }
+  if (me.n < 2) { box.innerHTML = '<p class="mempty">มีเมนูในกลุ่มนี้ไม่พอให้เทียบ (ต้องมีอย่างน้อย 2 เมนู)</p>'; return; }
+  const by = Object.fromEntries(QORDER.map(k => [k, me.items.filter(x => x.cls === k)]));
+  const gpAll = me.items.reduce((a, x) => a + x.gp, 0) || 1, salesAll = me.items.reduce((a, x) => a + x.amount, 0) || 1;
+  const short = me.days < 7 ? `<p class="note" style="margin:0 0 10px">⚠ ดูแค่ ${me.days} วัน ตัวเลขยังแกว่ง เลือก 30 วันด้านบนจะแม่นกว่า</p>` : '';
+  const sum = `<div class="mesum">${QORDER.map(k => `<div class="${k}"><span>${QL[k].e} ${QL[k].t}</span><b>${by[k].length} <small style="font-size:14px">เมนู</small></b><small>กำไร ${Math.round(by[k].reduce((a, x) => a + x.gp, 0) / gpAll * 100)}% ของกลุ่มนี้</small></div>`).join('')}</div>`;
+  const sorters = { star: (a, b) => b.gp - a.gp, plow: (a, b) => b.qty - a.qty, puzzle: (a, b) => b.cm - a.cm, dog: (a, b) => a.gp - b.gp };
+  const pc = v => v < 0.1 ? '<0.1' : v.toFixed(1);
+  const hint = (k, x) => k === 'star' ? `กำไร ${pc(x.gp / gpAll * 100)}% ของกลุ่มนี้` : k === 'plow' ? `ขึ้นราคา ${x.raiseBy} ฿ ≈ +${baht(x.raiseGain)} ฿/เดือน` : k === 'puzzle' ? `ขายเพิ่ม 20% ≈ +${baht(x.more20)} ฿/เดือน` : `ทำยอด ${pc(x.amount / salesAll * 100)}% ของกลุ่มนี้ · ${num0(x.qty)} จาน`;
+  const quad = `<div class="mequad">${QORDER.map(k => { const l = [...by[k]].sort(sorters[k]), open = meOpen.has(k), show = open ? l : l.slice(0, 5);
+    return `<div class="mq ${k}"><h3><span>${QL[k].e} ${QL[k].t}</span><small>${l.length} เมนู</small></h3><p class="what">${QL[k].what}</p><div class="todo">${QL[k].todo}</div>
+      ${l.length ? `<ul>${show.map(x => `<li><span class="n" title="${esc(x.name)}">${esc(x.name)}</span><span class="v">${num0(x.qty)} จาน · กำไร ${baht(Math.round(x.cm))} ฿/จาน</span><span class="h${x.costSrc === 'recipe' ? '' : ' est'}">${hint(k, x)}</span></li>`).join('')}</ul>
+        ${l.length > 5 ? `<button class="more" data-meo="${k}">${open ? 'ย่อ ▴' : `ดูทั้งหมด ${l.length} เมนู ▾`}</button>` : ''}` : '<p class="none">ไม่มีเมนูในกลุ่มนี้</p>'}</div>`; }).join('')}</div>`;
+  const cov = me.coverage, setLink = '<a href="admin.html#ingredients">หลังร้าน › วัตถุดิบ</a>';
+  const note = `<p class="menote">อ่านยังไง: แกนนอน = ขายได้กี่จาน (ขวา = ขายดี) · แกนตั้ง = กำไรต่อจาน (บน = กำไรดี) · วงกลมใหญ่ = ทำกำไรรวมเยอะ · เส้นแบ่ง: ขายดี = ส่วนแบ่ง ≥ ${me.popMinPct}% ของจานในกลุ่ม (70% ของค่าเฉลี่ย) · กำไรดี = ≥ ${baht(Math.round(me.cmAvg))} ฿/จาน (ค่าเฉลี่ยถ่วงจำนวนขาย)<br>
+    ต้นทุน: ${cov.recipe ? `คิดจากสูตรวัตถุดิบ ${cov.recipe} เมนู` : 'ยังไม่มีเมนูที่ตั้งสูตรครบ'}${cov.est ? ` · อีก ${cov.est} เมนูประมาณ ${me.foodPct}% ของราคา${me.foodPctSet ? ' (ตามที่ตั้งในแท็บ 💰 คุ้มทุน)' : ' (ค่าเริ่มต้น ตั้งได้ที่แท็บ 💰 คุ้มทุน)'} ตั้งสูตรพร้อมราคาที่ ${setLink} จะแม่นขึ้น` : ''} · “ต่อเดือน” คิดจาก ${me.days} วันที่มีขาย</p>`;
+  box.innerHTML = short + sum + `<div class="mechart" id="meChart"></div>` + quad + note;
+  drawMe(me);
+}
+function drawMe(me) {
+  const box = $('#meChart'); if (!box) return;
+  const W = Math.max(260, box.clientWidth || 900), H = Math.round(W < 560 ? Math.max(300, W * 1.05) : Math.min(440, Math.max(280, W * 0.5)));
+  const L = 50, R = 14, T = 16, B = 40, its = me.items;
+  const qMin = Math.max(1, Math.min(...its.map(x => x.qty))), qMax = Math.max(...its.map(x => x.qty));
+  const lx0 = Math.log10(qMin * 0.8), lx1 = Math.log10(qMax * 1.3);
+  const cmMin = Math.min(0, ...its.map(x => x.cm)), cmMax = Math.max(...its.map(x => x.cm), me.cmAvg * 1.5, 1);
+  const yTop = niceMax(cmMax * 1.08), yBot = cmMin < 0 ? -niceMax(-cmMin) : 0;
+  const X = q => L + (Math.log10(Math.max(q, qMin * 0.8)) - lx0) / (lx1 - lx0 || 1) * (W - L - R);
+  const Y = v => T + (yTop - v) / (yTop - yBot || 1) * (H - T - B);
+  const x0 = X(Math.max(qMin * 0.8, me.popMinPct / 100 * me.qty)), y0 = Y(me.cmAvg);
+  const C = { star: 'var(--q-star)', plow: 'var(--q-plow)', puzzle: 'var(--q-puz)', dog: 'var(--q-dog)' }, CS = { star: 'var(--q-star-s)', plow: 'var(--q-plow-s)', puzzle: 'var(--q-puz-s)', dog: 'var(--q-dog-s)' };
+  const xt = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000].filter(v => v >= qMin * 0.8 && v <= qMax * 1.3);
+  const yStep = niceMax((yTop - yBot) / 4), yt = []; for (let v = yBot; v <= yTop + 0.01; v += yStep) yt.push(v);
+  const gpMax = Math.max(...its.map(x => Math.max(0, x.gp)), 1), rad = x => 4 + 7 * Math.sqrt(Math.max(0, x.gp) / gpMax);
+  // ป้ายชื่อ: เมนูที่ทำกำไรรวมเยอะก่อน ไม่ให้ทับกัน
+  // ป้ายมุม (จอแคบใช้คำสั้น) + กล่องของป้ายมุม กันป้ายชื่อเมนูทับ
+  const QT = W < 560 ? { star: '⭐ ดาวเด่น', plow: '🐴 ขายดี', puzzle: '💎 กำไรดี', dog: '🪨 ขายน้อย' } : { star: '⭐ ดาวเด่น', plow: '🐴 ขายดี กำไรน้อย', puzzle: '💎 กำไรดี ขายน้อย', dog: '🪨 ขายน้อย กำไรน้อย' };
+  const qw = t => t.length * 7 + 12, qy2 = Math.min(H - B - 8, y0 + 18);
+  const boxes = [{ x1: W - R - 6 - qw(QT.star), y1: T + 2, x2: W - R, y2: T + 20 }, { x1: W - R - 6 - qw(QT.plow), y1: qy2 - 14, x2: W - R, y2: qy2 + 4 },
+    { x1: L, y1: T + 2, x2: L + 6 + qw(QT.puzzle), y2: T + 20 }, { x1: L, y1: qy2 - 14, x2: L + 6 + qw(QT.dog), y2: qy2 + 4 }], lab = [], maxLab = W < 520 ? 6 : W < 800 ? 12 : 18;
+  for (const x of [...its].sort((a, b) => b.gp - a.gp)) {
+    if (lab.length >= maxLab) break;
+    const cx = X(x.qty), cy = Y(x.cm), r = rad(x), w = Math.min(130, x.name.length * 6.6 + 4), right = cx + r + 4 + w < W - 2;
+    const bx = right ? cx + r + 3 : cx - r - 3 - w, b = { x1: bx, y1: cy - 8, x2: bx + w, y2: cy + 6 };
+    if (boxes.some(o => !(b.x2 < o.x1 || b.x1 > o.x2 || b.y2 < o.y1 || b.y1 > o.y2))) continue;
+    boxes.push(b); lab.push(`<text class="lb" x="${right ? bx : bx + w}" y="${cy + 4}" text-anchor="${right ? 'start' : 'end'}">${esc(x.name.length > 18 ? x.name.slice(0, 17) + '…' : x.name)}</text>`);
+  }
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="แผนภาพเมนู ขายดีแค่ไหน เทียบกำไรต่อจาน">
+    <rect x="${x0}" y="${T}" width="${W - R - x0}" height="${y0 - T}" fill="${CS.star}"/><rect x="${x0}" y="${y0}" width="${W - R - x0}" height="${H - B - y0}" fill="${CS.plow}"/>
+    <rect x="${L}" y="${T}" width="${x0 - L}" height="${y0 - T}" fill="${CS.puzzle}"/><rect x="${L}" y="${y0}" width="${x0 - L}" height="${H - B - y0}" fill="${CS.dog}"/>
+    ${yt.map(v => `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#fff" stroke-width="1"/><text class="ax" x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${v >= 1000 ? (v / 1000) + 'k' : Math.round(v)}</text>`).join('')}
+    ${xt.map(v => `<line x1="${X(v)}" x2="${X(v)}" y1="${T}" y2="${H - B}" stroke="#fff" stroke-width="1"/><text class="ax" x="${X(v)}" y="${H - B + 15}" text-anchor="middle">${v >= 1000 ? (v / 1000) + 'k' : v}</text>`).join('')}
+    <line x1="${x0}" x2="${x0}" y1="${T}" y2="${H - B}" stroke="var(--muted)" stroke-dasharray="4 4"/><line x1="${L}" x2="${W - R}" y1="${y0}" y2="${y0}" stroke="var(--muted)" stroke-dasharray="4 4"/>
+    <text class="ql" x="${W - R - 6}" y="${T + 16}" text-anchor="end" fill="${C.star}">${QT.star}</text><text class="ql" x="${W - R - 6}" y="${Math.min(H - B - 8, y0 + 18)}" text-anchor="end" fill="${C.plow}">${QT.plow}</text>
+    <text class="ql" x="${L + 6}" y="${T + 16}" fill="${C.puzzle}">${QT.puzzle}</text><text class="ql" x="${L + 6}" y="${Math.min(H - B - 8, y0 + 18)}" fill="${C.dog}">${QT.dog}</text>
+    <text class="ax" x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle">ขายได้ (จาน) →</text>
+    <text class="ax" transform="translate(12 ${(T + H - B) / 2}) rotate(-90)" text-anchor="middle">กำไรต่อจาน (฿) →</text>
+    ${its.map((x, i) => `<circle data-i="${i}" cx="${X(x.qty).toFixed(1)}" cy="${Y(x.cm).toFixed(1)}" r="${rad(x).toFixed(1)}" fill="${C[x.cls]}" fill-opacity=".85"/>`).join('')}
+    ${lab.join('')}</svg><div class="tip" hidden></div>`;
+  const tip = box.querySelector('.tip'), svg = box.querySelector('svg');
+  const show = c => { const x = its[+c.dataset.i], sx = svg.getBoundingClientRect().width / W;
+    box.querySelectorAll('circle.on').forEach(e => e.classList.remove('on')); c.classList.add('on');
+    tip.innerHTML = `<b>${esc(x.name)}</b>${QL[x.cls].e} ${QL[x.cls].t}<br>${num0(x.qty)} จาน · ราคาเฉลี่ย ${baht(Math.round(x.price))} ฿<br>ต้นทุน ~${baht(Math.round(x.cost))} ฿${x.costSrc === 'recipe' ? ' (จากสูตร)' : ' (ประมาณ)'} · กำไร ${baht(Math.round(x.cm))} ฿/จาน<br>กำไรรวม ~${baht(Math.round(x.gp))} ฿`;
+    tip.style.left = Math.min(Math.max(X(x.qty) * sx, 120), svg.getBoundingClientRect().width - 120) + 'px'; tip.style.top = Math.max(60, Y(x.cm) * sx - 6) + 'px'; tip.hidden = false; };
+  box.querySelectorAll('circle').forEach(c => { c.addEventListener('pointerenter', () => show(c)); c.addEventListener('click', () => show(c)); c.addEventListener('pointerleave', () => { tip.hidden = true; c.classList.remove('on'); }); });
+}
+$('#meScope').addEventListener('click', async e => { const b = e.target.closest('[data-s]'); if (!b) return; meScope = b.dataset.s; meSel = null; renderMe(); if (meScope === 'all') { meSel = await api(`/api/menu-eng?from=${report.from}&to=${report.to}&scope=all`).catch(() => null); renderMe(); } });
+$('#meCat').addEventListener('change', async e => { const v = e.target.value; meScope = v || (meAll?.scopes.food >= 4 ? 'food' : 'all'); meSel = null; renderMe();
+  if (v || meScope === 'all') { meSel = await api(`/api/menu-eng?from=${report.from}&to=${report.to}&scope=${encodeURIComponent(meScope)}`).catch(() => null); renderMe(); } });
+$('#meBody').addEventListener('click', e => { const b = e.target.closest('[data-meo]'); if (!b) return; meOpen.has(b.dataset.meo) ? meOpen.delete(b.dataset.meo) : meOpen.add(b.dataset.meo); renderMe(); });
+$('#meAsk').onclick = () => {
+  const sc = meScope.startsWith('cat:') ? 'หมวด' + meScope.slice(4) : SCOPE_TH[meScope] || 'อาหาร';
+  showTab('ask'); scrollTo(0, 0);
+  ask(`ดูการวิเคราะห์เมนูแบบมือโปร (${sc}) ช่วง ${rangeText(report.from, report.to)} แล้ววางแผนให้หน่อย: เมนูไหนควรขึ้นราคาเท่าไร เมนูไหนควรโปรโมตยังไง เมนูไหนควรตัดหรือปรับ พร้อมประมาณกำไรที่เพิ่มต่อเดือน`);
+};
+let meRsz; addEventListener('resize', () => { clearTimeout(meRsz); meRsz = setTimeout(() => { if (tab === 'menu' && meAll) drawMe(meData()); }, 200); });
 
 function renderBills() {
   const r = report, single = r.from === r.to;
@@ -1485,13 +1881,13 @@ function renderMenuPerf() {
     const a = cur.find(i => i.name === n)?.qty || 0, b = pv[n]?.qty || 0;
     return { n, a, b, d: a - b };
   }).filter(x => Math.max(x.a, x.b) >= 3 && x.d !== 0);
-  const tbl = (list, empty) => list.length ? `<table class="t"><thead><tr><th>เมนู</th><th class="r">ช่วงนี้</th><th class="r">ช่วงก่อน</th><th class="r">เปลี่ยน</th></tr></thead><tbody>
-    ${list.map(x => `<tr><td>${esc(x.n)}</td><td class="r">${x.a}</td><td class="r muted">${x.b}</td>
-      <td class="r"><em class="delta2 ${x.d > 0 ? 'up' : 'down'}">${x.d > 0 ? '▲' : '▼'} ${Math.abs(x.d)}</em>${x.b ? ` <span class="muted">(${x.d > 0 ? '+' : ''}${Math.round(x.d / x.b * 100)}%)</span>` : ''}</td></tr>`).join('')}</tbody></table>`
-    : `<p class="muted">${empty}</p>`;
+  const mvList = (list, empty, dir) => { if (!list.length) return `<p class="muted">${empty}</p>`;
+    const mx = Math.max(...list.map(x => Math.max(x.a, x.b)), 1);
+    return list.map(x => `<div class="mvr"><b title="${esc(x.n)}">${esc(x.n)}</b><span class="d ${dir}">${x.d > 0 ? '▲' : '▼'} ${Math.abs(x.d)} จาน${x.b ? ` <small>(${x.d > 0 ? '+' : ''}${Math.round(x.d / x.b * 100)}%)</small>` : ''}</span>
+      <div class="bars"><span>ก่อน ${x.b}</span><i class="p" style="width:${x.b / mx * 100}%"></i><span>ช่วงนี้ ${x.a}</span><i class="c ${dir}" style="width:${x.a / mx * 100}%"></i></div></div>`).join(''); };
   $('#upNote').textContent = $('#downNote').textContent = hasPrev ? 'เทียบ ' + pvName : '';
-  $('#upList').innerHTML = hasPrev ? tbl(rows.filter(x => x.d > 0).sort((a, b) => b.d - a.d).slice(0, 8), 'ไม่มีเมนูที่ขายเพิ่มขึ้นชัดเจน') : '<p class="muted">ยังไม่มียอดช่วงก่อนหน้าให้เทียบ</p>';
-  $('#downList').innerHTML = hasPrev ? tbl(rows.filter(x => x.d < 0).sort((a, b) => a.d - b.d).slice(0, 8), 'ไม่มีเมนูที่ขายลดลงชัดเจน') : '<p class="muted">ยังไม่มียอดช่วงก่อนหน้าให้เทียบ</p>';
+  $('#upList').innerHTML = hasPrev ? mvList(rows.filter(x => x.d > 0).sort((a, b) => b.d - a.d).slice(0, 8), 'ไม่มีเมนูที่ขายเพิ่มขึ้นชัดเจน', 'up') : '<p class="muted">ยังไม่มียอดช่วงก่อนหน้าให้เทียบ</p>';
+  $('#downList').innerHTML = hasPrev ? mvList(rows.filter(x => x.d < 0).sort((a, b) => a.d - b.d).slice(0, 8), 'ไม่มีเมนูที่ขายลดลงชัดเจน', 'down') : '<p class="muted">ยังไม่มียอดช่วงก่อนหน้าให้เทียบ</p>';
 
   // ตัวเลือกที่บวกราคา
   const ad = Object.entries(s.addons || {}).map(([n, x]) => ({ n, ...x })).sort((a, b) => b.qty - a.qty);
@@ -1609,17 +2005,33 @@ const aiNoKey = what => `<div class="aicard"><div class="aih"><span class="aib">
   <p class="story" style="margin:0">ใส่ API key ของ Gemini (ฟรี) ที่ <a href="admin.html#ai">หลังร้าน › 🤖 AI</a> แล้วกลับมาที่หน้านี้</p></div>`;
 const aiWait = t => `<div class="aiwait"><i></i><i></i><i></i><span>${t}</span></div>`;
 const hm2 = ts => new Date(ts).toTimeString().slice(0, 5);
-// ข้อความจาก AI → HTML (หนีอักขระก่อน แล้วค่อยทำ **ตัวหนา** และรายการ "- ")
+// ข้อความจาก AI → HTML (หนีอักขระก่อน แล้วค่อยแปลง): ## หัวข้อ · **ตัวหนา** · *เอียง* · `โค้ด` · [ลิงก์](https://…) · รายการ - / 1. · ตาราง | a | b |
+function aiInline(l) {
+  return l.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[\s(])\*([^*\s][^*]*?)\*(?=[\s).,!?:;]|$)/g, '$1<i>$2</i>').replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+}
 function aiMd(t) {
-  const lines = esc(t || '').split('\n'), out = []; let ul = false;
-  for (const raw of lines) {
-    const l = raw.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-    const m = /^\s*(?:[-•*]|\d+\.)\s+(.*)$/.exec(l);
-    if (m) { if (!ul) { out.push('<ul>'); ul = true; } out.push(`<li>${m[1]}</li>`); continue; }
-    if (ul) { out.push('</ul>'); ul = false; }
-    if (l.trim()) out.push(`<p>${l}</p>`);
+  const lines = esc(t || '').split('\n'), out = []; let list = '';
+  const close = () => { if (list) { out.push(`</${list}>`); list = ''; } };
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (/^\s*\|.*\|\s*$/.test(raw)) {   // ตาราง: เก็บแถวที่ติดกัน · ข้ามแถว |---|
+      close(); const rows = [];
+      for (; i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i]); i++) if (!/^\s*\|[\s:|-]+\|\s*$/.test(lines[i])) rows.push(lines[i].trim().slice(1, -1).split('|').map(c => c.trim()));
+      i--;
+      if (rows.length) { const isN = c => /^[-+]?[\d,.]+\s*(฿|บาท|%|จาน)?$/.test(c.replace(/<[^>]+>/g, ''));
+        out.push(`<div class="mdt"><table><thead><tr>${rows[0].map(c => `<th>${aiInline(c)}</th>`).join('')}</tr></thead><tbody>${rows.slice(1).map(r => `<tr>${r.map(c => `<td${isN(c) ? ' class="n"' : ''}>${aiInline(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`); }
+      continue;
+    }
+    const h = /^\s*#{1,4}\s+(.*)$/.exec(raw);
+    if (h) { close(); out.push(`<h4>${aiInline(h[1])}</h4>`); continue; }
+    const ol = /^\s*\d+[.)]\s+(.*)$/.exec(raw), ul = /^\s*[-•*]\s+(.*)$/.exec(raw);
+    if (ol || ul) { const k = ol ? 'ol' : 'ul'; if (list !== k) { close(); out.push(`<${k}>`); list = k; } out.push(`<li>${aiInline((ol || ul)[1])}</li>`); continue; }
+    close();
+    if (raw.trim()) out.push(`<p>${aiInline(raw)}</p>`);
   }
-  if (ul) out.push('</ul>');
+  close();
   return out.join('');
 }
 function aiChart(c) {
@@ -1631,44 +2043,135 @@ function aiChart(c) {
     `<div class="hb"><span title="${esc(l)}">${esc(l)}</span><i style="width:${Math.max(1, Math.abs(c.values[i]) / max * 100)}%"></i><b>${baht(c.values[i])}</b></div>`).join('')}</div>`;
 }
 
-// ---------- ถาม AI ----------
-const ASK_SUGGEST = ['สัปดาห์นี้เทียบสัปดาห์ที่แล้วเป็นยังไง', 'เดือนนี้เมนูไหนขายดีขึ้น เมนูไหนแย่ลง', 'ช่วงเวลาไหนขายดีที่สุด ควรจัดคนยังไง',
-  'ทำไมเมื่อวานยอดน้อยกว่าปกติ', 'ลูกค้าคนไทยกับต่างชาติสั่งต่างกันยังไง', 'เมนูไหนต้นทุนสูงเกินไป ควรขึ้นราคาไหม'];
-let askLog = [];   // [{q, a, chart, followups, tools, err, at}] จำในเครื่องนี้
+// ---------- ถาม AI (test-1.79: ถามได้ทุกเรื่อง · ค้นเว็บได้ · จำเรื่องร้าน) ----------
+const ASK_SUGGEST = ['สัปดาห์นี้เทียบสัปดาห์ที่แล้วเป็นยังไง', 'เมนูไหนควรขึ้นราคา เมนูไหนควรโปรโมต', 'ช่วงเวลาไหนขายดีที่สุด ควรจัดคนยังไง',
+  'เขียนโพสต์ Facebook โปรโมตเมนูขายดี 3 ภาษา ไทย อังกฤษ จีน', 'ค้นเว็บ: ร้านอาหารไทยย่านท่องเที่ยวกรุงเทพขายผัดไทยจานละเท่าไร', 'คิดโปรโมชันช่วงบ่ายที่ร้านเงียบ',
+  'เมนูไทยไหนกำลังไวรัลในชาวต่างชาติ ร้านเราควรทำอะไร', 'จำไว้ว่า ร้านปิดทุกวันพุธ'];
+let askLog = [];   // [{q, a, chart, followups, tools, sources, err, at}] จำในเครื่องนี้
 try { askLog = JSON.parse(localStorage.getItem('edposAsk') || '[]'); } catch {}
-let asking = false;
-const TOOL_TH = { get_sales: 'ยอดขาย', get_today_live: 'ยอดวันนี้', get_forecast: 'พยากรณ์', get_month: 'ยอดเดือน', get_ingredient_usage: 'วัตถุดิบ', get_dish_cost: 'ต้นทุน', get_menu: 'เมนู', get_weather: 'อากาศ' };
+let asking = false, aiNotes = null, askSteps = [];
+const TOOL_TH = { get_sales: 'ยอดขาย', get_today_live: 'ยอดวันนี้', get_forecast: 'พยากรณ์', get_month: 'ยอดเดือน', get_ingredient_usage: 'วัตถุดิบ', get_dish_cost: 'ต้นทุน',
+  get_menu: 'เมนู', get_weather: 'อากาศ', query_sales: 'ค้นยอดละเอียด', get_bills: 'ดูบิล', get_menu_engineering: 'วิเคราะห์เมนู', get_viral_trends: 'เทรนด์ไวรัล',
+  web_search: 'ค้นเว็บ', remember: 'จดจำ', forget: 'ลบความจำ' };
+async function loadNotes() { if (!aiOn()) return; try { aiNotes = (await api('/api/ai/notes')).notes || []; } catch { aiNotes = aiNotes || []; } renderMem(); }
+function renderMem() {
+  const box = $('#askMem'); if (!box) return;
+  if (!aiOn() || aiNotes == null) { box.innerHTML = ''; return; }
+  const open = box.querySelector('details')?.open;
+  box.innerHTML = `<details class="aimem"${open ? ' open' : ''}><summary>🧠 AI จำเรื่องร้านไว้ ${aiNotes.length} เรื่อง <span>${aiNotes.length ? 'แตะเพื่อดู/แก้' : 'บอก “จำไว้ว่า…” ในแชตได้เลย'}</span></summary>
+    <p class="hint">AI ใช้เรื่องเหล่านี้ประกอบทุกคำตอบ เช่น วันปิดร้าน ค่าใช้จ่ายที่เปลี่ยน ราคาวัตถุดิบ · ห้ามใส่รหัสหรือเลขบัญชี</p>
+    ${aiNotes.length ? `<ul>${aiNotes.map(n => `<li><span>${esc(n.t)}</span><button data-noterm="${esc(n.t)}" aria-label="ลบ ${esc(n.t)}">ลบ</button></li>`).join('')}</ul>` : ''}
+    <form id="noteForm"><input id="noteIn" maxlength="200" placeholder="เพิ่มเรื่องให้จำ เช่น ร้านปิดทุกวันพุธ" aria-label="เพิ่มเรื่องให้ AI จำ"><button class="btn sm" type="submit">จำไว้</button></form></details>`;
+}
 function renderAsk() {
   if (!S.settings) return;
-  $('#askEmpty').innerHTML = !aiOn() ? aiNoKey('ถามเรื่องยอดขายเป็นภาษาพูด แล้ว AI จะไปดูตัวเลขของร้านมาตอบ')
-    : askLog.length ? '' : `<div class="aicard"><div class="aih"><span class="aib">✨ ถาม AI</span></div><h2 style="font-size:19px">ถามเรื่องยอดขายได้เลย AI จะไปดูตัวเลขจริงของร้านมาตอบ</h2>
-      <p class="story">ถามได้ทั้งย้อนหลัง เทียบช่วงเวลา หาสาเหตุ หรือขอคำแนะนำ เช่น</p><div class="chips2">${ASK_SUGGEST.map(q => `<button data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`;
+  $('#askEmpty').innerHTML = !aiOn() ? aiNoKey('ถามได้ทุกเรื่อง แล้ว AI จะไปดูตัวเลขของร้าน ค้นเว็บ หรือคิดให้เอง')
+    : askLog.length ? '' : `<div class="aicard"><div class="aih"><span class="aib">✨ ถาม AI</span></div><h2 style="font-size:19px">ถามได้ทุกเรื่อง AI ดูตัวเลขจริงของร้าน ค้นเว็บ และคิดให้เองได้</h2>
+      <p class="story">ถามยอดขาย หาสาเหตุ วางแผน ขอไอเดียโปรโมชัน ให้เขียนโพสต์/แปลเมนู ถามข้อมูลข้างนอก หรือบอกเรื่องร้านให้ AI จำไว้ เช่น</p><div class="chips2">${ASK_SUGGEST.map(q => `<button data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`;
   $('#askQ').disabled = $('#askGo').disabled = !aiOn() || asking;
-  $('#chat').innerHTML = askLog.map((m, i) => `<div class="msg-u">${esc(m.q)}</div>` + (m.a == null && !m.err ? `<div class="msg-a">${aiWait('กำลังดูข้อมูลร้าน…')}</div>`
+  renderMem();
+  const steps = () => askSteps.length ? `<span class="steps"> · ${[...new Set(askSteps)].map(t => TOOL_TH[t] || t).join(' → ')}</span>` : '';
+  $('#chat').innerHTML = askLog.map((m, i) => `<div class="msg-u">${esc(m.q)}</div>` + (m.a == null && !m.err ? `<div class="msg-a">${aiWait('AI กำลังคิด' + (askSteps.length ? '' : '…'))}<div class="aiwait" style="padding:0">${steps()}</div></div>`
     : m.err ? `<div class="msg-a err">${esc(m.err)} <button class="linkbtn" data-retry="${i}">ลองอีกครั้ง</button></div>`
-    : `<div class="msg-a">${aiMd(m.a)}${aiChart(m.chart)}${m.tools?.length ? `<div class="used">ดูข้อมูล: ${[...new Set(m.tools)].map(t => TOOL_TH[t] || t).join(' · ')} · ${hm2(m.at)}</div>` : ''}
+    : `<div class="msg-a">${aiMd(m.a)}${aiChart(m.chart)}
+      ${m.sources?.length ? `<div class="src">🔎 แหล่งข้อมูล: ${m.sources.map(x => `<a href="${esc(x.uri)}" target="_blank" rel="noopener">${esc(x.title || 'ลิงก์')}</a>`).join('')}</div>` : ''}
+      ${m.tools?.length ? `<div class="used">ดูข้อมูล: ${[...new Set(m.tools)].map(t => TOOL_TH[t] || t).join(' · ')} · ${hm2(m.at)}</div>` : `<div class="used">${hm2(m.at)}</div>`}
+      <div class="acts"><button class="linkbtn" data-copy="${i}">คัดลอก</button></div>
       ${i === askLog.length - 1 && m.followups?.length ? `<div class="chips2" style="margin-top:10px">${m.followups.map(q => `<button data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>` : ''}</div>`)).join('')
     + (askLog.length && !asking ? `<div style="text-align:right"><button class="linkbtn" id="askClear">ล้างบทสนทนา</button></div>` : '');
 }
 async function ask(q) {
   q = String(q || '').trim(); if (!q || asking || !aiOn()) return;
-  asking = true; $('#askQ').value = '';
-  const history = askLog.filter(m => m.a).slice(-5).map(m => ({ q: m.q, a: m.a }));
+  asking = true; askSteps = []; $('#askQ').value = ''; $('#askQ').style.height = 'auto';
+  const history = askLog.filter(m => m.a).slice(-8).map(m => ({ q: m.q, a: m.a }));
   const m = { q, a: null, at: Date.now() }; askLog.push(m); renderAsk();
   scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-  try { const r = await api('/api/ai/ask', { q, history }); Object.assign(m, { a: r.answer, chart: r.chart, followups: r.followups, tools: r.tools, at: Date.now() }); }
+  const rid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  // ระหว่างรอ: ดูว่า AI กำลังทำอะไร (ดูยอด → ค้นเว็บ → …)
+  const poll = setInterval(async () => { try { const p = await api('/api/ai/progress?rid=' + rid); if (p.steps && p.steps.length !== askSteps.length) { askSteps = p.steps; if (tab === 'ask') renderAsk(); } } catch {} }, 1500);
+  try { const r = await api('/api/ai/ask', { q, history, rid }); Object.assign(m, { a: r.answer, chart: r.chart, followups: r.followups, tools: r.tools, sources: r.sources, at: Date.now() }); if (r.notes) aiNotes = r.notes; }
   catch (e) { m.err = e.message; }
-  asking = false; askLog = askLog.slice(-30);
+  clearInterval(poll); asking = false; askSteps = []; askLog = askLog.slice(-30);
   try { localStorage.setItem('edposAsk', JSON.stringify(askLog.filter(x => x.a))); } catch {}
   renderAsk();
+}
+function copyText(t) {
+  const done = () => toast('คัดลอกแล้ว');
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t).then(done, () => fallback());
+  fallback();
+  function fallback() { const ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch { toast('คัดลอกไม่ได้', true); } ta.remove(); }
 }
 $('#askGo').onclick = () => ask($('#askQ').value);
 $('#askQ').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask($('#askQ').value); } });
 $('#askQ').addEventListener('input', e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(160, e.target.scrollHeight) + 'px'; });
-$('[data-p="ask"]').addEventListener('click', e => {
+$('[data-p="ask"]').addEventListener('click', async e => {
   const b = e.target.closest('[data-q]'); if (b) return ask(b.dataset.q);
   const r = e.target.closest('[data-retry]'); if (r) { const m = askLog.splice(+r.dataset.retry, 1)[0]; return ask(m.q); }
+  const c = e.target.closest('[data-copy]'); if (c) { const m = askLog[+c.dataset.copy]; if (m?.a) copyText(m.a.replace(/\*\*(.+?)\*\*/g, '$1')); return; }
+  const d = e.target.closest('[data-noterm]'); if (d) { try { aiNotes = (await api('/api/ai/notes', { remove: d.dataset.noterm })).notes; } catch (err) { toast(err.message, true); } renderMem(); return; }
   if (e.target.closest('#askClear')) { askLog = []; try { localStorage.removeItem('edposAsk'); } catch {} renderAsk(); }
+});
+$('[data-p="ask"]').addEventListener('submit', async e => {
+  if (e.target.id !== 'noteForm') return; e.preventDefault();
+  const v = $('#noteIn').value.trim(); if (!v) return;
+  try { aiNotes = (await api('/api/ai/notes', { add: v })).notes; toast('จำไว้แล้ว'); } catch (err) { toast(err.message, true); }
+  renderMem(); const dd = $('#askMem details'); if (dd) dd.open = true;
+});
+
+// ---------- 🔥 เมนูไทยที่กำลังไวรัลในชาวต่างชาติ ----------
+let trends = null, trBusy = false, trErr = '', trKind = '';
+const TR_KIND = { food: 'อาหาร', dessert: 'ขนม', drink: 'เครื่องดื่ม' };
+async function loadTrendsCached() { if (!S.settings || !aiOn()) return renderTrendStrip(); if (!trends) { try { trends = (await api('/api/ai/trends')).trends; } catch {} } renderTrendStrip(); }
+async function loadTrends(force) {
+  if (!S.settings) return;
+  if (!aiOn()) return renderTrends();
+  if (!force && !trends) { try { trends = (await api('/api/ai/trends')).trends; } catch {} }
+  if (trBusy || (!force && trends && !trends.stale)) return renderTrends();
+  trBusy = true; trErr = ''; renderTrends();
+  try { trends = await api('/api/ai/trends', { force: !!force }); } catch (e) { trErr = e.message; }
+  trBusy = false; renderTrends(); renderTrendStrip();
+}
+function soldQty(name) { const it = report?.summary.items_list.find(x => x.name === name); return it ? it.qty : 0; }
+function renderTrends() {
+  const top = $('#trTop'), list = $('#trList');
+  if (!S.settings) return;
+  if (!aiOn()) { top.innerHTML = aiNoKey('ให้ AI ค้น TikTok Instagram รีวิว และข่าว ว่าเมนูไทย ขนมไทย เครื่องดื่มไทยอะไรกำลังไวรัลในชาวต่างชาติ'); list.innerHTML = ''; $('#trBar').hidden = $('#trNewsBox').hidden = true; $('#trSrc').innerHTML = ''; return; }
+  const t = trends;
+  if (trBusy && !t) { top.innerHTML = `<div class="aicard"><div class="aih"><span class="aib">🔥 กำลังค้นเทรนด์</span></div>${aiWait('AI กำลังค้น TikTok Instagram YouTube รีวิว และข่าวอาหาร…')}<div class="aiskel" style="width:80%"></div><div class="aiskel" style="width:60%"></div></div>`; list.innerHTML = ''; return; }
+  if (!t) { top.innerHTML = `<div class="aicard"><div class="aih"><span class="aib">🔥 กำลังฮิต</span></div><h2 style="font-size:19px">${trErr ? esc(trErr) : 'ยังไม่ได้ค้นเทรนด์วันนี้'}</h2><p class="story">AI จะค้นว่าเมนูไทย ขนมไทย และเครื่องดื่มไทยอะไรกำลังไวรัลในชาวต่างชาติ แล้วเทียบกับเมนูของร้าน (ค้นวันละครั้ง)</p><button class="btn primary" data-trgo="1">ค้นเทรนด์ตอนนี้</button></div>`; list.innerHTML = ''; $('#trBar').hidden = $('#trNewsBox').hidden = true; $('#trSrc').innerHTML = ''; return; }
+  const when = new Date(t.at).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  top.innerHTML = `<div class="aicard"><div class="aih"><span class="aib">🔥 กำลังไวรัลในชาวต่างชาติ</span><span class="muted" style="font-size:13px">${t.searched ? '🔎 ค้นเว็บแล้ว' : 'ใช้ความรู้ของ AI (ไม่ได้ค้นเว็บ อาจไม่ใหม่)'} · ${when}</span></div>
+    <h2 style="font-size:19px">${esc(t.overview || `${t.items.length} เมนูที่กำลังมาแรง`)}</h2>
+    ${trErr ? `<p class="story" style="color:var(--brick)">${esc(trErr)} · แสดงผลล่าสุดที่มี</p>` : ''}
+    <div class="aifoot"><span>${t.stale ? 'ผลนี้เป็นของวันก่อน · ' : ''}AI ค้นวันละครั้ง ${t.model ? '· ' + esc(t.model) : ''}</span><button class="linkbtn" data-trgo="1"${trBusy ? ' disabled' : ''}>${trBusy ? 'กำลังค้น…' : 'อัปเดตตอนนี้'}</button></div></div>`;
+  const items = t.items.filter(x => !trKind || x.kind === trKind);
+  $('#trBar').hidden = false; $('#trCount').textContent = `${items.length} รายการ · ร้านมีแล้ว ${t.items.filter(x => x.fit === 'have').length}`;
+  $$('#trKind button').forEach(b => b.setAttribute('aria-pressed', b.dataset.k === trKind));
+  list.innerHTML = items.map(x => { const q = x.match ? soldQty(x.match) : 0;
+    const fit = x.fit === 'have' ? `✅ <b>ร้านมีแล้ว:</b> ${esc(x.match || x.name)}${q ? ` · ขายไป ${num0(q)} จานในช่วงที่เลือก` : ''}`
+      : x.fit === 'similar' ? `≈ <b>ร้านมีที่ใกล้เคียง:</b> ${esc(x.match)}${q ? ` · ขายไป ${num0(q)} จาน` : ''}` : '✨ <b>ร้านยังไม่มี</b> · โอกาสเพิ่มเมนูใหม่';
+    return `<article class="trc"><div class="trh"><span class="trk ${x.kind}">${TR_KIND[x.kind] || ''}</span><span class="trheat" role="img" aria-label="ความฮิต ${x.heat} จาก 5">${'🔥'.repeat(x.heat)}<i>${'🔥'.repeat(5 - x.heat)}</i></span></div>
+      <h3>${esc(x.name)}</h3>${x.en ? `<div class="en">${esc(x.en)}</div>` : ''}
+      ${x.why ? `<p>${esc(x.why)}</p>` : ''}${x.where ? `<p class="where">📍 ${esc(x.where)}</p>` : ''}
+      <div class="fit ${x.fit}">${fit}</div>${x.idea ? `<p class="idea">💡 ${esc(x.idea)}</p>` : ''}
+      <button class="linkbtn" data-trask="${esc(x.name)}">🤖 ถาม AI ว่าร้านควรทำยังไง</button></article>`; }).join('') || '<p class="mempty">ไม่มีรายการในประเภทนี้</p>';
+  $('#trNewsBox').hidden = !t.news?.length;
+  $('#trNews').innerHTML = `<div class="trnews">${(t.news || []).map(n => `<div><b>${esc(n.title)}</b><span>${esc(n.detail)}${n.date ? ` · ${thDate(n.date)}` : ''}</span></div>`).join('')}</div>`;
+  $('#trSrc').innerHTML = t.sources?.length ? `<span class="trsrc">แหล่งข้อมูล: ${t.sources.map(x => `<a href="${esc(x.uri)}" target="_blank" rel="noopener">${esc(x.title || 'ลิงก์')}</a>`).join(' · ')}</span>` : '';
+}
+function renderTrendStrip() {
+  const box = $('#mxTrend'); if (!box) return;
+  if (!S.settings || !aiOn()) { box.innerHTML = ''; return; }
+  const t = trends;
+  box.innerHTML = t?.items?.length
+    ? `<div class="trstrip"><b>🔥 กำลังไวรัล</b><div class="chips">${t.items.slice(0, 8).map(x => `<button data-goto="trends" title="${esc(x.why)}">${esc(x.name)}${x.fit === 'have' ? '<small>✓ มีแล้ว</small>' : ''}</button>`).join('')}</div><button class="go" data-goto="trends">ทั้งหมด ›</button></div>`
+    : `<div class="trstrip"><b>🔥 กำลังไวรัล</b><span class="muted" style="flex:1;font-size:14px">ดูว่าเมนูไทย ขนมไทย ไหนกำลังฮิตในชาวต่างชาติ</span><button class="go" data-goto="trends">เปิดดู ›</button></div>`;
+}
+$('[data-p="trends"]').addEventListener('click', e => {
+  if (e.target.closest('[data-trgo]')) return loadTrends(true);
+  const k = e.target.closest('#trKind [data-k]'); if (k) { trKind = k.dataset.k; renderTrends(); return; }
+  const a = e.target.closest('[data-trask]'); if (a) { showTab('ask'); scrollTo(0, 0); ask(`เมนู “${a.dataset.trask}” กำลังไวรัลในชาวต่างชาติ ร้านเราควรทำอะไรกับเทรนด์นี้ (เพิ่มเมนู ปรับเมนูที่มี ตั้งราคา ชื่อภาษาอังกฤษ คอนเทนต์โซเชียล) ดูยอดขายเมนูที่ใกล้เคียงของร้านประกอบด้วย`); }
 });
 
 // ---------- AI สรุปร้าน (ช่วงวันที่ด้านบน) ----------
@@ -1739,7 +2242,9 @@ live(() => {
   $('#shopTitle').innerHTML = `${esc(S.settings.shopName || 'ยอดขาย')}<small>ยอดขาย</small>`;
   if (!report || report.to === bizDay()) { clearTimeout(reportTimer); reportTimer = setTimeout(loadReport, report ? 1500 : 0); }
   // ข้อมูลร้านมาแล้ว (รู้ว่าตั้งคีย์ AI ไหม) → แสดงส่วน AI ของแท็บที่เปิดอยู่
-  if (tab === 'ask' && !asking) renderAsk();
+  if (tab === 'ask' && !asking) { renderAsk(); if (aiNotes == null) loadNotes(); }
+  if (tab === 'trends' && !trBusy) loadTrends();
+  if (tab === 'menu') loadTrendsCached();
   if (tab === 'forecast' && fc) loadAiFc();
   if (tab === 'shop') loadAiShop();
 });

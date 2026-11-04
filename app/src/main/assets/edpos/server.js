@@ -1832,6 +1832,74 @@ function dishCosts() {
   return dishes.sort((a, b) => b.pct - a.pct);
 }
 
+// ================= วิเคราะห์เมนูแบบมือโปร (menu engineering · test-1.79) =================
+// แต่ละเมนู: ความนิยม (ส่วนแบ่งจำนวนจาน เทียบเกณฑ์ 70% ของส่วนแบ่งเฉลี่ย) × กำไรต่อจาน (ราคาขายเฉลี่ย − ต้นทุน เทียบค่าเฉลี่ยถ่วงจำนวนจาน)
+//   star = ขายดี กำไรดี · plow = ขายดี กำไรน้อย · puzzle = กำไรดี ขายน้อย · dog = ขายน้อย กำไรน้อย
+// ต้นทุน: จากสูตรวัตถุดิบ (ต้องมีสูตรแบบเมนู และวัตถุดิบที่ใช้มีราคาครบ · รวมตัวเลือก เช่น กุ้ง) · ไม่ครบ = ประมาณจาก % ต้นทุนอาหาร (หน้าคุ้มทุน)
+const ME_DRINK = /น้ำ|ชา|กาแฟ|เบียร์|เหล้า|ไวน์|ปั่น|โซดา|อัดลม|ค็อกเทล|drink|beer|coffee|tea|juice/i, ME_DESS = /หวาน|ขนม|ไอศกรีม|ไอติม|เบเกอรี่|dessert|sweet/i;
+const meGroup = cat => ME_DRINK.test(cat) ? 'drink' : ME_DESS.test(cat) ? 'dessert' : 'food';
+function recipeCost(it, m) {
+  if (!m) return null;
+  let tot = 0, menuRule = false;
+  for (const [w, n] of itemSplits(it)) for (const g of data.ingredients || []) {
+    const qm = menuQty(g, m.id, w), q = qm + optQty(g, w);
+    if (qm) menuRule = true;
+    if (!q) continue;
+    if (!(g.cost > 0)) return null;   // วัตถุดิบในสูตรยังไม่มีราคา → ต้นทุนไม่ครบ
+    tot += q * g.cost * n;
+  }
+  return menuRule && it.qty ? tot / it.qty : null;
+}
+function menuEng(from, to, scope) {
+  const r = buildReport(from, to), s = r.summary, pv = r.prev?.items || {};
+  const fin = finCfg(), setPct = +data.settings.finance?.foodPct > 0, pct = Math.min(95, Math.max(1, +fin.foodPct || 35)) / 100;
+  const byName = new Map(data.menu.map(m => [m.name, m]));
+  const days = r.days.filter(d => d.bills).length || 1, perMonth = 30 / days;
+  const all = s.items_list.filter(x => x.qty > 0).map(it => {
+    const m = byName.get(it.name), cat = it.category || m?.category || 'อื่นๆ', price = it.amount / it.qty;
+    const rc = recipeCost(it, m), cost = rc != null ? rc : price * pct;
+    return { name: it.name, cat, group: meGroup(cat), qty: it.qty, amount: it.amount, price: r2(price), cost: r2(cost), costSrc: rc != null ? 'recipe' : setPct ? 'pct' : 'default',
+      cm: r2(price - cost), foodPct: price ? Math.round(cost / price * 100) : null, prevQty: pv[it.name]?.qty ?? 0 };
+  });
+  const count = f => all.filter(f).length;
+  const scopes = { all: all.length, food: count(x => x.group === 'food'), drink: count(x => x.group === 'drink'), dessert: count(x => x.group === 'dessert') };
+  const cats = [...new Set(all.map(x => x.cat))].map(c => ({ cat: c, n: count(x => x.cat === c) }));
+  scope = String(scope || '');
+  if (!scope) scope = scopes.food >= 4 ? 'food' : 'all';
+  // จัดกลุ่มในชุดเดียวกัน (เกณฑ์คิดจากเมนูในชุดนั้น) · scope "groups" = แยกคิดอาหาร/เครื่องดื่ม/ของหวาน แล้วรวมทุกเมนู (ป้ายในรายการเมนู)
+  const classify = list => {
+    const N = list.length, Q = list.reduce((a, x) => a + x.qty, 0);
+    const popMin = N ? 0.7 / N : 0, cmAvg = Q ? list.reduce((a, x) => a + x.cm * x.qty, 0) / Q : 0;
+    for (const x of list) {
+      x.share = Q ? r2(x.qty / Q * 100) : 0;
+      const hiPop = Q && x.qty / Q >= popMin, hiCm = x.cm >= cmAvg;
+      x.cls = hiPop ? (hiCm ? 'star' : 'plow') : (hiCm ? 'puzzle' : 'dog');
+      x.gp = r2(x.cm * x.qty);                                   // กำไรขั้นต้นรวมของเมนูนี้ในช่วงนี้
+      x.raiseBy = x.price < 60 ? 5 : 10;                         // ขึ้นราคา 5 ฿ (ของถูก เช่น ข้าวสวย) / 10 ฿
+      x.raiseGain = Math.round(x.raiseBy * x.qty * perMonth);    // ขึ้นราคาแล้วขายได้เท่าเดิม → กำไรเพิ่มต่อเดือน
+      x.more20 = Math.round(0.2 * x.qty * x.cm * perMonth);      // ขายเพิ่ม 20% → กำไรเพิ่มต่อเดือน
+    }
+    return { N, Q, popMin, cmAvg };
+  };
+  let sel, st;
+  if (scope === 'groups') {
+    sel = all; const g = {};
+    for (const k of ['food', 'drink', 'dessert']) { const x = classify(all.filter(i => i.group === k)); g[k] = { n: x.N, qty: x.Q, popMinPct: r2(x.popMin * 100), cmAvg: r2(x.cmAvg) }; }
+    st = { N: all.length, Q: all.reduce((a, x) => a + x.qty, 0), popMin: 0, cmAvg: 0, groups: g };
+  } else {
+    sel = scope === 'all' ? all : scope.startsWith('cat:') ? all.filter(x => x.cat === scope.slice(4)) : all.filter(x => x.group === scope);
+    st = classify(sel);
+  }
+  const N = st.N, Q = st.Q, popMin = st.popMin, cmAvg = st.cmAvg;
+  const gp = sel.reduce((a, x) => a + x.gp, 0), sales = sel.reduce((a, x) => a + x.amount, 0);
+  const inScope = m => scope === 'all' || scope === 'groups' || (scope.startsWith('cat:') ? m.category === scope.slice(4) : meGroup(m.category) === scope);
+  return { from, to, days, scope, scopes, cats, n: N, qty: Q, popMinPct: r2(popMin * 100), cmAvg: r2(cmAvg), perMonth: r2(perMonth), ...(st.groups ? { groups: st.groups } : {}),
+    foodPct: Math.round(pct * 100), foodPctSet: setPct, sales: r2(sales), gp: r2(gp), gpPct: sales ? Math.round(gp / sales * 100) : null,
+    coverage: { recipe: sel.filter(x => x.costSrc === 'recipe').length, est: sel.filter(x => x.costSrc !== 'recipe').length },
+    unsold: data.menu.filter(m => m.available !== false && inScope(m) && !all.some(x => x.name === m.name)).length,
+    items: sel.sort((a, b) => b.gp - a.gp) };
+}
+
 // "2,400 กรัม" → "2.4 กก." · "1,500 มล." → "1.5 ลิตร"
 // นับเป็นชิ้น (ตัว ขวด ฟอง …) → จำนวนเต็ม · เผื่อ (up) ปัดขึ้น
 function amtTxt(q, unit, up) {
@@ -2452,6 +2520,8 @@ const AI = require('./ai-engine.js')({
   data: () => data, dayKey: k => dayKey(k), addDays: (k, n) => addDays(k, n), buildReport: (f, t) => buildReport(f, t), paceToday: () => paceToday(),
   forecastWeek: () => { const today = dayKey(Date.now()); return { ...forecastRange(addDays(today, 1), 7, today), accuracy: fcAccuracy(today) }; },
   breakEven: () => breakEven(), usageReport: (f, t) => usageReport(f, t), dishCosts: () => dishCosts(), weatherInfo: () => weatherInfo(),
+  menuEng: (f, t, sc) => menuEng(f, t, sc), dayOf: k => dayOf(k), save: () => { if (role.role === 'main') save(); },
+  detailFrom: () => dayKey(bizStart(addDays(dayKey(Date.now()), -KEEP_DAYS))),   // บิลรายใบเก็บตั้งแต่วันนี้ (ก่อนหน้านั้นเป็นสรุปรายวัน)
 });
 
 // ---------- API ----------
@@ -2779,6 +2849,13 @@ const routes = {
   'POST /api/ingredients': b => { data.ingredients = cleanIngredients(b.list); return { ok: true, list: data.ingredients }; },
   // ต้นทุนวัตถุดิบต่อจาน
   'GET /api/dishcost': () => ({ dishes: dishCosts() }),
+  // วิเคราะห์เมนูแบบมือโปร: /api/menu-eng?from=&to=&scope=food|drink|dessert|all|cat:ชื่อหมวด
+  'GET /api/menu-eng': (b, q) => {
+    const ok = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+    const to = ok(q.get('to')) ? q.get('to') : dayKey(Date.now()), from = ok(q.get('from')) ? q.get('from') : to;
+    if (from > to) throw new Error('วันเริ่มต้องไม่เกินวันสุดท้าย');
+    return menuEng(from, to, q.get('scope') || '');
+  },
   // ---------- AI (Gemini) ----------
   'GET /api/ai': () => AI.status(),
   // {key ('-' = ลบ, ว่าง = คงเดิม), model, line}
@@ -2799,7 +2876,14 @@ const routes = {
     return AI.status();
   },
   'POST /api/ai/test': () => AI.test(),
-  'POST /api/ai/ask': b => AI.ask(b.q, b.history),
+  'POST /api/ai/ask': b => AI.ask(b.q, b.history, b.rid),
+  'GET /api/ai/progress': (b, q) => AI.progress(q.get('rid')),
+  // ความจำของ AI: {add: 'ข้อความ'} | {remove: 'คำ'} · ตอบรายการทั้งหมด
+  'GET /api/ai/notes': () => ({ notes: AI.notes() }),
+  'POST /api/ai/notes': b => { if (b.add) AI.noteAdd(b.add); if (b.remove) AI.noteDel(b.remove); return { notes: AI.notes() }; },
+  // 🔥 เมนูไทยที่กำลังไวรัล: GET = ผลที่มีอยู่ (ไม่เรียก AI) · POST = หา (วันละครั้ง · force = หาใหม่)
+  'GET /api/ai/trends': () => ({ trends: AI.trendsCached() }),
+  'POST /api/ai/trends': b => AI.trends(!!b.force),
   'POST /api/ai/summary': b => AI.summary(b.from, b.to, !!b.force),
   'POST /api/ai/forecast': b => AI.forecast(!!b.force),
   'GET /api/usage': (b, q) => {
@@ -3442,7 +3526,7 @@ const server = http.createServer(async (req, res) => {
         const body = Buffer.concat(parts).toString('utf8');
         const result = await handler(body ? JSON.parse(body) : {}, url.searchParams, req);
         // เครื่องสำรองไม่บันทึกเอง (ข้อมูลมาจากเครื่องหลักเท่านั้น) · ขอกุญแจ/ใส่รหัสไม่ได้เปลี่ยนข้อมูล
-        if (req.method === 'POST' && role.role === 'main' && !['/api/print', '/api/login', '/api/sync/key', '/api/ai/ask', '/api/ai/test'].includes(url.pathname)) { prune(); save(); broadcast(); }
+        if (req.method === 'POST' && role.role === 'main' && !['/api/print', '/api/login', '/api/sync/key', '/api/ai/ask', '/api/ai/test', '/api/ai/trends'].includes(url.pathname)) { prune(); save(); broadcast(); }
         res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });   // ห้ามแคช ข้อมูลต้องสดเสมอ
         res.end(JSON.stringify(result || { ok: true }));
       } catch (e) {
