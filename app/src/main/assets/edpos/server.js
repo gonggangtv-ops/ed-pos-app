@@ -1315,6 +1315,17 @@ const TH_MON = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.'
 const PAY_TH = { cash: 'เงินสด', transfer: 'โอน/พร้อมเพย์', card: 'บัตร' };
 const LINE_ID = /^[UCR][0-9a-f]{32}$/;
 const LINE_ALERTS = ['printer', 'standby', 'takeover', 'void'];
+// test-1.73: เลือกส่วนที่ใส่ในสรุป LINE ได้ (เช่น ส่งเฉพาะวัตถุดิบ) · ไม่ระบุ = ค่าเริ่มต้น (ข้อความเหมือนเดิม)
+//  sales ยอดขาย/บิล/เทียบ · pay ช่องทางชำระ · hour ช่วงขายดี · top ขายดี · counts จำนวนที่ขาย · ing วัตถุดิบที่ใช้+ต้นทุน
+//  time เวลาครัว/นั่ง · cancel ยกเลิก · open โต๊ะที่ยังเปิด · forecast พยากรณ์+เตรียมของ · fcing เฉพาะวัตถุดิบที่ต้องเตรียมพรุ่งนี้ · ai บทวิเคราะห์ AI
+const LINE_PARTS = { sales: true, pay: true, hour: true, top: true, counts: true, ing: false, time: true, cancel: true, open: true, forecast: true, fcing: false, ai: true };
+let linePartsOvr = null;   // ตัวอย่างข้อความในหลังร้าน (ยังไม่บันทึก)
+function LP(k) {
+  const L = data.settings.line || {}, p = linePartsOvr || L.parts || {};
+  if (k === 'forecast' && !linePartsOvr && L.forecast === false) return false;
+  return p[k] === undefined ? LINE_PARTS[k] : !!p[k];
+}
+const cleanParts = (src, old) => Object.fromEntries(Object.keys(LINE_PARTS).map(k => [k, src?.[k] === undefined ? (old?.[k] === undefined ? LINE_PARTS[k] : !!old[k]) : !!src[k]]));
 function cleanLine(l, old = {}) {
   const to = String(l.to || '').trim();
   if (to && !LINE_ID.test(to)) throw new Error('User ID / Group ID ไม่ถูกต้อง (ขึ้นต้นด้วย U หรือ C ตามด้วยตัวอักษร 32 ตัว) หรือเว้นว่างไว้');
@@ -1327,7 +1338,8 @@ function cleanLine(l, old = {}) {
     // เพิ่งเปิด → จำว่าส่งช่วงที่จบไปแล้วแล้ว จะได้ไม่ส่งของเก่าทันที (กด "ส่งทดสอบ" ดูได้)
     weekly: !!l.weekly, monthly: !!l.monthly,
     // พยากรณ์พรุ่งนี้ + เตรียมของ (ท้ายสรุปรายวัน) / 7 วันถัดไป (ท้ายสรุปรายสัปดาห์) · ไม่ระบุ = ใช้ค่าเดิม (เริ่มต้นเปิด)
-    forecast: l.forecast === undefined ? old.forecast !== false : !!l.forecast,
+    forecast: l.parts?.forecast !== undefined ? !!l.parts.forecast : l.forecast === undefined ? old.forecast !== false : !!l.forecast,
+    parts: cleanParts({ ...(l.parts || {}), ...(l.forecast !== undefined && l.parts?.forecast === undefined ? { forecast: !!l.forecast } : {}) }, old.parts || (old.forecast === false ? { forecast: false } : null)),
     counts: Array.isArray(l.counts) ? cleanCounts(l.counts) : old.counts,
     lastWeek: l.weekly && !old.weekly ? lastPeriod('week').to : old.lastWeek || '',
     lastMonth: l.monthly && !old.monthly ? lastPeriod('month').to : old.lastMonth || '',
@@ -1867,33 +1879,65 @@ function lastPeriod(kind, k = dayKey(Date.now()), passed = lineTimePassed()) {
   return { from: to.slice(0, 8) + '01', to };
 }
 // ถึงเวลาส่งของวันขายนี้หรือยัง (เทียบตามลำดับในวันขาย: ตัดรอบตี 5 ส่ง 01:00 = หลังปิดร้านคืนนั้น)
+// 🥬 วัตถุดิบที่ใช้ (ตามสูตรที่ หลังร้าน › วัตถุดิบ) + ต้นทุน (ราคาต่อหน่วยที่ใส่เอง) · หลายวัน = รวม + เฉลี่ยต่อวัน
+function ingLines(from, to) {
+  if (!(data.ingredients || []).length) return ['🥬 วัตถุดิบที่ใช้', 'ยังไม่ได้ตั้งวัตถุดิบ (หลังร้าน › วัตถุดิบ)'];
+  const r = usageReport(from, to), fmt = n => Number(n || 0).toLocaleString('en-US');
+  const used = r.list.filter(g => g.total > 0);
+  if (!used.length) return ['🥬 วัตถุดิบที่ใช้', 'ยังไม่มีการใช้วัตถุดิบในช่วงนี้'];
+  const multi = r.days > 1; let cost = 0, miss = 0;
+  const rows = used.map(g => ({ g, c: g.cost ? g.total * g.cost : null })).sort((a, b) => (b.c || 0) - (a.c || 0) || b.g.total - a.g.total);
+  const L = [multi ? `🥬 วัตถุดิบที่ใช้ (${r.days} วันที่เปิด)` : '🥬 วัตถุดิบที่ใช้'];
+  for (const { g, c } of rows) {
+    if (c != null) cost += c; else miss++;
+    L.push(`• ${g.name} ${amtTxt(g.total, g.unit)}${multi ? ` · เฉลี่ย ${amtTxt(g.perDay, g.unit)}/วัน` : ''}${c != null ? ` · ฿${fmt(Math.round(c))}` : ''}`);
+  }
+  if (cost) {
+    let sales = 0; for (let k = from; k <= to; k = addDays(k, 1)) sales += dayOf(k).subtotal || 0;
+    L.push(`💸 ต้นทุนวัตถุดิบ ~฿${fmt(Math.round(cost))}${sales ? ` (${Math.round(cost / sales * 100)}% ของยอดขาย)` : ''}${miss ? ` · ${miss} รายการยังไม่ได้ใส่ราคา` : ''}`);
+  }
+  return L;
+}
+// พยากรณ์เฉพาะส่วนวัตถุดิบที่ต้องเตรียมพรุ่งนี้
+function fcIngLines(k) {
+  const fl = forecastLines(k), i = fl.indexOf('🥬 วัตถุดิบ');
+  if (i < 0) return [];
+  let j = i + 1; while (j < fl.length && fl[j].startsWith('•')) j++;
+  return [fl[0].replace('🔮 พรุ่งนี้', '🧺 วัตถุดิบที่ต้องเตรียมพรุ่งนี้'), ...fl.slice(i + 1, j)];
+}
+const lineTitle = () => (['sales', 'pay', 'hour', 'top', 'counts', 'time', 'cancel', 'open'].some(LP) ? 'สรุปยอดขาย' : LP('ing') || LP('fcing') ? 'สรุปวัตถุดิบ' : 'สรุป');
 function lineTimePassed(now = new Date()) {
   const rel = (h, m) => relH(h) * 60 + m, [sh, sm] = String(data.settings.line?.time || '23:00').split(':').map(Number);
   return rel(now.getHours(), now.getMinutes()) >= rel(sh, sm);
 }
 function lineText(k) {
   const d = dayOf(k), dt = new Date(k + 'T00:00:00'), fmt = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
-  const L = [`📊 สรุปยอดขาย ${data.settings.shopName || ''}`.trim(), `วัน${TH_DAY[dt.getDay()]} ${dt.getDate()} ${TH_MON[dt.getMonth()]} ${dt.getFullYear() + 543}`, ''];
+  const L = [`${LP('sales') || !LP('ing') ? '📊' : '🥬'} ${lineTitle()} ${data.settings.shopName || ''}`.trim(), `วัน${TH_DAY[dt.getDay()]} ${dt.getDate()} ${TH_MON[dt.getMonth()]} ${dt.getFullYear() + 543}`, ''];
   if (!d.bills) L.push('วันนี้ยังไม่มีบิลที่ปิด');
   else {
     const pv = prevPeriod(k, 1, k), pct = pv.subtotal ? Math.round((d.subtotal - pv.subtotal) / pv.subtotal * 100) : null;
-    L.push(`💰 ยอดขาย ${fmt(d.subtotal)} ฿`);
-    if (pct != null) L.push(`${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct)}% จากวัน${TH_DAY[dt.getDay()]}ที่แล้ว (${fmt(pv.subtotal)} ฿${pv.partial != null ? ` ถึง ${pv.partial}:59` : ''})`);
-    L.push(`🧾 ${d.bills} บิล · เฉลี่ย ${fmt(Math.round(d.subtotal / d.bills))} ฿/บิล · ${d.dishes} จาน`);
-    if (d.fee) L.push(`รับจริง ${fmt(d.total)} ฿ (รวมค่าธรรมเนียมบัตร ${fmt(d.fee)} ฿)`);
-    L.push('', 'ช่องทางชำระ');
-    for (const m of ['cash', 'transfer', 'card']) if (d.billsByMethod[m]) L.push(`• ${PAY_TH[m]} ${fmt(d.byMethod[m])} ฿ (${d.billsByMethod[m]} บิล)`);
+    if (LP('sales')) {
+      L.push(`💰 ยอดขาย ${fmt(d.subtotal)} ฿`);
+      if (pct != null) L.push(`${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct)}% จากวัน${TH_DAY[dt.getDay()]}ที่แล้ว (${fmt(pv.subtotal)} ฿${pv.partial != null ? ` ถึง ${pv.partial}:59` : ''})`);
+      L.push(`🧾 ${d.bills} บิล · เฉลี่ย ${fmt(Math.round(d.subtotal / d.bills))} ฿/บิล · ${d.dishes} จาน`);
+      if (d.fee) L.push(`รับจริง ${fmt(d.total)} ฿ (รวมค่าธรรมเนียมบัตร ${fmt(d.fee)} ฿)`);
+    }
+    if (LP('pay')) {
+      L.push('', 'ช่องทางชำระ');
+      for (const m of ['cash', 'transfer', 'card']) if (d.billsByMethod[m]) L.push(`• ${PAY_TH[m]} ${fmt(d.byMethod[m])} ฿ (${d.billsByMethod[m]} บิล)`);
+    }
     const best = Object.entries(d.byHour).sort((a, b) => b[1] - a[1])[0];
-    if (best) L.push('', `⏰ ช่วงขายดี ${best[0]}:00–${best[0]}:59 · ${fmt(best[1])} ฿`);
+    if (best && LP('hour')) L.push('', `⏰ ช่วงขายดี ${best[0]}:00–${best[0]}:59 · ${fmt(best[1])} ฿`);
     const top = Object.values(d.items).sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 5);
-    if (top.length) L.push('', '🏆 ขายดี', ...top.map((it, i) => `${i + 1}. ${it.name} × ${it.qty}${sizeTxt(it)}`));
-    const cl = countLines(k, k);
+    if (top.length && LP('top')) L.push('', '🏆 ขายดี', ...top.map((it, i) => `${i + 1}. ${it.name} × ${it.qty}${sizeTxt(it)}`));
+    const cl = LP('counts') ? countLines(k, k) : [];
     if (cl.length) L.push('', ...cl);
-    const tl = timeLines(d);
+    if (LP('ing')) L.push('', ...ingLines(k, k));
+    const tl = LP('time') ? timeLines(d) : [];
     if (tl.length) L.push('', ...tl);
   }
-  if (d.cancelled.qty) L.push('', `❌ ยกเลิก ${d.cancelled.qty} จาน (${fmt(d.cancelled.amount)} ฿)${d.voids?.bills ? ` · ยกเลิกทั้งโต๊ะ ${d.voids.bills} โต๊ะ` : ''}`);
-  if (k === dayKey(Date.now())) {
+  if (d.cancelled.qty && LP('cancel')) L.push('', `❌ ยกเลิก ${d.cancelled.qty} จาน (${fmt(d.cancelled.amount)} ฿)${d.voids?.bills ? ` · ยกเลิกทั้งโต๊ะ ${d.voids.bills} โต๊ะ` : ''}`);
+  if (k === dayKey(Date.now()) && LP('open')) {
     const open = data.orders.filter(o => o.status === 'open');
     if (open.length) {
       const due = open.reduce((s, o) => s + data.items.filter(i => i.orderId === o.id && i.status !== 'cancelled').reduce((a, i) => a + i.price * i.qty, 0)
@@ -1901,8 +1945,10 @@ function lineText(k) {
       L.push('', `⚠ ยังเปิดอยู่ ${open.length} โต๊ะ ยอดรอเก็บ ${fmt(r2(due))} ฿ (ยังไม่นับในยอดขาย)`);
     }
   }
-  if (data.settings.line?.forecast !== false) { const fl = forecastLines(k); if (fl.length) L.push('', ...fl); }
-  return L.join('\n');
+  if (LP('forecast')) { const fl = forecastLines(k); if (fl.length) L.push('', ...fl); }
+  else if (LP('fcing')) { const fl = fcIngLines(k); if (fl.length) L.push('', ...fl); }
+  while (L.length && L[L.length - 1] === '') L.pop();
+  return L.filter((x, i) => !(x === '' && L[i - 1] === '')).join('\n');
 }
 // เวลาครัว / เวลานั่ง (ใช้ทั้งสรุปรายวัน รายสัปดาห์ รายเดือน)
 function timeLines(d) {
@@ -1922,12 +1968,13 @@ function lineRangeText(kind, from, to) {
   const r = buildReport(from, to), d = r.summary, nDays = r.days.length;
   const shop = data.settings.shopName || '';
   const L = kind === 'week'
-    ? [`📊 สรุปยอดขายรายสัปดาห์ ${shop}`.trim(), `${short(from)} – ${short(to)} ${dt(to).getFullYear() + 543}`, '']
-    : [`📊 สรุปยอดขายประจำเดือน ${shop}`.trim(), `${TH_MON[dt(from).getMonth()]} ${dt(from).getFullYear() + 543} (${nDays} วัน)`, ''];
+    ? [`${LP('sales') || !LP('ing') ? '📊' : '🥬'} ${lineTitle()}รายสัปดาห์ ${shop}`.trim(), `${short(from)} – ${short(to)} ${dt(to).getFullYear() + 543}`, '']
+    : [`${LP('sales') || !LP('ing') ? '📊' : '🥬'} ${lineTitle()}ประจำเดือน ${shop}`.trim(), `${TH_MON[dt(from).getMonth()]} ${dt(from).getFullYear() + 543} (${nDays} วัน)`, ''];
   if (!d.bills) { L.push(kind === 'week' ? 'สัปดาห์นี้ไม่มีบิลที่ปิด' : 'เดือนนี้ไม่มีบิลที่ปิด'); return L.join('\n'); }
   // ช่วงก่อนหน้า: สัปดาห์ก่อน 7 วัน · เดือนก่อนทั้งเดือน
   const pt = addDays(from, -1), pf = kind === 'week' ? addDays(from, -7) : pt.slice(0, 8) + '01';
   let prev = 0; for (let k = pf; k <= pt; k = addDays(k, 1)) prev = r2(prev + dayOf(k).subtotal);
+  if (LP('sales')) {
   L.push(`💰 ยอดขาย ${fmt(d.subtotal)} ฿`);
   if (prev) {
     const pct = Math.round((d.subtotal - prev) / prev * 100);
@@ -1948,19 +1995,24 @@ function lineRangeText(kind, from, to) {
     const best = w.map((a, i) => ({ i, avg: a.n ? a.s / a.n : 0 })).sort((a, b) => b.avg - a.avg)[0];
     if (best.avg) L.push(`📆 วัน${TH_DAY[best.i]}ขายดีที่สุด เฉลี่ย ${fmt(Math.round(best.avg))} ฿/วัน`);
   }
-  L.push('', 'ช่องทางชำระ');
-  for (const m of ['cash', 'transfer', 'card']) if (d.billsByMethod[m]) L.push(`• ${PAY_TH[m]} ${fmt(d.byMethod[m])} ฿ (${d.billsByMethod[m]} บิล)`);
+  }
+  if (LP('pay')) {
+    L.push('', 'ช่องทางชำระ');
+    for (const m of ['cash', 'transfer', 'card']) if (d.billsByMethod[m]) L.push(`• ${PAY_TH[m]} ${fmt(d.byMethod[m])} ฿ (${d.billsByMethod[m]} บิล)`);
+  }
   const best = Object.entries(d.byHour).sort((a, b) => b[1] - a[1])[0];
-  if (best) L.push('', `⏰ ช่วงขายดี ${best[0]}:00–${best[0]}:59 (รวม ${fmt(best[1])} ฿)`);
+  if (best && LP('hour')) L.push('', `⏰ ช่วงขายดี ${best[0]}:00–${best[0]}:59 (รวม ${fmt(best[1])} ฿)`);
   const top = d.items_list.sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 10);
-  if (top.length) L.push('', '🏆 ขายดี', ...top.map((it, i) => `${i + 1}. ${it.name} × ${it.qty}${sizeTxt(it)}`));
-  const cl = countLines(from, to);
+  if (top.length && LP('top')) L.push('', '🏆 ขายดี', ...top.map((it, i) => `${i + 1}. ${it.name} × ${it.qty}${sizeTxt(it)}`));
+  const cl = LP('counts') ? countLines(from, to) : [];
   if (cl.length) L.push('', ...cl);
-  const tl = timeLines(d);
+  if (LP('ing')) L.push('', ...ingLines(from, to));
+  const tl = LP('time') ? timeLines(d) : [];
   if (tl.length) L.push('', ...tl);
-  if (d.cancelled.qty) L.push('', `❌ ยกเลิก ${d.cancelled.qty} จาน (${fmt(d.cancelled.amount)} ฿)${d.voids?.bills ? ` · ยกเลิกทั้งโต๊ะ ${d.voids.bills} โต๊ะ` : ''}`);
-  if (kind === 'week' && data.settings.line?.forecast !== false) { const wl = weekAheadLines(addDays(to, 1)); if (wl.length) L.push('', ...wl); }
-  return L.join('\n');
+  if (d.cancelled.qty && LP('cancel')) L.push('', `❌ ยกเลิก ${d.cancelled.qty} จาน (${fmt(d.cancelled.amount)} ฿)${d.voids?.bills ? ` · ยกเลิกทั้งโต๊ะ ${d.voids.bills} โต๊ะ` : ''}`);
+  if (kind === 'week' && LP('forecast')) { const wl = weekAheadLines(addDays(to, 1)); if (wl.length) L.push('', ...wl); }
+  while (L.length && L[L.length - 1] === '') L.pop();
+  return L.filter((x, i) => !(x === '' && L[i - 1] === '')).join('\n');
 }
 // ข้อความตามชนิด: day (วันนี้) · week (สัปดาห์ล่าสุดที่จบแล้ว) · month (เดือนล่าสุดที่จบแล้ว)
 function lineTextOf(kind, k = dayKey(Date.now())) {
@@ -1989,7 +2041,7 @@ async function sendLine(k, kind = 'day', period) {
   if (!L.token) throw new Error('ยังไม่ได้ใส่ Channel access token');
   let text = period ? lineRangeText(kind, period.from, period.to) : lineTextOf(kind, k);
   // แนบบทวิเคราะห์ AI (ตั้งที่หลังร้าน › AI) · AI ล่ม/ไม่มีคีย์ = ส่งแบบเดิม
-  if (kind === 'day' || kind === 'week') {
+  if ((kind === 'day' || kind === 'week') && LP('ai')) {
     const pr = period || (kind === 'week' ? lastPeriod('week', k, true) : { from: k, to: k });
     const note = await AI.lineNote(kind, pr.from, pr.to);
     if (note) text += '\n\n' + note;
@@ -2477,7 +2529,12 @@ const routes = {
 
   // สรุปยอดเข้า LINE: ดูข้อความ / ส่งทันที (ใช้ค่าที่บันทึกแล้ว)
   // kind = day (วันนี้) | week (สัปดาห์ล่าสุดที่จบแล้ว) | month (เดือนล่าสุดที่จบแล้ว)
-  'GET /api/line/preview': (b, q) => ({ text: lineTextOf(q.get('kind'), /^\d{4}-\d{2}-\d{2}$/.test(q.get('date') || '') ? q.get('date') : dayKey(Date.now())) }),
+  'GET /api/line/preview': (b, q) => {
+    // parts = ค่าที่ยังไม่บันทึก (ดูตัวอย่างก่อนบันทึก)
+    try { const p = JSON.parse(q.get('parts') || 'null'); linePartsOvr = p && typeof p === 'object' ? cleanParts(p, LINE_PARTS) : null; } catch { linePartsOvr = null; }
+    try { return { text: lineTextOf(q.get('kind'), /^\d{4}-\d{2}-\d{2}$/.test(q.get('date') || '') ? q.get('date') : dayKey(Date.now())) }; }
+    finally { linePartsOvr = null; }
+  },
   'POST /api/line/test-alert': async () => {
     const L = data.settings.line || {};
     if (!L.token) throw new Error('ยังไม่ได้ใส่ Channel access token');

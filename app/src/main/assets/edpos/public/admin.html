@@ -429,7 +429,22 @@
           <div class="rowline"><div class="txt"><b>สรุปยอดรายวัน</b><span id="lnStatus"></span></div><label class="sw"><input type="checkbox" id="lnOn"><i></i></label></div>
           <div class="rowline"><div class="txt"><b>สรุปรายสัปดาห์</b><span>จันทร์–อาทิตย์ ส่งคืนวันอาทิตย์ เทียบสัปดาห์ก่อน <span id="lnWeekSt"></span></span></div><label class="sw"><input type="checkbox" id="lnWeekly"><i></i></label></div>
           <div class="rowline"><div class="txt"><b>สรุปรายเดือน</b><span>ส่งคืนวันสุดท้ายของเดือน เทียบเดือนก่อน <span id="lnMonthSt"></span></span></div><label class="sw"><input type="checkbox" id="lnMonthly"><i></i></label></div>
-          <div class="rowline"><div class="txt"><b>🔮 พยากรณ์ + เตรียมของ</b><span>ท้ายสรุปรายวัน: พรุ่งนี้น่าจะขายเท่าไร ช่วงไหนยุ่ง เตรียมของ (รายการเดียวกับ "จำนวนที่ขาย") · ท้ายสรุปรายสัปดาห์: 7 วันถัดไป วันไหนยุ่ง/เงียบกว่าปกติ</span></div><label class="sw"><input type="checkbox" id="lnFc"><i></i></label></div>
+          <h3 class="rc-h">เนื้อหาที่ส่ง</h3>
+          <p class="muted" style="margin:0 0 6px">เลือกว่าสรุปรายวัน/สัปดาห์/เดือนจะมีอะไรบ้าง · ตัวอย่างข้อความด้านขวาเปลี่ยนตามทันที</p>
+          <div class="seg" id="lnPreset" role="group" aria-label="เลือกเร็ว" style="margin-bottom:6px;flex-wrap:wrap">
+            <button type="button" data-lp="all">ส่งทุกอย่าง</button><button type="button" data-lp="sales">เฉพาะยอดขาย</button><button type="button" data-lp="ing">เฉพาะวัตถุดิบ</button></div>
+          <div class="rowline"><div class="txt"><b>💰 ยอดขาย</b><span>ยอดรวม เทียบวันก่อน จำนวนบิล เฉลี่ยต่อบิล</span></div><label class="sw"><input type="checkbox" data-part="sales"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>ช่องทางชำระ</b><span>เงินสด / โอน / บัตร</span></div><label class="sw"><input type="checkbox" data-part="pay"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>⏰ ช่วงขายดี</b></div><label class="sw"><input type="checkbox" data-part="hour"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>🏆 เมนูขายดี</b></div><label class="sw"><input type="checkbox" data-part="top"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>📋 จำนวนที่ขาย</b><span>รายการที่ตั้งไว้ด้านล่าง เช่น กุ้งแม่น้ำ ปู หมึก</span></div><label class="sw"><input type="checkbox" data-part="counts"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>🥬 วัตถุดิบที่ใช้ + ต้นทุน</b><span>ตามสูตรที่ <a href="#" data-go="ingredients">หลังร้าน › วัตถุดิบ</a> · ใส่ราคาต่อหน่วยไว้จะขึ้นต้นทุนและ % ของยอดขาย</span></div><label class="sw"><input type="checkbox" data-part="ing"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>👨‍🍳 เวลาครัว / เวลานั่ง</b></div><label class="sw"><input type="checkbox" data-part="time"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>❌ จานที่ยกเลิก</b></div><label class="sw"><input type="checkbox" data-part="cancel"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>⚠ โต๊ะที่ยังเปิดอยู่</b><span>ยอดรอเก็บตอนส่ง</span></div><label class="sw"><input type="checkbox" data-part="open"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>🔮 พยากรณ์ + เตรียมของ</b><span>ท้ายสรุปรายวัน: พรุ่งนี้น่าจะขายเท่าไร ช่วงไหนยุ่ง เตรียมของ และวัตถุดิบ · ท้ายสรุปรายสัปดาห์: 7 วันถัดไป วันไหนยุ่ง/เงียบกว่าปกติ</span></div><label class="sw"><input type="checkbox" id="lnFc" data-part="forecast"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>🧺 วัตถุดิบที่ต้องเตรียมพรุ่งนี้</b><span>เฉพาะส่วนวัตถุดิบของพยากรณ์ (ใช้เมื่อปิดพยากรณ์ด้านบน)</span></div><label class="sw"><input type="checkbox" data-part="fcing"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>🤖 บทวิเคราะห์ AI</b><span>ต้องเปิด “แนบใน LINE” ที่ หลังร้าน › AI ด้วย</span></div><label class="sw"><input type="checkbox" data-part="ai"><i></i></label></div>
           <div class="stack" style="margin-top:12px">
             <label class="field"><span>เวลาส่ง</span><input type="time" id="lnTime">
               <small>ใช้กับทั้งรายวัน รายสัปดาห์ และรายเดือน · ตั้งหลังปิดร้าน บิลที่ปิดหลังเวลานี้จะไม่อยู่ในข้อความของวันนั้น · ร้านเปิดเลยเที่ยงคืน ตั้ง <a href="#" data-go="shop">ตัดรอบวันขาย</a> ด้วย สรุปจะได้รวมยอดทั้งคืน</small></label>
@@ -1923,7 +1938,8 @@ function loadLine() {
   $('#lnStatus').style.color = L.lastErr ? 'var(--brick)' : '';
   $$('[data-alert]').forEach(x => (x.checked = L.alerts?.[x.dataset.alert] !== false));
   $('#lnAlertErr').textContent = L.alertErr ? '· แจ้งเตือนล่าสุดส่งไม่สำเร็จ: ' + L.alertErr : '';
-  $('#lnWeekly').checked = !!L.weekly; $('#lnMonthly').checked = !!L.monthly; $('#lnFc').checked = L.forecast !== false;
+  $('#lnWeekly').checked = !!L.weekly; $('#lnMonthly').checked = !!L.monthly;
+  paintLnParts({ ...(L.parts || {}), forecast: L.forecast !== false && (L.parts || {}).forecast !== false });
   loadCounts();
   // lastWeek = วันอาทิตย์ของสัปดาห์ที่ส่งล่าสุด · lastMonth = วันสุดท้ายของเดือนที่ส่งล่าสุด
   $('#lnWeekSt').textContent = L.weekly && L.lastWeek ? `· ส่งถึงสัปดาห์ที่จบ ${thDate(L.lastWeek)}` : '';
@@ -1933,7 +1949,7 @@ function loadLine() {
 let lnKind = 'day';
 const LN_KIND = { day: 'สรุปวันนี้', week: 'สรุปสัปดาห์ล่าสุด', month: 'สรุปเดือนล่าสุด' };
 async function loadLinePrev() {
-  try { $('#lnPrev').textContent = (await api('/api/line/preview?kind=' + lnKind)).text; } catch (err) { $('#lnPrev').textContent = err.message; }
+  try { $('#lnPrev').textContent = (await api('/api/line/preview?kind=' + lnKind + '&parts=' + encodeURIComponent(JSON.stringify(lnParts())))).text; } catch (err) { $('#lnPrev').textContent = err.message; }
 }
 $('#lnKind').addEventListener('click', e => {
   const b = e.target.closest('[data-k]'); if (!b) return;
@@ -1994,7 +2010,16 @@ $('#lnCounts').addEventListener('input', e => {
   }
 });
 $('#lnCntAdd').onclick = () => { lnCnt.push({ name: '', menus: [], opts: [] }); lnCntOpen = lnCnt.length - 1; dirty.add('line'); renderCounts(); $('#lnCounts [data-cntf="name"]')?.focus(); };
-const lineBody = () => ({ on: $('#lnOn').checked, weekly: $('#lnWeekly').checked, monthly: $('#lnMonthly').checked, forecast: $('#lnFc').checked,
+// เนื้อหาที่ส่ง (test-1.73) · ค่าเริ่มต้นตรงกับ LINE_PARTS ในเซิร์ฟเวอร์
+const LN_PART_DEF = { sales: true, pay: true, hour: true, top: true, counts: true, ing: false, time: true, cancel: true, open: true, forecast: true, fcing: false, ai: true };
+const LN_PRESET = { all: { ...LN_PART_DEF, ing: true }, sales: { ...LN_PART_DEF, ing: false, fcing: false },
+  ing: Object.fromEntries(Object.keys(LN_PART_DEF).map(k => [k, k === 'ing' || k === 'fcing'])) };
+const lnParts = () => Object.fromEntries($$('[data-part]').map(x => [x.dataset.part, x.checked]));
+function paintLnParts(p) { $$('[data-part]').forEach(x => { const k = x.dataset.part; x.checked = p[k] === undefined ? LN_PART_DEF[k] : !!p[k]; }); markLnPreset(); }
+function markLnPreset() { const p = lnParts(); $$('#lnPreset [data-lp]').forEach(b => b.setAttribute('aria-pressed', Object.keys(LN_PART_DEF).every(k => !!LN_PRESET[b.dataset.lp][k] === !!p[k]))); }
+$('#lnPreset').addEventListener('click', e => { const b = e.target.closest('[data-lp]'); if (!b) return; paintLnParts(LN_PRESET[b.dataset.lp]); dirty.add('line'); loadLinePrev(); });
+$('#lnForm').addEventListener('change', e => { if (e.target.dataset.part) { markLnPreset(); loadLinePrev(); } });
+const lineBody = () => ({ on: $('#lnOn').checked, weekly: $('#lnWeekly').checked, monthly: $('#lnMonthly').checked, forecast: $('#lnFc').checked, parts: lnParts(),
   counts: lnCnt.filter(c => c.name.trim()),
   time: $('#lnTime').value, to: $('#lnTo').value.trim(), token: $('#lnToken').value.trim(),
   alerts: Object.fromEntries($$('[data-alert]').map(x => [x.dataset.alert, x.checked])) });
