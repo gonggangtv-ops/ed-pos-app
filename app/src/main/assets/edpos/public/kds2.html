@@ -110,7 +110,7 @@
   .rb{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
   .ri{border-radius:11px;border:1px solid var(--line);background:var(--card2);text-align:left;padding:9px 11px;display:flex;flex-direction:column;gap:4px;cursor:pointer}
   .ri .t{display:flex;align-items:baseline;gap:8px}.ri .t b{font-size:22px;color:var(--qty)}.ri .t span{font-size:17px;font-weight:700;flex:1}.ri .t i{font-style:normal;font-size:13px;color:var(--muted)}
-  .ri .v{display:flex;gap:8px;font-size:14px}.ri .v b{color:var(--opt)}.ri .v span{color:var(--muted)}
+  .ri .v{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;font-size:14px;padding-top:3px;border-top:1px dashed var(--line)}.ri .v b{color:var(--opt);font-size:15px}.ri .v span{color:var(--muted)}.ri .v .vr{flex-basis:100%;font-style:normal;font-weight:700;font-size:13px;color:#fff;background:var(--rmk);border-radius:6px;padding:0 7px;align-self:flex-start;flex-basis:auto}
   .rnote{font-size:13px;color:var(--muted);text-align:center}
   #railFab{position:fixed;right:16px;bottom:16px;z-index:30;height:48px;padding:0 18px;border-radius:24px;border:1.5px solid #b98bff;background:var(--card);color:#c9b3ff;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 8px 24px #0009}
   #moreChip{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:30;height:48px;padding:0 18px;border-radius:24px;border:1.5px solid var(--qty);background:var(--card);color:var(--qty);font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 10px 28px #0009}
@@ -348,8 +348,8 @@ const noBatch=d=>NOB.some(k=>nk(k)&&nk(d.name).includes(nk(k)));
 function batches(){const m=new Map();
   for(const o of ORDERS)for(const d of o.pend){if(noBatch(d))continue;const l=d.q-plates(d);if(!l)continue;
     if(!m.has(d.name))m.set(d.name,{name:d.name,total:0,tables:new Set(),vars:new Map()});
-    const b=m.get(d.name);b.total+=l;b.tables.add(o.id);const v=d.opt[0]||'ธรรมดา';
-    if(!b.vars.has(v))b.vars.set(v,{q:0,wm:new Map()});const x=b.vars.get(v);x.q+=l;const wk=where(o).replace('โต๊ะ ','');x.wm.set(wk,(x.wm.get(wk)||0)+l);}
+    const b=m.get(d.name);b.total+=l;b.tables.add(o.id);const v=optTxt(d)+'|'+d.rmk;
+    if(!b.vars.has(v))b.vars.set(v,{q:0,wm:new Map(),opt:optTxt(d)||'ธรรมดา',rmk:d.rmk});const x=b.vars.get(v);x.q+=l;const wk=where(o).replace('โต๊ะ ','');x.wm.set(wk,(x.wm.get(wk)||0)+l);}
   for(const b of m.values())for(const x of b.vars.values())x.w=[...x.wm].map(([k,q])=>k+(q>1?' ×'+q:''));
   return[...m.values()].filter(b=>b.tables.size>1).sort((a,b)=>b.total-a.total);}
 
@@ -431,7 +431,7 @@ function renderMenu(){const b=$('#board'),g=new Map();
   for(const o of ORDERS){const t0=startOf(o);
     for(const d of o.pend){if(!g.has(d.name))g.set(d.name,{name:d.name,rem:0,t0:Infinity,vars:new Map(),chips:[]});
       const x=g.get(d.name),n=plates(d),l=d.q-n;x.chips.push({o,d,n,t0});
-      if(l>0){x.rem+=l;x.t0=Math.min(x.t0,t0);const v=d.opt[0]||'ธรรมดา';x.vars.set(v,(x.vars.get(v)||0)+l);}}}
+      if(l>0){x.rem+=l;x.t0=Math.min(x.t0,t0);const v=(optTxt(d)||'ธรรมดา')+(d.rmk?' ('+d.rmk+')':'');x.vars.set(v,(x.vars.get(v)||0)+l);}}}
   const list=[...g.values()].filter(x=>x.rem>0).sort((a,b)=>a.t0-b.t0);
   if(!list.length){b.innerHTML='<div class="empty">ไม่มีออเดอร์ค้าง</div>';return;}
   b.innerHTML=`<div class="mgrid">${list.map(x=>{const a=sevOf(x.t0,C);
@@ -453,7 +453,7 @@ function renderDone(){const b=$('#board');$('#doneN').textContent=DONE.length;
     <div class="meta">ใช้เวลา ${Math.max(0,Math.round((h.done_at-h.at)/60000))} นาที</div><div class="rows">${h.dishes.map(d=>`<div class="dr done" style="cursor:default">${d.q>1?`<span class="qc">${d.q}</span>`:'<span class="q1">1</span>'}<span class="dm"><span class="nm">${esc(d.name)}</span>${(d.opt||[]).length?`<span class="op">${esc(d.opt.join(' · '))}</span>`:''}</span></div>`).join('')}</div>
     <div class="cf"><button class="recall" data-act="recall" data-o="${esc(h.id)}">↩ เรียกกลับ</button></div></article>`).join('')}</div>`;}
 function renderRail(){const bs=batches(),mode=C.rail,shown=mode!=='off'&&!RAILHIDE?mode:RAILFORCE?'right':'';
-  const html=`<div class="rh"><b>ทำรวม ${bs.length} เมนู</b><button class="rx" data-act="railx" aria-label="ซ่อนแผงทำรวม">✕</button></div><div class="rb">${bs.map(b=>`<button class="ri" data-act="batch" data-n="${esc(b.name)}"><span class="t"><b>×${b.total}</b><span>${esc(b.name)}</span><i>${b.tables.size} โต๊ะ</i></span>${[...b.vars].map(([v,x])=>`<span class="v"><b>${esc(v)} ×${x.q}</b><span>โต๊ะ ${esc(x.w.join(', '))}</span></span>`).join('')}</button>`).join('')||'<div class="rnote" style="padding:20px 6px">ยังไม่มีเมนูที่หลายโต๊ะสั่งซ้ำกัน</div>'}${bs.length?'<div class="rnote">แตะเมนู = เสร็จทั้งชุดทุกโต๊ะ</div>':''}</div>`;
+  const html=`<div class="rh"><b>ทำรวม ${bs.length} เมนู</b><button class="rx" data-act="railx" aria-label="ซ่อนแผงทำรวม">✕</button></div><div class="rb">${bs.map(b=>`<button class="ri" data-act="batch" data-n="${esc(b.name)}"><span class="t"><b>×${b.total}</b><span>${esc(b.name)}</span><i>${b.tables.size} โต๊ะ</i></span>${[...b.vars].map(([v,x])=>`<span class="v"><b>${esc(x.opt)} ×${x.q}</b><span>โต๊ะ ${esc(x.w.join(', '))}</span>${x.rmk?`<em class="vr">${esc(x.rmk)}</em>`:''}</span>`).join('')}</button>`).join('')||'<div class="rnote" style="padding:20px 6px">ยังไม่มีเมนูที่หลายโต๊ะสั่งซ้ำกัน</div>'}${bs.length?'<div class="rnote">แตะเมนู = เสร็จทั้งชุดทุกโต๊ะ</div>':''}</div>`;
   const L=$('#railL'),R=$('#railR');const on=view==='table'&&shown;
   L.hidden=!(on&&shown==='left');R.hidden=!(on&&shown==='right');(shown==='left'?L:R).innerHTML=html;
   const fab=$('#railFab');fab.hidden=!(view==='table'&&!shown);fab.textContent='ทำรวม '+bs.length;}
