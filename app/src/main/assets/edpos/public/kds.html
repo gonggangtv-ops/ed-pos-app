@@ -847,7 +847,7 @@ if(TTS.on&&!(navigator.userActivation&&navigator.userActivation.hasBeenActive))
 // ---- floating "ทำรวม" popup (shown over the board) ----
 let popOpen=true; try{if(localStorage.getItem('kds_pop')==='0')popOpen=false;}catch(e){}
 function renderPop(){
-  const multi=buildBatches().filter(b=>b.sources.length>1);
+  const multi=buildBatches().filter(b=>b.qty>1);   // test-1.80: เหลือ 2 ที่ขึ้นไปก็ขึ้น แม้มาจากโต๊ะเดียว
   document.getElementById('popCount').textContent=multi.length;
   document.getElementById('fabCount').textContent=multi.length;
   // แต่ละเมนู: แยกตามตัวเลือก (ไก่ S ×2) แล้วตามด้วยโต๊ะ · ไม่มีตัวเลือก = บรรทัดเดียวบอกโต๊ะ
@@ -859,9 +859,9 @@ function renderPop(){
     const body=vs.length===1&&!vs[0][0]?`<div class="pt2">โต๊ะ ${tables(vs[0][1].src)}</div>`
       :vs.map(([v,x])=>`<div class="pv"><b>${esc(v||'ธรรมดา')} ×${x.q}</b><span>โต๊ะ ${tables(x.src)}</span></div>`).join('');
     return `<div class="poprow" data-bk="${esc(b.key)}" data-bn="${esc(b.name)}" title="แตะ = เสร็จทั้งชุด">
-      <div class="pt"><span class="pq">×${b.qty}</span><span class="pn">${esc(b.name)}</span><span class="pnn">${b.sources.length} โต๊ะ</span></div>${body}</div>`;}).join('')
+      <div class="pt"><span class="pq">×${b.qty}</span><span class="pn">${esc(b.name)}</span><span class="pnn">${new Set(b.sources.map(s=>s.where)).size} โต๊ะ</span></div>${body}</div>`;}).join('')
       +'<div class="pophint">แตะเมนู = ทำเสร็จทั้งชุด (ทุกโต๊ะ)</div>'
-    :'<div class="popempty">ยังไม่มีเมนูที่หลายโต๊ะสั่งซ้ำกันตอนนี้</div>';
+    :'<div class="popempty">ยังไม่มีเมนูที่ค้างตั้งแต่ 2 ที่ขึ้นไป</div>';
   const onBoard=view==='board';
   document.getElementById('batchPop').hidden=!(popOpen&&onBoard);
   document.getElementById('popShow').hidden=!(!popOpen&&onBoard);

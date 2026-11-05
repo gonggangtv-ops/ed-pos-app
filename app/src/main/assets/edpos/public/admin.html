@@ -1062,6 +1062,8 @@ function renderEditor() {
       <div class="rowline"><div class="txt"><b>ขึ้นจอครัว</b><span>ไม่เลือก = ไม่ขึ้นจอ เช่น เครื่องดื่ม ของหวาน</span></div>
         <div class="pick" role="group" aria-label="ขึ้นจอครัว">${screenList().map(k =>
           `<button data-ms="${esc(k.id)}" aria-pressed="${(d.screens || []).includes(k.id)}">${esc(k.name)}</button>`).join('')}</div></div>
+      <div class="rowline"><div class="txt"><b>พิมพ์ใบสั่งแยกใบ</b><span>เปิด = เมนูนี้ออกใบของตัวเอง ไม่รวมกับจานอื่น · สั่ง 2 ที่ = 2 ใบ เช่น ของทอด ของหวาน</span></div>
+        <label class="sw"><input type="checkbox" data-solo ${d.solo ? 'checked' : ''}><i></i></label></div>
       <div class="rowline"><div class="txt"><b>ช่องหมายเหตุ</b><span>ปิด = ตอนสั่งไม่มีช่องหมายเหตุ เช่น น้ำเปล่า น้ำอัดลม</span></div>
         <label class="sw"><input type="checkbox" data-nonote ${d.noNote ? '' : 'checked'}><i></i></label></div>
       <div class="rowline"><div class="txt"><b>มีขาย</b><span>ปิดเมื่อของหมด พนักงานจะสั่งไม่ได้</span></div>
@@ -1186,6 +1188,7 @@ $('#eBody').addEventListener('change', e => {
   if (t.type === 'checkbox') {
     if (t.dataset.f) draft[t.dataset.f] = t.checked;
     if ('nonote' in t.dataset) { if (t.checked) delete draft.noNote; else draft.noNote = true; }
+    if ('solo' in t.dataset) { if (t.checked) draft.solo = true; else delete draft.solo; }
     if (t.dataset.gf) draft.groups[t.dataset.g][t.dataset.gf] = t.checked;
     renderPreview();
   }

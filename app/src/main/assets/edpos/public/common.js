@@ -560,7 +560,15 @@ const printsAt = (i, pid) => itemPrinters(i).includes(pid) || !!i.splits?.some(s
 // cat = แยกใบตามหมวดเมนู เช่น ของทอด กับ เครื่องดื่ม ที่ออกเครื่องเดียวกันได้คนละใบ
 // grp = แยกใบตามหมวดใหญ่ (หลังร้าน > หมวดหมู่) เช่น อาหาร 1 ใบ เครื่องดื่มทุกหมวดรวม 1 ใบ · หมวดที่ไม่อยู่ในหมวดใหญ่ไหน = ใบของหมวดนั้น
 const itemCat = i => i.category || S.menu?.find(m => m.id === i.menuId)?.category || 'อื่นๆ';
+// test-1.80 เมนูที่ตั้ง "พิมพ์ใบสั่งแยกใบ" (menu.solo): ออกใบของตัวเองทีละที่ (จำนวน 2 = 2 ใบ) จานที่เหลือแบ่งตามรูปแบบปกติ
+const isSolo = i => !!S.menu?.find(m => m.id === i.menuId)?.solo;
 function ticketSlips(its, mode) {
+  const solo = its.filter(isSolo);
+  if (solo.length) {
+    const rest = its.filter(i => !isSolo(i));
+    return [...(rest.length ? ticketSlips(rest, mode) : []), ...solo.flatMap(i => Array.from({ length: Math.max(1, Math.min(20, +i.qty || 1)) }, () => ({ ...i, qty: 1 })))
+      .map(i => [i])];
+  }
   if (its.length < 2) return [its];
   if (mode === 'each') return its.map(i => [i]);
   if (mode === 'cat' || mode === 'grp') {

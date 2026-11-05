@@ -401,6 +401,7 @@ function cleanMenuItem(m) {
     printers: pickIds(m.printers, data.settings.printers), screens: pickIds(m.screens, data.settings.kdsScreens),
     available: m.available !== false, groups, ...(grid ? { grid } : {}),
     ...(m.noNote ? { noNote: true } : {}),   // ไม่มีช่องหมายเหตุตอนสั่ง (เช่น น้ำเปล่า)
+    ...(m.solo ? { solo: true } : {}),       // test-1.80 พิมพ์ใบสั่งแยกใบของเมนูนี้เสมอ (ไม่รวมกับจานอื่น)
     // ราคาคนไทย (ไม่ใส่ = เมนูนี้มีราคาเดียว) · เมนูที่ใช้ตารางราคาเก็บใน grid.pricesTh แทน
     ...(!grid && m.priceTh !== '' && m.priceTh != null && Number(m.priceTh) >= 0 ? { priceTh: r2(Number(m.priceTh)) } : {}),
   };

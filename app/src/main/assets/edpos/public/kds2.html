@@ -359,7 +359,7 @@ function batches(){const m=new Map();
     const b=m.get(d.name);b.total+=l;b.tables.add(o.id);const v=optTxt(d)+'|'+d.rmk;
     if(!b.vars.has(v))b.vars.set(v,{q:0,wm:new Map(),opt:optTxt(d)||'ธรรมดา',rmk:d.rmk});const x=b.vars.get(v);x.q+=l;const wk=where(o).replace('โต๊ะ ','');x.wm.set(wk,(x.wm.get(wk)||0)+l);}
   for(const b of m.values())for(const x of b.vars.values())x.w=[...x.wm].map(([k,q])=>k+(q>1?' ×'+q:''));
-  return[...m.values()].filter(b=>b.tables.size>1).sort((a,b)=>b.total-a.total);}
+  return[...m.values()].filter(b=>b.total>1).sort((a,b)=>b.total-a.total);}   // test-1.80: เหลือ 2 ที่ขึ้นไปก็ขึ้น แม้โต๊ะเดียว
 
 // ================= วาดหน้าจอ =================
 let view='table',viewManual=false;
@@ -429,7 +429,7 @@ function packCols(c){const b=$('#board'),W=b.clientWidth||innerWidth-40,gap=pars
 const usePack=c=>c.card.flow!=='grid'&&c.card.hMode!=='equal'&&c.layout!=='row';
 function renderTable(){const b=$('#board');const list=sortO(ORDERS,C);
   if(!list.length){b.innerHTML='<div class="empty">ไม่มีออเดอร์ค้าง</div>';return;}
-  const bc={};batches().forEach(x=>{bc[x.name]=x.total;});
+  const bc={};batches().filter(x=>x.tables.size>1).forEach(x=>{bc[x.name]=x.total;});   // ป้าย “รวม N” บนการ์ด = เฉพาะที่หลายโต๊ะ
   if(usePack(C)){const{n,w}=packCols(C),cols=Array.from({length:n},()=>({h:0,html:[]}));
     for(const o of list){const h=cardHtml(o,C,bc),est=2.4+(h.match(/class="dr/g)||[]).length+(/class="meta"/.test(h)?.6:0)+(/class="more"/.test(h)?.6:0)+(/class="alert"/.test(h)?.8:0);
       const col=cols.reduce((m,x)=>x.h<m.h?x:m,cols[0]);col.h+=est;col.html.push(h);}
@@ -461,7 +461,7 @@ function renderDone(){const b=$('#board');$('#doneN').textContent=DONE.length;
     <div class="meta">ใช้เวลา ${Math.max(0,Math.round((h.done_at-h.at)/60000))} นาที</div><div class="rows">${h.dishes.map(d=>`<div class="dr done" style="cursor:default">${d.q>1?`<span class="qc">${d.q}</span>`:'<span class="q1">1</span>'}<span class="dm"><span class="nm">${esc(d.name)}</span>${(d.opt||[]).length?`<span class="op">${esc(d.opt.join(' · '))}</span>`:''}</span></div>`).join('')}</div>
     <div class="cf"><button class="recall" data-act="recall" data-o="${esc(h.id)}">↩ เรียกกลับ</button></div></article>`).join('')}</div>`;}
 function renderRail(){const bs=batches(),mode=C.rail,shown=mode!=='off'&&!RAILHIDE?mode:RAILFORCE?'right':'';
-  const html=`<div class="rh"><b>ทำรวม ${bs.length} เมนู</b><button class="rx" data-act="railx" aria-label="ซ่อนแผงทำรวม">✕</button></div><div class="rb">${bs.map(b=>`<button class="ri" data-act="batch" data-n="${esc(b.name)}"><span class="t"><b>×${b.total}</b><span>${esc(b.name)}</span><i>${b.tables.size} โต๊ะ</i></span>${[...b.vars].map(([v,x])=>`<span class="v"><b>${esc(x.opt)} ×${x.q}</b><span>โต๊ะ ${esc(x.w.join(', '))}</span>${x.rmk?`<em class="vr">${esc(x.rmk)}</em>`:''}</span>`).join('')}</button>`).join('')||'<div class="rnote" style="padding:20px 6px">ยังไม่มีเมนูที่หลายโต๊ะสั่งซ้ำกัน</div>'}${bs.length?'<div class="rnote">แตะเมนู = เสร็จทั้งชุดทุกโต๊ะ</div>':''}</div>`;
+  const html=`<div class="rh"><b>ทำรวม ${bs.length} เมนู</b><button class="rx" data-act="railx" aria-label="ซ่อนแผงทำรวม">✕</button></div><div class="rb">${bs.map(b=>`<button class="ri" data-act="batch" data-n="${esc(b.name)}"><span class="t"><b>×${b.total}</b><span>${esc(b.name)}</span><i>${b.tables.size} โต๊ะ</i></span>${[...b.vars].map(([v,x])=>`<span class="v"><b>${esc(x.opt)} ×${x.q}</b><span>โต๊ะ ${esc(x.w.join(', '))}</span>${x.rmk?`<em class="vr">${esc(x.rmk)}</em>`:''}</span>`).join('')}</button>`).join('')||'<div class="rnote" style="padding:20px 6px">ยังไม่มีเมนูที่ค้างตั้งแต่ 2 ที่ขึ้นไป</div>'}${bs.length?'<div class="rnote">แตะเมนู = เสร็จทั้งชุดทุกโต๊ะ</div>':''}</div>`;
   const L=$('#railL'),R=$('#railR');const on=view==='table'&&shown;
   L.hidden=!(on&&shown==='left');R.hidden=!(on&&shown==='right');(shown==='left'?L:R).innerHTML=html;
   const fab=$('#railFab');fab.hidden=!(view==='table'&&!shown);fab.textContent='ทำรวม '+bs.length;}
