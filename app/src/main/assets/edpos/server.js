@@ -402,8 +402,8 @@ function cleanMenuItem(m) {
     available: m.available !== false, groups, ...(grid ? { grid } : {}),
     ...(m.noNote ? { noNote: true } : {}),   // ไม่มีช่องหมายเหตุตอนสั่ง (เช่น น้ำเปล่า)
     ...(m.solo ? { solo: true } : {}),
-    // test-1.81 งานที่คนเสิร์ฟต้องเตรียมให้ครัวเมื่อมีคนสั่งเมนูนี้ (ขึ้นจอคนเสิร์ฟ) เช่น "หม้อไฟ + ถ่าน"
-    ...(String(m.prep || '').trim() ? { prep: String(m.prep).trim().slice(0, 80) } : {}),       // test-1.80 พิมพ์ใบสั่งแยกใบของเมนูนี้เสมอ (ไม่รวมกับจานอื่น)
+    // test-1.81/1.82 สั่งเมนูนี้แล้วขึ้นจอคนเสิร์ฟทันที ให้เตรียมของให้ครัว (แสดงชื่อเมนูเลย)
+    ...(m.prep ? { prep: true } : {}),       // test-1.80 พิมพ์ใบสั่งแยกใบของเมนูนี้เสมอ (ไม่รวมกับจานอื่น)
     // ราคาคนไทย (ไม่ใส่ = เมนูนี้มีราคาเดียว) · เมนูที่ใช้ตารางราคาเก็บใน grid.pricesTh แทน
     ...(!grid && m.priceTh !== '' && m.priceTh != null && Number(m.priceTh) >= 0 ? { priceTh: r2(Number(m.priceTh)) } : {}),
   };
@@ -3452,7 +3452,7 @@ const routes = {
       if (i.status === 'done' && onScreen(i) && !i.servedAt && live(o)) ready.push(row(i, o));
       else if (i.servedAt >= now - 30 * 60000) served.push(row(i, o));
       const m = menuOf(i);
-      if (m?.prep && !i.prepAt && i.status === 'new' && live(o)) prep.push({ ...row(i, o), prep: m.prep });
+      if (m?.prep && !i.prepAt && i.status === 'new' && live(o)) prep.push(row(i, o));
     }
     ready.sort((a, b) => a.doneAt - b.doneAt); prep.sort((a, b) => a.at - b.at); served.sort((a, b) => b.servedAt - a.servedAt);
     const cats = new Set(data.menu.filter(m => m.screens?.length).map(m => m.category));

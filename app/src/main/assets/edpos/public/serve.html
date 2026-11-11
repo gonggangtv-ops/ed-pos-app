@@ -105,6 +105,7 @@
     <span class="brand"><span class="dot" id="dot" title="การเชื่อมต่อ"></span>คนเสิร์ฟ</span>
     <button class="tab on" data-view="ready">รอเสิร์ฟ <span class="n" id="nReady">0</span></button>
     <button class="tab" data-view="served">เสิร์ฟแล้ว</button>
+    <a class="tab" href="kds.html" style="text-decoration:none;color:inherit">🍳 จอครัว</a>
     <span class="sp"></span>
     <span id="info" class="muted" style="font-size:14px;color:var(--muted)"></span>
     <button class="ibtn" id="sndBtn" aria-label="เปิด/ปิดเสียง"></button>
@@ -156,7 +157,7 @@ async function poll(){if(busy)return;busy=true;try{
   for(const d of j.ready)if(gone.has(d.id)&&!d.servedAt)gone.delete(d.id);
   D=j;
   if(primed&&fresh.length){beep('ready');say(fresh.slice(0,3).map(sentence).join(' , '));}
-  if(primed&&freshP.length){beep('prep');say('เตรียม '+freshP.slice(0,2).map(p=>p.prep).join(' , '));}
+  if(primed&&freshP.length){beep('prep');say('เตรียม '+freshP.slice(0,2).map(sentence).join(' , '));}
   primed=true;render();
 }catch(e){$('#dot').classList.add('off');$('#info').textContent='ติดต่อเครื่องหลักไม่ได้';}
 busy=false;}
@@ -205,9 +206,10 @@ function renderPrep(){
   const p=$('#prep'),m=$('#main');m.classList.toggle('ptop',C.prepPos==='top');m.classList.toggle('pside',C.prepPos==='side');
   const list=C.prepPos==='off'?[]:D.prep;
   p.hidden=!list.length;if(!list.length){p.innerHTML='';return;}
-  p.innerHTML=`<span class="ph">🧺 เตรียมให้ครัว ${list.length}</span>`+list.map(x=>`<div class="pc"><span class="what">${esc(x.prep)}</span>
-    <span class="for">${esc(where(x))} · ${x.qty>1?esc(x.qty)+' × ':''}${esc(x.name)} · สั่งมา ${mins(x.at)} นาที</span>
-    <button data-prep="${esc(x.id)}" data-label="${esc(x.prep+' '+where(x))}">✓ เตรียมแล้ว</button></div>`).join('');
+  p.innerHTML=`<span class="ph">🧺 เตรียมให้ครัว ${list.length}</span>`+list.map(x=>`<div class="pc"><span class="what">${x.qty>1?esc(x.qty)+' × ':''}${esc(x.name)}</span>
+    ${x.opts.length?`<span class="for" style="color:#ffd43b">${esc(x.opts.join(' · '))}</span>`:''}${x.remark?`<span class="rk">${esc(x.remark)}</span>`:''}
+    <span class="for">${esc(where(x))} · สั่งมา ${mins(x.at)} นาที</span>
+    <button data-prep="${esc(x.id)}" data-label="${esc(x.name+' '+where(x))}">✓ เตรียมแล้ว</button></div>`).join('');
 }
 function render(){
   document.documentElement.style.setProperty('--z',C.size);document.body.classList.toggle('light',C.theme==='light');
@@ -234,7 +236,7 @@ function renderSet(){
   <h3>เรียงลำดับ</h3>${seg('sort',[['old','รอนานสุดก่อน'],['new','ใหม่สุดก่อน']])}
   <h3>หมวดที่ไม่ต้องขึ้นจอนี้</h3><div class="seg">${cats.map(c=>`<button class="chip ${C.hide.includes(c)?'off':'on'}" data-hide="${esc(c)}">${esc(c)}</button>`).join('')||'<span class="s">ยังไม่มีหมวดที่ขึ้นจอครัว</span>'}</div>
   <p class="s">แตะเพื่อปิด/เปิด · หมวดที่ปิด (ขีดฆ่า) ครัวกดเสร็จแล้วจะไม่ขึ้นที่จอนี้ เช่น เครื่องดื่มที่บาร์ยกเอง</p>
-  <h3>เตรียมให้ครัว</h3>${seg('prepPos',[['top','แถบด้านบน'],['side','แถบด้านซ้าย'],['off','ไม่แสดง']],'ตั้งว่าเมนูไหนต้องเตรียมอะไร ที่ หลังร้าน › เมนู › แก้เมนู › “เตรียมให้ครัว (จอคนเสิร์ฟ)”')}
+  <h3>เตรียมให้ครัว</h3>${seg('prepPos',[['top','แถบด้านบน'],['side','แถบด้านซ้าย'],['off','ไม่แสดง']],'เลือกเมนูที่จะขึ้นแถบนี้ตอนสั่ง ที่ หลังร้าน › เมนู › แก้เมนู › เปิด “เตรียมให้ครัว (จอคนเสิร์ฟ)”')}
   <h3>สีเวลารอ</h3>${seg('warn',[['2','ส้มที่ 2 นาที'],['3','3 นาที'],['5','5 นาที']])}<div style="height:6px"></div>${seg('late',[['4','แดงที่ 4 นาที'],['6','6 นาที'],['10','10 นาที']])}
   <h3>เสียง</h3>${seg('sound',[['true','เปิดเสียง'],['false','ปิดเสียง']])}<div style="height:6px"></div>
   ${seg('voice',[['table-menu','อ่าน โต๊ะ → เมนู'],['menu-table','อ่าน เมนู → โต๊ะ'],['menu','อ่านแค่เมนู'],['off','ไม่อ่าน (แค่เสียงเตือน)']])}
