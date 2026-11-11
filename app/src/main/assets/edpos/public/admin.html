@@ -1062,6 +1062,8 @@ function renderEditor() {
       <div class="rowline"><div class="txt"><b>ขึ้นจอครัว</b><span>ไม่เลือก = ไม่ขึ้นจอ เช่น เครื่องดื่ม ของหวาน</span></div>
         <div class="pick" role="group" aria-label="ขึ้นจอครัว">${screenList().map(k =>
           `<button data-ms="${esc(k.id)}" aria-pressed="${(d.screens || []).includes(k.id)}">${esc(k.name)}</button>`).join('')}</div></div>
+      <div class="rowline"><div class="txt"><b>เตรียมให้ครัว (จอคนเสิร์ฟ)</b><span>สั่งเมนูนี้แล้วจอคนเสิร์ฟจะเตือนให้เตรียม เช่น หม้อไฟ + ถ่าน · ว่าง = ไม่เตือน</span></div>
+        <input type="text" data-f="prep" value="${esc(d.prep || '')}" maxlength="80" placeholder="เช่น หม้อไฟ + ถ่าน" aria-label="ของที่ต้องเตรียมให้ครัว" style="max-width:260px"></div>
       <div class="rowline"><div class="txt"><b>พิมพ์ใบสั่งแยกใบ</b><span>เปิด = เมนูนี้ออกใบของตัวเอง ไม่รวมกับจานอื่น · สั่ง 2 ที่ = 2 ใบ เช่น ของทอด ของหวาน</span></div>
         <label class="sw"><input type="checkbox" data-solo ${d.solo ? 'checked' : ''}><i></i></label></div>
       <div class="rowline"><div class="txt"><b>ช่องหมายเหตุ</b><span>ปิด = ตอนสั่งไม่มีช่องหมายเหตุ เช่น น้ำเปล่า น้ำอัดลม</span></div>

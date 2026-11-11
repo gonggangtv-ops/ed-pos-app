@@ -401,7 +401,9 @@ function cleanMenuItem(m) {
     printers: pickIds(m.printers, data.settings.printers), screens: pickIds(m.screens, data.settings.kdsScreens),
     available: m.available !== false, groups, ...(grid ? { grid } : {}),
     ...(m.noNote ? { noNote: true } : {}),   // ไม่มีช่องหมายเหตุตอนสั่ง (เช่น น้ำเปล่า)
-    ...(m.solo ? { solo: true } : {}),       // test-1.80 พิมพ์ใบสั่งแยกใบของเมนูนี้เสมอ (ไม่รวมกับจานอื่น)
+    ...(m.solo ? { solo: true } : {}),
+    // test-1.81 งานที่คนเสิร์ฟต้องเตรียมให้ครัวเมื่อมีคนสั่งเมนูนี้ (ขึ้นจอคนเสิร์ฟ) เช่น "หม้อไฟ + ถ่าน"
+    ...(String(m.prep || '').trim() ? { prep: String(m.prep).trim().slice(0, 80) } : {}),       // test-1.80 พิมพ์ใบสั่งแยกใบของเมนูนี้เสมอ (ไม่รวมกับจานอื่น)
     // ราคาคนไทย (ไม่ใส่ = เมนูนี้มีราคาเดียว) · เมนูที่ใช้ตารางราคาเก็บใน grid.pricesTh แทน
     ...(!grid && m.priceTh !== '' && m.priceTh != null && Number(m.priceTh) >= 0 ? { priceTh: r2(Number(m.priceTh)) } : {}),
   };
@@ -3429,6 +3431,43 @@ const routes = {
     for (const i of data.items) if (i.orderId === o.id && mine(i) && i.status === 'new') { i.status = 'done'; i.doneAt = Date.now(); }
   },
 
+  // ===== test-1.81 จอคนเสิร์ฟ (serve.html) =====
+  // ready = จานที่ครัวกดเสร็จ ยังไม่ได้เสิร์ฟ (ภายใน 4 ชม.) · prep = เมนูที่ตั้ง "เตรียมให้ครัว" สั่งเข้ามา ยังไม่ได้เตรียม
+  // served = ที่เพิ่งเสิร์ฟ (30 นาที) ไว้กดเรียกกลับ
+  'GET /api/serve': () => {
+    const now = Date.now(), since = now - 4 * 3600e3, oById = new Map(data.orders.map(o => [o.id, o]));
+    const live = o => o && o.status !== 'void' && (o.status !== 'paid' || (o.paidAt || 0) >= now - 45 * 60000);
+    const menuOf = i => data.menu.find(m => m.id === i.menuId);
+    const row = (i, o) => {
+      const ta = String(o.table).startsWith('TA');
+      return { id: i.id, orderId: o.id, table: ta ? '' : String(o.table), pickup: ta ? String(o.table).slice(2) : '', takeaway: ta,
+        name: i.name, qty: i.qty, opts: i.opts || (i.option ? [i.option] : []), cat: catOf(i), thai: !!i.thai,
+        remark: [...(i.alerts || []), i.abroad ? 'กลับต่างประเทศ' : i.takeaway && !ta ? 'กลับบ้าน' : '', i.note].filter(Boolean).join(' · '),
+        at: i.createdAt, doneAt: i.doneAt || null, servedAt: i.servedAt || null };
+    };
+    const ready = [], prep = [], served = [];
+    for (const i of data.items) {
+      if (i.status === 'cancelled' || (i.createdAt || 0) < since) continue;
+      const o = oById.get(i.orderId); if (!live(o) && !(i.servedAt >= now - 30 * 60000)) continue;
+      if (i.status === 'done' && onScreen(i) && !i.servedAt && live(o)) ready.push(row(i, o));
+      else if (i.servedAt >= now - 30 * 60000) served.push(row(i, o));
+      const m = menuOf(i);
+      if (m?.prep && !i.prepAt && i.status === 'new' && live(o)) prep.push({ ...row(i, o), prep: m.prep });
+    }
+    ready.sort((a, b) => a.doneAt - b.doneAt); prep.sort((a, b) => a.at - b.at); served.sort((a, b) => b.servedAt - a.servedAt);
+    const cats = new Set(data.menu.filter(m => m.screens?.length).map(m => m.category));
+    const categories = [...data.categories.filter(c => cats.has(c)), ...[...cats].filter(c => !data.categories.includes(c))];
+    return { ok: true, ready, prep, served: served.slice(0, 40), categories, shopName: data.settings.shopName, now };
+  },
+  'POST /api/serve/done': b => {
+    const ids = new Set([].concat(b.ids || []));
+    for (const i of data.items) if (ids.has(i.id)) { if (b.undo) delete i.servedAt; else if (i.status === 'done' && !i.servedAt) i.servedAt = Date.now(); }
+  },
+  'POST /api/serve/prep': b => {
+    const ids = new Set([].concat(b.ids || []));
+    for (const i of data.items) if (ids.has(i.id)) { if (b.undo) delete i.prepAt; else i.prepAt = Date.now(); }
+  },
+
   'POST /api/kds/clear': b => {
     for (const o of data.orders) if (!b.orderIds || b.orderIds.includes(o.id)) {
       const its = data.items.filter(i => i.orderId === o.id && onScreen(i));
@@ -3453,7 +3492,8 @@ const routes = {
 // ใช้ได้โดยไม่ต้องใส่รหัส: จอครัว (KDS) การสลับเครื่องสำรอง และหน้าใส่รหัสเอง
 const PUBLIC_ROUTES = new Set(['GET /api/auth', 'POST /api/auth/setup', 'POST /api/login', 'GET /api/auth/me',
   'GET /api/role', 'GET /api/sync', 'POST /api/promote', 'POST /api/merge', 'POST /api/sync/key', 'POST /api/standby/pair', 'POST /api/standby/peer',
-  'GET /api/orders', 'POST /api/dish/complete', 'POST /api/order/complete', 'POST /api/kds/clear', 'POST /api/events/clear']);
+  'GET /api/orders', 'POST /api/dish/complete', 'POST /api/order/complete', 'POST /api/kds/clear', 'POST /api/events/clear',
+  'GET /api/serve', 'POST /api/serve/done', 'POST /api/serve/prep']);   // test-1.81 จอคนเสิร์ฟ (แท็บเล็ตตั้งที่จุดรับอาหาร ไม่ต้องใส่รหัส เหมือนจอครัว)
 // หน้าสั่งอาหาร (รหัสพนักงาน หรือรหัสเจ้าของร้าน)
 const STAFF_ROUTES = new Set(['GET /api/state', 'GET /api/rev', 'GET /api/history', 'POST /api/order', 'POST /api/item/status', 'POST /api/item/cancel',
   'POST /api/order/void', 'POST /api/order/move', 'POST /api/order/lang', 'POST /api/order/pay', 'POST /api/print', 'POST /api/voice/alias']);
@@ -3497,7 +3537,7 @@ const server = http.createServer(async (req, res) => {
   if (role.role === 'standby' && (url.pathname === '/' || url.pathname === '/index.html')) url.pathname = '/standby.html';
   // เครื่องสำรองใช้สั่งอาหาร/หลังร้านไม่ได้ (อ่านอย่างเดียว ใส่รหัสแล้วก็เข้าไม่ได้) → ไปหน้าเครื่องสำรอง
   // ซึ่งจะพาไปหน้าเดียวกันของเครื่องหลักเองเมื่อติดต่อเครื่องหลักได้ (เช่น แอปเปิดตอนเครื่องหลักยังไม่พร้อม)
-  const sbPage = role.role === 'standby' && req.method === 'GET' && url.pathname.match(/^\/(order|kds2?|admin|sales)\.html$/);
+  const sbPage = role.role === 'standby' && req.method === 'GET' && url.pathname.match(/^\/(order|kds2?|serve|admin|sales)\.html$/);
   if (sbPage) { res.writeHead(302, { Location: '/standby.html?go=' + sbPage[1], 'Cache-Control': 'no-store' }); return res.end(); }
 
   // รูปบนใบเสร็จ: /receipt-img/logo  /receipt-img/footer

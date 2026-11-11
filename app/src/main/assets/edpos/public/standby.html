@@ -67,7 +67,7 @@
 <script>
 const $ = s => document.querySelector(s);
 let info = null;
-const GO_TH = { order: 'สั่งอาหาร', kds: 'จอครัว', kds2: 'จอครัว 2.0', admin: 'หลังร้าน', sales: 'ยอดขาย' };
+const GO_TH = { order: 'สั่งอาหาร', kds: 'จอครัว', kds2: 'จอครัว 2.0', serve: 'จอคนเสิร์ฟ', admin: 'หลังร้าน', sales: 'ยอดขาย' };
 const GO = GO_TH[new URLSearchParams(location.search).get('go')] ? new URLSearchParams(location.search).get('go') : '';
 const ago = t => { if (!t) return 'ยังไม่เคย'; const s = Math.round((Date.now() - t) / 1000); return s < 60 ? `${s} วินาทีที่แล้ว` : `${Math.round(s / 60)} นาทีที่แล้ว`; };
 async function tick() {

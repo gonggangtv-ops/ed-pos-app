@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="th"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#12161c">
+<title>จอคนเสิร์ฟ</title>
+<!-- จอคนเสิร์ฟ (test-1.81) · แท็บเล็ตตั้งที่จุดรับอาหาร ไม่ต้องใส่รหัส (เหมือนจอครัว)
+     ครัวกดเสร็จ → ขึ้นว่าจานไหนไปโต๊ะไหน · แตะ = เสิร์ฟแล้ว · เมนูที่ตั้ง "เตรียมให้ครัว" สั่งเข้ามา → ขึ้นแถบให้เตรียมของ
+     API: GET /api/serve · POST /api/serve/done {ids,undo} · POST /api/serve/prep {ids,undo}
+     ค่าตั้งของเครื่องนี้: localStorage serve_cfg (รูปแบบ ขนาด หมวดที่ไม่ขึ้น เสียง ฯลฯ) -->
+<style>
+  *{box-sizing:border-box} html,body{height:100%;margin:0}
+  [hidden]{display:none!important}
+  :root{--bg:#12161c;--card:#1c222b;--card2:#232a34;--line:#2c3440;--text:#eef2f6;--muted:#a3adba;--opt:#ffd43b;--acc:#2fd07a;--ink:#0b1a10;--rmk:#c2255c;--z:1;--gap:12px}
+  body.light{--bg:#eef1f5;--card:#ffffff;--card2:#e6eaf0;--line:#d3dae3;--text:#151a21;--muted:#55606d;--opt:#9a5b00;--acc:#16a35a;--ink:#ffffff}
+  body{font-family:"IBM Plex Sans Thai","Noto Sans Thai",system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;
+    font-variant-numeric:tabular-nums;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  button{font-family:inherit;color:inherit;cursor:pointer}
+  #app{height:100%;display:flex;flex-direction:column}
+  header{flex:none;min-height:60px;padding:8px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--card);border-bottom:1px solid var(--line)}
+  .brand{font-size:20px;font-weight:700;margin-right:4px;display:flex;align-items:center;gap:8px}
+  .dot{width:10px;height:10px;border-radius:50%;background:#2fd07a}.dot.off{background:#ff5a52}
+  .tab{height:44px;padding:0 16px;border-radius:10px;border:0;background:var(--card2);font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .tab.on{background:var(--acc);color:var(--ink);font-weight:700}
+  .tab .n{min-width:26px;padding:0 7px;border-radius:12px;background:#0006;color:#fff;font-size:14px;font-weight:700}
+  .sp{flex:1}
+  .ibtn{height:44px;min-width:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--card2);font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
+  #clock{font-size:22px;font-weight:700}
+  #main{flex:1;min-height:0;display:flex;gap:var(--gap);padding:var(--gap)}
+  #main.ptop{flex-direction:column}
+  #board{flex:1;min-width:0;min-height:0;overflow-y:auto;scrollbar-width:thin}
+  .grid{display:grid;gap:var(--gap);align-items:start;align-content:start}
+  .empty{text-align:center;color:var(--muted);padding:80px 20px;font-size:calc(22px*var(--z))}
+  .empty b{display:block;font-size:calc(40px*var(--z));margin-bottom:8px;color:var(--text)}
+  /* เวลา */
+  .tm{flex:none;font-size:calc(15px*var(--z));font-weight:700;padding:2px 9px;border-radius:8px;white-space:nowrap}
+  .tm.fresh{color:#06210f;background:#63e6be}.tm.warn{color:#1a1000;background:#ffa94d}.tm.late{color:#fff;background:#e03131}
+  .tag{font-size:calc(13px*var(--z));font-weight:700;border-radius:6px;padding:1px 7px;white-space:nowrap}
+  .tag.ta{background:#ffd43b;color:#151a21}.tag.th{background:#a5d8ff;color:#12161c}
+  .op{font-size:calc(15px*var(--z));color:var(--opt)}
+  .rk{align-self:flex-start;margin-top:3px;font-size:calc(13px*var(--z));font-weight:700;color:#fff;background:var(--rmk);border-radius:6px;padding:0 7px}
+  .qc{flex:none;width:calc(34px*var(--z));height:calc(34px*var(--z));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:calc(18px*var(--z));font-weight:700;border:2px solid var(--muted)}
+  .qc.many{background:var(--text);color:var(--bg);border-color:var(--text)}
+  /* แบบการ์ดตามโต๊ะ */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+  .card.late{border:2px solid #e03131}
+  .ch{display:flex;align-items:center;gap:8px;padding:calc(10px*var(--z)) calc(12px*var(--z));background:var(--card2)}
+  .tl{font-size:calc(28px*var(--z));font-weight:700;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rows{padding:4px calc(8px*var(--z))}
+  .dr{width:100%;display:flex;align-items:center;gap:10px;padding:calc(8px*var(--z)) 4px;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;min-height:52px}
+  .dr:last-child{border-bottom:0}
+  .dr .dm{flex:1;min-width:0;display:flex;flex-direction:column}
+  .dr .nm{font-size:calc(19px*var(--z));font-weight:700;line-height:1.25}
+  .dr .go{flex:none;height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--card2);font-size:calc(15px*var(--z));font-weight:700;display:flex;align-items:center}
+  .cf{padding:calc(8px*var(--z));margin-top:auto}
+  .all{width:100%;min-height:calc(54px*var(--z));border-radius:12px;border:0;background:var(--acc);color:var(--ink);font-size:calc(18px*var(--z));font-weight:700}
+  /* แบบทีละจาน (แผ่นใหญ่) */
+  .tile{position:relative;min-height:calc(150px*var(--z));border-radius:16px;border:1px solid var(--line);background:var(--card);padding:calc(12px*var(--z));display:flex;flex-direction:column;gap:6px;text-align:left}
+  .tile.late{border:2px solid #e03131}
+  .tile .tt{display:flex;align-items:center;gap:8px}
+  .tile .tb{font-size:calc(34px*var(--z));font-weight:700;line-height:1}
+  .tile .nm{font-size:calc(24px*var(--z));font-weight:700;line-height:1.2}
+  .tile .hint{margin-top:auto;font-size:calc(13px*var(--z));color:var(--muted)}
+  /* แบบรายการแถว */
+  .lr{width:100%;display:grid;grid-template-columns:auto calc(110px*var(--z)) minmax(0,1fr) auto;align-items:center;gap:12px;padding:calc(10px*var(--z)) 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);text-align:left;margin-bottom:8px}
+  .lr .tb{font-size:calc(24px*var(--z));font-weight:700}
+  .lr .nm{font-size:calc(20px*var(--z));font-weight:700}
+  .lr .go{height:44px;padding:0 14px;border-radius:10px;background:var(--acc);color:var(--ink);font-weight:700;display:flex;align-items:center;font-size:calc(15px*var(--z))}
+  /* งานเตรียมให้ครัว */
+  #prep{flex:none;display:flex;flex-direction:column;gap:8px;min-height:0}
+  #main.pside #prep{width:calc(300px*var(--z));max-width:42%;overflow-y:auto}
+  #main.ptop #prep{flex-direction:row;overflow-x:auto;scrollbar-width:thin}
+  .ph{font-size:calc(15px*var(--z));font-weight:700;color:#ffc078;display:flex;align-items:center;gap:6px;white-space:nowrap}
+  #main.ptop .ph{writing-mode:horizontal-tb;align-self:center}
+  .pc{flex:none;min-width:calc(250px*var(--z));border-radius:14px;background:#3a2a10;border:2px solid #f08c00;color:#fff;padding:calc(10px*var(--z)) 12px;display:flex;flex-direction:column;gap:4px}
+  body.light .pc{background:#fff4e6;color:#3a2a10}
+  .pc .what{font-size:calc(20px*var(--z));font-weight:700;line-height:1.2}
+  .pc .for{font-size:calc(14px*var(--z));opacity:.9}
+  .pc button{margin-top:4px;min-height:44px;border-radius:10px;border:0;background:#f08c00;color:#1a1000;font-size:calc(16px*var(--z));font-weight:700}
+  /* เสิร์ฟแล้ว */
+  .sv{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:calc(17px*var(--z))}
+  .sv .w{flex:1;min-width:0}
+  .sv button{height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--card2);font-weight:700}
+  /* แจ้งเตือน */
+  #toasts{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;align-items:center}
+  .toast{display:flex;align-items:center;gap:12px;padding:10px 12px 10px 16px;border-radius:12px;background:#000d;color:#fff;font-size:17px;font-weight:600;box-shadow:0 8px 24px #0007}
+  .toast button{height:40px;padding:0 14px;border-radius:9px;border:0;background:#fff;color:#111;font-weight:700}
+  /* ตั้งค่า */
+  #set{position:fixed;inset:0;z-index:50;background:#0009;display:flex;justify-content:flex-end}
+  #set .pan{width:min(520px,100%);height:100%;overflow-y:auto;background:var(--card);border-left:1px solid var(--line);padding:16px 18px 40px}
+  #set h2{margin:0 0 6px;font-size:22px}
+  #set h3{margin:20px 0 8px;font-size:16px;color:var(--muted)}
+  #set p.s{margin:4px 0 0;font-size:13px;color:var(--muted)}
+  .seg{display:flex;flex-wrap:wrap;gap:6px}
+  .seg button{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--card2);font-size:15px;font-weight:600}
+  .seg button.on{background:var(--acc);border-color:var(--acc);color:var(--ink);font-weight:700}
+  .chip{min-height:44px;padding:0 14px;border-radius:22px;border:1.5px solid var(--line);background:transparent;font-size:15px;font-weight:700}
+  .chip.off{opacity:.55;text-decoration:line-through}
+  .chip.on{background:var(--acc);border-color:var(--acc);color:var(--ink)}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span class="brand"><span class="dot" id="dot" title="การเชื่อมต่อ"></span>คนเสิร์ฟ</span>
+    <button class="tab on" data-view="ready">รอเสิร์ฟ <span class="n" id="nReady">0</span></button>
+    <button class="tab" data-view="served">เสิร์ฟแล้ว</button>
+    <span class="sp"></span>
+    <span id="info" class="muted" style="font-size:14px;color:var(--muted)"></span>
+    <button class="ibtn" id="sndBtn" aria-label="เปิด/ปิดเสียง"></button>
+    <button class="ibtn" id="setBtn">⚙ ปรับแต่ง</button>
+    <span id="clock"></span>
+  </header>
+  <div id="main">
+    <aside id="prep" aria-label="เตรียมให้ครัว"></aside>
+    <section id="board" aria-live="polite"></section>
+  </div>
+</div>
+<div id="toasts"></div>
+<div id="set" hidden><div class="pan" id="setPan" role="dialog" aria-label="ปรับแต่งจอคนเสิร์ฟ"></div></div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
+const DEF={layout:'table',size:1,cols:'auto',hide:[],prepPos:'top',sound:true,voice:'table-menu',warn:3,late:6,theme:'dark',sort:'old'};
+let C=Object.assign({},DEF,LS.get('serve_cfg',{}));
+const saveC=()=>LS.set('serve_cfg',C);
+let D={ready:[],prep:[],served:[],categories:[]},view='ready',primed=false,seenR=new Set(),seenP=new Set(),gone=new Set();
+
+function where(x){return x.takeaway?'กลับบ้าน '+(x.pickup||''):'โต๊ะ '+x.table;}
+function mins(t){return Math.max(0,Math.floor((Date.now()-t)/60000));}
+function age(t){const m=mins(t);return{m,cls:m>=C.late?'late':m>=C.warn?'warn':'fresh',txt:m<1?'เพิ่งเสร็จ':m+' นาที'};}
+function shown(){return D.ready.filter(d=>!C.hide.includes(d.cat)&&!gone.has(d.id));}
+
+// ===== เสียง =====
+let AC=null;
+function beep(kind){if(!C.sound)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const t=AC.currentTime;
+  const notes=kind==='prep'?[660,520,660]:[880,1175];
+  notes.forEach((f,n)=>{const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(0.0001,t+n*0.16);
+    g.gain.exponentialRampToValueAtTime(0.35,t+n*0.16+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+n*0.16+0.15);o.connect(g);g.connect(AC.destination);o.start(t+n*0.16);o.stop(t+n*0.16+0.17);});}catch(e){}}
+function say(t){if(!C.sound||C.voice==='off'||!('speechSynthesis' in window))return;try{const u=new SpeechSynthesisUtterance(t);u.lang='th-TH';u.rate=1;speechSynthesis.speak(u);}catch(e){}}
+function sentence(d){const w=d.takeaway?'กลับบ้าน '+(d.pickup||''):'โต๊ะ '+d.table,m=d.name+(d.qty>1?' '+d.qty+' ที่':'');
+  return C.voice==='menu'?m:C.voice==='menu-table'?m+' '+w:w+' '+m;}
+
+// ===== ข้อมูล =====
+let busy=false;
+async function poll(){if(busy)return;busy=true;try{
+  const r=await fetch('/api/serve',{cache:'no-store'});const j=await r.json();
+  if(!j.ok)throw new Error(j.error||'');
+  $('#dot').classList.remove('off');$('#info').textContent='';
+  const fresh=j.ready.filter(d=>!seenR.has(d.id)&&!C.hide.includes(d.cat)),freshP=j.prep.filter(p=>!seenP.has(p.id));
+  j.ready.forEach(d=>seenR.add(d.id));j.prep.forEach(p=>seenP.add(p.id));
+  const live=new Set([...j.ready.map(d=>d.id),...j.served.map(d=>d.id)]);for(const id of gone)if(!live.has(id))gone.delete(id);
+  for(const d of j.ready)if(gone.has(d.id)&&!d.servedAt)gone.delete(d.id);
+  D=j;
+  if(primed&&fresh.length){beep('ready');say(fresh.slice(0,3).map(sentence).join(' , '));}
+  if(primed&&freshP.length){beep('prep');say('เตรียม '+freshP.slice(0,2).map(p=>p.prep).join(' , '));}
+  primed=true;render();
+}catch(e){$('#dot').classList.add('off');$('#info').textContent='ติดต่อเครื่องหลักไม่ได้';}
+busy=false;}
+async function post(path,body){try{const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.error||'บันทึกไม่ได้');return true;}catch(e){toast('⚠ '+e.message);return false;}}
+
+// ===== เสิร์ฟ / เตรียม =====
+async function serve(ids,label){ids=ids.filter(Boolean);if(!ids.length)return;ids.forEach(id=>gone.add(id));render();
+  const ok=await post('/api/serve/done',{ids});if(!ok){ids.forEach(id=>gone.delete(id));render();return;}
+  toast('เสิร์ฟแล้ว · '+label,'↩ ยกเลิก',async()=>{ids.forEach(id=>gone.delete(id));await post('/api/serve/done',{ids,undo:true});poll();});poll();}
+async function prepDone(id,label){D.prep=D.prep.filter(p=>p.id!==id);render();
+  if(await post('/api/serve/prep',{ids:[id]}))toast('เตรียมแล้ว · '+label,'↩ ยกเลิก',async()=>{await post('/api/serve/prep',{ids:[id],undo:true});poll();});poll();}
+
+// ===== วาด =====
+function colsCss(min){return C.cols==='auto'?`repeat(auto-fill,minmax(${Math.round(min*C.size)}px,1fr))`:`repeat(${C.cols},minmax(0,1fr))`;}
+function groups(list){const m=new Map();for(const d of list){const k=d.orderId;if(!m.has(k))m.set(k,{key:k,first:d,items:[],oldest:d.doneAt||d.at});const g=m.get(k);g.items.push(d);g.oldest=Math.min(g.oldest,d.doneAt||d.at);}
+  const a=[...m.values()];a.sort((x,y)=>C.sort==='new'?y.oldest-x.oldest:x.oldest-y.oldest);return a;}
+function dishInfo(d){return `${d.opts.length?`<span class="op">${esc(d.opts.join(' · '))}</span>`:''}${d.remark?`<span class="rk">${esc(d.remark)}</span>`:''}`;}
+function tags(d){return `${d.takeaway?'<span class="tag ta">กลับบ้าน</span>':''}${d.thai?'<span class="tag th">คนไทย</span>':''}`;}
+function renderReady(b){
+  const list=shown();
+  if(!list.length){b.innerHTML=`<div class="empty"><b>ไม่มีจานรอเสิร์ฟ</b>ครัวกดเสร็จเมื่อไหร่ จะขึ้นที่นี่ทันที${C.hide.length?'<br><small>ไม่แสดงหมวด: '+esc(C.hide.join(', '))+'</small>':''}</div>`;return;}
+  if(C.layout==='table'){
+    b.innerHTML=`<div class="grid" style="grid-template-columns:${colsCss(300)}">${groups(list).map(g=>{const a=age(g.oldest),ids=g.items.map(d=>d.id).join(',');
+      return `<article class="card ${a.cls==='late'?'late':''}"><div class="ch"><span class="tl">${esc(where(g.first))}</span>${tags(g.first)}<span class="sp"></span><span class="tm ${a.cls}">${a.txt}</span></div>
+        <div class="rows">${g.items.map(d=>`<button class="dr" data-serve="${esc(d.id)}" data-label="${esc(where(d)+' '+d.name)}"><span class="qc ${d.qty>1?'many':''}">${d.qty}</span><span class="dm"><span class="nm">${esc(d.name)}</span>${dishInfo(d)}</span><span class="go">เสิร์ฟ</span></button>`).join('')}</div>
+        ${g.items.length>1?`<div class="cf"><button class="all" data-serve="${esc(ids)}" data-label="${esc(where(g.first))} ครบ">เสิร์ฟครบ ${esc(where(g.first))} ✓</button></div>`:''}</article>`;}).join('')}</div>`;
+  }else if(C.layout==='dish'){
+    const l=[...list].sort((x,y)=>C.sort==='new'?(y.doneAt-x.doneAt):(x.doneAt-y.doneAt));
+    b.innerHTML=`<div class="grid" style="grid-template-columns:${colsCss(230)}">${l.map(d=>{const a=age(d.doneAt||d.at);
+      return `<button class="tile ${a.cls==='late'?'late':''}" data-serve="${esc(d.id)}" data-label="${esc(where(d)+' '+d.name)}"><span class="tt"><span class="tb">${d.takeaway?esc('กลับบ้าน '+(d.pickup||'')):'<small style="font-size:.55em;font-weight:600;color:var(--muted)">โต๊ะ</small> '+esc(d.table)}</span>${tags(d)}<span class="sp" style="flex:1"></span><span class="tm ${a.cls}">${a.txt}</span></span>
+        <span class="nm">${d.qty>1?esc(d.qty)+' × ':''}${esc(d.name)}</span>${dishInfo(d)}<span class="hint">แตะ = เสิร์ฟแล้ว</span></button>`;}).join('')}</div>`;
+  }else{
+    const l=[...list].sort((x,y)=>C.sort==='new'?(y.doneAt-x.doneAt):(x.doneAt-y.doneAt));
+    b.innerHTML=l.map(d=>{const a=age(d.doneAt||d.at);
+      return `<button class="lr" data-serve="${esc(d.id)}" data-label="${esc(where(d)+' '+d.name)}"><span class="tm ${a.cls}">${a.txt}</span><span class="tb">${d.takeaway?esc('กลับบ้าน '+(d.pickup||'')):'<small style="font-size:.55em;font-weight:600;color:var(--muted)">โต๊ะ</small> '+esc(d.table)}</span>
+        <span style="display:flex;flex-direction:column;min-width:0"><span class="nm">${d.qty>1?esc(d.qty)+' × ':''}${esc(d.name)} ${tags(d)}</span>${dishInfo(d)}</span><span class="go">เสิร์ฟ</span></button>`;}).join('');
+  }
+}
+function renderServed(b){
+  if(!D.served.length){b.innerHTML='<div class="empty"><b>ยังไม่มี</b>จานที่เสิร์ฟใน 30 นาทีล่าสุดจะอยู่ที่นี่ กดเรียกกลับได้ถ้ากดผิด</div>';return;}
+  b.innerHTML=`<div style="background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden">${D.served.map(d=>`<div class="sv"><span style="color:var(--muted);width:56px">${new Date(d.servedAt).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</span>
+    <span class="w"><b>${esc(where(d))}</b> · ${d.qty>1?esc(d.qty)+' × ':''}${esc(d.name)}${d.opts.length?' <span class="op">'+esc(d.opts.join(' · '))+'</span>':''}</span><button data-recall="${esc(d.id)}">↩ เรียกกลับ</button></div>`).join('')}</div>`;
+}
+function renderPrep(){
+  const p=$('#prep'),m=$('#main');m.classList.toggle('ptop',C.prepPos==='top');m.classList.toggle('pside',C.prepPos==='side');
+  const list=C.prepPos==='off'?[]:D.prep;
+  p.hidden=!list.length;if(!list.length){p.innerHTML='';return;}
+  p.innerHTML=`<span class="ph">🧺 เตรียมให้ครัว ${list.length}</span>`+list.map(x=>`<div class="pc"><span class="what">${esc(x.prep)}</span>
+    <span class="for">${esc(where(x))} · ${x.qty>1?esc(x.qty)+' × ':''}${esc(x.name)} · สั่งมา ${mins(x.at)} นาที</span>
+    <button data-prep="${esc(x.id)}" data-label="${esc(x.prep+' '+where(x))}">✓ เตรียมแล้ว</button></div>`).join('');
+}
+function render(){
+  document.documentElement.style.setProperty('--z',C.size);document.body.classList.toggle('light',C.theme==='light');
+  const n=shown().reduce((s,d)=>s+(+d.qty||1),0);$('#nReady').textContent=n;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.view===view));
+  $('#sndBtn').textContent=C.sound?'🔔':'🔕';
+  renderPrep();const b=$('#board');view==='served'?renderServed(b):renderReady(b);
+}
+
+// ===== แจ้งเตือนด้านล่าง =====
+function toast(msg,act,fn){const t=document.createElement('div');t.className='toast';t.innerHTML=`<span>${esc(msg)}</span>`;
+  if(act){const b=document.createElement('button');b.textContent=act;b.onclick=()=>{t.remove();fn();};t.appendChild(b);}
+  const box=$('#toasts');box.appendChild(t);while(box.children.length>2)box.firstChild.remove();setTimeout(()=>t.remove(),6000);}
+
+// ===== ปรับแต่ง =====
+function seg(key,opts,note){return `<div class="seg" role="group">${opts.map(([v,t])=>`<button data-k="${key}" data-v="${esc(v)}" class="${String(C[key])===String(v)?'on':''}">${esc(t)}</button>`).join('')}</div>${note?`<p class="s">${note}</p>`:''}`;}
+function renderSet(){
+  const cats=D.categories.length?D.categories:[...new Set(D.ready.map(d=>d.cat))];
+  $('#setPan').innerHTML=`<div style="display:flex;align-items:center;gap:10px"><h2>ปรับแต่งจอคนเสิร์ฟ</h2><span class="sp" style="flex:1"></span><button class="ibtn" id="setClose">ปิด</button></div>
+  <p class="s">ค่าเหล่านี้เก็บในแท็บเล็ตเครื่องนี้</p>
+  <h3>รูปแบบ</h3>${seg('layout',[['table','การ์ดตามโต๊ะ'],['dish','ทีละจาน (แผ่นใหญ่)'],['list','รายการแถว']],'การ์ดตามโต๊ะ = รวมจานของโต๊ะเดียวกัน · ทีละจาน = แผ่นละจาน แตะทั้งแผ่น · รายการแถว = แถวยาว อ่านง่ายจากไกล')}
+  <h3>ขนาดตัวหนังสือ</h3>${seg('size',[['0.85','เล็ก'],['1','กลาง'],['1.2','ใหญ่'],['1.45','ใหญ่มาก'],['1.75','ใหญ่พิเศษ']])}
+  <h3>จำนวนคอลัมน์</h3>${seg('cols',[['auto','อัตโนมัติ'],['1','1'],['2','2'],['3','3'],['4','4'],['5','5']])}
+  <h3>เรียงลำดับ</h3>${seg('sort',[['old','รอนานสุดก่อน'],['new','ใหม่สุดก่อน']])}
+  <h3>หมวดที่ไม่ต้องขึ้นจอนี้</h3><div class="seg">${cats.map(c=>`<button class="chip ${C.hide.includes(c)?'off':'on'}" data-hide="${esc(c)}">${esc(c)}</button>`).join('')||'<span class="s">ยังไม่มีหมวดที่ขึ้นจอครัว</span>'}</div>
+  <p class="s">แตะเพื่อปิด/เปิด · หมวดที่ปิด (ขีดฆ่า) ครัวกดเสร็จแล้วจะไม่ขึ้นที่จอนี้ เช่น เครื่องดื่มที่บาร์ยกเอง</p>
+  <h3>เตรียมให้ครัว</h3>${seg('prepPos',[['top','แถบด้านบน'],['side','แถบด้านซ้าย'],['off','ไม่แสดง']],'ตั้งว่าเมนูไหนต้องเตรียมอะไร ที่ หลังร้าน › เมนู › แก้เมนู › “เตรียมให้ครัว (จอคนเสิร์ฟ)”')}
+  <h3>สีเวลารอ</h3>${seg('warn',[['2','ส้มที่ 2 นาที'],['3','3 นาที'],['5','5 นาที']])}<div style="height:6px"></div>${seg('late',[['4','แดงที่ 4 นาที'],['6','6 นาที'],['10','10 นาที']])}
+  <h3>เสียง</h3>${seg('sound',[['true','เปิดเสียง'],['false','ปิดเสียง']])}<div style="height:6px"></div>
+  ${seg('voice',[['table-menu','อ่าน โต๊ะ → เมนู'],['menu-table','อ่าน เมนู → โต๊ะ'],['menu','อ่านแค่เมนู'],['off','ไม่อ่าน (แค่เสียงเตือน)']])}
+  <div style="margin-top:8px"><button class="ibtn" id="tryVoice">▶ ลองฟัง</button></div>
+  <h3>สีพื้น</h3>${seg('theme',[['dark','มืด'],['light','สว่าง']])}
+  <h3>ค่าเริ่มต้น</h3><button class="ibtn" id="resetSet">คืนค่าเริ่มต้นทั้งหมด</button>`;
+}
+
+// ===== เหตุการณ์ =====
+document.addEventListener('click',e=>{
+  const t=e.target.closest('button');if(!t)return;
+  if(t.dataset.serve){serve(t.dataset.serve.split(','),t.dataset.label||'');return;}
+  if(t.dataset.prep){prepDone(t.dataset.prep,t.dataset.label||'');return;}
+  if(t.dataset.recall){post('/api/serve/done',{ids:[t.dataset.recall],undo:true}).then(poll);toast('เรียกกลับแล้ว');return;}
+  if(t.dataset.view){view=t.dataset.view;render();return;}
+  if(t.dataset.k){let v=t.dataset.v;if(v==='true'||v==='false')v=v==='true';else if(['size','warn','late'].includes(t.dataset.k))v=+v;
+    C[t.dataset.k]=v;saveC();render();renderSet();return;}
+  if(t.dataset.hide!=null){const c=t.dataset.hide;C.hide=C.hide.includes(c)?C.hide.filter(x=>x!==c):[...C.hide,c];saveC();render();renderSet();return;}
+  if(t.id==='setBtn'){renderSet();$('#set').hidden=false;return;}
+  if(t.id==='setClose'){$('#set').hidden=true;return;}
+  if(t.id==='sndBtn'){C.sound=!C.sound;saveC();render();if(C.sound)beep('ready');return;}
+  if(t.id==='tryVoice'){const s=C.sound;C.sound=true;beep('ready');say(sentence({table:'5',name:'กะเพราหมู',qty:2}));C.sound=s;return;}
+  if(t.id==='resetSet'){C=Object.assign({},DEF);saveC();render();renderSet();return;}
+});
+$('#set').addEventListener('click',e=>{if(e.target.id==='set')$('#set').hidden=true;});
+function clockTick(){$('#clock').textContent=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});}
+render();poll();setInterval(poll,2000);clockTick();setInterval(()=>{clockTick();if(view==='ready')render();},20000);
+</script>
+<script src="router.js"></script><script src="failover.js"></script>
+</body></html>
