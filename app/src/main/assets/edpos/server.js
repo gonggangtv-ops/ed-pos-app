@@ -3473,7 +3473,11 @@ const routes = {
     const cats = new Set(data.menu.filter(m => m.screens?.length).map(m => m.category));
     const categories = [...data.categories.filter(c => cats.has(c)), ...[...cats].filter(c => !data.categories.includes(c))];
     const menus = data.menu.map(m => ({ id: m.id, name: m.name, cat: m.category, prep: !!m.prep }));
-    return { ok: true, ready, prep, served: served.slice(0, 40), categories, menus, shopName: data.settings.shopName, now };
+    // test-1.92 กลุ่มตัวเลือกทั้งหมด (ไว้ตั้งไอคอน/สีขนาดที่จอคนเสิร์ฟ)
+    const og = new Map();
+    for (const m of data.menu) for (const g of groupsOf(m)) { const k = g.name || 'ตัวเลือก'; if (!og.has(k)) og.set(k, new Set()); for (const c of g.choices || []) if (c.name) og.get(k).add(c.name); }
+    const optGroups = [...og].map(([name, set]) => ({ name, choices: [...set] }));
+    return { ok: true, ready, prep, served: served.slice(0, 40), categories, menus, optGroups, shopName: data.settings.shopName, now };
   },
   'POST /api/serve/done': b => {
     const ids = new Set([].concat(b.ids || []));

@@ -11,9 +11,8 @@
 <style>
   *{box-sizing:border-box} html,body{height:100%;margin:0}
   [hidden]{display:none!important}
-  :root{--pz:1;--bg:#0f1318;--card:#1a2029;--card2:#232a35;--line:#2b3340;--text:#f1f4f8;--muted:#a3adba;--opt:#ffd43b;--acc:#2fd07a;--ink:#06210f;--rmk:#d6336c;
+  :root{--pz:1;--nz:1;--oz:1;--dn:1;--rad:18px;--bw:1px;--fw:700;--prepc:#ff9f1c;--bg:#0f1318;--card:#1a2029;--card2:#232a35;--line:#2b3340;--text:#f1f4f8;--muted:#a3adba;--opt:#ffd43b;--acc:#2fd07a;--ink:#06210f;--rmk:#d6336c;
     --amber:#ff9f1c;--amber2:#3b2a12;--z:1;--gap:14px;--shadow:0 6px 20px #0006}
-  body.light{--bg:#eef1f5;--card:#ffffff;--card2:#eef1f5;--line:#d6dce4;--text:#151a21;--muted:#55606d;--opt:#9a5b00;--acc:#12a150;--ink:#ffffff;--amber2:#fff1db;--shadow:0 4px 14px #0001}
   body{font-family:"IBM Plex Sans Thai","Noto Sans Thai",system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;
     font-variant-numeric:tabular-nums;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   button{font-family:inherit;color:inherit;cursor:pointer}
@@ -41,39 +40,54 @@
   .tm.fresh{color:#06210f;background:#63e6be}.tm.warn{color:#1a1000;background:#ffb347}.tm.late{color:#fff;background:#e03131}
   .tag{font-size:calc(13px*var(--z));font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap}
   .tag.ta{background:#ffd43b;color:#151a21}.tag.th{background:#a5d8ff;color:#0f1318}
-  .op{font-size:calc(15px*var(--z));color:var(--opt);font-weight:500}
+  .op{font-size:calc(15px*var(--z)*var(--oz));color:var(--opt);font-weight:500}
+  /* test-1.92 ตัวเลือก: ชิป · ขนาดไฮไลต์ · ไอคอน */
+  .op.ochips{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+  .oc{display:inline-flex;align-items:center;gap:4px;line-height:1.3}
+  .op.ochips .oc{padding:1px 9px;border-radius:20px;background:var(--card2);color:var(--opt)}
+  .op.ol .dot2{font-style:normal;margin:0 5px;opacity:.6}
+  .oc.sz{background:var(--c)!important;color:#111!important;font-weight:800;padding:1px 9px;border-radius:20px}
+  .oc.sz.lg{font-size:1.2em;padding:2px 12px}
+  .oe{font-size:1.15em}
+  .oi{width:1.7em;height:1.7em;border-radius:50%;background:var(--card2);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:1em}
+  .op.ochips .oc .oi{margin-left:-7px}
+  .eo .oe,.eo .oi{font-size:1.5em}
+  .qn{flex:none;min-width:calc(40px*var(--z));font-size:calc(26px*var(--z));font-weight:800;color:var(--acc)}
+  .tbar{height:6px;border-radius:3px;background:var(--card2);overflow:hidden;margin:0 calc(14px*var(--z)) 4px}
+  .tbar i{display:block;height:100%;background:var(--st,#63e6be);border-radius:3px}
+  .tms{font-size:calc(14px*var(--z));color:var(--muted);font-weight:600;white-space:nowrap}
   .rk{align-self:flex-start;margin-top:4px;font-size:calc(13px*var(--z));font-weight:700;color:#fff;background:var(--rmk);border-radius:20px;padding:1px 9px}
   .qc{flex:none;width:calc(36px*var(--z));height:calc(36px*var(--z));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:calc(18px*var(--z));font-weight:700;border:2px solid var(--muted)}
   .qc.many{background:var(--text);color:var(--bg);border-color:var(--text)}
   /* การ์ดตามโต๊ะ */
-  .card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;min-width:0;box-shadow:var(--shadow)}
+  .card{position:relative;background:var(--card);border:var(--bw) solid var(--line);border-radius:var(--rad);overflow:hidden;display:flex;flex-direction:column;min-width:0;box-shadow:var(--shadow)}
   .card::before{content:"";height:5px;background:var(--st,#63e6be)}
   .card.s-warn{--st:#ffb347}.card.s-late{--st:#e03131;border-color:#e03131}
-  .ch{display:flex;align-items:center;gap:8px;padding:calc(10px*var(--z)) calc(14px*var(--z)) calc(6px*var(--z))}
+  .ch{display:flex;align-items:center;gap:8px;padding:calc(10px*var(--z)*var(--dn)) calc(14px*var(--z)) calc(6px*var(--z)*var(--dn))}
   .tl{font-size:calc(30px*var(--z));font-weight:700;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rows{padding:0 calc(8px*var(--z)) 4px}
-  .dr{width:100%;display:flex;align-items:center;gap:12px;padding:calc(9px*var(--z)) 6px;border:0;border-top:1px solid var(--line);background:transparent;text-align:left;min-height:56px;border-radius:10px;transition:background .15s}
+  .dr{width:100%;display:flex;align-items:center;gap:12px;padding:calc(9px*var(--z)*var(--dn)) 6px;border:0;border-top:1px solid var(--line);background:transparent;text-align:left;min-height:56px;border-radius:10px;transition:background .15s}
   .dr:active{background:var(--card2)}
   .dr .dm{flex:1;min-width:0;display:flex;flex-direction:column}
-  .dr .nm{font-size:calc(20px*var(--z));font-weight:700;line-height:1.25}
+  .dr .nm{font-size:calc(20px*var(--z)*var(--nz));font-weight:var(--fw);line-height:1.25}
   .go{flex:none;height:46px;padding:0 14px;border-radius:23px;border:1px solid var(--line);background:var(--card2);font-size:calc(15px*var(--z));font-weight:700;display:flex;align-items:center;gap:6px}
   .cf{padding:calc(8px*var(--z)) calc(10px*var(--z)) calc(10px*var(--z));margin-top:auto}
   .all{width:100%;min-height:calc(56px*var(--z));border-radius:14px;border:0;background:var(--acc);color:var(--ink);font-size:calc(18px*var(--z));font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;transition:transform .15s,filter .15s}
   .all:active{transform:scale(.98);filter:brightness(1.1)}
   /* ทีละจาน */
-  .tile{position:relative;min-height:calc(160px*var(--z));border-radius:18px;border:1px solid var(--line);background:var(--card);padding:calc(14px*var(--z));display:flex;flex-direction:column;gap:6px;text-align:left;box-shadow:var(--shadow);overflow:hidden}
+  .tile{position:relative;min-height:calc(160px*var(--z)*var(--dn));border-radius:var(--rad);border:var(--bw) solid var(--line);background:var(--card);padding:calc(14px*var(--z));display:flex;flex-direction:column;gap:6px;text-align:left;box-shadow:var(--shadow);overflow:hidden}
   .tile::after{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:var(--st,#63e6be)}
   .tile.s-warn{--st:#ffb347}.tile.s-late{--st:#e03131;border-color:#e03131}
   .tile .tt{display:flex;align-items:center;gap:8px}
   .tile .tb{font-size:calc(34px*var(--z));font-weight:700;line-height:1}
-  .tile .nm{font-size:calc(25px*var(--z));font-weight:700;line-height:1.2}
+  .tile .nm{font-size:calc(25px*var(--z)*var(--nz));font-weight:var(--fw);line-height:1.2}
   .tile .hint{margin-top:auto;font-size:calc(13px*var(--z));color:var(--muted);display:flex;align-items:center;gap:6px}
   .tb small{font-size:.5em;font-weight:600;color:var(--muted)}
   /* รายการแถว */
-  .lr{width:100%;display:grid;grid-template-columns:auto calc(120px*var(--z)) minmax(0,1fr) auto;align-items:center;gap:14px;padding:calc(10px*var(--z)) 16px;border:1px solid var(--line);border-radius:16px;background:var(--card);text-align:left;margin-bottom:10px;box-shadow:var(--shadow)}
+  .lr{width:100%;display:grid;grid-template-columns:auto calc(120px*var(--z)) minmax(0,1fr) auto;align-items:center;gap:14px;padding:calc(10px*var(--z)*var(--dn)) 16px;border:var(--bw) solid var(--line);border-radius:var(--rad);background:var(--card);text-align:left;margin-bottom:10px;box-shadow:var(--shadow)}
   .lr.s-late{border-color:#e03131}
   .lr .tb{font-size:calc(26px*var(--z));font-weight:700}
-  .lr .nm{font-size:calc(21px*var(--z));font-weight:700}
+  .lr .nm{font-size:calc(21px*var(--z)*var(--nz));font-weight:var(--fw)}
   .lr .go{background:var(--acc);color:var(--ink);border:0}
   /* เตรียมให้ครัว */
   #prep{flex:none;display:flex;flex-direction:column;gap:10px;min-height:0}
@@ -83,10 +97,10 @@
   .ph{font-size:calc(15px*var(--pz));font-weight:700;color:var(--amber);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;white-space:nowrap;padding:0 4px}
   #main.pside .ph,#main.pright .ph{flex-direction:row;justify-content:flex-start}
   .ph .ic{width:42px;height:42px;border-radius:50%;background:var(--amber2);display:flex;align-items:center;justify-content:center;font-size:22px}
-  .pc{position:relative;flex:none;min-width:calc(270px*var(--pz));max-width:calc(380px*var(--pz));border-radius:18px;background:var(--amber2);border:2px solid var(--amber);padding:calc(12px*var(--pz)) 14px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow)}
+  .pc{position:relative;flex:none;min-width:calc(270px*var(--pz));max-width:calc(380px*var(--pz));border-radius:var(--rad);background:var(--amber2);border:2px solid var(--prepc);padding:calc(12px*var(--pz)) 14px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow)}
   .pc .what{display:flex;align-items:center;gap:8px;font-size:calc(22px*var(--pz));font-weight:700;line-height:1.2}
   .pc .what .tx{flex:1;min-width:0}
-  .pc .pq{flex:none;font-size:calc(20px*var(--pz));background:var(--amber);color:#1a1000;border-radius:20px;padding:1px 12px;font-weight:700}
+  .pc .pq{flex:none;font-size:calc(20px*var(--pz));background:var(--prepc);color:#1a1000;border-radius:20px;padding:1px 12px;font-weight:700}
   .pc .th{font-size:.62em;background:#a5d8ff;color:#0f1318;border-radius:20px;padding:1px 9px;vertical-align:middle;margin-left:4px}
   .pc .szs{display:flex;flex-wrap:wrap;gap:6px}
   .pc .sz{font-size:calc(16px*var(--pz));font-weight:700;border-radius:20px;padding:2px 11px;background:#0003;border:1px solid var(--amber)}
@@ -96,7 +110,7 @@
   body.light .pc .pr{background:#fff}
   .pc .pr b{flex:none}.pc .pr span{flex:1;min-width:0}.pc .pr small{opacity:.8;flex:none}
   .pc .for{font-size:calc(14px*var(--pz));opacity:.9}
-  .pc > button{margin-top:2px;min-height:48px;border-radius:14px;border:0;background:var(--amber);color:#1a1000;font-size:calc(17px*var(--pz));font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px}
+  .pc > button{margin-top:2px;min-height:48px;border-radius:calc(var(--rad) - 4px);border:0;background:var(--prepc);color:#1a1000;font-size:calc(17px*var(--pz));font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px}
   /* เสิร์ฟแล้ว */
   .svbox{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
   .sv{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:calc(17px*var(--z))}
@@ -117,7 +131,28 @@
   .seg button{min-height:44px;padding:0 16px;border-radius:22px;border:1px solid var(--line);background:var(--card2);font-size:15px;font-weight:600}
   .seg button.on{background:var(--acc);border-color:var(--acc);color:var(--ink);font-weight:700}
   .chip{min-height:44px;padding:0 16px;border-radius:22px;border:1.5px solid var(--line);background:transparent;font-size:15px;font-weight:700}
-  .chip.off{opacity:.55;text-decoration:line-through}.chip.pmoff{opacity:.65}
+  .chip.off{opacity:.55;text-decoration:line-through}
+  .stabs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px;position:sticky;top:-18px;background:var(--card);padding:8px 0;z-index:2;border-bottom:1px solid var(--line)}
+  .stabs button{min-height:44px;padding:0 14px;border-radius:22px;border:1px solid var(--line);background:var(--card2);font-weight:700;font-size:15px}
+  .stabs button.on{background:var(--text);color:var(--bg)}
+  .thm{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .thm button{min-height:64px;border-radius:14px;border:2px solid var(--line);padding:8px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;font-weight:700;font-size:14px}
+  .thm button.on{border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 35%,transparent)}
+  .thm .sw3{display:flex;gap:4px}.thm .sw3 i{width:18px;height:18px;border-radius:50%;border:1px solid #0003}
+  .sws{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .sws button{width:40px;height:40px;border-radius:50%;border:3px solid transparent;padding:0}
+  .sws button.on{border-color:var(--text)}
+  .sws input[type=color]{width:46px;height:40px;border:1px solid var(--line);border-radius:10px;background:transparent;padding:2px}
+  .icg{margin:10px 0 2px;font-size:13px;color:var(--muted);font-weight:700}
+  .icr{display:flex;align-items:center;gap:8px;padding:4px 0}
+  .icr .nmx{flex:1;min-width:0;font-weight:600}
+  .icr button.icb{width:46px;height:44px;border-radius:12px;border:2px solid var(--line);background:var(--card2);font-size:22px}
+  .icr button.icb.sel{border-color:var(--acc)}
+  .icr input{width:90px;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:18px;text-align:center}
+  .icr input[type=color]{width:56px;padding:2px}
+  .pal{display:flex;flex-wrap:wrap;gap:4px;position:sticky;top:46px;background:var(--card);padding:6px 0;z-index:1}
+  .pal button{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card2);font-size:22px}
+  .prev{border:1px dashed var(--line);border-radius:14px;padding:10px;margin-top:8px}.chip.pmoff{opacity:.65}
   .chip.on{background:var(--acc);border-color:var(--acc);color:var(--ink)}
   /* ===== แอนิเมชัน (test-1.85) · ปิดได้ใน ⚙ หรือเมื่อเครื่องตั้งลดการเคลื่อนไหว ===== */
   @keyframes popIn{0%{opacity:0;transform:translateY(16px) scale(.94)}70%{opacity:1;transform:translateY(-2px) scale(1.01)}100%{transform:none}}
@@ -171,7 +206,8 @@
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
-const DEF={prepIds:[],prepOff:[],psize:1,anim:true,prepGroup:true,layout:'table',size:1,cols:'auto',hide:[],prepPos:'top',sound:true,voice:'table-menu',warn:3,late:6,theme:'dark',sort:'old'};
+const DEF={look:'dark',accent:'',rad:18,bw:1,shadow:true,dens:1,nz:1,oz:1,fw:700,qtyStyle:'circle',timeStyle:'pill',tint:false,prepColor:'',
+  sizeHL:'pill',sizeColors:{},iconMode:'emoji',icons:{},optStyle:'chips',prepIds:[],prepOff:[],psize:1,anim:true,prepGroup:true,layout:'table',size:1,cols:'auto',hide:[],prepPos:'top',sound:true,voice:'table-menu',warn:3,late:6,theme:'dark',sort:'old'};
 let C=Object.assign({},DEF,LS.get('serve_cfg',{}));if(!Array.isArray(C.prepIds))C.prepIds=[];
 // test-1.90 ขึ้นหน้าเตรียมของเมื่อ: เลือกราดข้าว (label) · หรือเมนูที่เลือกไว้ใน ⚙ (prepIds) · หรือเมนูที่เปิดสวิตช์ในหลังร้าน (menuPrep)
 if(!Array.isArray(C.prepOff))C.prepOff=[];
@@ -179,6 +215,51 @@ if(!Array.isArray(C.prepOff))C.prepOff=[];
 const menuOn=(id,adminOn)=>adminOn?!C.prepOff.includes(id):C.prepIds.includes(id);
 const showPrep=x=>!!x.label||menuOn(x.menuId,x.menuPrep);
 const saveC=()=>LS.set('serve_cfg',C);
+if(!C.look)C.look=C.theme==='light'?'light':'dark';if(!C.icons||typeof C.icons!=='object')C.icons={};if(!C.sizeColors||typeof C.sizeColors!=='object')C.sizeColors={};
+// ===== test-1.92 ธีม ไอคอน สีขนาด =====
+const THEMES={
+  dark:{n:'มืด',bg:'#0f1318',card:'#1a2029',card2:'#232a35',line:'#2b3340',text:'#f1f4f8',muted:'#a3adba',opt:'#ffd43b',acc:'#2fd07a'},
+  light:{n:'สว่าง',light:1,bg:'#eef1f5',card:'#ffffff',card2:'#eef1f5',line:'#d6dce4',text:'#151a21',muted:'#55606d',opt:'#9a5b00',acc:'#12a150'},
+  navy:{n:'น้ำเงินกลางคืน',bg:'#0b1430',card:'#14204a',card2:'#1d2b5e',line:'#2a3a75',text:'#eef2ff',muted:'#a9b4dc',opt:'#ffd166',acc:'#4dabf7'},
+  warm:{n:'ครีม อบอุ่น',light:1,bg:'#f4ecdf',card:'#fffaf2',card2:'#f1e6d4',line:'#e2d3bc',text:'#3a2a18',muted:'#7a6550',opt:'#b5410f',acc:'#c2410c'},
+  neon:{n:'นีออน',bg:'#050508',card:'#111018',card2:'#1b1926',line:'#2c2840',text:'#ffffff',muted:'#b3aac9',opt:'#39ff88',acc:'#ff2bd6'},
+  mint:{n:'มินต์',light:1,bg:'#e8f6f0',card:'#ffffff',card2:'#dff2ea',line:'#bfe3d3',text:'#0e2a20',muted:'#4b6b5e',opt:'#0b7a55',acc:'#0ca678'},
+  coffee:{n:'กาแฟ',bg:'#1c1410',card:'#2a1f19',card2:'#352820',line:'#4a382d',text:'#f6ebe1',muted:'#c4ae9c',opt:'#f4b860',acc:'#e8a33d'},
+  rose:{n:'ชมพู',light:1,bg:'#fdf0f3',card:'#ffffff',card2:'#fbe3ea',line:'#f3c9d5',text:'#3b1220',muted:'#7d5060',opt:'#c2185b',acc:'#e64980'},
+  mono:{n:'ขาวดำ คมชัด',bg:'#000000',card:'#000000',card2:'#1c1c1c',line:'#ffffff',text:'#ffffff',muted:'#d0d0d0',opt:'#ffffff',acc:'#ffffff'}};
+const SWATCH=['#2fd07a','#12a150','#4dabf7','#1c7ed6','#7950f2','#e64980','#ff2bd6','#fa5252','#ff922b','#fab005','#20c997','#868e96'];
+const SIZE_RE=/^(ธรรมดา|พิเศษ|จัมโบ้|เล็ก|กลาง|ใหญ่|[SMLX]{1,3})$/i;
+const SIZE_COL={'ธรรมดา':'#74c0fc','พิเศษ':'#ffa94d','จัมโบ้':'#ff6b6b','เล็ก':'#a5d8ff','กลาง':'#ffe066','ใหญ่':'#ffa94d','S':'#a5d8ff','M':'#ffe066','L':'#ffa94d','XL':'#ff6b6b'};
+const PAL6=['#74c0fc','#ffa94d','#b197fc','#63e6be','#ffe066','#ff8787','#f783ac','#a9e34b'];
+const ICON_KW=[['ไม่เผ็ด','🧊'],['เผ็ด','🌶️'],['หมูกรอบ','🥓'],['หมูสับ','🐖'],['หมูยอ','🐖'],['หมู','🐷'],['ไก่','🐔'],['กุ้ง','🦐'],['หมึก','🦑'],['ปลา','🐟'],['เนื้อ','🐮'],['วัว','🐮'],['ทะเล','🦀'],['ปู','🦀'],['หอย','🐚'],['เป็ด','🦆'],
+  ['ไข่ดาว','🍳'],['ไข่เจียว','🍳'],['ไข่','🥚'],['เต้าหู้','🧈'],['เห็ด','🍄'],['ผัก','🥬'],['ราดข้าว','🍛'],['ข้าวราด','🍛'],['ข้าว','🍚'],['เส้น','🍜'],['หวาน','🍬'],['น้ำแข็ง','🧊'],['ร้อน','🔥'],['เย็น','❄️']];
+const EMO=['🐷','🐖','🥓','🐔','🍗','🐮','🥩','🦐','🦑','🐟','🦀','🐚','🦆','🍳','🥚','🧈','🥬','🍄','🌶️','🧊','🍛','🍚','🍜','🍝','🥢','🍋','🥥','🌿','🔥','❄️','⭐','💎','🟢','🟡','🟠','🔴','🔵','🟣'];
+let SIZES=new Set();
+function isSize(o){return SIZES.has(o)||SIZE_RE.test(o);}
+function hashCol(o){let h=0;for(const ch of o)h=(h*31+ch.codePointAt(0))>>>0;return PAL6[h%PAL6.length];}
+function sizeColor(o){return C.sizeColors[o]||SIZE_COL[o]||SIZE_COL[o.toUpperCase()]||hashCol(o);}
+function iconOf(o){if(Object.prototype.hasOwnProperty.call(C.icons,o))return C.icons[o];const e=ICON_KW.find(([k])=>o.includes(k));return e?e[1]:'';}
+function lum(hex){const m=/^#?([0-9a-f]{6})$/i.exec(hex||'');if(!m)return 0;const n=parseInt(m[1],16);return(0.299*(n>>16)+0.587*((n>>8)&255)+0.114*(n&255))/255;}
+function rgba(hex,a){const m=/^#?([0-9a-f]{6})$/i.exec(hex||'');if(!m)return 'transparent';const n=parseInt(m[1],16);return `rgba(${n>>16},${(n>>8)&255},${n&255},${a})`;}
+function applyLook(){const t=THEMES[C.look]||THEMES.dark,r=document.documentElement.style,acc=C.accent||t.acc;
+  for(const k of ['bg','card','card2','line','text','muted','opt'])r.setProperty('--'+k,t[k]);
+  r.setProperty('--acc',acc);r.setProperty('--ink',lum(acc)>.6?'#0b0f14':'#ffffff');
+  r.setProperty('--rad',C.rad+'px');r.setProperty('--bw',C.bw+'px');r.setProperty('--dn',C.dens);r.setProperty('--nz',C.nz);r.setProperty('--oz',C.oz);r.setProperty('--fw',C.fw);
+  r.setProperty('--shadow',C.shadow?(t.light?'0 4px 14px #0001':'0 6px 20px #0006'):'none');r.setProperty('--prepc',C.prepColor||'#ff9f1c');
+  r.setProperty('--amber2',C.prepColor?rgba(C.prepColor,t.light?.14:.2):(t.light?'#fff1db':'#3b2a12'));
+  document.body.classList.toggle('light',!!t.light);document.body.classList.toggle('eo',C.iconMode==='emoji-only');}
+function optHtml(opts){if(!opts||!opts.length)return '';const line=C.optStyle==='line';
+  const parts=opts.map(o=>{if(isSize(o)&&C.sizeHL!=='off')return `<span class="oc sz${C.sizeHL==='big'?' lg':''}" style="--c:${sizeColor(o)}">${esc(o)}</span>`;
+    const ic=C.iconMode==='text'?'':iconOf(o);
+    if(ic){const i=C.iconMode==='badge'?`<span class="oi" aria-hidden="true">${esc(ic)}</span>`:`<span class="oe" aria-hidden="true">${esc(ic)}</span>`;
+      return C.iconMode==='emoji-only'?`<span class="oc" title="${esc(o)}" aria-label="${esc(o)}">${i}</span>`:`<span class="oc">${i}${esc(o)}</span>`;}
+    return `<span class="oc">${esc(o)}</span>`;});
+  return `<span class="op ${line?'ol':'ochips'}">${parts.join(line?'<i class="dot2">·</i>':'')}</span>`;}
+function qtyHtml(q){q=+q||1;return C.qtyStyle==='big'?`<span class="qn">${q}×</span>`:C.qtyStyle==='x'?'':`<span class="qc ${q>1?'many':''}">${q}</span>`;}
+function namePre(q){return C.qtyStyle==='x'&&q>1?esc(q)+' × ':'';}
+function timeHtml(a){return C.timeStyle==='pill'?`<span class="tm ${a.cls}">${a.txt}</span>`:C.timeStyle==='bar'?`<span class="tms">${a.txt}</span>`:'';}
+function barHtml(a){if(C.timeStyle!=='bar')return '';const pc=Math.min(100,Math.round(a.m/Math.max(1,C.late)*100));return `<div class="tbar"><i style="width:${Math.max(4,pc)}%"></i></div>`;}
+function tintStyle(a){if(!C.tint)return '';const c=a.cls==='late'?'#e03131':a.cls==='warn'?'#ffb347':'#63e6be';return ` style="background:${rgba(c,.2)}"`;}
 let D={ready:[],prep:[],served:[],categories:[]},view='ready',primed=false,seenR=new Set(),seenP=new Set(),gone=new Set();
 
 function where(x){return x.takeaway?'กลับบ้าน '+(x.pickup||''):'โต๊ะ '+x.table;}
@@ -206,7 +287,7 @@ async function poll(){if(busy)return;busy=true;try{
   j.ready.forEach(d=>seenR.add(d.id));j.prep.forEach(p=>seenP.add(p.id));
   const live=new Set([...j.ready.map(d=>d.id),...j.served.map(d=>d.id)]);for(const id of gone)if(!live.has(id))gone.delete(id);
   for(const d of j.ready)if(gone.has(d.id)&&!d.servedAt)gone.delete(d.id);
-  D=j;
+  D=j;SIZES=new Set((j.optGroups||[]).filter(g=>/ขนาด|size|ไซซ์|ไซส์/i.test(g.name)).flatMap(g=>g.choices));
   if(primed&&fresh.length){beep('ready');say(fresh.slice(0,3).map(sentence).join(' , '));}
   if(primed&&freshP.length){const fp=freshP.filter(showPrep);if(fp.length){beep('prep');say(fp.slice(0,2).map(x=>(x.label||'เตรียม '+x.name)+(x.thai?' คนไทย':'')+(x.size?' '+x.size:'')+' '+(+x.qty||1)+' จาน').join(' , '));}}
   primed=true;render();
@@ -226,7 +307,7 @@ async function prepDone(ids,label){ids=[].concat(ids).filter(Boolean);D.prep=D.p
 function colsCss(min){return C.cols==='auto'?`repeat(auto-fill,minmax(${Math.round(min*C.size)}px,1fr))`:`repeat(${C.cols},minmax(0,1fr))`;}
 function groups(list){const m=new Map();for(const d of list){const k=d.orderId;if(!m.has(k))m.set(k,{key:k,first:d,items:[],oldest:d.doneAt||d.at});const g=m.get(k);g.items.push(d);g.oldest=Math.min(g.oldest,d.doneAt||d.at);}
   const a=[...m.values()];a.sort((x,y)=>C.sort==='new'?y.oldest-x.oldest:x.oldest-y.oldest);return a;}
-function dishInfo(d){return `${d.opts.length?`<span class="op">${esc(d.opts.join(' · '))}</span>`:''}${d.remark?`<span class="rk">${esc(d.remark)}</span>`:''}`;}
+function dishInfo(d){return `${optHtml(d.opts)}${d.remark?`<span class="rk">${esc(d.remark)}</span>`:''}`;}
 function tags(d){return `${d.takeaway?'<span class="tag ta">กลับบ้าน</span>':''}${d.thai?'<span class="tag th">คนไทย</span>':''}`;}
 // แอนิเมชันเฉพาะของที่เพิ่งมาใหม่ (วาดซ้ำทุก 2 วิ ไม่เล่นซ้ำ)
 const ANI=new Set();let firstPaint=true;
@@ -238,18 +319,18 @@ function renderReady(b){
   if(!list.length){b.innerHTML=`<div class="empty"><div class="ic"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18h18"/><path d="M5 18a7 7 0 0 1 14 0"/><path d="M12 8V6"/><path d="M10 6h4"/></svg></div><b>ไม่มีจานรอเสิร์ฟ</b>ครัวกดเสร็จเมื่อไหร่ จะขึ้นที่นี่ทันที${C.hide.length?'<br><small>ไม่แสดงหมวด: '+esc(C.hide.join(', '))+'</small>':''}</div>`;return;}
   if(C.layout==='table'){
     b.innerHTML=`<div class="grid" style="grid-template-columns:${colsCss(300)}">${groups(list).map(g=>{const a=age(g.oldest),ids=g.items.map(d=>d.id).join(',');
-      return `<article class="card s-${a.cls}${fx('o'+g.key,'enter')}"><div class="ch"><span class="tl">${esc(where(g.first))}</span>${tags(g.first)}<span class="sp"></span><span class="tm ${a.cls}">${a.txt}</span></div>
-        <div class="rows">${g.items.map(d=>`<button class="dr${fx('d'+d.id,'rin')}" data-serve="${esc(d.id)}" data-label="${esc(where(d)+' '+d.name)}"><span class="qc ${d.qty>1?'many':''}">${d.qty}</span><span class="dm"><span class="nm">${esc(d.name)}</span>${dishInfo(d)}</span><span class="go">${CHECK}เสิร์ฟ</span></button>`).join('')}</div>
+      return `<article class="card s-${a.cls}${fx('o'+g.key,'enter')}"><div class="ch"${tintStyle(a)}><span class="tl">${esc(where(g.first))}</span>${tags(g.first)}<span class="sp"></span>${timeHtml(a)}</div>${barHtml(a)}
+        <div class="rows">${g.items.map(d=>`<button class="dr${fx('d'+d.id,'rin')}" data-serve="${esc(d.id)}" data-label="${esc(where(d)+' '+d.name)}">${qtyHtml(d.qty)}<span class="dm"><span class="nm">${namePre(d.qty)}${esc(d.name)}</span>${dishInfo(d)}</span><span class="go">${CHECK}เสิร์ฟ</span></button>`).join('')}</div>
         ${g.items.length>1?`<div class="cf"><button class="all" data-serve="${esc(ids)}" data-label="${esc(where(g.first))} ครบ">${CHECK}เสิร์ฟครบ ${esc(where(g.first))}</button></div>`:''}</article>`;}).join('')}</div>`;
   }else if(C.layout==='dish'){
     const l=[...list].sort((x,y)=>C.sort==='new'?(y.doneAt-x.doneAt):(x.doneAt-y.doneAt));
     b.innerHTML=`<div class="grid" style="grid-template-columns:${colsCss(230)}">${l.map(d=>{const a=age(d.doneAt||d.at);
-      return `<button class="tile s-${a.cls}${fx('d'+d.id,'enter')}" data-serve="${esc(d.id)}" data-label="${esc(where(d)+' '+d.name)}"><span class="tt"><span class="tb">${tbl(d)}</span>${tags(d)}<span class="sp"></span><span class="tm ${a.cls}">${a.txt}</span></span>
+      return `<button class="tile s-${a.cls}${fx('d'+d.id,'enter')}" data-serve="${esc(d.id)}" data-label="${esc(where(d)+' '+d.name)}"><span class="tt"><span class="tb">${tbl(d)}</span>${tags(d)}<span class="sp"></span>${timeHtml(a)}</span>${barHtml(a)}
         <span class="nm">${d.qty>1?esc(d.qty)+' × ':''}${esc(d.name)}</span>${dishInfo(d)}<span class="hint">${CHECK}แตะ = เสิร์ฟแล้ว</span></button>`;}).join('')}</div>`;
   }else{
     const l=[...list].sort((x,y)=>C.sort==='new'?(y.doneAt-x.doneAt):(x.doneAt-y.doneAt));
     b.innerHTML=l.map(d=>{const a=age(d.doneAt||d.at);
-      return `<button class="lr s-${a.cls}${fx('d'+d.id,'rin')}" data-serve="${esc(d.id)}" data-label="${esc(where(d)+' '+d.name)}"><span class="tm ${a.cls}">${a.txt}</span><span class="tb">${tbl(d)}</span>
+      return `<button class="lr s-${a.cls}${fx('d'+d.id,'rin')}" data-serve="${esc(d.id)}" data-label="${esc(where(d)+' '+d.name)}">${timeHtml(a)||'<span></span>'}<span class="tb">${tbl(d)}</span>
         <span style="display:flex;flex-direction:column;min-width:0"><span class="nm">${d.qty>1?esc(d.qty)+' × ':''}${esc(d.name)} ${tags(d)}</span>${dishInfo(d)}</span><span class="go">${CHECK}เสิร์ฟ</span></button>`;}).join('');
   }
 }
@@ -278,7 +359,7 @@ function renderPrep(){
     const g0=new Map();for(const x of list){const t=prepTitle(x),k=t+(x.thai?'|th':'');if(!g0.has(k))g0.set(k,{k,t,thai:x.thai,q:0,items:[]});const g=g0.get(k);g.q+=(+x.qty||1);g.items.push(x);}
     p.innerHTML=head+[...g0.values()].map(g=>{const hot=!firstPaint&&(PREV[g.k]||0)<g.q;PREV[g.k]=g.q;
       return `<div class="pc${hot?' hot':''}${fx('p'+g.k,'enter')}"><span class="what"><span class="tx">${esc(g.t)}${g.thai?'<span class="th">คนไทย</span>':''}</span><span class="pq${hot?' bump':''}">${g.q} จาน</span></span>
-      <div class="pl">${sizeRows(g).map(r=>`<button class="pr${fx('pz'+g.k+r.k,'rin')}" data-prep="${esc(r.ids.join(','))}" data-label="${esc(g.t+' '+(r.k||'')+' '+r.q+' จาน')}"><b>${esc(r.k||'ปกติ')}</b><span></span><b>${r.q} จาน</b><small>${mins(r.at)} น.</small></button>`).join('')}</div>
+      <div class="pl">${sizeRows(g).map(r=>`<button class="pr${fx('pz'+g.k+r.k,'rin')}" data-prep="${esc(r.ids.join(','))}" data-label="${esc(g.t+' '+(r.k||'')+' '+r.q+' จาน')}">${r.k&&C.sizeHL!=='off'?`<span class="oc sz${C.sizeHL==='big'?' lg':''}" style="--c:${sizeColor(r.k)}">${esc(r.k)}</span>`:`<b>${esc(r.k||'ปกติ')}</b>`}<span></span><b>${r.q} จาน</b><small>${mins(r.at)} น.</small></button>`).join('')}</div>
       <button data-prep="${esc(g.items.map(x=>x.id).join(','))}" data-label="${esc(g.t+' '+g.q+' จาน')}">${CHECK}เตรียมครบ ${g.q} จาน</button></div>`;}).join('');
     for(const k of Object.keys(PREV))if(!g0.has(k))delete PREV[k];
     return;
@@ -290,7 +371,7 @@ function renderPrep(){
 }
 let lastN=null;
 function render(){
-  document.documentElement.style.setProperty('--z',C.size);document.documentElement.style.setProperty('--pz',C.psize||1);document.body.classList.toggle('light',C.theme==='light');document.body.classList.toggle('anim',C.anim!==false);
+  document.documentElement.style.setProperty('--z',C.size);document.documentElement.style.setProperty('--pz',C.psize||1);applyLook();document.body.classList.toggle('anim',C.anim!==false);
   const n=shown().reduce((s,d)=>s+(+d.qty||1),0),nEl=$('#nReady');nEl.textContent=n;
   if(lastN!=null&&n>lastN){nEl.classList.remove('bump');void nEl.offsetWidth;nEl.classList.add('bump');}lastN=n;
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.view===view));
@@ -312,29 +393,68 @@ function menuPick(){const ms=D.menus||[];if(!ms.length)return '<p class="s">ย�
   return `<div class="seg" style="margin-bottom:6px"><button data-pmall="off" class="${n?'':'on'}">ไม่ขึ้นเลย (ขึ้นเฉพาะข้าวราด)</button><span class="s" style="align-self:center">เลือกไว้ ${n} เมนู</span></div>`
     +cats.map(c=>`<div style="margin:8px 0 4px;font-size:13px;color:var(--muted)">${esc(c)}</div><div class="seg">${ms.filter(m=>m.cat===c).map(m=>{const on=menuOn(m.id,m.prep);
     return `<button class="chip ${on?'on':'pmoff'}" data-pm="${esc(m.id)}" data-adm="${m.prep?1:0}">${esc(m.name)}</button>`;}).join('')}</div>`).join('');}
+let STAB='look',ICSEL='';
+function swatches(key,list,cur){return `<div class="sws">${list.map(c=>`<button data-ck="${key}" data-cv="${c}" class="${cur===c?'on':''}" style="background:${c}" aria-label="สี ${c}"></button>`).join('')}<input type="color" data-cin="${key}" value="${/^#[0-9a-f]{6}$/i.test(cur)?cur:'#2fd07a'}" aria-label="เลือกสีเอง"><button data-ck="${key}" data-cv="" style="width:auto;border-radius:20px;padding:0 12px;background:var(--card2);border:1px solid var(--line);color:var(--text);height:40px">ค่าเดิม</button></div>`;}
+function previewCard(){const d={id:'pv',orderId:'pv',table:'5',name:'กะเพรา',qty:2,opts:['พิเศษ','หมู','ไข่ดาว','เผ็ดน้อย'],remark:'ไม่ใส่ถั่ว',doneAt:Date.now()-4*60000,at:Date.now()-6*60000},a=age(d.doneAt);
+  return `<div class="prev" style="--z:${C.size}"><article class="card s-${a.cls}" style="max-width:360px"><div class="ch"${tintStyle(a)}><span class="tl">โต๊ะ 5</span><span class="sp"></span>${timeHtml(a)}</div>${barHtml(a)}
+   <div class="rows"><div class="dr">${qtyHtml(2)}<span class="dm"><span class="nm">${namePre(2)}กะเพรา</span>${dishInfo(d)}</span><span class="go">${CHECK}เสิร์ฟ</span></div></div></article></div>`;}
+function iconRows(){const gs=(D.optGroups||[]).filter(g=>g.choices.length);if(!gs.length)return '<p class="s">ยังไม่มีตัวเลือกในเมนู</p>';
+  return `<div class="pal" aria-label="อีโมจิ">${EMO.map(e=>`<button data-emo="${e}">${e}</button>`).join('')}<button data-emo="" style="width:auto;padding:0 10px;font-size:14px">ไม่มีไอคอน</button></div>
+   <p class="s">แตะช่องไอคอนของตัวเลือก (กรอบสีเขียว) แล้วแตะอีโมจิด้านบน · หรือพิมพ์อีโมจิเองในช่อง</p>`+
+   gs.map(g=>{const sz=/ขนาด|size|ไซซ์|ไซส์/i.test(g.name);return `<div class="icg">${esc(g.name)}${sz?' · สีของขนาด':''}</div>`+g.choices.map(c=>sz||isSize(c)?
+     `<div class="icr"><span class="nmx"><span class="oc sz" style="--c:${sizeColor(c)}">${esc(c)}</span></span><input type="color" data-szc="${esc(c)}" value="${sizeColor(c)}" aria-label="สีของ ${esc(c)}"></div>`:
+     `<div class="icr"><span class="nmx">${esc(c)}</span><button class="icb${ICSEL===c?' sel':''}" data-icsel="${esc(c)}" aria-label="ไอคอนของ ${esc(c)}">${esc(iconOf(c))||'·'}</button><input data-icin="${esc(c)}" value="${esc(Object.prototype.hasOwnProperty.call(C.icons,c)?C.icons[c]:'')}" placeholder="${esc(iconOf(c))||'อีโมจิ'}" maxlength="8" aria-label="พิมพ์ไอคอนของ ${esc(c)}"></div>`).join('');}).join('');}
 function renderSet(){
   const cats=D.categories.length?D.categories:[...new Set(D.ready.map(d=>d.cat))];
+  const tabs=[['look','🎨 หน้าตา'],['opt','🐷 ตัวเลือก & ไอคอน'],['layout','📐 รูปแบบ'],['prep','🧺 เตรียมของ'],['sound','🔔 เสียง']];
+  let h='';
+  if(STAB==='look'){
+    h+=`<h3>ธีม</h3><div class="thm">${Object.entries(THEMES).map(([k,t])=>`<button data-k="look" data-v="${k}" class="${C.look===k?'on':''}" style="background:${t.bg};color:${t.text}"><span>${t.n}</span><span class="sw3"><i style="background:${t.card}"></i><i style="background:${t.acc}"></i><i style="background:${t.opt}"></i></span></button>`).join('')}</div>
+    <h3>สีหลัก (ปุ่ม เสิร์ฟครบ แท็บ)</h3>${swatches('accent',SWATCH,C.accent)}
+    <h3>ตัวอย่าง</h3>${previewCard()}
+    <h3>มุมการ์ด</h3>${seg('rad',[['4','เหลี่ยม'],['12','มนเล็กน้อย'],['18','มน'],['28','มนมาก']])}
+    <h3>เส้นขอบการ์ด</h3>${seg('bw',[['0','ไม่มี'],['1','บาง'],['2','กลาง'],['3','หนา']])}
+    <h3>เงา</h3>${seg('shadow',[['true','มีเงา'],['false','ไม่มีเงา']])}
+    <h3>ระยะห่างในการ์ด</h3>${seg('dens',[['0.7','แน่น'],['1','ปกติ'],['1.35','โปร่ง']])}
+    <h3>ขนาดชื่อเมนู</h3>${seg('nz',[['0.9','เล็ก'],['1','ปกติ'],['1.15','ใหญ่'],['1.3','ใหญ่มาก'],['1.5','ใหญ่สุด']])}
+    <h3>ขนาดตัวเลือก (เนื้อสัตว์ ขนาด)</h3>${seg('oz',[['0.9','เล็ก'],['1','ปกติ'],['1.15','ใหญ่'],['1.3','ใหญ่มาก'],['1.5','ใหญ่สุด']])}
+    <h3>ความหนาตัวอักษรชื่อเมนู</h3>${seg('fw',[['500','บาง'],['600','กลาง'],['700','หนา'],['800','หนามาก']])}
+    <h3>จำนวนจาน</h3>${seg('qtyStyle',[['circle','วงกลม ②'],['big','ตัวใหญ่ 2×'],['x','ต่อท้ายชื่อ “2 × กะเพรา”']])}
+    <h3>เวลารอ</h3>${seg('timeStyle',[['pill','ป้ายสี'],['bar','แถบวิ่ง'],['off','ไม่แสดง']])}
+    <h3>หัวการ์ด</h3>${seg('tint',[['false','พื้นเรียบ'],['true','สีตามเวลารอ (เขียว/ส้ม/แดง)']])}
+    <h3>สีการ์ดเตรียมของ</h3>${swatches('prepColor',['#ff9f1c','#fab005','#f76707','#e64980','#7950f2','#1c7ed6','#0ca678','#868e96'],C.prepColor)}`;
+  }else if(STAB==='opt'){
+    h+=`<h3>ไฮไลต์ขนาด</h3>${seg('sizeHL',[['off','ไม่ไฮไลต์'],['pill','ป้ายสี'],['big','ป้ายสีตัวใหญ่']],'ขนาด = ตัวเลือกในกลุ่มชื่อ “ขนาด” หรือ ธรรมดา/พิเศษ/จัมโบ้/S/M/L · เปลี่ยนสีได้ด้านล่าง')}
+    <h3>ไอคอนของตัวเลือก (เนื้อสัตว์ ไข่ ความเผ็ด …)</h3>${seg('iconMode',[['text','ตัวหนังสืออย่างเดียว'],['emoji','อีโมจิ + ตัวหนังสือ'],['emoji-only','อีโมจิอย่างเดียว (ตัวใหญ่)'],['badge','กราฟิกวงกลม + ตัวหนังสือ']])}
+    <h3>การเรียงตัวเลือก</h3>${seg('optStyle',[['chips','เป็นป้ายแยก'],['line','บรรทัดเดียว คั่นด้วย ·']])}
+    <h3>ตัวอย่าง</h3>${previewCard()}
+    <h3>ตั้งไอคอน / สี ทีละตัวเลือก</h3>${iconRows()}
+    <div style="margin-top:10px"><button class="ibtn" id="icReset">ล้างไอคอนที่ตั้งเอง (กลับเป็นอัตโนมัติ)</button></div>`;
+  }else if(STAB==='layout'){
+    h+=`<h3>รูปแบบ</h3>${seg('layout',[['table','การ์ดตามโต๊ะ'],['dish','ทีละจาน (แผ่นใหญ่)'],['list','รายการแถว']],'การ์ดตามโต๊ะ = รวมจานของโต๊ะเดียวกัน · ทีละจาน = แผ่นละจาน แตะทั้งแผ่น · รายการแถว = แถวยาว อ่านง่ายจากไกล')}
+    <h3>ขนาดการ์ดเสิร์ฟ</h3>${seg('size',[['0.85','เล็ก'],['1','กลาง'],['1.2','ใหญ่'],['1.45','ใหญ่มาก'],['1.75','ใหญ่พิเศษ']])}
+    <h3>จำนวนคอลัมน์</h3>${seg('cols',[['auto','อัตโนมัติ'],['1','1'],['2','2'],['3','3'],['4','4'],['5','5']])}
+    <h3>เรียงลำดับ</h3>${seg('sort',[['old','รอนานสุดก่อน'],['new','ใหม่สุดก่อน']])}
+    <h3>หมวดที่ไม่ต้องขึ้นจอนี้</h3><div class="seg">${cats.map(c=>`<button class="chip ${C.hide.includes(c)?'off':'on'}" data-hide="${esc(c)}">${esc(c)}</button>`).join('')||'<span class="s">ยังไม่มีหมวดที่ขึ้นจอครัว</span>'}</div>
+    <p class="s">แตะเพื่อปิด/เปิด · หมวดที่ปิด (ขีดฆ่า) ครัวกดเสร็จแล้วจะไม่ขึ้นที่จอนี้ เช่น เครื่องดื่มที่บาร์ยกเอง</p>
+    <h3>สีเวลารอ</h3>${seg('warn',[['2','ส้มที่ 2 นาที'],['3','3 นาที'],['5','5 นาที']])}<div style="height:6px"></div>${seg('late',[['4','แดงที่ 4 นาที'],['6','6 นาที'],['10','10 นาที']])}
+    <h3>แอนิเมชัน</h3>${seg('anim',[['true','เปิด (การ์ดเด้ง/เรืองแสงเมื่อมีของใหม่)'],['false','ปิด']])}`;
+  }else if(STAB==='prep'){
+    h+=`<h3>ที่วางการ์ดเตรียมของ</h3>${seg('prepPos',[['top','ด้านบน'],['side','ด้านซ้าย'],['right','ด้านขวา'],['off','ไม่แสดง']])}
+    <h3>ขนาดการ์ดเตรียมของ</h3>${seg('psize',[['0.85','เล็ก'],['1','กลาง'],['1.2','ใหญ่'],['1.45','ใหญ่มาก'],['1.75','ใหญ่พิเศษ']],'ปรับแยกจากการ์ดเสิร์ฟ · สีการ์ดเปลี่ยนได้ในแท็บ หน้าตา')}
+    <h3>เมนูที่ขึ้นหน้าเตรียมของ (เมื่อไม่ได้เลือกราดข้าว)</h3>
+    <p class="s" style="margin:0 0 8px">จานที่เลือก “ราดข้าว” ขึ้นว่า ข้าวราด เสมอ · แตะเมนูเพื่อเลือกว่าไม่ได้ราดข้าวแล้วจะขึ้นเป็นชื่อเมนูไหม</p>
+    ${menuPick()}
+    <h3>รวมงานเตรียม</h3>${seg('prepGroup',[['true','รวมตามตัวเลือก (เช่น ข้าวราด 5 จาน)'],['false','แยกทีละจาน']])}`;
+  }else{
+    h+=`<h3>เสียง</h3>${seg('sound',[['true','เปิดเสียง'],['false','ปิดเสียง']])}<div style="height:6px"></div>
+    ${seg('voice',[['table-menu','อ่าน โต๊ะ → เมนู'],['menu-table','อ่าน เมนู → โต๊ะ'],['menu','อ่านแค่เมนู'],['off','ไม่อ่าน (แค่เสียงเตือน)']])}
+    <div style="margin-top:8px"><button class="ibtn" id="tryVoice">▶ ลองฟัง</button></div>`;
+  }
   $('#setPan').innerHTML=`<div style="display:flex;align-items:center;gap:10px"><h2>ปรับแต่งจอคนเสิร์ฟ</h2><span class="sp" style="flex:1"></span><button class="ibtn" id="setClose">ปิด</button></div>
-  <p class="s">ค่าเหล่านี้เก็บในแท็บเล็ตเครื่องนี้</p>
-  <h3>รูปแบบ</h3>${seg('layout',[['table','การ์ดตามโต๊ะ'],['dish','ทีละจาน (แผ่นใหญ่)'],['list','รายการแถว']],'การ์ดตามโต๊ะ = รวมจานของโต๊ะเดียวกัน · ทีละจาน = แผ่นละจาน แตะทั้งแผ่น · รายการแถว = แถวยาว อ่านง่ายจากไกล')}
-  <h3>ขนาดการ์ดเสิร์ฟ</h3>${seg('size',[['0.85','เล็ก'],['1','กลาง'],['1.2','ใหญ่'],['1.45','ใหญ่มาก'],['1.75','ใหญ่พิเศษ']])}
-  <h3>ขนาดการ์ดเตรียมของ</h3>${seg('psize',[['0.85','เล็ก'],['1','กลาง'],['1.2','ใหญ่'],['1.45','ใหญ่มาก'],['1.75','ใหญ่พิเศษ']],'ปรับแยกจากการ์ดเสิร์ฟ')}
-  <h3>จำนวนคอลัมน์</h3>${seg('cols',[['auto','อัตโนมัติ'],['1','1'],['2','2'],['3','3'],['4','4'],['5','5']])}
-  <h3>เรียงลำดับ</h3>${seg('sort',[['old','รอนานสุดก่อน'],['new','ใหม่สุดก่อน']])}
-  <h3>หมวดที่ไม่ต้องขึ้นจอนี้</h3><div class="seg">${cats.map(c=>`<button class="chip ${C.hide.includes(c)?'off':'on'}" data-hide="${esc(c)}">${esc(c)}</button>`).join('')||'<span class="s">ยังไม่มีหมวดที่ขึ้นจอครัว</span>'}</div>
-  <p class="s">แตะเพื่อปิด/เปิด · หมวดที่ปิด (ขีดฆ่า) ครัวกดเสร็จแล้วจะไม่ขึ้นที่จอนี้ เช่น เครื่องดื่มที่บาร์ยกเอง</p>
-  <h3>เตรียมให้ครัว</h3>${seg('prepPos',[['top','ด้านบน'],['side','ด้านซ้าย'],['right','ด้านขวา'],['off','ไม่แสดง']],'ตั้งที่ หลังร้าน › เมนู › แก้เมนู: ทั้งเมนู = เปิด “เตรียมให้ครัว (จอคนเสิร์ฟ)” · เฉพาะตัวเลือก (เช่น ราดข้าว) = กดปุ่ม “เตรียม” ท้ายตัวเลือก แล้วพิมพ์ข้อความ เช่น “เตรียมข้าวราด”')}
-  <h3>เมนูที่ขึ้นหน้าเตรียมของ (เมื่อไม่ได้เลือกราดข้าว)</h3>
-  <p class="s" style="margin:0 0 8px">จานที่เลือก “ราดข้าว” ขึ้นว่า ข้าวราด เสมอ · แตะเมนูเพื่อเลือกว่าไม่ได้ราดข้าวแล้วจะขึ้นเป็นชื่อเมนูไหม</p>
-  ${menuPick()}
-  <h3>รวมงานเตรียม</h3>${seg('prepGroup',[['true','รวมตามตัวเลือก (เช่น ราดข้าว 5 จาน)'],['false','แยกทีละจาน']])}
-  <h3>สีเวลารอ</h3>${seg('warn',[['2','ส้มที่ 2 นาที'],['3','3 นาที'],['5','5 นาที']])}<div style="height:6px"></div>${seg('late',[['4','แดงที่ 4 นาที'],['6','6 นาที'],['10','10 นาที']])}
-  <h3>เสียง</h3>${seg('sound',[['true','เปิดเสียง'],['false','ปิดเสียง']])}<div style="height:6px"></div>
-  ${seg('voice',[['table-menu','อ่าน โต๊ะ → เมนู'],['menu-table','อ่าน เมนู → โต๊ะ'],['menu','อ่านแค่เมนู'],['off','ไม่อ่าน (แค่เสียงเตือน)']])}
-  <div style="margin-top:8px"><button class="ibtn" id="tryVoice">▶ ลองฟัง</button></div>
-  <h3>แอนิเมชัน</h3>${seg('anim',[['true','เปิด (การ์ดเด้ง/เรืองแสงเมื่อมีของใหม่)'],['false','ปิด']])}
-  <h3>สีพื้น</h3>${seg('theme',[['dark','มืด'],['light','สว่าง']])}
-  <h3>ค่าเริ่มต้น</h3><button class="ibtn" id="resetSet">คืนค่าเริ่มต้นทั้งหมด</button>`;
+  <p class="s">ค่าเหล่านี้เก็บในแท็บเล็ตเครื่องนี้ · เปลี่ยนแล้วเห็นผลทันทีด้านหลัง</p>
+  <div class="stabs" role="tablist">${tabs.map(([k,t])=>`<button role="tab" data-stab="${k}" aria-selected="${STAB===k}" class="${STAB===k?'on':''}">${t}</button>`).join('')}</div>
+  ${h}<h3>ค่าเริ่มต้น</h3><button class="ibtn" id="resetSet">คืนค่าเริ่มต้นทั้งหมด</button>`;
 }
 
 // ===== เหตุการณ์ =====
@@ -347,7 +467,12 @@ document.addEventListener('click',e=>{
     anim?setTimeout(go,230):go();return;}
   if(t.dataset.recall){post('/api/serve/done',{ids:[t.dataset.recall],undo:true}).then(poll);toast('เรียกกลับแล้ว');return;}
   if(t.dataset.view){view=t.dataset.view;render();return;}
-  if(t.dataset.k){let v=t.dataset.v;if(v==='true'||v==='false')v=v==='true';else if(['size','psize','warn','late'].includes(t.dataset.k))v=+v;
+  if(t.dataset.stab){STAB=t.dataset.stab;renderSet();$('#setPan').scrollTop=0;return;}
+  if(t.dataset.ck!=null&&t.dataset.cv!=null){C[t.dataset.ck]=t.dataset.cv;saveC();render();renderSet();return;}
+  if(t.dataset.icsel!=null){ICSEL=t.dataset.icsel;renderSet();return;}
+  if(t.dataset.emo!=null){if(!ICSEL){toast('แตะช่องไอคอนของตัวเลือกก่อน');return;}C.icons={...C.icons,[ICSEL]:t.dataset.emo};saveC();render();renderSet();return;}
+  if(t.id==='icReset'){C.icons={};saveC();render();renderSet();return;}
+  if(t.dataset.k){let v=t.dataset.v;if(v==='true'||v==='false')v=v==='true';else if(['size','psize','warn','late','rad','bw','dens','nz','oz','fw'].includes(t.dataset.k))v=+v;
     C[t.dataset.k]=v;saveC();render();renderSet();return;}
   if(t.dataset.pm){const id=t.dataset.pm,k=t.dataset.adm==='1'?'prepOff':'prepIds';C[k]=C[k].includes(id)?C[k].filter(x=>x!==id):[...C[k],id];saveC();render();renderSet();return;}
   if(t.dataset.pmall){C.prepIds=[];C.prepOff=(D.menus||[]).filter(m=>m.prep).map(m=>m.id);saveC();render();renderSet();return;}
@@ -356,9 +481,16 @@ document.addEventListener('click',e=>{
   if(t.id==='setClose'){$('#set').hidden=true;return;}
   if(t.id==='sndBtn'){C.sound=!C.sound;saveC();render();if(C.sound)beep('ready');return;}
   if(t.id==='tryVoice'){const s=C.sound;C.sound=true;beep('ready');say(sentence({table:'5',name:'กะเพราหมู',qty:2}));C.sound=s;return;}
-  if(t.id==='resetSet'){C=Object.assign({},DEF);saveC();render();renderSet();return;}
+  if(t.id==='resetSet'){C=JSON.parse(JSON.stringify(DEF));saveC();render();renderSet();return;}
 });
 $('#set').addEventListener('click',e=>{if(e.target.id==='set')$('#set').hidden=true;});
+// ช่องสี / ช่องพิมพ์อีโมจิ
+$('#setPan').addEventListener('input',e=>{const t=e.target;
+  if(t.dataset.cin){C[t.dataset.cin]=t.value;saveC();render();return;}
+  if(t.dataset.szc){C.sizeColors={...C.sizeColors,[t.dataset.szc]:t.value};saveC();render();return;}
+  if(t.dataset.icin!=null){const v=t.value.trim();const ic={...C.icons};if(v)ic[t.dataset.icin]=v;else delete ic[t.dataset.icin];C.icons=ic;saveC();render();
+    const b=t.parentElement.querySelector('.icb');if(b)b.textContent=iconOf(t.dataset.icin)||'·';}});
+$('#setPan').addEventListener('change',e=>{const t=e.target;if(t.dataset.cin||t.dataset.szc)renderSet();});
 function clockTick(){$('#clock').textContent=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});}
 render();poll();setInterval(poll,2000);clockTick();setInterval(()=>{clockTick();if(view==='ready')render();},20000);
 </script>
