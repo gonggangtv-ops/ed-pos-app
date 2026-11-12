@@ -3456,20 +3456,24 @@ const routes = {
       // test-1.83 ขึ้น "เตรียมให้ครัว" เมื่อ: ทั้งเมนูเปิดไว้ หรือ ตัวเลือกที่ลูกค้าเลือกเปิดไว้ (เช่น ราดข้าว)
       if (m && !i.prepAt && i.status === 'new' && live(o)) {
         const opts = i.opts || (i.option ? [i.option] : []);
-        const gs = groupsOf(m), hit = gs.flatMap(g => g.choices || []).filter(c => c.prep && opts.includes(c.name));
+        // test-1.90 ตัวเลือกชื่อมี "ราดข้าว/ข้าวราด" นับเป็นงานเตรียมเองอัตโนมัติ (ไม่ต้องตั้ง) → ขึ้นว่า "ข้าวราด"
+        const RICE = /ราดข้าว|ข้าวราด/;
+        const gs = groupsOf(m), hit = gs.flatMap(g => g.choices || []).filter(c => (c.prep || RICE.test(c.name)) && opts.includes(c.name));
+        if (!hit.length) { const r = opts.find(x => RICE.test(x)); if (r) hit.push({ name: r, prep: true }); }
         const why = [...new Set(hit.map(c => c.name))];
         // test-1.85 ขนาดของจาน (กลุ่มชื่อ ขนาด/size หรือ ธรรมดา/พิเศษ/S/M/L) แสดงบนการ์ดเตรียม
         const sizeNames = new Set(gs.filter(g => /ขนาด|size|ไซซ์|ไซส์/i.test(g.name || '')).flatMap(g => (g.choices || []).map(c => c.name)));
         const size = opts.filter(x => sizeNames.has(x) || /^(ธรรมดา|พิเศษ|จัมโบ้|เล็ก|กลาง|ใหญ่|[SMLX]{1,3})$/i.test(x)).join(' · ');
-        if (m.prep || why.length) prep.push({ ...row(i, o), why, size,
-          // test-1.87 เลือกตัวเลือกที่ตั้งไว้ (ราดข้าว) → ข้อความของตัวเลือก ไม่ขึ้นชื่อเมนู · ไม่ได้เลือก (เมนูเปิดทั้งเมนู) → ชื่อเมนู + ขนาด
-          label: hit.length ? (typeof hit[0].prep === 'string' ? hit[0].prep : 'เตรียม' + hit[0].name) : '' });
+        // test-1.90 ส่งทุกจานที่ยังไม่ได้ทำ → จอคนเสิร์ฟเลือกเองว่าเมนูไหน (ไม่ได้ราดข้าว) จะขึ้น · menuPrep = เปิดสวิตช์ไว้ที่หลังร้าน
+        prep.push({ ...row(i, o), why, size, menuId: m.id, menuPrep: !!m.prep,
+          label: hit.length ? (RICE.test(hit[0].name) ? 'ข้าวราด' : typeof hit[0].prep === 'string' ? hit[0].prep : 'เตรียม' + hit[0].name) : '' });
       }
     }
     ready.sort((a, b) => a.doneAt - b.doneAt); prep.sort((a, b) => a.at - b.at); served.sort((a, b) => b.servedAt - a.servedAt);
     const cats = new Set(data.menu.filter(m => m.screens?.length).map(m => m.category));
     const categories = [...data.categories.filter(c => cats.has(c)), ...[...cats].filter(c => !data.categories.includes(c))];
-    return { ok: true, ready, prep, served: served.slice(0, 40), categories, shopName: data.settings.shopName, now };
+    const menus = data.menu.map(m => ({ id: m.id, name: m.name, cat: m.category, prep: !!m.prep }));
+    return { ok: true, ready, prep, served: served.slice(0, 40), categories, menus, shopName: data.settings.shopName, now };
   },
   'POST /api/serve/done': b => {
     const ids = new Set([].concat(b.ids || []));
