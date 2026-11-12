@@ -11,7 +11,7 @@
 <style>
   *{box-sizing:border-box} html,body{height:100%;margin:0}
   [hidden]{display:none!important}
-  :root{--bg:#0f1318;--card:#1a2029;--card2:#232a35;--line:#2b3340;--text:#f1f4f8;--muted:#a3adba;--opt:#ffd43b;--acc:#2fd07a;--ink:#06210f;--rmk:#d6336c;
+  :root{--pz:1;--bg:#0f1318;--card:#1a2029;--card2:#232a35;--line:#2b3340;--text:#f1f4f8;--muted:#a3adba;--opt:#ffd43b;--acc:#2fd07a;--ink:#06210f;--rmk:#d6336c;
     --amber:#ff9f1c;--amber2:#3b2a12;--z:1;--gap:14px;--shadow:0 6px 20px #0006}
   body.light{--bg:#eef1f5;--card:#ffffff;--card2:#eef1f5;--line:#d6dce4;--text:#151a21;--muted:#55606d;--opt:#9a5b00;--acc:#12a150;--ink:#ffffff;--amber2:#fff1db;--shadow:0 4px 14px #0001}
   body{font-family:"IBM Plex Sans Thai","Noto Sans Thai",system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;
@@ -77,25 +77,26 @@
   .lr .go{background:var(--acc);color:var(--ink);border:0}
   /* เตรียมให้ครัว */
   #prep{flex:none;display:flex;flex-direction:column;gap:10px;min-height:0}
-  #main.pside #prep{width:calc(310px*var(--z));max-width:42%;overflow-y:auto}
+  #main.pside #prep,#main.pright #prep{width:calc(310px*var(--pz));max-width:45%;overflow-y:auto}
+  #main.pright #prep{order:2}
   #main.ptop #prep{flex-direction:row;overflow-x:auto;scrollbar-width:thin;padding-bottom:2px}
-  .ph{font-size:calc(15px*var(--z));font-weight:700;color:var(--amber);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;white-space:nowrap;padding:0 4px}
-  #main.pside .ph{flex-direction:row;justify-content:flex-start}
+  .ph{font-size:calc(15px*var(--pz));font-weight:700;color:var(--amber);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;white-space:nowrap;padding:0 4px}
+  #main.pside .ph,#main.pright .ph{flex-direction:row;justify-content:flex-start}
   .ph .ic{width:42px;height:42px;border-radius:50%;background:var(--amber2);display:flex;align-items:center;justify-content:center;font-size:22px}
-  .pc{position:relative;flex:none;min-width:calc(270px*var(--z));max-width:calc(380px*var(--z));border-radius:18px;background:var(--amber2);border:2px solid var(--amber);padding:calc(12px*var(--z)) 14px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow)}
-  .pc .what{display:flex;align-items:center;gap:8px;font-size:calc(22px*var(--z));font-weight:700;line-height:1.2}
+  .pc{position:relative;flex:none;min-width:calc(270px*var(--pz));max-width:calc(380px*var(--pz));border-radius:18px;background:var(--amber2);border:2px solid var(--amber);padding:calc(12px*var(--pz)) 14px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow)}
+  .pc .what{display:flex;align-items:center;gap:8px;font-size:calc(22px*var(--pz));font-weight:700;line-height:1.2}
   .pc .what .tx{flex:1;min-width:0}
-  .pc .pq{flex:none;font-size:calc(20px*var(--z));background:var(--amber);color:#1a1000;border-radius:20px;padding:1px 12px;font-weight:700}
+  .pc .pq{flex:none;font-size:calc(20px*var(--pz));background:var(--amber);color:#1a1000;border-radius:20px;padding:1px 12px;font-weight:700}
   .pc .th{font-size:.62em;background:#a5d8ff;color:#0f1318;border-radius:20px;padding:1px 9px;vertical-align:middle;margin-left:4px}
   .pc .szs{display:flex;flex-wrap:wrap;gap:6px}
-  .pc .sz{font-size:calc(16px*var(--z));font-weight:700;border-radius:20px;padding:2px 11px;background:#0003;border:1px solid var(--amber)}
+  .pc .sz{font-size:calc(16px*var(--pz));font-weight:700;border-radius:20px;padding:2px 11px;background:#0003;border:1px solid var(--amber)}
   body.light .pc .sz{background:#fff}
   .pc .pl{display:flex;flex-direction:column;gap:4px}
-  .pc .pr{margin:0;min-height:44px;display:flex;align-items:center;gap:10px;padding:4px 10px;border-radius:12px;border:0;background:#0003;color:inherit;font-size:calc(16px*var(--z));text-align:left;transition:background .15s}
+  .pc .pr{margin:0;min-height:44px;display:flex;align-items:center;gap:10px;padding:4px 10px;border-radius:12px;border:0;background:#0003;color:inherit;font-size:calc(16px*var(--pz));text-align:left;transition:background .15s}
   body.light .pc .pr{background:#fff}
   .pc .pr b{flex:none}.pc .pr span{flex:1;min-width:0}.pc .pr small{opacity:.8;flex:none}
-  .pc .for{font-size:calc(14px*var(--z));opacity:.9}
-  .pc > button{margin-top:2px;min-height:48px;border-radius:14px;border:0;background:var(--amber);color:#1a1000;font-size:calc(17px*var(--z));font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px}
+  .pc .for{font-size:calc(14px*var(--pz));opacity:.9}
+  .pc > button{margin-top:2px;min-height:48px;border-radius:14px;border:0;background:var(--amber);color:#1a1000;font-size:calc(17px*var(--pz));font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px}
   /* เสิร์ฟแล้ว */
   .svbox{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
   .sv{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:calc(17px*var(--z))}
@@ -170,7 +171,7 @@
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
-const DEF={anim:true,prepGroup:true,layout:'table',size:1,cols:'auto',hide:[],prepPos:'top',sound:true,voice:'table-menu',warn:3,late:6,theme:'dark',sort:'old'};
+const DEF={psize:1,anim:true,prepGroup:true,layout:'table',size:1,cols:'auto',hide:[],prepPos:'top',sound:true,voice:'table-menu',warn:3,late:6,theme:'dark',sort:'old'};
 let C=Object.assign({},DEF,LS.get('serve_cfg',{}));
 const saveC=()=>LS.set('serve_cfg',C);
 let D={ready:[],prep:[],served:[],categories:[]},view='ready',primed=false,seenR=new Set(),seenP=new Set(),gone=new Set();
@@ -257,13 +258,14 @@ function renderServed(b){
 const PREV={};
 function prepTitle(x){return x.label||x.name;}
 function renderPrep(){
-  const p=$('#prep'),m=$('#main');m.classList.toggle('ptop',C.prepPos==='top');m.classList.toggle('pside',C.prepPos==='side');
+  const p=$('#prep'),m=$('#main');m.classList.toggle('ptop',C.prepPos==='top');m.classList.toggle('pside',C.prepPos==='side');m.classList.toggle('pright',C.prepPos==='right');
   const list=C.prepPos==='off'?[]:D.prep;
   p.hidden=!list.length;if(!list.length){p.innerHTML='';return;}
   const head=`<span class="ph"><span class="ic ic2" aria-hidden="true">🧺</span>เตรียมให้ครัว</span>`;
   const sizeLine=items=>{const z=new Map();for(const x of items){const k=x.size||'';z.set(k,(z.get(k)||0)+(+x.qty||1));}
     const e=[...z].filter(([k])=>k);return e.length?`<div class="szs">${[...z].map(([k,q])=>`<span class="sz">${esc(k||'ไม่ระบุขนาด')} ${q}</span>`).join('')}</div>`:'';};
-  const rowTxt=x=>x.label?`${x.size?esc(x.size):''}${x.qty>1?' ×'+esc(x.qty):''}${x.label&&!x.size&&x.qty<=1?'1 จาน':''}`:`${esc(x.name)}${x.size?' · '+esc(x.size):''}${x.qty>1?' ×'+esc(x.qty):''}`;
+  // หัวการ์ดบอกแล้วว่าเตรียมอะไร (ข้าวราด หรือชื่อเมนู) → แถวบอกแค่ขนาด × จำนวน
+  const rowTxt=x=>`${x.size?esc(x.size):''}${x.qty>1?(x.size?' ':'')+'×'+esc(x.qty):x.size?'':'1 จาน'}`;
   if(C.prepGroup!==false){
     const g0=new Map();for(const x of list){const t=prepTitle(x),k=t+(x.thai?'|th':'');if(!g0.has(k))g0.set(k,{k,t,thai:x.thai,q:0,items:[]});const g=g0.get(k);g.q+=(+x.qty||1);g.items.push(x);}
     p.innerHTML=head+[...g0.values()].map(g=>{const hot=!firstPaint&&(PREV[g.k]||0)<g.q;PREV[g.k]=g.q;
@@ -281,7 +283,7 @@ function renderPrep(){
 }
 let lastN=null;
 function render(){
-  document.documentElement.style.setProperty('--z',C.size);document.body.classList.toggle('light',C.theme==='light');document.body.classList.toggle('anim',C.anim!==false);
+  document.documentElement.style.setProperty('--z',C.size);document.documentElement.style.setProperty('--pz',C.psize||1);document.body.classList.toggle('light',C.theme==='light');document.body.classList.toggle('anim',C.anim!==false);
   const n=shown().reduce((s,d)=>s+(+d.qty||1),0),nEl=$('#nReady');nEl.textContent=n;
   if(lastN!=null&&n>lastN){nEl.classList.remove('bump');void nEl.offsetWidth;nEl.classList.add('bump');}lastN=n;
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.view===view));
@@ -302,12 +304,13 @@ function renderSet(){
   $('#setPan').innerHTML=`<div style="display:flex;align-items:center;gap:10px"><h2>ปรับแต่งจอคนเสิร์ฟ</h2><span class="sp" style="flex:1"></span><button class="ibtn" id="setClose">ปิด</button></div>
   <p class="s">ค่าเหล่านี้เก็บในแท็บเล็ตเครื่องนี้</p>
   <h3>รูปแบบ</h3>${seg('layout',[['table','การ์ดตามโต๊ะ'],['dish','ทีละจาน (แผ่นใหญ่)'],['list','รายการแถว']],'การ์ดตามโต๊ะ = รวมจานของโต๊ะเดียวกัน · ทีละจาน = แผ่นละจาน แตะทั้งแผ่น · รายการแถว = แถวยาว อ่านง่ายจากไกล')}
-  <h3>ขนาดตัวหนังสือ</h3>${seg('size',[['0.85','เล็ก'],['1','กลาง'],['1.2','ใหญ่'],['1.45','ใหญ่มาก'],['1.75','ใหญ่พิเศษ']])}
+  <h3>ขนาดการ์ดเสิร์ฟ</h3>${seg('size',[['0.85','เล็ก'],['1','กลาง'],['1.2','ใหญ่'],['1.45','ใหญ่มาก'],['1.75','ใหญ่พิเศษ']])}
+  <h3>ขนาดการ์ดเตรียมของ</h3>${seg('psize',[['0.85','เล็ก'],['1','กลาง'],['1.2','ใหญ่'],['1.45','ใหญ่มาก'],['1.75','ใหญ่พิเศษ']],'ปรับแยกจากการ์ดเสิร์ฟ')}
   <h3>จำนวนคอลัมน์</h3>${seg('cols',[['auto','อัตโนมัติ'],['1','1'],['2','2'],['3','3'],['4','4'],['5','5']])}
   <h3>เรียงลำดับ</h3>${seg('sort',[['old','รอนานสุดก่อน'],['new','ใหม่สุดก่อน']])}
   <h3>หมวดที่ไม่ต้องขึ้นจอนี้</h3><div class="seg">${cats.map(c=>`<button class="chip ${C.hide.includes(c)?'off':'on'}" data-hide="${esc(c)}">${esc(c)}</button>`).join('')||'<span class="s">ยังไม่มีหมวดที่ขึ้นจอครัว</span>'}</div>
   <p class="s">แตะเพื่อปิด/เปิด · หมวดที่ปิด (ขีดฆ่า) ครัวกดเสร็จแล้วจะไม่ขึ้นที่จอนี้ เช่น เครื่องดื่มที่บาร์ยกเอง</p>
-  <h3>เตรียมให้ครัว</h3>${seg('prepPos',[['top','แถบด้านบน'],['side','แถบด้านซ้าย'],['off','ไม่แสดง']],'ตั้งที่ หลังร้าน › เมนู › แก้เมนู: ทั้งเมนู = เปิด “เตรียมให้ครัว (จอคนเสิร์ฟ)” · เฉพาะตัวเลือก (เช่น ราดข้าว) = กดปุ่ม “เตรียม” ท้ายตัวเลือก แล้วพิมพ์ข้อความ เช่น “เตรียมข้าวราด”')}
+  <h3>เตรียมให้ครัว</h3>${seg('prepPos',[['top','ด้านบน'],['side','ด้านซ้าย'],['right','ด้านขวา'],['off','ไม่แสดง']],'ตั้งที่ หลังร้าน › เมนู › แก้เมนู: ทั้งเมนู = เปิด “เตรียมให้ครัว (จอคนเสิร์ฟ)” · เฉพาะตัวเลือก (เช่น ราดข้าว) = กดปุ่ม “เตรียม” ท้ายตัวเลือก แล้วพิมพ์ข้อความ เช่น “เตรียมข้าวราด”')}
   <h3>รวมงานเตรียม</h3>${seg('prepGroup',[['true','รวมตามตัวเลือก (เช่น ราดข้าว 5 จาน)'],['false','แยกทีละจาน']])}
   <h3>สีเวลารอ</h3>${seg('warn',[['2','ส้มที่ 2 นาที'],['3','3 นาที'],['5','5 นาที']])}<div style="height:6px"></div>${seg('late',[['4','แดงที่ 4 นาที'],['6','6 นาที'],['10','10 นาที']])}
   <h3>เสียง</h3>${seg('sound',[['true','เปิดเสียง'],['false','ปิดเสียง']])}<div style="height:6px"></div>
@@ -328,7 +331,7 @@ document.addEventListener('click',e=>{
     anim?setTimeout(go,230):go();return;}
   if(t.dataset.recall){post('/api/serve/done',{ids:[t.dataset.recall],undo:true}).then(poll);toast('เรียกกลับแล้ว');return;}
   if(t.dataset.view){view=t.dataset.view;render();return;}
-  if(t.dataset.k){let v=t.dataset.v;if(v==='true'||v==='false')v=v==='true';else if(['size','warn','late'].includes(t.dataset.k))v=+v;
+  if(t.dataset.k){let v=t.dataset.v;if(v==='true'||v==='false')v=v==='true';else if(['size','psize','warn','late'].includes(t.dataset.k))v=+v;
     C[t.dataset.k]=v;saveC();render();renderSet();return;}
   if(t.dataset.hide!=null){const c=t.dataset.hide;C.hide=C.hide.includes(c)?C.hide.filter(x=>x!==c):[...C.hide,c];saveC();render();renderSet();return;}
   if(t.id==='setBtn'){renderSet();$('#set').hidden=false;return;}

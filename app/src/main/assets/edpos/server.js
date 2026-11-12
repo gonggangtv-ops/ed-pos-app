@@ -3462,7 +3462,8 @@ const routes = {
         const sizeNames = new Set(gs.filter(g => /ขนาด|size|ไซซ์|ไซส์/i.test(g.name || '')).flatMap(g => (g.choices || []).map(c => c.name)));
         const size = opts.filter(x => sizeNames.has(x) || /^(ธรรมดา|พิเศษ|จัมโบ้|เล็ก|กลาง|ใหญ่|[SMLX]{1,3})$/i.test(x)).join(' · ');
         if (m.prep || why.length) prep.push({ ...row(i, o), why, size,
-          label: hit.length ? (typeof hit[0].prep === 'string' ? hit[0].prep : 'เตรียม' + hit[0].name) : typeof m.prep === 'string' ? m.prep : '' });
+          // test-1.87 เลือกตัวเลือกที่ตั้งไว้ (ราดข้าว) → ข้อความของตัวเลือก ไม่ขึ้นชื่อเมนู · ไม่ได้เลือก (เมนูเปิดทั้งเมนู) → ชื่อเมนู + ขนาด
+          label: hit.length ? (typeof hit[0].prep === 'string' ? hit[0].prep : 'เตรียม' + hit[0].name) : '' });
       }
     }
     ready.sort((a, b) => a.doneAt - b.doneAt); prep.sort((a, b) => a.at - b.at); served.sort((a, b) => b.servedAt - a.servedAt);
