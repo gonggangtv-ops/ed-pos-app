@@ -370,7 +370,7 @@ function cleanGroup(g) {
       // addTh = บวกราคาเมื่อสั่งราคาคนไทย (เช่น ไข่ดาว ฝรั่งฟรี คนไทย +10) · ไม่ใส่ = บวกเท่าราคาปกติ
       const th = c.addTh === '' || c.addTh == null ? NaN : Number(c.addTh);
       return { name: String(c.name || '').trim(), add: r2(Number(c.add) || 0), ...(th >= 0 ? { addTh: r2(th) } : {}),
-        ...(printers.length ? { printers } : {}) };
+        ...(printers.length ? { printers } : {}), ...(c.prep ? { prep: true } : {}) };   // test-1.83 prep = เลือกตัวเลือกนี้แล้วขึ้นจอคนเสิร์ฟ (เตรียมให้ครัว)
     }).filter(c => c.name),
   };
 }
@@ -3452,7 +3452,12 @@ const routes = {
       if (i.status === 'done' && onScreen(i) && !i.servedAt && live(o)) ready.push(row(i, o));
       else if (i.servedAt >= now - 30 * 60000) served.push(row(i, o));
       const m = menuOf(i);
-      if (m?.prep && !i.prepAt && i.status === 'new' && live(o)) prep.push(row(i, o));
+      // test-1.83 ขึ้น "เตรียมให้ครัว" เมื่อ: ทั้งเมนูเปิดไว้ หรือ ตัวเลือกที่ลูกค้าเลือกเปิดไว้ (เช่น ราดข้าว)
+      if (m && !i.prepAt && i.status === 'new' && live(o)) {
+        const opts = i.opts || (i.option ? [i.option] : []);
+        const why = groupsOf(m).flatMap(g => g.choices || []).filter(c => c.prep && opts.includes(c.name)).map(c => c.name);
+        if (m.prep || why.length) prep.push({ ...row(i, o), why: [...new Set(why)] });
+      }
     }
     ready.sort((a, b) => a.doneAt - b.doneAt); prep.sort((a, b) => a.at - b.at); served.sort((a, b) => b.servedAt - a.servedAt);
     const cats = new Set(data.menu.filter(m => m.screens?.length).map(m => m.category));

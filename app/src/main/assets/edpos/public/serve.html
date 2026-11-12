@@ -75,6 +75,7 @@
   .pc{flex:none;min-width:calc(250px*var(--z));border-radius:14px;background:#3a2a10;border:2px solid #f08c00;color:#fff;padding:calc(10px*var(--z)) 12px;display:flex;flex-direction:column;gap:4px}
   body.light .pc{background:#fff4e6;color:#3a2a10}
   .pc .what{font-size:calc(20px*var(--z));font-weight:700;line-height:1.2}
+  .pc .why{align-self:flex-start;font-size:calc(17px*var(--z));font-weight:700;background:#f08c00;color:#1a1000;border-radius:8px;padding:1px 10px}
   .pc .for{font-size:calc(14px*var(--z));opacity:.9}
   .pc button{margin-top:4px;min-height:44px;border-radius:10px;border:0;background:#f08c00;color:#1a1000;font-size:calc(16px*var(--z));font-weight:700}
   /* เสิร์ฟแล้ว */
@@ -206,7 +207,7 @@ function renderPrep(){
   const p=$('#prep'),m=$('#main');m.classList.toggle('ptop',C.prepPos==='top');m.classList.toggle('pside',C.prepPos==='side');
   const list=C.prepPos==='off'?[]:D.prep;
   p.hidden=!list.length;if(!list.length){p.innerHTML='';return;}
-  p.innerHTML=`<span class="ph">🧺 เตรียมให้ครัว ${list.length}</span>`+list.map(x=>`<div class="pc"><span class="what">${x.qty>1?esc(x.qty)+' × ':''}${esc(x.name)}</span>
+  p.innerHTML=`<span class="ph">🧺 เตรียมให้ครัว ${list.length}</span>`+list.map(x=>`<div class="pc"><span class="what">${x.qty>1?esc(x.qty)+' × ':''}${esc(x.name)}</span>${(x.why||[]).length?`<span class="why">${esc(x.why.join(' · '))}</span>`:''}
     ${x.opts.length?`<span class="for" style="color:#ffd43b">${esc(x.opts.join(' · '))}</span>`:''}${x.remark?`<span class="rk">${esc(x.remark)}</span>`:''}
     <span class="for">${esc(where(x))} · สั่งมา ${mins(x.at)} นาที</span>
     <button data-prep="${esc(x.id)}" data-label="${esc(x.name+' '+where(x))}">✓ เตรียมแล้ว</button></div>`).join('');
@@ -236,7 +237,7 @@ function renderSet(){
   <h3>เรียงลำดับ</h3>${seg('sort',[['old','รอนานสุดก่อน'],['new','ใหม่สุดก่อน']])}
   <h3>หมวดที่ไม่ต้องขึ้นจอนี้</h3><div class="seg">${cats.map(c=>`<button class="chip ${C.hide.includes(c)?'off':'on'}" data-hide="${esc(c)}">${esc(c)}</button>`).join('')||'<span class="s">ยังไม่มีหมวดที่ขึ้นจอครัว</span>'}</div>
   <p class="s">แตะเพื่อปิด/เปิด · หมวดที่ปิด (ขีดฆ่า) ครัวกดเสร็จแล้วจะไม่ขึ้นที่จอนี้ เช่น เครื่องดื่มที่บาร์ยกเอง</p>
-  <h3>เตรียมให้ครัว</h3>${seg('prepPos',[['top','แถบด้านบน'],['side','แถบด้านซ้าย'],['off','ไม่แสดง']],'เลือกเมนูที่จะขึ้นแถบนี้ตอนสั่ง ที่ หลังร้าน › เมนู › แก้เมนู › เปิด “เตรียมให้ครัว (จอคนเสิร์ฟ)”')}
+  <h3>เตรียมให้ครัว</h3>${seg('prepPos',[['top','แถบด้านบน'],['side','แถบด้านซ้าย'],['off','ไม่แสดง']],'ตั้งที่ หลังร้าน › เมนู › แก้เมนู: ทั้งเมนู = เปิด “เตรียมให้ครัว (จอคนเสิร์ฟ)” · เฉพาะตัวเลือก (เช่น ราดข้าว) = กดปุ่ม “เตรียม” ท้ายตัวเลือกนั้น')}
   <h3>สีเวลารอ</h3>${seg('warn',[['2','ส้มที่ 2 นาที'],['3','3 นาที'],['5','5 นาที']])}<div style="height:6px"></div>${seg('late',[['4','แดงที่ 4 นาที'],['6','6 นาที'],['10','10 นาที']])}
   <h3>เสียง</h3>${seg('sound',[['true','เปิดเสียง'],['false','ปิดเสียง']])}<div style="height:6px"></div>
   ${seg('voice',[['table-menu','อ่าน โต๊ะ → เมนู'],['menu-table','อ่าน เมนู → โต๊ะ'],['menu','อ่านแค่เมนู'],['off','ไม่อ่าน (แค่เสียงเตือน)']])}

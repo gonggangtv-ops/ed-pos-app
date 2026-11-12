@@ -1032,13 +1032,14 @@ function renderEditor() {
             </div>
           </div>
           <div class="choices">
-            <div class="chead"><span>ตัวเลือก</span><span>บวกราคา</span><span title="บวกราคาเมื่อสั่งราคาคนไทย · ว่าง = เท่าบวกราคาปกติ">คนไทย</span><span title="เลือกตัวเลือกนี้แล้วพิมพ์ใบแยกไปเครื่องนี้ด้วย">พิมพ์แยกที่</span><span></span></div>
+            <div class="chead"><span>ตัวเลือก</span><span>บวกราคา</span><span title="บวกราคาเมื่อสั่งราคาคนไทย · ว่าง = เท่าบวกราคาปกติ">คนไทย</span><span title="เลือกตัวเลือกนี้แล้วพิมพ์ใบแยกไปเครื่องนี้ด้วย">พิมพ์แยกที่</span><span title="เลือกตัวเลือกนี้แล้วขึ้นจอคนเสิร์ฟ ให้เตรียมของให้ครัว">จอเสิร์ฟ</span><span></span></div>
             ${g.choices.map((c, j) => `
               <div class="choice">
                 <input type="text" data-g="${k}" data-c="${j}" data-cf="name" value="${esc(c.name)}" placeholder="เช่น หมูกรอบ" aria-label="ชื่อตัวเลือก">
                 <div class="money"><input type="number" data-g="${k}" data-c="${j}" data-cf="add" value="${c.add || 0}" step="1" inputmode="decimal" aria-label="บวกราคา"></div>
                 <div class="money"><input type="number" data-g="${k}" data-c="${j}" data-cf="addTh" value="${esc(c.addTh ?? '')}" min="0" step="1" inputmode="decimal" placeholder="—" aria-label="บวกราคาคนไทย" title="ว่าง = เท่าบวกราคาปกติ"></div>
                 ${splitSel(`data-g="${k}" data-c="${j}" data-cf="printers"`, c)}
+                <button class="cp" data-cprep="${k}:${j}" aria-pressed="${!!c.prep}" title="เลือกตัวเลือกนี้แล้วขึ้นจอคนเสิร์ฟ (เตรียมให้ครัว)">${c.prep ? '🧺 เตรียม' : 'เตรียม'}</button>
                 <button class="x" data-cdel="${k}:${j}" aria-label="ลบตัวเลือก">×</button>
               </div>`).join('')}
             <div class="row" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-cadd="${k}">+ เพิ่มตัวเลือก</button>
@@ -1223,6 +1224,7 @@ $('#eBody').addEventListener('click', e => {
   else if (t.dataset.gopen) { const id = t.dataset.gopen; closeEditor(); if (!draft) { goSection('sets'); openSetEditor(S.optionSets.find(o => o.id === id)); } return; }
   else if (t.dataset.gmove) { const k = +t.dataset.gmove, j = k + +t.dataset.dir; [d.groups[k], d.groups[j]] = [d.groups[j], d.groups[k]]; }
   else if (t.dataset.cadd) d.groups[t.dataset.cadd].choices.push({ name: '', add: 0 });
+  else if (t.dataset.cprep) { const [k, j] = t.dataset.cprep.split(':').map(Number); const c = d.groups[k].choices[j]; if (c.prep) delete c.prep; else c.prep = true; }
   else if (t.dataset.cdel) { const [k, j] = t.dataset.cdel.split(':').map(Number); d.groups[k].choices.splice(j, 1); }
   else return;
   renderEditor();
@@ -1362,12 +1364,13 @@ function renderSetEditor() {
     </div>
     <div class="sec"><h3>ตัวเลือก</h3>
       <div class="choices" style="padding:0">
-        <div class="chead"><span>ตัวเลือก</span><span>บวกราคา</span><span title="บวกราคาเมื่อสั่งราคาคนไทย · ว่าง = เท่าบวกราคาปกติ">คนไทย</span><span title="เลือกตัวเลือกนี้แล้วพิมพ์ใบแยกไปเครื่องนี้ด้วย">พิมพ์แยกที่</span><span></span></div>
+        <div class="chead"><span>ตัวเลือก</span><span>บวกราคา</span><span title="บวกราคาเมื่อสั่งราคาคนไทย · ว่าง = เท่าบวกราคาปกติ">คนไทย</span><span title="เลือกตัวเลือกนี้แล้วพิมพ์ใบแยกไปเครื่องนี้ด้วย">พิมพ์แยกที่</span><span title="เลือกตัวเลือกนี้แล้วขึ้นจอคนเสิร์ฟ ให้เตรียมของให้ครัว">จอเสิร์ฟ</span><span></span></div>
         ${d.choices.map((c, j) => `<div class="choice">
           <input type="text" data-sc="${j}" data-scf="name" value="${esc(c.name)}" placeholder="เช่น เผ็ดน้อย" aria-label="ชื่อตัวเลือก">
           <div class="money"><input type="number" data-sc="${j}" data-scf="add" value="${c.add || 0}" step="1" inputmode="decimal" aria-label="บวกราคา"></div>
           <div class="money"><input type="number" data-sc="${j}" data-scf="addTh" value="${esc(c.addTh ?? '')}" min="0" step="1" inputmode="decimal" placeholder="—" aria-label="บวกราคาคนไทย" title="ว่าง = เท่าบวกราคาปกติ"></div>
           ${splitSel(`data-sc="${j}" data-scf="printers"`, c)}
+          <button class="cp" data-scprep="${j}" aria-pressed="${!!c.prep}" title="เลือกตัวเลือกนี้แล้วขึ้นจอคนเสิร์ฟ (เตรียมให้ครัว)">${c.prep ? '🧺 เตรียม' : 'เตรียม'}</button>
           <button class="x" data-scdel="${j}" aria-label="ลบตัวเลือก">×</button></div>`).join('')}
         <div><button class="btn sm" id="scAdd">+ เพิ่มตัวเลือก</button></div>
       </div>
@@ -1394,6 +1397,7 @@ $('#sBody').addEventListener('click', e => {
   const d = sdraft;
   if (t.dataset.stype) d.type = t.dataset.stype;
   else if (t.id === 'scAdd') d.choices.push({ name: '', add: 0 });
+  else if (t.dataset.scprep) { const c = d.choices[+t.dataset.scprep]; if (c.prep) delete c.prep; else c.prep = true; }
   else if (t.dataset.scdel) d.choices.splice(+t.dataset.scdel, 1);
   else if (t.dataset.pickcat) {
     const ids = S.menu.filter(m => m.category === t.dataset.pickcat).map(m => m.id), s = new Set(d.menuIds);
