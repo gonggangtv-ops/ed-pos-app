@@ -1066,6 +1066,7 @@ function renderEditor() {
           `<button data-ms="${esc(k.id)}" aria-pressed="${(d.screens || []).includes(k.id)}">${esc(k.name)}</button>`).join('')}</div></div>
       <div class="rowline"><div class="txt"><b>เตรียมให้ครัว (จอคนเสิร์ฟ)</b><span>เปิด = สั่งเมนูนี้แล้วขึ้นที่จอคนเสิร์ฟทันที ให้เตรียมของให้ครัว เช่น หม้อไฟ ผักสด</span></div>
         <label class="sw"><input type="checkbox" data-prep ${d.prep ? 'checked' : ''}><i></i></label></div>
+      ${d.prep ? `<label class="field"><span>ข้อความบนจอคนเสิร์ฟ (ไม่บังคับ)</span><input type="text" data-f="prep" value="${esc(typeof d.prep === 'string' ? d.prep : '')}" maxlength="40" placeholder="ว่าง = ชื่อเมนู · ใส่ “เตรียมข้าวราด” = รวมการ์ดเดียวกับตัวเลือกราดข้าว"></label>` : ''}
       <div class="rowline"><div class="txt"><b>พิมพ์ใบสั่งแยกใบ</b><span>เปิด = เมนูนี้ออกใบของตัวเอง ไม่รวมกับจานอื่น · สั่ง 2 ที่ = 2 ใบ เช่น ของทอด ของหวาน</span></div>
         <label class="sw"><input type="checkbox" data-solo ${d.solo ? 'checked' : ''}><i></i></label></div>
       <div class="rowline"><div class="txt"><b>ช่องหมายเหตุ</b><span>ปิด = ตอนสั่งไม่มีช่องหมายเหตุ เช่น น้ำเปล่า น้ำอัดลม</span></div>
@@ -1148,7 +1149,7 @@ function renderPreview() {
 // พิมพ์ในช่อง → อัปเดตข้อมูลโดยไม่วาดใหม่ (เคอร์เซอร์ไม่หลุด)
 $('#eBody').addEventListener('input', e => {
   const t = e.target, d = draft;
-  if (t.dataset.f && t.dataset.f !== 'category') d[t.dataset.f] = t.type === 'checkbox' ? t.checked : t.type === 'number' ? t.value : t.value;
+  if (t.dataset.f && t.dataset.f !== 'category') d[t.dataset.f] = t.type === 'checkbox' ? t.checked : t.dataset.f === 'prep' ? (t.value.trim() || true) : t.value;
   if (t.dataset.gf) d.groups[t.dataset.g][t.dataset.gf] = t.type === 'checkbox' ? t.checked : t.value;
   if (t.dataset.cf) d.groups[t.dataset.g].choices[t.dataset.c][t.dataset.cf] = t.dataset.cf === 'printers' ? (t.value ? [t.value] : []) : t.dataset.cf === 'prep' ? (t.value.trim() || true) : t.value;
   if (t.dataset.cf === 'printers') t.classList.toggle('on', !!t.value);
@@ -1192,7 +1193,7 @@ $('#eBody').addEventListener('change', e => {
   if (t.type === 'checkbox') {
     if (t.dataset.f) draft[t.dataset.f] = t.checked;
     if ('nonote' in t.dataset) { if (t.checked) delete draft.noNote; else draft.noNote = true; }
-    if ('prep' in t.dataset) { if (t.checked) draft.prep = true; else delete draft.prep; }
+    if ('prep' in t.dataset) { if (t.checked) draft.prep = true; else delete draft.prep; renderEditor(); }
     if ('solo' in t.dataset) { if (t.checked) draft.solo = true; else delete draft.solo; }
     if (t.dataset.gf) draft.groups[t.dataset.g][t.dataset.gf] = t.checked;
     renderPreview();

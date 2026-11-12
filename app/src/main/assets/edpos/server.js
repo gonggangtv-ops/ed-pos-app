@@ -404,7 +404,7 @@ function cleanMenuItem(m) {
     ...(m.noNote ? { noNote: true } : {}),   // ไม่มีช่องหมายเหตุตอนสั่ง (เช่น น้ำเปล่า)
     ...(m.solo ? { solo: true } : {}),
     // test-1.81/1.82 สั่งเมนูนี้แล้วขึ้นจอคนเสิร์ฟทันที ให้เตรียมของให้ครัว (แสดงชื่อเมนูเลย)
-    ...(m.prep ? { prep: true } : {}),       // test-1.80 พิมพ์ใบสั่งแยกใบของเมนูนี้เสมอ (ไม่รวมกับจานอื่น)
+    ...(m.prep ? { prep: typeof m.prep === 'string' && m.prep.trim() ? m.prep.trim().slice(0, 40) : true } : {}),   // test-1.86 ข้อความ เช่น "เตรียมข้าวราด" (รวมการ์ดเดียวกับตัวเลือกราดข้าว)       // test-1.80 พิมพ์ใบสั่งแยกใบของเมนูนี้เสมอ (ไม่รวมกับจานอื่น)
     // ราคาคนไทย (ไม่ใส่ = เมนูนี้มีราคาเดียว) · เมนูที่ใช้ตารางราคาเก็บใน grid.pricesTh แทน
     ...(!grid && m.priceTh !== '' && m.priceTh != null && Number(m.priceTh) >= 0 ? { priceTh: r2(Number(m.priceTh)) } : {}),
   };
@@ -3462,7 +3462,7 @@ const routes = {
         const sizeNames = new Set(gs.filter(g => /ขนาด|size|ไซซ์|ไซส์/i.test(g.name || '')).flatMap(g => (g.choices || []).map(c => c.name)));
         const size = opts.filter(x => sizeNames.has(x) || /^(ธรรมดา|พิเศษ|จัมโบ้|เล็ก|กลาง|ใหญ่|[SMLX]{1,3})$/i.test(x)).join(' · ');
         if (m.prep || why.length) prep.push({ ...row(i, o), why, size,
-          label: hit.length ? (typeof hit[0].prep === 'string' ? hit[0].prep : 'เตรียม' + hit[0].name) : '' });
+          label: hit.length ? (typeof hit[0].prep === 'string' ? hit[0].prep : 'เตรียม' + hit[0].name) : typeof m.prep === 'string' ? m.prep : '' });
       }
     }
     ready.sort((a, b) => a.doneAt - b.doneAt); prep.sort((a, b) => a.at - b.at); served.sort((a, b) => b.servedAt - a.servedAt);
