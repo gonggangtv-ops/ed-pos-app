@@ -171,10 +171,13 @@
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
-const DEF={prepIds:[],psize:1,anim:true,prepGroup:true,layout:'table',size:1,cols:'auto',hide:[],prepPos:'top',sound:true,voice:'table-menu',warn:3,late:6,theme:'dark',sort:'old'};
+const DEF={prepIds:[],prepOff:[],psize:1,anim:true,prepGroup:true,layout:'table',size:1,cols:'auto',hide:[],prepPos:'top',sound:true,voice:'table-menu',warn:3,late:6,theme:'dark',sort:'old'};
 let C=Object.assign({},DEF,LS.get('serve_cfg',{}));if(!Array.isArray(C.prepIds))C.prepIds=[];
 // test-1.90 ขึ้นหน้าเตรียมของเมื่อ: เลือกราดข้าว (label) · หรือเมนูที่เลือกไว้ใน ⚙ (prepIds) · หรือเมนูที่เปิดสวิตช์ในหลังร้าน (menuPrep)
-const showPrep=x=>!!x.label||x.menuPrep||C.prepIds.includes(x.menuId);
+if(!Array.isArray(C.prepOff))C.prepOff=[];
+// test-1.91 จอนี้ปิดได้แม้เปิดสวิตช์ไว้ที่หลังร้าน (prepOff)
+const menuOn=(id,adminOn)=>adminOn?!C.prepOff.includes(id):C.prepIds.includes(id);
+const showPrep=x=>!!x.label||menuOn(x.menuId,x.menuPrep);
 const saveC=()=>LS.set('serve_cfg',C);
 let D={ready:[],prep:[],served:[],categories:[]},view='ready',primed=false,seenR=new Set(),seenP=new Set(),gone=new Set();
 
@@ -305,9 +308,10 @@ function toast(msg,act,fn){const t=document.createElement('div');t.className='to
 function seg(key,opts,note){return `<div class="seg" role="group">${opts.map(([v,t])=>`<button data-k="${key}" data-v="${esc(v)}" class="${String(C[key])===String(v)?'on':''}">${esc(t)}</button>`).join('')}</div>${note?`<p class="s">${note}</p>`:''}`;}
 function menuPick(){const ms=D.menus||[];if(!ms.length)return '<p class="s">ยังไม่มีเมนู</p>';
   const cats=[...new Set(ms.map(m=>m.cat))];
-  return cats.map(c=>`<div style="margin:8px 0 4px;font-size:13px;color:var(--muted)">${esc(c)}</div><div class="seg">${ms.filter(m=>m.cat===c).map(m=>{const on=m.prep||C.prepIds.includes(m.id);
-    return `<button class="chip ${on?'on':'pmoff'}" data-pm="${esc(m.id)}" ${m.prep?'disabled title="เปิดไว้ที่หลังร้าน"':''}>${esc(m.name)}${m.prep?' 🔒':''}</button>`;}).join('')}</div>`).join('')
-    +'<p class="s">🔒 = เปิดสวิตช์ “เตรียมของให้ครัว” ไว้ที่หลังร้าน (ปิดได้ที่หลังร้าน)</p>';}
+  const n=ms.filter(m=>menuOn(m.id,m.prep)).length;
+  return `<div class="seg" style="margin-bottom:6px"><button data-pmall="off" class="${n?'':'on'}">ไม่ขึ้นเลย (ขึ้นเฉพาะข้าวราด)</button><span class="s" style="align-self:center">เลือกไว้ ${n} เมนู</span></div>`
+    +cats.map(c=>`<div style="margin:8px 0 4px;font-size:13px;color:var(--muted)">${esc(c)}</div><div class="seg">${ms.filter(m=>m.cat===c).map(m=>{const on=menuOn(m.id,m.prep);
+    return `<button class="chip ${on?'on':'pmoff'}" data-pm="${esc(m.id)}" data-adm="${m.prep?1:0}">${esc(m.name)}</button>`;}).join('')}</div>`).join('');}
 function renderSet(){
   const cats=D.categories.length?D.categories:[...new Set(D.ready.map(d=>d.cat))];
   $('#setPan').innerHTML=`<div style="display:flex;align-items:center;gap:10px"><h2>ปรับแต่งจอคนเสิร์ฟ</h2><span class="sp" style="flex:1"></span><button class="ibtn" id="setClose">ปิด</button></div>
@@ -345,7 +349,8 @@ document.addEventListener('click',e=>{
   if(t.dataset.view){view=t.dataset.view;render();return;}
   if(t.dataset.k){let v=t.dataset.v;if(v==='true'||v==='false')v=v==='true';else if(['size','psize','warn','late'].includes(t.dataset.k))v=+v;
     C[t.dataset.k]=v;saveC();render();renderSet();return;}
-  if(t.dataset.pm){const id=t.dataset.pm;C.prepIds=C.prepIds.includes(id)?C.prepIds.filter(x=>x!==id):[...C.prepIds,id];saveC();render();renderSet();return;}
+  if(t.dataset.pm){const id=t.dataset.pm,k=t.dataset.adm==='1'?'prepOff':'prepIds';C[k]=C[k].includes(id)?C[k].filter(x=>x!==id):[...C[k],id];saveC();render();renderSet();return;}
+  if(t.dataset.pmall){C.prepIds=[];C.prepOff=(D.menus||[]).filter(m=>m.prep).map(m=>m.id);saveC();render();renderSet();return;}
   if(t.dataset.hide!=null){const c=t.dataset.hide;C.hide=C.hide.includes(c)?C.hide.filter(x=>x!==c):[...C.hide,c];saveC();render();renderSet();return;}
   if(t.id==='setBtn'){renderSet();$('#set').hidden=false;return;}
   if(t.id==='setClose'){$('#set').hidden=true;return;}
