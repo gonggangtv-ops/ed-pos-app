@@ -172,7 +172,7 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
 const DEF={prepMenus:true,psize:1,anim:true,prepGroup:true,layout:'table',size:1,cols:'auto',hide:[],prepPos:'top',sound:true,voice:'table-menu',warn:3,late:6,theme:'dark',sort:'old'};
-let C=Object.assign({},DEF,LS.get('serve_cfg',{}));
+let C=Object.assign({},DEF,LS.get('serve_cfg',{}));C.prepMenus=true;   // test-1.89 ตั้งที่เมนูแทน (หลังร้าน › แก้เมนู › เตรียมของให้ครัว)
 const saveC=()=>LS.set('serve_cfg',C);
 let D={ready:[],prep:[],served:[],categories:[]},view='ready',primed=false,seenR=new Set(),seenP=new Set(),gone=new Set();
 
@@ -313,7 +313,6 @@ function renderSet(){
   <h3>หมวดที่ไม่ต้องขึ้นจอนี้</h3><div class="seg">${cats.map(c=>`<button class="chip ${C.hide.includes(c)?'off':'on'}" data-hide="${esc(c)}">${esc(c)}</button>`).join('')||'<span class="s">ยังไม่มีหมวดที่ขึ้นจอครัว</span>'}</div>
   <p class="s">แตะเพื่อปิด/เปิด · หมวดที่ปิด (ขีดฆ่า) ครัวกดเสร็จแล้วจะไม่ขึ้นที่จอนี้ เช่น เครื่องดื่มที่บาร์ยกเอง</p>
   <h3>เตรียมให้ครัว</h3>${seg('prepPos',[['top','ด้านบน'],['side','ด้านซ้าย'],['right','ด้านขวา'],['off','ไม่แสดง']],'ตั้งที่ หลังร้าน › เมนู › แก้เมนู: ทั้งเมนู = เปิด “เตรียมให้ครัว (จอคนเสิร์ฟ)” · เฉพาะตัวเลือก (เช่น ราดข้าว) = กดปุ่ม “เตรียม” ท้ายตัวเลือก แล้วพิมพ์ข้อความ เช่น “เตรียมข้าวราด”')}
-  <h3>เมนูที่ไม่ได้เลือกราดข้าว</h3>${seg('prepMenus',[['true','ขึ้นเตรียมครัว (ชื่อเมนู + ขนาด)'],['false','ไม่ขึ้น (ขึ้นเฉพาะที่เลือกราดข้าว)']],'ใช้กับเมนูที่เปิดสวิตช์ “เตรียมให้ครัว” ทั้งเมนูไว้')}
   <h3>รวมงานเตรียม</h3>${seg('prepGroup',[['true','รวมตามตัวเลือก (เช่น ราดข้าว 5 จาน)'],['false','แยกทีละจาน']])}
   <h3>สีเวลารอ</h3>${seg('warn',[['2','ส้มที่ 2 นาที'],['3','3 นาที'],['5','5 นาที']])}<div style="height:6px"></div>${seg('late',[['4','แดงที่ 4 นาที'],['6','6 นาที'],['10','10 นาที']])}
   <h3>เสียง</h3>${seg('sound',[['true','เปิดเสียง'],['false','ปิดเสียง']])}<div style="height:6px"></div>

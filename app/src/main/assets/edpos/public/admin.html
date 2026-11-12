@@ -883,7 +883,7 @@ function renderMenu() {
       <div class="list">${shown.map(m => {
         const idx = its.indexOf(m);
         return `<div class="item ${m.available === false ? 'off' : ''}" data-id="${m.id}">
-          <div class="iname"><b>${esc(m.name)}</b>${groupsOf(m).length ? `<small>${esc(groupSummary(m))}</small>` : ''}</div>
+          <div class="iname"><b>${esc(m.name)}${m.prep ? ' <span title="เตรียมของให้ครัว (จอคนเสิร์ฟ)" style="font-size:12px;font-weight:600;color:#b45309;background:#fff1db;border-radius:10px;padding:1px 7px;margin-left:4px">🧺 เตรียม</span>' : ''}</b>${groupsOf(m).length ? `<small>${esc(groupSummary(m))}</small>` : ''}</div>
           <div class="tags">
             ${m.available === false ? '<span class="tag out">หมด</span>' : ''}
             ${(m.printers || []).map(id => `<span class="tag k">พิมพ์ ${esc(printerName(id))}</span>`).join('') || '<span class="tag">ไม่พิมพ์ใบสั่ง</span>'}
@@ -1064,7 +1064,7 @@ function renderEditor() {
       <div class="rowline"><div class="txt"><b>ขึ้นจอครัว</b><span>ไม่เลือก = ไม่ขึ้นจอ เช่น เครื่องดื่ม ของหวาน</span></div>
         <div class="pick" role="group" aria-label="ขึ้นจอครัว">${screenList().map(k =>
           `<button data-ms="${esc(k.id)}" aria-pressed="${(d.screens || []).includes(k.id)}">${esc(k.name)}</button>`).join('')}</div></div>
-      <div class="rowline"><div class="txt"><b>เตรียมให้ครัว (จอคนเสิร์ฟ)</b><span>เปิด = สั่งเมนูนี้แล้วขึ้นจอคนเสิร์ฟทุกครั้ง เป็นชื่อเมนู + ขนาด · ถ้าลูกค้าเลือกตัวเลือกที่ตั้ง “เตรียม” ไว้ (เช่น ราดข้าว) จะขึ้นเป็นข้อความของตัวเลือกนั้นแทน</span></div>
+      <div class="rowline"><div class="txt"><b>เตรียมของให้ครัว (จอคนเสิร์ฟ)</b><span>เปิด = เมนูนี้ต้องเตรียมของ สั่งเมื่อไหร่ขึ้นจอคนเสิร์ฟเป็น <b>ชื่อเมนู + ขนาด</b> ทุกครั้ง แม้ไม่ได้เลือกราดข้าว · ปิด = ขึ้นเฉพาะตอนเลือกตัวเลือกที่ตั้ง “เตรียม” ไว้ (เช่น ราดข้าว → เตรียมข้าวราด)</span></div>
         <label class="sw"><input type="checkbox" data-prep ${d.prep ? 'checked' : ''}><i></i></label></div>
 
       <div class="rowline"><div class="txt"><b>พิมพ์ใบสั่งแยกใบ</b><span>เปิด = เมนูนี้ออกใบของตัวเอง ไม่รวมกับจานอื่น · สั่ง 2 ที่ = 2 ใบ เช่น ของทอด ของหวาน</span></div>
