@@ -189,6 +189,7 @@
   }
   .choice .cp { min-height: 38px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--line); background: transparent; font: inherit; font-size: 13px; color: var(--faint); cursor: pointer; white-space: nowrap; }
   .choice .cp[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); font-weight: 700; background: var(--sunk); }
+  .choice .cpl { grid-column: 1 / -1; font-size: 14px; border-style: dashed; }
   .choice .x { border: 0; background: none; cursor: pointer; color: var(--faint); font-size: 18px; padding: 4px 8px; border-radius: 6px; }
   .choice .x:hover { color: var(--brick); background: var(--brick-soft); }
   .chead { display: grid; grid-template-columns: minmax(0, 1fr) 96px 96px 132px 76px 34px; gap: 8px; font-size: 13px; color: var(--faint); padding: 0 2px; }

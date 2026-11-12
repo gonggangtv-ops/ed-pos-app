@@ -370,7 +370,8 @@ function cleanGroup(g) {
       // addTh = บวกราคาเมื่อสั่งราคาคนไทย (เช่น ไข่ดาว ฝรั่งฟรี คนไทย +10) · ไม่ใส่ = บวกเท่าราคาปกติ
       const th = c.addTh === '' || c.addTh == null ? NaN : Number(c.addTh);
       return { name: String(c.name || '').trim(), add: r2(Number(c.add) || 0), ...(th >= 0 ? { addTh: r2(th) } : {}),
-        ...(printers.length ? { printers } : {}), ...(c.prep ? { prep: true } : {}) };   // test-1.83 prep = เลือกตัวเลือกนี้แล้วขึ้นจอคนเสิร์ฟ (เตรียมให้ครัว)
+        ...(printers.length ? { printers } : {}), ...(c.prep ? { prep: typeof c.prep === 'string' && c.prep.trim() ? c.prep.trim().slice(0, 40) : true } : {}) };
+      // test-1.83 prep = เลือกตัวเลือกนี้แล้วขึ้นจอคนเสิร์ฟ (เตรียมให้ครัว) · test-1.85 ข้อความ เช่น "เตรียมข้าวราด" (true = "เตรียม"+ชื่อตัวเลือก)
     }).filter(c => c.name),
   };
 }
@@ -3455,8 +3456,13 @@ const routes = {
       // test-1.83 ขึ้น "เตรียมให้ครัว" เมื่อ: ทั้งเมนูเปิดไว้ หรือ ตัวเลือกที่ลูกค้าเลือกเปิดไว้ (เช่น ราดข้าว)
       if (m && !i.prepAt && i.status === 'new' && live(o)) {
         const opts = i.opts || (i.option ? [i.option] : []);
-        const why = groupsOf(m).flatMap(g => g.choices || []).filter(c => c.prep && opts.includes(c.name)).map(c => c.name);
-        if (m.prep || why.length) prep.push({ ...row(i, o), why: [...new Set(why)] });
+        const gs = groupsOf(m), hit = gs.flatMap(g => g.choices || []).filter(c => c.prep && opts.includes(c.name));
+        const why = [...new Set(hit.map(c => c.name))];
+        // test-1.85 ขนาดของจาน (กลุ่มชื่อ ขนาด/size หรือ ธรรมดา/พิเศษ/S/M/L) แสดงบนการ์ดเตรียม
+        const sizeNames = new Set(gs.filter(g => /ขนาด|size|ไซซ์|ไซส์/i.test(g.name || '')).flatMap(g => (g.choices || []).map(c => c.name)));
+        const size = opts.filter(x => sizeNames.has(x) || /^(ธรรมดา|พิเศษ|จัมโบ้|เล็ก|กลาง|ใหญ่|[SMLX]{1,3})$/i.test(x)).join(' · ');
+        if (m.prep || why.length) prep.push({ ...row(i, o), why, size,
+          label: hit.length ? (typeof hit[0].prep === 'string' ? hit[0].prep : 'เตรียม' + hit[0].name) : '' });
       }
     }
     ready.sort((a, b) => a.doneAt - b.doneAt); prep.sort((a, b) => a.at - b.at); served.sort((a, b) => b.servedAt - a.servedAt);

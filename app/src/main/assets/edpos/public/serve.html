@@ -11,103 +11,143 @@
 <style>
   *{box-sizing:border-box} html,body{height:100%;margin:0}
   [hidden]{display:none!important}
-  :root{--bg:#12161c;--card:#1c222b;--card2:#232a34;--line:#2c3440;--text:#eef2f6;--muted:#a3adba;--opt:#ffd43b;--acc:#2fd07a;--ink:#0b1a10;--rmk:#c2255c;--z:1;--gap:12px}
-  body.light{--bg:#eef1f5;--card:#ffffff;--card2:#e6eaf0;--line:#d3dae3;--text:#151a21;--muted:#55606d;--opt:#9a5b00;--acc:#16a35a;--ink:#ffffff}
+  :root{--bg:#0f1318;--card:#1a2029;--card2:#232a35;--line:#2b3340;--text:#f1f4f8;--muted:#a3adba;--opt:#ffd43b;--acc:#2fd07a;--ink:#06210f;--rmk:#d6336c;
+    --amber:#ff9f1c;--amber2:#3b2a12;--z:1;--gap:14px;--shadow:0 6px 20px #0006}
+  body.light{--bg:#eef1f5;--card:#ffffff;--card2:#eef1f5;--line:#d6dce4;--text:#151a21;--muted:#55606d;--opt:#9a5b00;--acc:#12a150;--ink:#ffffff;--amber2:#fff1db;--shadow:0 4px 14px #0001}
   body{font-family:"IBM Plex Sans Thai","Noto Sans Thai",system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;
     font-variant-numeric:tabular-nums;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   button{font-family:inherit;color:inherit;cursor:pointer}
   #app{height:100%;display:flex;flex-direction:column}
-  header{flex:none;min-height:60px;padding:8px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--card);border-bottom:1px solid var(--line)}
-  .brand{font-size:20px;font-weight:700;margin-right:4px;display:flex;align-items:center;gap:8px}
-  .dot{width:10px;height:10px;border-radius:50%;background:#2fd07a}.dot.off{background:#ff5a52}
-  .tab{height:44px;padding:0 16px;border-radius:10px;border:0;background:var(--card2);font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px}
+  header{flex:none;min-height:64px;padding:8px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--card);border-bottom:1px solid var(--line);box-shadow:0 2px 12px #0003;position:relative;z-index:2}
+  .brand{font-size:21px;font-weight:700;margin-right:6px;display:flex;align-items:center;gap:9px}
+  .logo{width:36px;height:36px;border-radius:11px;background:var(--acc);color:var(--ink);display:flex;align-items:center;justify-content:center}
+  .dot{width:10px;height:10px;border-radius:50%;background:#2fd07a;box-shadow:0 0 0 3px #2fd07a33}.dot.off{background:#ff5a52;box-shadow:0 0 0 3px #ff5a5233}
+  .tab{height:46px;padding:0 18px;border-radius:23px;border:0;background:var(--card2);font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px;transition:background .2s,transform .15s}
+  .tab:active{transform:scale(.96)}
   .tab.on{background:var(--acc);color:var(--ink);font-weight:700}
-  .tab .n{min-width:26px;padding:0 7px;border-radius:12px;background:#0006;color:#fff;font-size:14px;font-weight:700}
+  .tab .n{min-width:28px;padding:0 8px;border-radius:14px;background:#0007;color:#fff;font-size:15px;font-weight:700;text-align:center}
   .sp{flex:1}
-  .ibtn{height:44px;min-width:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--card2);font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
-  #clock{font-size:22px;font-weight:700}
+  .ibtn{height:46px;min-width:46px;padding:0 14px;border-radius:23px;border:1px solid var(--line);background:var(--card2);font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
+  #clock{font-size:24px;font-weight:700;letter-spacing:.5px}
   #main{flex:1;min-height:0;display:flex;gap:var(--gap);padding:var(--gap)}
   #main.ptop{flex-direction:column}
-  #board{flex:1;min-width:0;min-height:0;overflow-y:auto;scrollbar-width:thin}
+  #board{flex:1;min-width:0;min-height:0;overflow-y:auto;scrollbar-width:thin;padding:2px}
   .grid{display:grid;gap:var(--gap);align-items:start;align-content:start}
-  .empty{text-align:center;color:var(--muted);padding:80px 20px;font-size:calc(22px*var(--z))}
-  .empty b{display:block;font-size:calc(40px*var(--z));margin-bottom:8px;color:var(--text)}
-  /* เวลา */
-  .tm{flex:none;font-size:calc(15px*var(--z));font-weight:700;padding:2px 9px;border-radius:8px;white-space:nowrap}
-  .tm.fresh{color:#06210f;background:#63e6be}.tm.warn{color:#1a1000;background:#ffa94d}.tm.late{color:#fff;background:#e03131}
-  .tag{font-size:calc(13px*var(--z));font-weight:700;border-radius:6px;padding:1px 7px;white-space:nowrap}
-  .tag.ta{background:#ffd43b;color:#151a21}.tag.th{background:#a5d8ff;color:#12161c}
-  .op{font-size:calc(15px*var(--z));color:var(--opt)}
-  .rk{align-self:flex-start;margin-top:3px;font-size:calc(13px*var(--z));font-weight:700;color:#fff;background:var(--rmk);border-radius:6px;padding:0 7px}
-  .qc{flex:none;width:calc(34px*var(--z));height:calc(34px*var(--z));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:calc(18px*var(--z));font-weight:700;border:2px solid var(--muted)}
+  .empty{text-align:center;color:var(--muted);padding:90px 20px;font-size:calc(21px*var(--z))}
+  .empty .ic{width:96px;height:96px;margin:0 auto 18px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;color:var(--acc)}
+  .empty b{display:block;font-size:calc(34px*var(--z));margin-bottom:6px;color:var(--text)}
+  /* เวลา + ป้าย */
+  .tm{flex:none;font-size:calc(15px*var(--z));font-weight:700;padding:3px 11px;border-radius:20px;white-space:nowrap}
+  .tm.fresh{color:#06210f;background:#63e6be}.tm.warn{color:#1a1000;background:#ffb347}.tm.late{color:#fff;background:#e03131}
+  .tag{font-size:calc(13px*var(--z));font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap}
+  .tag.ta{background:#ffd43b;color:#151a21}.tag.th{background:#a5d8ff;color:#0f1318}
+  .op{font-size:calc(15px*var(--z));color:var(--opt);font-weight:500}
+  .rk{align-self:flex-start;margin-top:4px;font-size:calc(13px*var(--z));font-weight:700;color:#fff;background:var(--rmk);border-radius:20px;padding:1px 9px}
+  .qc{flex:none;width:calc(36px*var(--z));height:calc(36px*var(--z));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:calc(18px*var(--z));font-weight:700;border:2px solid var(--muted)}
   .qc.many{background:var(--text);color:var(--bg);border-color:var(--text)}
-  /* แบบการ์ดตามโต๊ะ */
-  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
-  .card.late{border:2px solid #e03131}
-  .ch{display:flex;align-items:center;gap:8px;padding:calc(10px*var(--z)) calc(12px*var(--z));background:var(--card2)}
-  .tl{font-size:calc(28px*var(--z));font-weight:700;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .rows{padding:4px calc(8px*var(--z))}
-  .dr{width:100%;display:flex;align-items:center;gap:10px;padding:calc(8px*var(--z)) 4px;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;min-height:52px}
-  .dr:last-child{border-bottom:0}
+  /* การ์ดตามโต๊ะ */
+  .card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;min-width:0;box-shadow:var(--shadow)}
+  .card::before{content:"";height:5px;background:var(--st,#63e6be)}
+  .card.s-warn{--st:#ffb347}.card.s-late{--st:#e03131;border-color:#e03131}
+  .ch{display:flex;align-items:center;gap:8px;padding:calc(10px*var(--z)) calc(14px*var(--z)) calc(6px*var(--z))}
+  .tl{font-size:calc(30px*var(--z));font-weight:700;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rows{padding:0 calc(8px*var(--z)) 4px}
+  .dr{width:100%;display:flex;align-items:center;gap:12px;padding:calc(9px*var(--z)) 6px;border:0;border-top:1px solid var(--line);background:transparent;text-align:left;min-height:56px;border-radius:10px;transition:background .15s}
+  .dr:active{background:var(--card2)}
   .dr .dm{flex:1;min-width:0;display:flex;flex-direction:column}
-  .dr .nm{font-size:calc(19px*var(--z));font-weight:700;line-height:1.25}
-  .dr .go{flex:none;height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--card2);font-size:calc(15px*var(--z));font-weight:700;display:flex;align-items:center}
-  .cf{padding:calc(8px*var(--z));margin-top:auto}
-  .all{width:100%;min-height:calc(54px*var(--z));border-radius:12px;border:0;background:var(--acc);color:var(--ink);font-size:calc(18px*var(--z));font-weight:700}
-  /* แบบทีละจาน (แผ่นใหญ่) */
-  .tile{position:relative;min-height:calc(150px*var(--z));border-radius:16px;border:1px solid var(--line);background:var(--card);padding:calc(12px*var(--z));display:flex;flex-direction:column;gap:6px;text-align:left}
-  .tile.late{border:2px solid #e03131}
+  .dr .nm{font-size:calc(20px*var(--z));font-weight:700;line-height:1.25}
+  .go{flex:none;height:46px;padding:0 14px;border-radius:23px;border:1px solid var(--line);background:var(--card2);font-size:calc(15px*var(--z));font-weight:700;display:flex;align-items:center;gap:6px}
+  .cf{padding:calc(8px*var(--z)) calc(10px*var(--z)) calc(10px*var(--z));margin-top:auto}
+  .all{width:100%;min-height:calc(56px*var(--z));border-radius:14px;border:0;background:var(--acc);color:var(--ink);font-size:calc(18px*var(--z));font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;transition:transform .15s,filter .15s}
+  .all:active{transform:scale(.98);filter:brightness(1.1)}
+  /* ทีละจาน */
+  .tile{position:relative;min-height:calc(160px*var(--z));border-radius:18px;border:1px solid var(--line);background:var(--card);padding:calc(14px*var(--z));display:flex;flex-direction:column;gap:6px;text-align:left;box-shadow:var(--shadow);overflow:hidden}
+  .tile::after{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:var(--st,#63e6be)}
+  .tile.s-warn{--st:#ffb347}.tile.s-late{--st:#e03131;border-color:#e03131}
   .tile .tt{display:flex;align-items:center;gap:8px}
   .tile .tb{font-size:calc(34px*var(--z));font-weight:700;line-height:1}
-  .tile .nm{font-size:calc(24px*var(--z));font-weight:700;line-height:1.2}
-  .tile .hint{margin-top:auto;font-size:calc(13px*var(--z));color:var(--muted)}
-  /* แบบรายการแถว */
-  .lr{width:100%;display:grid;grid-template-columns:auto calc(110px*var(--z)) minmax(0,1fr) auto;align-items:center;gap:12px;padding:calc(10px*var(--z)) 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);text-align:left;margin-bottom:8px}
-  .lr .tb{font-size:calc(24px*var(--z));font-weight:700}
-  .lr .nm{font-size:calc(20px*var(--z));font-weight:700}
-  .lr .go{height:44px;padding:0 14px;border-radius:10px;background:var(--acc);color:var(--ink);font-weight:700;display:flex;align-items:center;font-size:calc(15px*var(--z))}
-  /* งานเตรียมให้ครัว */
-  #prep{flex:none;display:flex;flex-direction:column;gap:8px;min-height:0}
-  #main.pside #prep{width:calc(300px*var(--z));max-width:42%;overflow-y:auto}
-  #main.ptop #prep{flex-direction:row;overflow-x:auto;scrollbar-width:thin}
-  .ph{font-size:calc(15px*var(--z));font-weight:700;color:#ffc078;display:flex;align-items:center;gap:6px;white-space:nowrap}
-  #main.ptop .ph{writing-mode:horizontal-tb;align-self:center}
-  .pc{flex:none;min-width:calc(250px*var(--z));border-radius:14px;background:#3a2a10;border:2px solid #f08c00;color:#fff;padding:calc(10px*var(--z)) 12px;display:flex;flex-direction:column;gap:4px}
-  body.light .pc{background:#fff4e6;color:#3a2a10}
-  .pc .what{font-size:calc(20px*var(--z));font-weight:700;line-height:1.2}
-  .pc .why{align-self:flex-start;font-size:calc(17px*var(--z));font-weight:700;background:#f08c00;color:#1a1000;border-radius:8px;padding:1px 10px}
-  .pc .pq{display:inline-block;margin-left:6px;font-size:.8em;background:#f08c00;color:#1a1000;border-radius:8px;padding:0 9px}
-  .pc .pl{display:flex;flex-direction:column;gap:2px;margin-top:2px}
-  .pc .pr{margin:0;min-height:40px;display:flex;align-items:center;gap:8px;padding:2px 8px;border-radius:8px;border:0;background:#0003;color:inherit;font-size:calc(15px*var(--z));text-align:left}
-  .pc .pr span{flex:1;min-width:0}.pc .pr small{opacity:.8}
+  .tile .nm{font-size:calc(25px*var(--z));font-weight:700;line-height:1.2}
+  .tile .hint{margin-top:auto;font-size:calc(13px*var(--z));color:var(--muted);display:flex;align-items:center;gap:6px}
+  .tb small{font-size:.5em;font-weight:600;color:var(--muted)}
+  /* รายการแถว */
+  .lr{width:100%;display:grid;grid-template-columns:auto calc(120px*var(--z)) minmax(0,1fr) auto;align-items:center;gap:14px;padding:calc(10px*var(--z)) 16px;border:1px solid var(--line);border-radius:16px;background:var(--card);text-align:left;margin-bottom:10px;box-shadow:var(--shadow)}
+  .lr.s-late{border-color:#e03131}
+  .lr .tb{font-size:calc(26px*var(--z));font-weight:700}
+  .lr .nm{font-size:calc(21px*var(--z));font-weight:700}
+  .lr .go{background:var(--acc);color:var(--ink);border:0}
+  /* เตรียมให้ครัว */
+  #prep{flex:none;display:flex;flex-direction:column;gap:10px;min-height:0}
+  #main.pside #prep{width:calc(310px*var(--z));max-width:42%;overflow-y:auto}
+  #main.ptop #prep{flex-direction:row;overflow-x:auto;scrollbar-width:thin;padding-bottom:2px}
+  .ph{font-size:calc(15px*var(--z));font-weight:700;color:var(--amber);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;white-space:nowrap;padding:0 4px}
+  #main.pside .ph{flex-direction:row;justify-content:flex-start}
+  .ph .ic{width:42px;height:42px;border-radius:50%;background:var(--amber2);display:flex;align-items:center;justify-content:center;font-size:22px}
+  .pc{position:relative;flex:none;min-width:calc(270px*var(--z));max-width:calc(380px*var(--z));border-radius:18px;background:var(--amber2);border:2px solid var(--amber);padding:calc(12px*var(--z)) 14px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow)}
+  .pc .what{display:flex;align-items:center;gap:8px;font-size:calc(22px*var(--z));font-weight:700;line-height:1.2}
+  .pc .what .tx{flex:1;min-width:0}
+  .pc .pq{flex:none;font-size:calc(20px*var(--z));background:var(--amber);color:#1a1000;border-radius:20px;padding:1px 12px;font-weight:700}
+  .pc .th{font-size:.62em;background:#a5d8ff;color:#0f1318;border-radius:20px;padding:1px 9px;vertical-align:middle;margin-left:4px}
+  .pc .szs{display:flex;flex-wrap:wrap;gap:6px}
+  .pc .sz{font-size:calc(16px*var(--z));font-weight:700;border-radius:20px;padding:2px 11px;background:#0003;border:1px solid var(--amber)}
+  body.light .pc .sz{background:#fff}
+  .pc .pl{display:flex;flex-direction:column;gap:4px}
+  .pc .pr{margin:0;min-height:44px;display:flex;align-items:center;gap:10px;padding:4px 10px;border-radius:12px;border:0;background:#0003;color:inherit;font-size:calc(16px*var(--z));text-align:left;transition:background .15s}
+  body.light .pc .pr{background:#fff}
+  .pc .pr b{flex:none}.pc .pr span{flex:1;min-width:0}.pc .pr small{opacity:.8;flex:none}
   .pc .for{font-size:calc(14px*var(--z));opacity:.9}
-  .pc button{margin-top:4px;min-height:44px;border-radius:10px;border:0;background:#f08c00;color:#1a1000;font-size:calc(16px*var(--z));font-weight:700}
+  .pc > button{margin-top:2px;min-height:48px;border-radius:14px;border:0;background:var(--amber);color:#1a1000;font-size:calc(17px*var(--z));font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px}
   /* เสิร์ฟแล้ว */
-  .sv{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:calc(17px*var(--z))}
+  .svbox{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .sv{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:calc(17px*var(--z))}
+  .sv:last-child{border-bottom:0}
   .sv .w{flex:1;min-width:0}
-  .sv button{height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--card2);font-weight:700}
+  .sv button{height:44px;padding:0 16px;border-radius:22px;border:1px solid var(--line);background:var(--card2);font-weight:700}
   /* แจ้งเตือน */
-  #toasts{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;align-items:center}
-  .toast{display:flex;align-items:center;gap:12px;padding:10px 12px 10px 16px;border-radius:12px;background:#000d;color:#fff;font-size:17px;font-weight:600;box-shadow:0 8px 24px #0007}
-  .toast button{height:40px;padding:0 14px;border-radius:9px;border:0;background:#fff;color:#111;font-weight:700}
+  #toasts{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;align-items:center}
+  .toast{display:flex;align-items:center;gap:12px;padding:10px 12px 10px 18px;border-radius:30px;background:#000e;color:#fff;font-size:17px;font-weight:600;box-shadow:0 10px 30px #0008}
+  .toast button{height:40px;padding:0 16px;border-radius:20px;border:0;background:#fff;color:#111;font-weight:700}
   /* ตั้งค่า */
-  #set{position:fixed;inset:0;z-index:50;background:#0009;display:flex;justify-content:flex-end}
-  #set .pan{width:min(520px,100%);height:100%;overflow-y:auto;background:var(--card);border-left:1px solid var(--line);padding:16px 18px 40px}
-  #set h2{margin:0 0 6px;font-size:22px}
-  #set h3{margin:20px 0 8px;font-size:16px;color:var(--muted)}
-  #set p.s{margin:4px 0 0;font-size:13px;color:var(--muted)}
+  #set{position:fixed;inset:0;z-index:50;background:#000a;display:flex;justify-content:flex-end}
+  #set .pan{width:min(540px,100%);height:100%;overflow-y:auto;background:var(--card);border-left:1px solid var(--line);padding:18px 20px 40px}
+  #set h2{margin:0 0 6px;font-size:23px}
+  #set h3{margin:22px 0 8px;font-size:16px;color:var(--muted)}
+  #set p.s{margin:6px 0 0;font-size:13px;color:var(--muted)}
   .seg{display:flex;flex-wrap:wrap;gap:6px}
-  .seg button{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--card2);font-size:15px;font-weight:600}
+  .seg button{min-height:44px;padding:0 16px;border-radius:22px;border:1px solid var(--line);background:var(--card2);font-size:15px;font-weight:600}
   .seg button.on{background:var(--acc);border-color:var(--acc);color:var(--ink);font-weight:700}
-  .chip{min-height:44px;padding:0 14px;border-radius:22px;border:1.5px solid var(--line);background:transparent;font-size:15px;font-weight:700}
+  .chip{min-height:44px;padding:0 16px;border-radius:22px;border:1.5px solid var(--line);background:transparent;font-size:15px;font-weight:700}
   .chip.off{opacity:.55;text-decoration:line-through}
   .chip.on{background:var(--acc);border-color:var(--acc);color:var(--ink)}
+  /* ===== แอนิเมชัน (test-1.85) · ปิดได้ใน ⚙ หรือเมื่อเครื่องตั้งลดการเคลื่อนไหว ===== */
+  @keyframes popIn{0%{opacity:0;transform:translateY(16px) scale(.94)}70%{opacity:1;transform:translateY(-2px) scale(1.01)}100%{transform:none}}
+  @keyframes rowIn{0%{opacity:0;transform:translateX(-14px)}100%{opacity:1;transform:none}}
+  @keyframes out{to{opacity:0;transform:translateX(40px) scale(.96)}}
+  @keyframes cardOut{to{opacity:0;transform:scale(.9) translateY(-8px)}}
+  @keyframes glow{0%,100%{box-shadow:var(--shadow),0 0 0 0 #ff9f1c00}50%{box-shadow:var(--shadow),0 0 0 8px #ff9f1c55}}
+  @keyframes bump{0%{transform:scale(1)}40%{transform:scale(1.35)}100%{transform:scale(1)}}
+  @keyframes latePulse{0%,100%{box-shadow:var(--shadow),0 0 0 0 #e0313100}50%{box-shadow:var(--shadow),0 0 0 6px #e0313155}}
+  @keyframes wobble{0%,100%{transform:rotate(0)}25%{transform:rotate(-12deg)}75%{transform:rotate(12deg)}}
+  @keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  @keyframes toastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+  @keyframes setIn{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+  body.anim .enter{animation:popIn .5s cubic-bezier(.2,.8,.2,1) both}
+  body.anim .rin{animation:rowIn .4s ease-out both}
+  body.anim .out{animation:out .24s ease-in forwards;pointer-events:none}
+  body.anim .card.cout{animation:cardOut .26s ease-in forwards;pointer-events:none}
+  body.anim .pc.hot{animation:glow 1.1s ease-in-out 3}
+  body.anim .pc.hot .ic2{animation:wobble .5s ease-in-out 3}
+  body.anim .bump{animation:bump .45s ease-out}
+  body.anim .s-late{animation:latePulse 1.6s ease-in-out infinite}
+  body.anim .empty .ic{animation:floatY 3s ease-in-out infinite}
+  body.anim .toast{animation:toastIn .25s ease-out}
+  body.anim #set:not([hidden]) .pan{animation:setIn .25s ease-out}
+  @media (prefers-reduced-motion:reduce){body.anim *{animation:none!important}}
 </style>
 </head>
 <body>
 <div id="app">
   <header>
-    <span class="brand"><span class="dot" id="dot" title="การเชื่อมต่อ"></span>คนเสิร์ฟ</span>
+    <span class="brand"><span class="logo" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18h18"/><path d="M5 18a7 7 0 0 1 14 0"/><path d="M12 8V6"/><path d="M10 6h4"/></svg></span>คนเสิร์ฟ<span class="dot" id="dot" title="การเชื่อมต่อ"></span></span>
     <button class="tab on" data-view="ready">รอเสิร์ฟ <span class="n" id="nReady">0</span></button>
     <button class="tab" data-view="served">เสิร์ฟแล้ว</button>
     <a class="tab" href="kds.html" style="text-decoration:none;color:inherit">🍳 จอครัว</a>
@@ -130,7 +170,7 @@
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
-const DEF={prepGroup:true,layout:'table',size:1,cols:'auto',hide:[],prepPos:'top',sound:true,voice:'table-menu',warn:3,late:6,theme:'dark',sort:'old'};
+const DEF={anim:true,prepGroup:true,layout:'table',size:1,cols:'auto',hide:[],prepPos:'top',sound:true,voice:'table-menu',warn:3,late:6,theme:'dark',sort:'old'};
 let C=Object.assign({},DEF,LS.get('serve_cfg',{}));
 const saveC=()=>LS.set('serve_cfg',C);
 let D={ready:[],prep:[],served:[],categories:[]},view='ready',primed=false,seenR=new Set(),seenP=new Set(),gone=new Set();
@@ -162,7 +202,7 @@ async function poll(){if(busy)return;busy=true;try{
   for(const d of j.ready)if(gone.has(d.id)&&!d.servedAt)gone.delete(d.id);
   D=j;
   if(primed&&fresh.length){beep('ready');say(fresh.slice(0,3).map(sentence).join(' , '));}
-  if(primed&&freshP.length){beep('prep');say('เตรียม '+freshP.slice(0,2).map(sentence).join(' , '));}
+  if(primed&&freshP.length){beep('prep');say(freshP.slice(0,2).map(x=>x.label?(x.label+(x.thai?' คนไทย':'')+(x.size?' '+x.size:'')+' '+(x.takeaway?'กลับบ้าน':'โต๊ะ '+x.table)):'เตรียม '+sentence(x)).join(' , '));}
   primed=true;render();
 }catch(e){$('#dot').classList.add('off');$('#info').textContent='ติดต่อเครื่องหลักไม่ได้';}
 busy=false;}
@@ -182,53 +222,72 @@ function groups(list){const m=new Map();for(const d of list){const k=d.orderId;i
   const a=[...m.values()];a.sort((x,y)=>C.sort==='new'?y.oldest-x.oldest:x.oldest-y.oldest);return a;}
 function dishInfo(d){return `${d.opts.length?`<span class="op">${esc(d.opts.join(' · '))}</span>`:''}${d.remark?`<span class="rk">${esc(d.remark)}</span>`:''}`;}
 function tags(d){return `${d.takeaway?'<span class="tag ta">กลับบ้าน</span>':''}${d.thai?'<span class="tag th">คนไทย</span>':''}`;}
+// แอนิเมชันเฉพาะของที่เพิ่งมาใหม่ (วาดซ้ำทุก 2 วิ ไม่เล่นซ้ำ)
+const ANI=new Set();let firstPaint=true;
+function fx(key,cls){if(ANI.has(key))return '';ANI.add(key);return firstPaint?'':' '+cls;}
+const CHECK='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+function tbl(d){return d.takeaway?esc('กลับบ้าน '+(d.pickup||'')):'<small>โต๊ะ</small> '+esc(d.table);}
 function renderReady(b){
   const list=shown();
-  if(!list.length){b.innerHTML=`<div class="empty"><b>ไม่มีจานรอเสิร์ฟ</b>ครัวกดเสร็จเมื่อไหร่ จะขึ้นที่นี่ทันที${C.hide.length?'<br><small>ไม่แสดงหมวด: '+esc(C.hide.join(', '))+'</small>':''}</div>`;return;}
+  if(!list.length){b.innerHTML=`<div class="empty"><div class="ic"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18h18"/><path d="M5 18a7 7 0 0 1 14 0"/><path d="M12 8V6"/><path d="M10 6h4"/></svg></div><b>ไม่มีจานรอเสิร์ฟ</b>ครัวกดเสร็จเมื่อไหร่ จะขึ้นที่นี่ทันที${C.hide.length?'<br><small>ไม่แสดงหมวด: '+esc(C.hide.join(', '))+'</small>':''}</div>`;return;}
   if(C.layout==='table'){
     b.innerHTML=`<div class="grid" style="grid-template-columns:${colsCss(300)}">${groups(list).map(g=>{const a=age(g.oldest),ids=g.items.map(d=>d.id).join(',');
-      return `<article class="card ${a.cls==='late'?'late':''}"><div class="ch"><span class="tl">${esc(where(g.first))}</span>${tags(g.first)}<span class="sp"></span><span class="tm ${a.cls}">${a.txt}</span></div>
-        <div class="rows">${g.items.map(d=>`<button class="dr" data-serve="${esc(d.id)}" data-label="${esc(where(d)+' '+d.name)}"><span class="qc ${d.qty>1?'many':''}">${d.qty}</span><span class="dm"><span class="nm">${esc(d.name)}</span>${dishInfo(d)}</span><span class="go">เสิร์ฟ</span></button>`).join('')}</div>
-        ${g.items.length>1?`<div class="cf"><button class="all" data-serve="${esc(ids)}" data-label="${esc(where(g.first))} ครบ">เสิร์ฟครบ ${esc(where(g.first))} ✓</button></div>`:''}</article>`;}).join('')}</div>`;
+      return `<article class="card s-${a.cls}${fx('o'+g.key,'enter')}"><div class="ch"><span class="tl">${esc(where(g.first))}</span>${tags(g.first)}<span class="sp"></span><span class="tm ${a.cls}">${a.txt}</span></div>
+        <div class="rows">${g.items.map(d=>`<button class="dr${fx('d'+d.id,'rin')}" data-serve="${esc(d.id)}" data-label="${esc(where(d)+' '+d.name)}"><span class="qc ${d.qty>1?'many':''}">${d.qty}</span><span class="dm"><span class="nm">${esc(d.name)}</span>${dishInfo(d)}</span><span class="go">${CHECK}เสิร์ฟ</span></button>`).join('')}</div>
+        ${g.items.length>1?`<div class="cf"><button class="all" data-serve="${esc(ids)}" data-label="${esc(where(g.first))} ครบ">${CHECK}เสิร์ฟครบ ${esc(where(g.first))}</button></div>`:''}</article>`;}).join('')}</div>`;
   }else if(C.layout==='dish'){
     const l=[...list].sort((x,y)=>C.sort==='new'?(y.doneAt-x.doneAt):(x.doneAt-y.doneAt));
     b.innerHTML=`<div class="grid" style="grid-template-columns:${colsCss(230)}">${l.map(d=>{const a=age(d.doneAt||d.at);
-      return `<button class="tile ${a.cls==='late'?'late':''}" data-serve="${esc(d.id)}" data-label="${esc(where(d)+' '+d.name)}"><span class="tt"><span class="tb">${d.takeaway?esc('กลับบ้าน '+(d.pickup||'')):'<small style="font-size:.55em;font-weight:600;color:var(--muted)">โต๊ะ</small> '+esc(d.table)}</span>${tags(d)}<span class="sp" style="flex:1"></span><span class="tm ${a.cls}">${a.txt}</span></span>
-        <span class="nm">${d.qty>1?esc(d.qty)+' × ':''}${esc(d.name)}</span>${dishInfo(d)}<span class="hint">แตะ = เสิร์ฟแล้ว</span></button>`;}).join('')}</div>`;
+      return `<button class="tile s-${a.cls}${fx('d'+d.id,'enter')}" data-serve="${esc(d.id)}" data-label="${esc(where(d)+' '+d.name)}"><span class="tt"><span class="tb">${tbl(d)}</span>${tags(d)}<span class="sp"></span><span class="tm ${a.cls}">${a.txt}</span></span>
+        <span class="nm">${d.qty>1?esc(d.qty)+' × ':''}${esc(d.name)}</span>${dishInfo(d)}<span class="hint">${CHECK}แตะ = เสิร์ฟแล้ว</span></button>`;}).join('')}</div>`;
   }else{
     const l=[...list].sort((x,y)=>C.sort==='new'?(y.doneAt-x.doneAt):(x.doneAt-y.doneAt));
     b.innerHTML=l.map(d=>{const a=age(d.doneAt||d.at);
-      return `<button class="lr" data-serve="${esc(d.id)}" data-label="${esc(where(d)+' '+d.name)}"><span class="tm ${a.cls}">${a.txt}</span><span class="tb">${d.takeaway?esc('กลับบ้าน '+(d.pickup||'')):'<small style="font-size:.55em;font-weight:600;color:var(--muted)">โต๊ะ</small> '+esc(d.table)}</span>
-        <span style="display:flex;flex-direction:column;min-width:0"><span class="nm">${d.qty>1?esc(d.qty)+' × ':''}${esc(d.name)} ${tags(d)}</span>${dishInfo(d)}</span><span class="go">เสิร์ฟ</span></button>`;}).join('');
+      return `<button class="lr s-${a.cls}${fx('d'+d.id,'rin')}" data-serve="${esc(d.id)}" data-label="${esc(where(d)+' '+d.name)}"><span class="tm ${a.cls}">${a.txt}</span><span class="tb">${tbl(d)}</span>
+        <span style="display:flex;flex-direction:column;min-width:0"><span class="nm">${d.qty>1?esc(d.qty)+' × ':''}${esc(d.name)} ${tags(d)}</span>${dishInfo(d)}</span><span class="go">${CHECK}เสิร์ฟ</span></button>`;}).join('');
   }
 }
 function renderServed(b){
   if(!D.served.length){b.innerHTML='<div class="empty"><b>ยังไม่มี</b>จานที่เสิร์ฟใน 30 นาทีล่าสุดจะอยู่ที่นี่ กดเรียกกลับได้ถ้ากดผิด</div>';return;}
-  b.innerHTML=`<div style="background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden">${D.served.map(d=>`<div class="sv"><span style="color:var(--muted);width:56px">${new Date(d.servedAt).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</span>
+  b.innerHTML=`<div class="svbox">${D.served.map(d=>`<div class="sv"><span style="color:var(--muted);width:56px">${new Date(d.servedAt).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</span>
     <span class="w"><b>${esc(where(d))}</b> · ${d.qty>1?esc(d.qty)+' × ':''}${esc(d.name)}${d.opts.length?' <span class="op">'+esc(d.opts.join(' · '))+'</span>':''}</span><button data-recall="${esc(d.id)}">↩ เรียกกลับ</button></div>`).join('')}</div>`;
 }
+// test-1.85 งานเตรียม: ตัวเลือกที่ตั้งไว้ (เช่น ราดข้าว) → หัวการ์ด = ข้อความที่ตั้ง ("เตรียมข้าวราด") ไม่ขึ้นชื่อเมนู
+// ราคาคนไทย → แยกการ์ด "…คนไทย" · บอกขนาด (ธรรมดา/พิเศษ) รวมจำนวน · เมนูที่เปิดทั้งเมนู → หัวการ์ด = ชื่อเมนู
+const PREV={};
+function prepTitle(x){return x.label||x.name;}
 function renderPrep(){
   const p=$('#prep'),m=$('#main');m.classList.toggle('ptop',C.prepPos==='top');m.classList.toggle('pside',C.prepPos==='side');
   const list=C.prepPos==='off'?[]:D.prep;
   p.hidden=!list.length;if(!list.length){p.innerHTML='';return;}
-  if(C.prepGroup!==false){   // test-1.84 รวมตามตัวเลือก/เมนู เช่น "ราดข้าว 5 จาน" + โต๊ะไหนบ้าง
-    const m=new Map();for(const x of list){const k=(x.why||[]).length?x.why.join(' · '):x.name;if(!m.has(k))m.set(k,{k,q:0,items:[]});const g=m.get(k);g.q+=(+x.qty||1);g.items.push(x);}
-    p.innerHTML=`<span class="ph">🧺 เตรียมให้ครัว</span>`+[...m.values()].map(g=>`<div class="pc"><span class="what">${esc(g.k)} <span class="pq">${g.q} จาน</span></span>
-      <div class="pl">${g.items.map(x=>`<button class="pr" data-prep="${esc(x.id)}" data-label="${esc(g.k+' '+where(x))}"><b>${esc(where(x))}</b><span>${esc(x.name)}${x.qty>1?' ×'+esc(x.qty):''}${x.remark?' · '+esc(x.remark):''}</span><small>${mins(x.at)} น.</small></button>`).join('')}</div>
-      <button data-prep="${esc(g.items.map(x=>x.id).join(','))}" data-label="${esc(g.k+' '+g.q+' จาน')}">✓ เตรียมครบ ${g.q} จาน</button></div>`).join('');
+  const head=`<span class="ph"><span class="ic ic2" aria-hidden="true">🧺</span>เตรียมให้ครัว</span>`;
+  const sizeLine=items=>{const z=new Map();for(const x of items){const k=x.size||'';z.set(k,(z.get(k)||0)+(+x.qty||1));}
+    const e=[...z].filter(([k])=>k);return e.length?`<div class="szs">${[...z].map(([k,q])=>`<span class="sz">${esc(k||'ไม่ระบุขนาด')} ${q}</span>`).join('')}</div>`:'';};
+  const rowTxt=x=>x.label?`${x.size?esc(x.size):''}${x.qty>1?' ×'+esc(x.qty):''}${x.label&&!x.size&&x.qty<=1?'1 จาน':''}`:`${esc(x.name)}${x.size?' · '+esc(x.size):''}${x.qty>1?' ×'+esc(x.qty):''}`;
+  if(C.prepGroup!==false){
+    const g0=new Map();for(const x of list){const t=prepTitle(x),k=t+(x.thai?'|th':'');if(!g0.has(k))g0.set(k,{k,t,thai:x.thai,q:0,items:[]});const g=g0.get(k);g.q+=(+x.qty||1);g.items.push(x);}
+    p.innerHTML=head+[...g0.values()].map(g=>{const hot=!firstPaint&&(PREV[g.k]||0)<g.q;PREV[g.k]=g.q;
+      return `<div class="pc${hot?' hot':''}${fx('p'+g.k,'enter')}"><span class="what"><span class="tx">${esc(g.t)}${g.thai?'<span class="th">คนไทย</span>':''}</span><span class="pq${hot?' bump':''}">${g.q} จาน</span></span>
+      ${sizeLine(g.items)}
+      <div class="pl">${g.items.map(x=>`<button class="pr${fx('pi'+x.id,'rin')}" data-prep="${esc(x.id)}" data-label="${esc(g.t+' '+where(x))}"><b>${esc(where(x))}</b><span>${rowTxt(x)}${x.remark?' · '+esc(x.remark):''}</span><small>${mins(x.at)} น.</small></button>`).join('')}</div>
+      <button data-prep="${esc(g.items.map(x=>x.id).join(','))}" data-label="${esc(g.t+' '+g.q+' จาน')}">${CHECK}เตรียมครบ ${g.q} จาน</button></div>`;}).join('');
+    for(const k of Object.keys(PREV))if(!g0.has(k))delete PREV[k];
     return;
   }
-  p.innerHTML=`<span class="ph">🧺 เตรียมให้ครัว ${list.length}</span>`+list.map(x=>`<div class="pc"><span class="what">${x.qty>1?esc(x.qty)+' × ':''}${esc(x.name)}</span>${(x.why||[]).length?`<span class="why">${esc(x.why.join(' · '))}</span>`:''}
-    ${x.opts.length?`<span class="for" style="color:#ffd43b">${esc(x.opts.join(' · '))}</span>`:''}${x.remark?`<span class="rk">${esc(x.remark)}</span>`:''}
+  p.innerHTML=head+list.map(x=>`<div class="pc${fx('p1'+x.id,'enter hot')}"><span class="what"><span class="tx">${esc(prepTitle(x))}${x.thai?'<span class="th">คนไทย</span>':''}</span><span class="pq">${esc(x.qty)} จาน</span></span>
+    ${x.size?`<div class="szs"><span class="sz">${esc(x.size)}</span></div>`:''}${!x.label&&x.opts.length?`<span class="for" style="color:var(--opt)">${esc(x.opts.join(' · '))}</span>`:''}${x.remark?`<span class="rk">${esc(x.remark)}</span>`:''}
     <span class="for">${esc(where(x))} · สั่งมา ${mins(x.at)} นาที</span>
-    <button data-prep="${esc(x.id)}" data-label="${esc(x.name+' '+where(x))}">✓ เตรียมแล้ว</button></div>`).join('');
+    <button data-prep="${esc(x.id)}" data-label="${esc(prepTitle(x)+' '+where(x))}">${CHECK}เตรียมแล้ว</button></div>`).join('');
 }
+let lastN=null;
 function render(){
-  document.documentElement.style.setProperty('--z',C.size);document.body.classList.toggle('light',C.theme==='light');
-  const n=shown().reduce((s,d)=>s+(+d.qty||1),0);$('#nReady').textContent=n;
+  document.documentElement.style.setProperty('--z',C.size);document.body.classList.toggle('light',C.theme==='light');document.body.classList.toggle('anim',C.anim!==false);
+  const n=shown().reduce((s,d)=>s+(+d.qty||1),0),nEl=$('#nReady');nEl.textContent=n;
+  if(lastN!=null&&n>lastN){nEl.classList.remove('bump');void nEl.offsetWidth;nEl.classList.add('bump');}lastN=n;
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.view===view));
   $('#sndBtn').textContent=C.sound?'🔔':'🔕';
   renderPrep();const b=$('#board');view==='served'?renderServed(b):renderReady(b);
+  if(primed)firstPaint=false;
 }
 
 // ===== แจ้งเตือนด้านล่าง =====
@@ -248,12 +307,13 @@ function renderSet(){
   <h3>เรียงลำดับ</h3>${seg('sort',[['old','รอนานสุดก่อน'],['new','ใหม่สุดก่อน']])}
   <h3>หมวดที่ไม่ต้องขึ้นจอนี้</h3><div class="seg">${cats.map(c=>`<button class="chip ${C.hide.includes(c)?'off':'on'}" data-hide="${esc(c)}">${esc(c)}</button>`).join('')||'<span class="s">ยังไม่มีหมวดที่ขึ้นจอครัว</span>'}</div>
   <p class="s">แตะเพื่อปิด/เปิด · หมวดที่ปิด (ขีดฆ่า) ครัวกดเสร็จแล้วจะไม่ขึ้นที่จอนี้ เช่น เครื่องดื่มที่บาร์ยกเอง</p>
-  <h3>เตรียมให้ครัว</h3>${seg('prepPos',[['top','แถบด้านบน'],['side','แถบด้านซ้าย'],['off','ไม่แสดง']],'ตั้งที่ หลังร้าน › เมนู › แก้เมนู: ทั้งเมนู = เปิด “เตรียมให้ครัว (จอคนเสิร์ฟ)” · เฉพาะตัวเลือก (เช่น ราดข้าว) = กดปุ่ม “เตรียม” ท้ายตัวเลือกนั้น')}
+  <h3>เตรียมให้ครัว</h3>${seg('prepPos',[['top','แถบด้านบน'],['side','แถบด้านซ้าย'],['off','ไม่แสดง']],'ตั้งที่ หลังร้าน › เมนู › แก้เมนู: ทั้งเมนู = เปิด “เตรียมให้ครัว (จอคนเสิร์ฟ)” · เฉพาะตัวเลือก (เช่น ราดข้าว) = กดปุ่ม “เตรียม” ท้ายตัวเลือก แล้วพิมพ์ข้อความ เช่น “เตรียมข้าวราด”')}
   <h3>รวมงานเตรียม</h3>${seg('prepGroup',[['true','รวมตามตัวเลือก (เช่น ราดข้าว 5 จาน)'],['false','แยกทีละจาน']])}
   <h3>สีเวลารอ</h3>${seg('warn',[['2','ส้มที่ 2 นาที'],['3','3 นาที'],['5','5 นาที']])}<div style="height:6px"></div>${seg('late',[['4','แดงที่ 4 นาที'],['6','6 นาที'],['10','10 นาที']])}
   <h3>เสียง</h3>${seg('sound',[['true','เปิดเสียง'],['false','ปิดเสียง']])}<div style="height:6px"></div>
   ${seg('voice',[['table-menu','อ่าน โต๊ะ → เมนู'],['menu-table','อ่าน เมนู → โต๊ะ'],['menu','อ่านแค่เมนู'],['off','ไม่อ่าน (แค่เสียงเตือน)']])}
   <div style="margin-top:8px"><button class="ibtn" id="tryVoice">▶ ลองฟัง</button></div>
+  <h3>แอนิเมชัน</h3>${seg('anim',[['true','เปิด (การ์ดเด้ง/เรืองแสงเมื่อมีของใหม่)'],['false','ปิด']])}
   <h3>สีพื้น</h3>${seg('theme',[['dark','มืด'],['light','สว่าง']])}
   <h3>ค่าเริ่มต้น</h3><button class="ibtn" id="resetSet">คืนค่าเริ่มต้นทั้งหมด</button>`;
 }
@@ -261,8 +321,11 @@ function renderSet(){
 // ===== เหตุการณ์ =====
 document.addEventListener('click',e=>{
   const t=e.target.closest('button');if(!t)return;
-  if(t.dataset.serve){serve(t.dataset.serve.split(','),t.dataset.label||'');return;}
-  if(t.dataset.prep){prepDone(t.dataset.prep.split(','),t.dataset.label||'');return;}
+  if(t.dataset.serve||t.dataset.prep){const anim=C.anim!==false&&!matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const el=t.classList.contains('all')?t.closest('.card'):t.dataset.prep&&t.parentElement.classList.contains('pc')?t.parentElement:t;
+    if(anim&&el)el.classList.add(el.classList.contains('card')?'cout':'out');
+    const go=()=>t.dataset.serve?serve(t.dataset.serve.split(','),t.dataset.label||''):prepDone(t.dataset.prep.split(','),t.dataset.label||'');
+    anim?setTimeout(go,230):go();return;}
   if(t.dataset.recall){post('/api/serve/done',{ids:[t.dataset.recall],undo:true}).then(poll);toast('เรียกกลับแล้ว');return;}
   if(t.dataset.view){view=t.dataset.view;render();return;}
   if(t.dataset.k){let v=t.dataset.v;if(v==='true'||v==='false')v=v==='true';else if(['size','warn','late'].includes(t.dataset.k))v=+v;

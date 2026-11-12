@@ -1041,6 +1041,7 @@ function renderEditor() {
                 ${splitSel(`data-g="${k}" data-c="${j}" data-cf="printers"`, c)}
                 <button class="cp" data-cprep="${k}:${j}" aria-pressed="${!!c.prep}" title="เลือกตัวเลือกนี้แล้วขึ้นจอคนเสิร์ฟ (เตรียมให้ครัว)">${c.prep ? '🧺 เตรียม' : 'เตรียม'}</button>
                 <button class="x" data-cdel="${k}:${j}" aria-label="ลบตัวเลือก">×</button>
+                ${c.prep ? `<input type="text" class="cpl" data-g="${k}" data-c="${j}" data-cf="prep" value="${esc(typeof c.prep === 'string' ? c.prep : '')}" maxlength="40" placeholder="ข้อความบนจอคนเสิร์ฟ · ว่าง = เตรียม${esc(c.name)}" aria-label="ข้อความบนจอคนเสิร์ฟ">` : ''}
               </div>`).join('')}
             <div class="row" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-cadd="${k}">+ เพิ่มตัวเลือก</button>
               <button class="btn sm ghost" data-gsave="${k}" title="เก็บกลุ่มนี้ไว้ใช้กับเมนูอื่น">บันทึกเป็นชุดสำเร็จรูป</button></div>
@@ -1149,7 +1150,7 @@ $('#eBody').addEventListener('input', e => {
   const t = e.target, d = draft;
   if (t.dataset.f && t.dataset.f !== 'category') d[t.dataset.f] = t.type === 'checkbox' ? t.checked : t.type === 'number' ? t.value : t.value;
   if (t.dataset.gf) d.groups[t.dataset.g][t.dataset.gf] = t.type === 'checkbox' ? t.checked : t.value;
-  if (t.dataset.cf) d.groups[t.dataset.g].choices[t.dataset.c][t.dataset.cf] = t.dataset.cf === 'printers' ? (t.value ? [t.value] : []) : t.value;
+  if (t.dataset.cf) d.groups[t.dataset.g].choices[t.dataset.c][t.dataset.cf] = t.dataset.cf === 'printers' ? (t.value ? [t.value] : []) : t.dataset.cf === 'prep' ? (t.value.trim() || true) : t.value;
   if (t.dataset.cf === 'printers') t.classList.toggle('on', !!t.value);
   if (t.dataset.gk != null) {
     d.grid.prices = d.grid.prices || {};
@@ -1371,7 +1372,8 @@ function renderSetEditor() {
           <div class="money"><input type="number" data-sc="${j}" data-scf="addTh" value="${esc(c.addTh ?? '')}" min="0" step="1" inputmode="decimal" placeholder="—" aria-label="บวกราคาคนไทย" title="ว่าง = เท่าบวกราคาปกติ"></div>
           ${splitSel(`data-sc="${j}" data-scf="printers"`, c)}
           <button class="cp" data-scprep="${j}" aria-pressed="${!!c.prep}" title="เลือกตัวเลือกนี้แล้วขึ้นจอคนเสิร์ฟ (เตรียมให้ครัว)">${c.prep ? '🧺 เตรียม' : 'เตรียม'}</button>
-          <button class="x" data-scdel="${j}" aria-label="ลบตัวเลือก">×</button></div>`).join('')}
+          <button class="x" data-scdel="${j}" aria-label="ลบตัวเลือก">×</button>
+          ${c.prep ? `<input type="text" class="cpl" data-sc="${j}" data-scf="prep" value="${esc(typeof c.prep === 'string' ? c.prep : '')}" maxlength="40" placeholder="ข้อความบนจอคนเสิร์ฟ · ว่าง = เตรียม${esc(c.name)}" aria-label="ข้อความบนจอคนเสิร์ฟ">` : ''}</div>`).join('')}
         <div><button class="btn sm" id="scAdd">+ เพิ่มตัวเลือก</button></div>
       </div>
     </div>
@@ -1387,7 +1389,7 @@ function renderSetEditor() {
 $('#sBody').addEventListener('input', e => {
   const t = e.target, d = sdraft;
   if (t.dataset.sf) d[t.dataset.sf] = t.type === 'checkbox' ? t.checked : t.value;
-  if (t.dataset.scf) d.choices[t.dataset.sc][t.dataset.scf] = t.dataset.scf === 'printers' ? (t.value ? [t.value] : []) : t.value;
+  if (t.dataset.scf) d.choices[t.dataset.sc][t.dataset.scf] = t.dataset.scf === 'printers' ? (t.value ? [t.value] : []) : t.dataset.scf === 'prep' ? (t.value.trim() || true) : t.value;
   if (t.dataset.scf === 'printers') t.classList.toggle('on', !!t.value);
   if (t.dataset.pm) { const s = new Set(d.menuIds); t.checked ? s.add(t.dataset.pm) : s.delete(t.dataset.pm); d.menuIds = [...s];
     $('#sBody .sec:last-child h3 small').textContent = `${s.size} เมนู`; }
