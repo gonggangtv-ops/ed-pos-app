@@ -76,6 +76,10 @@
   body.light .pc{background:#fff4e6;color:#3a2a10}
   .pc .what{font-size:calc(20px*var(--z));font-weight:700;line-height:1.2}
   .pc .why{align-self:flex-start;font-size:calc(17px*var(--z));font-weight:700;background:#f08c00;color:#1a1000;border-radius:8px;padding:1px 10px}
+  .pc .pq{display:inline-block;margin-left:6px;font-size:.8em;background:#f08c00;color:#1a1000;border-radius:8px;padding:0 9px}
+  .pc .pl{display:flex;flex-direction:column;gap:2px;margin-top:2px}
+  .pc .pr{margin:0;min-height:40px;display:flex;align-items:center;gap:8px;padding:2px 8px;border-radius:8px;border:0;background:#0003;color:inherit;font-size:calc(15px*var(--z));text-align:left}
+  .pc .pr span{flex:1;min-width:0}.pc .pr small{opacity:.8}
   .pc .for{font-size:calc(14px*var(--z));opacity:.9}
   .pc button{margin-top:4px;min-height:44px;border-radius:10px;border:0;background:#f08c00;color:#1a1000;font-size:calc(16px*var(--z));font-weight:700}
   /* เสิร์ฟแล้ว */
@@ -126,7 +130,7 @@
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
-const DEF={layout:'table',size:1,cols:'auto',hide:[],prepPos:'top',sound:true,voice:'table-menu',warn:3,late:6,theme:'dark',sort:'old'};
+const DEF={prepGroup:true,layout:'table',size:1,cols:'auto',hide:[],prepPos:'top',sound:true,voice:'table-menu',warn:3,late:6,theme:'dark',sort:'old'};
 let C=Object.assign({},DEF,LS.get('serve_cfg',{}));
 const saveC=()=>LS.set('serve_cfg',C);
 let D={ready:[],prep:[],served:[],categories:[]},view='ready',primed=false,seenR=new Set(),seenP=new Set(),gone=new Set();
@@ -169,8 +173,8 @@ async function post(path,body){try{const r=await fetch(path,{method:'POST',heade
 async function serve(ids,label){ids=ids.filter(Boolean);if(!ids.length)return;ids.forEach(id=>gone.add(id));render();
   const ok=await post('/api/serve/done',{ids});if(!ok){ids.forEach(id=>gone.delete(id));render();return;}
   toast('เสิร์ฟแล้ว · '+label,'↩ ยกเลิก',async()=>{ids.forEach(id=>gone.delete(id));await post('/api/serve/done',{ids,undo:true});poll();});poll();}
-async function prepDone(id,label){D.prep=D.prep.filter(p=>p.id!==id);render();
-  if(await post('/api/serve/prep',{ids:[id]}))toast('เตรียมแล้ว · '+label,'↩ ยกเลิก',async()=>{await post('/api/serve/prep',{ids:[id],undo:true});poll();});poll();}
+async function prepDone(ids,label){ids=[].concat(ids).filter(Boolean);D.prep=D.prep.filter(p=>!ids.includes(p.id));render();
+  if(await post('/api/serve/prep',{ids}))toast('เตรียมแล้ว · '+label,'↩ ยกเลิก',async()=>{await post('/api/serve/prep',{ids,undo:true});poll();});poll();}
 
 // ===== วาด =====
 function colsCss(min){return C.cols==='auto'?`repeat(auto-fill,minmax(${Math.round(min*C.size)}px,1fr))`:`repeat(${C.cols},minmax(0,1fr))`;}
@@ -207,6 +211,13 @@ function renderPrep(){
   const p=$('#prep'),m=$('#main');m.classList.toggle('ptop',C.prepPos==='top');m.classList.toggle('pside',C.prepPos==='side');
   const list=C.prepPos==='off'?[]:D.prep;
   p.hidden=!list.length;if(!list.length){p.innerHTML='';return;}
+  if(C.prepGroup!==false){   // test-1.84 รวมตามตัวเลือก/เมนู เช่น "ราดข้าว 5 จาน" + โต๊ะไหนบ้าง
+    const m=new Map();for(const x of list){const k=(x.why||[]).length?x.why.join(' · '):x.name;if(!m.has(k))m.set(k,{k,q:0,items:[]});const g=m.get(k);g.q+=(+x.qty||1);g.items.push(x);}
+    p.innerHTML=`<span class="ph">🧺 เตรียมให้ครัว</span>`+[...m.values()].map(g=>`<div class="pc"><span class="what">${esc(g.k)} <span class="pq">${g.q} จาน</span></span>
+      <div class="pl">${g.items.map(x=>`<button class="pr" data-prep="${esc(x.id)}" data-label="${esc(g.k+' '+where(x))}"><b>${esc(where(x))}</b><span>${esc(x.name)}${x.qty>1?' ×'+esc(x.qty):''}${x.remark?' · '+esc(x.remark):''}</span><small>${mins(x.at)} น.</small></button>`).join('')}</div>
+      <button data-prep="${esc(g.items.map(x=>x.id).join(','))}" data-label="${esc(g.k+' '+g.q+' จาน')}">✓ เตรียมครบ ${g.q} จาน</button></div>`).join('');
+    return;
+  }
   p.innerHTML=`<span class="ph">🧺 เตรียมให้ครัว ${list.length}</span>`+list.map(x=>`<div class="pc"><span class="what">${x.qty>1?esc(x.qty)+' × ':''}${esc(x.name)}</span>${(x.why||[]).length?`<span class="why">${esc(x.why.join(' · '))}</span>`:''}
     ${x.opts.length?`<span class="for" style="color:#ffd43b">${esc(x.opts.join(' · '))}</span>`:''}${x.remark?`<span class="rk">${esc(x.remark)}</span>`:''}
     <span class="for">${esc(where(x))} · สั่งมา ${mins(x.at)} นาที</span>
@@ -238,6 +249,7 @@ function renderSet(){
   <h3>หมวดที่ไม่ต้องขึ้นจอนี้</h3><div class="seg">${cats.map(c=>`<button class="chip ${C.hide.includes(c)?'off':'on'}" data-hide="${esc(c)}">${esc(c)}</button>`).join('')||'<span class="s">ยังไม่มีหมวดที่ขึ้นจอครัว</span>'}</div>
   <p class="s">แตะเพื่อปิด/เปิด · หมวดที่ปิด (ขีดฆ่า) ครัวกดเสร็จแล้วจะไม่ขึ้นที่จอนี้ เช่น เครื่องดื่มที่บาร์ยกเอง</p>
   <h3>เตรียมให้ครัว</h3>${seg('prepPos',[['top','แถบด้านบน'],['side','แถบด้านซ้าย'],['off','ไม่แสดง']],'ตั้งที่ หลังร้าน › เมนู › แก้เมนู: ทั้งเมนู = เปิด “เตรียมให้ครัว (จอคนเสิร์ฟ)” · เฉพาะตัวเลือก (เช่น ราดข้าว) = กดปุ่ม “เตรียม” ท้ายตัวเลือกนั้น')}
+  <h3>รวมงานเตรียม</h3>${seg('prepGroup',[['true','รวมตามตัวเลือก (เช่น ราดข้าว 5 จาน)'],['false','แยกทีละจาน']])}
   <h3>สีเวลารอ</h3>${seg('warn',[['2','ส้มที่ 2 นาที'],['3','3 นาที'],['5','5 นาที']])}<div style="height:6px"></div>${seg('late',[['4','แดงที่ 4 นาที'],['6','6 นาที'],['10','10 นาที']])}
   <h3>เสียง</h3>${seg('sound',[['true','เปิดเสียง'],['false','ปิดเสียง']])}<div style="height:6px"></div>
   ${seg('voice',[['table-menu','อ่าน โต๊ะ → เมนู'],['menu-table','อ่าน เมนู → โต๊ะ'],['menu','อ่านแค่เมนู'],['off','ไม่อ่าน (แค่เสียงเตือน)']])}
@@ -250,7 +262,7 @@ function renderSet(){
 document.addEventListener('click',e=>{
   const t=e.target.closest('button');if(!t)return;
   if(t.dataset.serve){serve(t.dataset.serve.split(','),t.dataset.label||'');return;}
-  if(t.dataset.prep){prepDone(t.dataset.prep,t.dataset.label||'');return;}
+  if(t.dataset.prep){prepDone(t.dataset.prep.split(','),t.dataset.label||'');return;}
   if(t.dataset.recall){post('/api/serve/done',{ids:[t.dataset.recall],undo:true}).then(poll);toast('เรียกกลับแล้ว');return;}
   if(t.dataset.view){view=t.dataset.view;render();return;}
   if(t.dataset.k){let v=t.dataset.v;if(v==='true'||v==='false')v=v==='true';else if(['size','warn','late'].includes(t.dataset.k))v=+v;
