@@ -171,7 +171,7 @@
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
-const DEF={psize:1,anim:true,prepGroup:true,layout:'table',size:1,cols:'auto',hide:[],prepPos:'top',sound:true,voice:'table-menu',warn:3,late:6,theme:'dark',sort:'old'};
+const DEF={prepMenus:true,psize:1,anim:true,prepGroup:true,layout:'table',size:1,cols:'auto',hide:[],prepPos:'top',sound:true,voice:'table-menu',warn:3,late:6,theme:'dark',sort:'old'};
 let C=Object.assign({},DEF,LS.get('serve_cfg',{}));
 const saveC=()=>LS.set('serve_cfg',C);
 let D={ready:[],prep:[],served:[],categories:[]},view='ready',primed=false,seenR=new Set(),seenP=new Set(),gone=new Set();
@@ -203,7 +203,7 @@ async function poll(){if(busy)return;busy=true;try{
   for(const d of j.ready)if(gone.has(d.id)&&!d.servedAt)gone.delete(d.id);
   D=j;
   if(primed&&fresh.length){beep('ready');say(fresh.slice(0,3).map(sentence).join(' , '));}
-  if(primed&&freshP.length){beep('prep');say(freshP.slice(0,2).map(x=>x.label?(x.label+(x.thai?' คนไทย':'')+(x.size?' '+x.size:'')+' '+(x.takeaway?'กลับบ้าน':'โต๊ะ '+x.table)):'เตรียม '+sentence(x)).join(' , '));}
+  if(primed&&freshP.length){const fp=freshP.filter(x=>x.label||C.prepMenus!==false);if(fp.length){beep('prep');say(fp.slice(0,2).map(x=>(x.label||'เตรียม '+x.name)+(x.thai?' คนไทย':'')+(x.size?' '+x.size:'')+' '+(+x.qty||1)+' จาน').join(' , '));}}
   primed=true;render();
 }catch(e){$('#dot').classList.add('off');$('#info').textContent='ติดต่อเครื่องหลักไม่ได้';}
 busy=false;}
@@ -259,27 +259,29 @@ const PREV={};
 function prepTitle(x){return x.label||x.name;}
 function renderPrep(){
   const p=$('#prep'),m=$('#main');m.classList.toggle('ptop',C.prepPos==='top');m.classList.toggle('pside',C.prepPos==='side');m.classList.toggle('pright',C.prepPos==='right');
-  const list=C.prepPos==='off'?[]:D.prep;
+  // test-1.88 prepMenus=false → ไม่แสดงเมนูที่ไม่ได้เลือกตัวเลือกเตรียม (เช่น ไม่ได้ราดข้าว)
+  const list=C.prepPos==='off'?[]:D.prep.filter(x=>x.label||C.prepMenus!==false);
   p.hidden=!list.length;if(!list.length){p.innerHTML='';return;}
   const head=`<span class="ph"><span class="ic ic2" aria-hidden="true">🧺</span>เตรียมให้ครัว</span>`;
   const sizeLine=items=>{const z=new Map();for(const x of items){const k=x.size||'';z.set(k,(z.get(k)||0)+(+x.qty||1));}
     const e=[...z].filter(([k])=>k);return e.length?`<div class="szs">${[...z].map(([k,q])=>`<span class="sz">${esc(k||'ไม่ระบุขนาด')} ${q}</span>`).join('')}</div>`:'';};
   // หัวการ์ดบอกแล้วว่าเตรียมอะไร (ข้าวราด หรือชื่อเมนู) → แถวบอกแค่ขนาด × จำนวน
+  // test-1.88 ไม่บอกโต๊ะ → แถวรวมตามขนาด (แตะ = เตรียมขนาดนั้นครบ)
+  const sizeRows=g=>{const z=new Map();for(const x of g.items){const k=x.size||'';if(!z.has(k))z.set(k,{k,q:0,ids:[],at:x.at});const r=z.get(k);r.q+=(+x.qty||1);r.ids.push(x.id);r.at=Math.min(r.at,x.at);}return [...z.values()];};
   const rowTxt=x=>`${x.size?esc(x.size):''}${x.qty>1?(x.size?' ':'')+'×'+esc(x.qty):x.size?'':'1 จาน'}`;
   if(C.prepGroup!==false){
     const g0=new Map();for(const x of list){const t=prepTitle(x),k=t+(x.thai?'|th':'');if(!g0.has(k))g0.set(k,{k,t,thai:x.thai,q:0,items:[]});const g=g0.get(k);g.q+=(+x.qty||1);g.items.push(x);}
     p.innerHTML=head+[...g0.values()].map(g=>{const hot=!firstPaint&&(PREV[g.k]||0)<g.q;PREV[g.k]=g.q;
       return `<div class="pc${hot?' hot':''}${fx('p'+g.k,'enter')}"><span class="what"><span class="tx">${esc(g.t)}${g.thai?'<span class="th">คนไทย</span>':''}</span><span class="pq${hot?' bump':''}">${g.q} จาน</span></span>
-      ${sizeLine(g.items)}
-      <div class="pl">${g.items.map(x=>`<button class="pr${fx('pi'+x.id,'rin')}" data-prep="${esc(x.id)}" data-label="${esc(g.t+' '+where(x))}"><b>${esc(where(x))}</b><span>${rowTxt(x)}${x.remark?' · '+esc(x.remark):''}</span><small>${mins(x.at)} น.</small></button>`).join('')}</div>
+      <div class="pl">${sizeRows(g).map(r=>`<button class="pr${fx('pz'+g.k+r.k,'rin')}" data-prep="${esc(r.ids.join(','))}" data-label="${esc(g.t+' '+(r.k||'')+' '+r.q+' จาน')}"><b>${esc(r.k||'จาน')}</b><span></span><b>${r.q} จาน</b><small>${mins(r.at)} น.</small></button>`).join('')}</div>
       <button data-prep="${esc(g.items.map(x=>x.id).join(','))}" data-label="${esc(g.t+' '+g.q+' จาน')}">${CHECK}เตรียมครบ ${g.q} จาน</button></div>`;}).join('');
     for(const k of Object.keys(PREV))if(!g0.has(k))delete PREV[k];
     return;
   }
   p.innerHTML=head+list.map(x=>`<div class="pc${fx('p1'+x.id,'enter hot')}"><span class="what"><span class="tx">${esc(prepTitle(x))}${x.thai?'<span class="th">คนไทย</span>':''}</span><span class="pq">${esc(x.qty)} จาน</span></span>
     ${x.size?`<div class="szs"><span class="sz">${esc(x.size)}</span></div>`:''}${!x.label&&x.opts.length?`<span class="for" style="color:var(--opt)">${esc(x.opts.join(' · '))}</span>`:''}${x.remark?`<span class="rk">${esc(x.remark)}</span>`:''}
-    <span class="for">${esc(where(x))} · สั่งมา ${mins(x.at)} นาที</span>
-    <button data-prep="${esc(x.id)}" data-label="${esc(prepTitle(x)+' '+where(x))}">${CHECK}เตรียมแล้ว</button></div>`).join('');
+    <span class="for">สั่งมา ${mins(x.at)} นาที</span>
+    <button data-prep="${esc(x.id)}" data-label="${esc(prepTitle(x))}">${CHECK}เตรียมแล้ว</button></div>`).join('');
 }
 let lastN=null;
 function render(){
@@ -311,6 +313,7 @@ function renderSet(){
   <h3>หมวดที่ไม่ต้องขึ้นจอนี้</h3><div class="seg">${cats.map(c=>`<button class="chip ${C.hide.includes(c)?'off':'on'}" data-hide="${esc(c)}">${esc(c)}</button>`).join('')||'<span class="s">ยังไม่มีหมวดที่ขึ้นจอครัว</span>'}</div>
   <p class="s">แตะเพื่อปิด/เปิด · หมวดที่ปิด (ขีดฆ่า) ครัวกดเสร็จแล้วจะไม่ขึ้นที่จอนี้ เช่น เครื่องดื่มที่บาร์ยกเอง</p>
   <h3>เตรียมให้ครัว</h3>${seg('prepPos',[['top','ด้านบน'],['side','ด้านซ้าย'],['right','ด้านขวา'],['off','ไม่แสดง']],'ตั้งที่ หลังร้าน › เมนู › แก้เมนู: ทั้งเมนู = เปิด “เตรียมให้ครัว (จอคนเสิร์ฟ)” · เฉพาะตัวเลือก (เช่น ราดข้าว) = กดปุ่ม “เตรียม” ท้ายตัวเลือก แล้วพิมพ์ข้อความ เช่น “เตรียมข้าวราด”')}
+  <h3>เมนูที่ไม่ได้เลือกราดข้าว</h3>${seg('prepMenus',[['true','ขึ้นเตรียมครัว (ชื่อเมนู + ขนาด)'],['false','ไม่ขึ้น (ขึ้นเฉพาะที่เลือกราดข้าว)']],'ใช้กับเมนูที่เปิดสวิตช์ “เตรียมให้ครัว” ทั้งเมนูไว้')}
   <h3>รวมงานเตรียม</h3>${seg('prepGroup',[['true','รวมตามตัวเลือก (เช่น ราดข้าว 5 จาน)'],['false','แยกทีละจาน']])}
   <h3>สีเวลารอ</h3>${seg('warn',[['2','ส้มที่ 2 นาที'],['3','3 นาที'],['5','5 นาที']])}<div style="height:6px"></div>${seg('late',[['4','แดงที่ 4 นาที'],['6','6 นาที'],['10','10 นาที']])}
   <h3>เสียง</h3>${seg('sound',[['true','เปิดเสียง'],['false','ปิดเสียง']])}<div style="height:6px"></div>
