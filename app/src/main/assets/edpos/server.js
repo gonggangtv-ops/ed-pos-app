@@ -3173,7 +3173,13 @@ const routes = {
       const thai = !!it.thai && hasThaiPrice(m);
       return { it, m, thai, ch: resolveChoices(m, it.choices ?? it.option, thai) };
     });
-    let order = data.orders.find(o => String(o.table) === b.table && o.status === 'open');
+    let order = data.orders.find(o => String(o.table) === b.table && o.status === 'open'), moved = false;
+    // test-1.93 อีกเครื่องย้าย/รวมโต๊ะนี้ไปแล้ว แต่เครื่องนี้ยังเปิดโต๊ะเดิมอยู่ → ส่งเข้าบิลที่ย้ายไป (ไม่เปิดบิลใหม่ที่โต๊ะเดิม)
+    if (b.orderId) {
+      let mo = data.orders.find(o => o.id === b.orderId && o.status === 'open');
+      if (!mo) { const it = data.items.find(i => i.movedFrom === b.orderId); if (it) mo = data.orders.find(o => o.id === it.orderId && o.status === 'open'); }
+      if (mo && String(mo.table) !== b.table) { order = mo; moved = true; }
+    }
     if (!order) {
       order = { id: newId('o'), table: b.table, status: 'open', createdAt: Date.now(), openedBy: by };
       data.orders.push(order);
@@ -3202,7 +3208,7 @@ const routes = {
       data.items.push(item);
       added.push(item.id);
     }
-    return { orderId: order.id, added };
+    return { orderId: order.id, added, table: order.table, moved };
   },
 
   'POST /api/item/status': b => {

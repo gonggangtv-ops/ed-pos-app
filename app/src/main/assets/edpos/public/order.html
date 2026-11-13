@@ -259,6 +259,7 @@
 <script src="kiosk.js"></script>
 <script>
 let current = null;        // โต๊ะที่เปิดอยู่
+let curOid = null, curFor = null; // test-1.93 บิลของโต๊ะที่เปิดอยู่ (อีกเครื่องย้าย/รวมโต๊ะ → ตามไปโต๊ะใหม่)
 let cart = [];             // รายการที่ยังไม่ส่งครัว
 let cat = null;
 let menuQ = '';            // คำค้นหาเมนู
@@ -302,7 +303,20 @@ function applyUi() {
   document.querySelector('meta[name=theme-color]').content = u.theme === 'dark' ? '#000000' : getComputedStyle(r).getPropertyValue('--ink').trim() || '#1d1b16';
 }
 
+// test-1.93 บิลของโต๊ะที่เปิดอยู่ถูกย้าย/รวมไปโต๊ะอื่น (จากอีกเครื่อง) → ตามไปโต๊ะใหม่ ไม่ให้เห็นเป็นโต๊ะว่างเหมือนข้อมูลหาย
+function followMoved() {
+  if (!current) { curOid = curFor = null; return; }
+  if (curOid && curFor === current) {   // ยังอยู่โต๊ะเดิมที่จำบิลไว้ (ไม่ใช่ผู้ใช้กดเปลี่ยนโต๊ะเอง)
+    let o = S.orders.find(x => x.id === curOid);
+    if (!o) { const it = S.items.find(i => i.movedFrom === curOid); if (it) o = S.orders.find(x => x.id === it.orderId); }
+    if (o && o.status === 'open' && String(o.table) !== String(current)) {
+      const from = current; current = o.table; toast(`${tableName(from)} ถูกย้ายไป ${tableName(o.table)} แล้ว`);
+    }
+  }
+  curOid = openOrder(current)?.id || null; curFor = current;
+}
 function render() {
+  followMoved();
   applyUi();
   document.getElementById('back').hidden = !current && !hist;
   document.getElementById('title').textContent = current ? tableName(current) : hist ? 'ประวัติการสั่ง' : 'สั่งอาหาร';
@@ -932,11 +946,13 @@ async function send() {
   sending = true;
   const table = current;
   try {
-    const r = await api('/api/order', { table, items: cart });
-    cart = []; billOpen = false; document.body.classList.remove('sheet-open'); render(); toast('ส่งออเดอร์แล้ว');
+    const r = await api('/api/order', { table, items: cart, orderId: openOrder(table)?.id });
+    cart = []; billOpen = false; document.body.classList.remove('sheet-open');
     Object.assign(S, await api('/api/state'));
+    if (r.moved && current === table) { current = r.table; curOid = r.orderId; curFor = current; }
+    render(); toast(r.moved ? `โต๊ะนี้ถูกย้ายไป ${tableName(r.table)} แล้ว · ส่งเข้าบิลนั้นให้แล้ว` : 'ส่งออเดอร์แล้ว');
     const items = S.items.filter(i => r.added.includes(i.id));
-    await printTickets(table, items);
+    await printTickets(r.table || table, items);
   } catch (e) { toast(e.message, true); }
   finally { sending = false; }
 }
@@ -1027,8 +1043,9 @@ function moveTable() {
     const from = current;
     const its = orderItems(o).filter(i => i.status !== 'cancelled');
     try {
-      await api('/api/order/move', { orderId: o.id, table: to });
-      current = to; bg.remove(); render();
+      const r = await api('/api/order/move', { orderId: o.id, table: to });
+      try { Object.assign(S, await api('/api/state')); } catch {}   // test-1.93 โหลดใหม่ก่อนวาด ไม่ให้โต๊ะปลายทางว่างชั่วคราว
+      current = to; curOid = r?.orderId || null; curFor = to; bg.remove(); render();
       // แจ้งเครื่องพิมพ์ที่มีรายการของโต๊ะนี้ค้างอยู่
       const slip = [{ text: `ย้าย ${tableName(from)}`, size: 40, bold: true }, { text: `ไป ${tableName(to)}`, size: 40, bold: true }];
       await printNotice(slip, its);
