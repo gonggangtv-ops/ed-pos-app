@@ -278,9 +278,11 @@ function sentence(d){const w=d.takeaway?'กลับบ้าน '+(d.pickup||'
   return C.voice==='menu'?m:C.voice==='menu-table'?m+' '+w:w+' '+m;}
 
 // ===== ข้อมูล =====
+// test-1.95 คำขอค้าง (Wi-Fi หลุดกลางทาง) เดิมรอไม่มีกำหนด → จอค้างไม่อัปเดตจนกว่าจะเปิดใหม่ · ตัดที่ 10 วิ แล้วรอบถัดไปถามใหม่
+function wait10(){try{const c=new AbortController();setTimeout(()=>c.abort(),10000);return c.signal;}catch(e){return undefined;}}
 let busy=false;
 async function poll(){if(busy)return;busy=true;try{
-  const r=await fetch('/api/serve',{cache:'no-store'});const j=await r.json();
+  const r=await fetch('/api/serve',{cache:'no-store',signal:wait10()});const j=await r.json();
   if(!j.ok)throw new Error(j.error||'');
   $('#dot').classList.remove('off');$('#info').textContent='';
   const fresh=j.ready.filter(d=>!seenR.has(d.id)&&!C.hide.includes(d.cat)),freshP=j.prep.filter(p=>!seenP.has(p.id));

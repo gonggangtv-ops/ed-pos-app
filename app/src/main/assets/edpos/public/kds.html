@@ -1206,8 +1206,10 @@ function showScreens(j){const sel=document.getElementById('scrSel'),list=j.scree
 document.getElementById('scrSel').addEventListener('change',e=>{
   try{localStorage.setItem('kds_screen',e.target.value);}catch(_){}
   const u=new URL(location.href);u.searchParams.set('screen',e.target.value);location.href=u.toString();});
+// test-1.95 คำขอค้าง (Wi-Fi หลุดกลางทาง) เดิมรอไม่มีกำหนด → จอค้างไม่อัปเดตจนกว่าจะเปิดใหม่ · ตัดที่ 10 วิ แล้วรอบถัดไปถามใหม่
+function wait10(){try{const c=new AbortController();setTimeout(()=>c.abort(),10000);return c.signal;}catch(e){return undefined;}}
 async function poll(){try{
-  const r=await fetch('/api/orders'+(SCREEN?'?screen='+encodeURIComponent(SCREEN):''));const j=await r.json();
+  const r=await fetch('/api/orders'+(SCREEN?'?screen='+encodeURIComponent(SCREEN):''),{signal:wait10()});const j=await r.json();
   showScreens(j);
   document.getElementById('dot').classList.toggle('off',!j.ok);
   const er=String(j.error||'');

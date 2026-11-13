@@ -8,6 +8,7 @@ const os = require('os');
 const crypto = require('crypto');
 const https = require('https');
 const dgram = require('dgram');
+const zlib = require('zlib');
 
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -655,8 +656,9 @@ const repl = { lastSync: 0, syncErr: '', standbySeen: 0, standbyIp: '', peerRole
 // เครื่องสำรองใหม่ (ยังไม่เคยคัดลอก) จับคู่ครั้งแรกด้วยรหัสเจ้าของร้านของเครื่องหลัก → ได้กุญแจเก็บไว้ใน role.key
 const syncKey = () => crypto.createHmac('sha256', data.auth.secret).update('edpos-sync').digest('hex');
 const syncKeyOk = k => { const a = Buffer.from(String(k || '')), b = Buffer.from(syncKey()); return a.length === b.length && crypto.timingSafeEqual(a, b); };
-const getJSON = async (u, opt = {}) => {
-  const r = await fetch(u, { ...opt, signal: AbortSignal.timeout(3000) });
+const getJSON = async (u, { ms = 3000, ...opt } = {}) => {
+  // test-1.95 ดึงข้อมูลทั้งร้าน (เครื่องสำรอง) ให้เวลา 15 วิ · เดิม 3 วิ ข้อมูล 7 วันช่วงคนเยอะโหลดไม่ทัน → ขึ้นว่าติดต่อเครื่องหลักไม่ได้
+  const r = await fetch(u, { ...opt, signal: AbortSignal.timeout(ms) });
   return r.json();
 };
 
@@ -748,7 +750,7 @@ async function syncTick() {
     // ลองกุญแจจากข้อมูลของเครื่องนี้ก่อน ไม่ผ่านค่อยใช้กุญแจที่ได้ตอนจับคู่ (ซึ่งต้องดึงข้อมูลทั้งชุด rev=-1)
     let j = null;
     for (const k of [...new Set([syncKey(), role.key].filter(Boolean))]) {
-      j = await getJSON(`${role.peer}/api/sync?rev=${k === syncKey() ? data.rev || 0 : -1}`, { headers: { 'X-Sync-Key': k, 'X-Me': myUrls()[0] || '' } });
+      j = await getJSON(`${role.peer}/api/sync?rev=${k === syncKey() ? data.rev || 0 : -1}`, { headers: { 'X-Sync-Key': k, 'X-Me': myUrls()[0] || '' }, ms: 15000 });
       if (!j.auth) break;
     }
     if (j.role === 'main' && j.auth) {
@@ -3150,6 +3152,13 @@ const routes = {
     const by = whoOf(req).name;
     if (b.table != null) b.table = String(b.table).trim();   // test-1.93 กัน 1 กับ "1" เปิดเป็น 2 บิล
     if (!b.table || !Array.isArray(b.items) || !b.items.length) throw new Error('ข้อมูลไม่ครบ');
+    // test-1.95 กดส่งซ้ำหลังสัญญาณหลุด (ครั้งแรกถึงเครื่องหลักแล้วแต่คำตอบหาย) → ไม่บันทึกซ้ำ คืนรายการเดิม
+    const rid = b.rid ? String(b.rid).slice(0, 60) : '';
+    if (rid) {
+      const dup = data.items.filter(i => i.rid === rid);
+      if (dup.length) { const o = data.orders.find(x => x.id === dup[0].orderId);
+        return { orderId: dup[0].orderId, added: dup.map(i => i.id), items: dup, table: o ? o.table : b.table, moved: !!o && String(o.table) !== b.table, dup: true }; }
+    }
     // ตรวจทุกรายการก่อน ถ้ามีรายการไหนผิดจะไม่บันทึกเลยสักรายการ
     const lines = b.items.map(it => {
       // เมนูพิเศษ: พนักงานพิมพ์ชื่อและราคาเอง (ไม่อยู่ในรายการเมนู)
@@ -3180,6 +3189,19 @@ const routes = {
       if (!mo) { const it = data.items.find(i => i.movedFrom === b.orderId); if (it) mo = data.orders.find(o => o.id === it.orderId && o.status === 'open'); }
       if (mo && String(mo.table) !== b.table) { order = mo; moved = true; }
     }
+    // test-1.95 เปิดบิลกลับบ้านใหม่ แต่เลขคิวนี้อีกเครื่องเพิ่งเปิดไป (สองเครื่องได้ "เลขถัดไป" เลขเดียวกัน) → ให้เลขใหม่ ไม่รวมกับลูกค้าคนอื่น
+    let renamed = '';
+    if (order && b.fresh && !b.orderId && !moved && String(b.table).startsWith('TA')) {
+      const busy = new Set(data.orders.filter(o => o.status === 'open').map(o => String(o.table)));
+      let t;
+      if (/^TA\d+$/.test(b.table)) {
+        const dayStart = bizStart(dayKey(Date.now()));
+        const nums = data.orders.filter(o => o.status === 'open' || (o.paidAt || o.voidedAt || 0) >= dayStart).map(o => String(o.table))
+          .filter(x => /^TA\d+$/.test(x)).map(x => +x.slice(2));
+        let n = Math.max(0, ...nums) + 1; while (busy.has('TA' + n)) n++; t = 'TA' + n;
+      } else { let n = 2; while (busy.has(`${b.table} ${n}`)) n++; t = `${b.table} ${n}`; }
+      renamed = b.table; b.table = t; order = null; moved = true;
+    }
     if (!order) {
       order = { id: newId('o'), table: b.table, status: 'open', createdAt: Date.now(), openedBy: by };
       data.orders.push(order);
@@ -3204,11 +3226,12 @@ const routes = {
         printers, screens, by,   // by = ชื่อพนักงานที่สั่ง
         // เมนูที่ไม่ขึ้นจอไหนเลย (เครื่องดื่ม ของหวาน) ถือว่าเสร็จทันที ใช้ใบที่พิมพ์ออกแทน
         status: screens.length ? 'new' : 'done', createdAt: Date.now(),
+        ...(rid ? { rid } : {}),
       };
       data.items.push(item);
       added.push(item.id);
     }
-    return { orderId: order.id, added, table: order.table, moved };
+    return { orderId: order.id, added, items: data.items.filter(i => added.includes(i.id)), table: order.table, moved, ...(renamed ? { renamed } : {}) };
   },
 
   'POST /api/item/status': b => {
@@ -3325,6 +3348,13 @@ const routes = {
   // รายการอาหารยังอยู่ในบิลเดิม (จอครัวไม่สะดุด) แต่ละครั้งที่จ่ายเก็บเป็น payments[] มีเลขใบเสร็จของตัวเอง
   'POST /api/order/pay': (b, q, req) => {
     const by = whoOf(req).name;
+    // test-1.95 กดรับเงินซ้ำหลังสัญญาณหลุด → ไม่บันทึกการจ่ายซ้ำ
+    const rid = b.rid ? String(b.rid).slice(0, 60) : '';
+    if (rid) for (const o of data.orders) {
+      if (o.payRid === rid) return { receiptNo: o.receiptNo, closed: true, dup: true };
+      const p = (o.payments || []).find(x => x.rid === rid);
+      if (p) return { receiptNo: p.receiptNo, paymentNo: p.no, closed: o.status === 'paid', left: o.status === 'paid' ? 0 : undefined, dup: true };
+    }
     const order = data.orders.find(o => o.id === b.orderId && o.status === 'open');
     if (!order) throw new Error('ไม่พบบิล (อาจปิดไปแล้ว)');
     const pay = data.settings.payments;
@@ -3363,6 +3393,9 @@ const routes = {
         lines = its.map(i => ({ id: i.id, qty: i.qty - (paidQty[i.id] || 0) })).filter(l => l.qty > 0);
     }
     if (amount > remaining + 0.001) throw new Error('ยอดเกินที่ค้างอยู่');
+    // test-1.95 ระหว่างเปิดหน้ารับเงิน อีกเครื่องสั่งเพิ่ม/ยกเลิก → ยอดที่ลูกค้าเห็นไม่ตรง (โอน/บัตร ปิดบิลด้วยยอดใหม่โดยไม่รู้ตัว)
+    if (b.expect != null && Math.abs(amount - Number(b.expect)) > 0.009)
+      throw new Error(`ยอดเปลี่ยนแล้ว (มีการสั่งเพิ่มหรือยกเลิกจากเครื่องอื่น) ยอดใหม่ ${amount} บาท ตรวจแล้วกดรับเงินอีกครั้ง`);
 
     const feePct = method === 'card' ? Number(pay.cardFeePct) || 0 : 0;
     const fee = r2(amount * feePct / 100), total = r2(amount + fee);
@@ -3373,12 +3406,12 @@ const routes = {
     // จ่ายครั้งเดียวทั้งบิล (แบบเดิม)
     if (mode === 'full' && !pays.length) {
       Object.assign(order, { status: 'paid', paidAt: now, payMethod: method, subtotal, feePct, fee, total, received,
-        receiptNo: nextReceiptNo(), paidBy: by });
+        receiptNo: nextReceiptNo(), paidBy: by, ...(rid ? { payRid: rid } : {}) });
       return { receiptNo: order.receiptNo, closed: true };
     }
 
     const p = { no: pays.length + 1, kind: mode === 'full' ? 'rest' : mode, lines, amount, method, feePct, fee, total,
-      received, at: now, receiptNo: nextReceiptNo(), parts: mode === 'share' ? order.splitN : undefined, by };
+      received, at: now, receiptNo: nextReceiptNo(), parts: mode === 'share' ? order.splitN : undefined, by, ...(rid ? { rid } : {}) };
     order.payments = [...pays, p];
     const left = r2(remaining - amount);
     if (left <= 0.001) {
@@ -3452,6 +3485,7 @@ const routes = {
     if (!it || it.status === 'cancelled') return;
     it.status = b.status === 'pending' ? 'new' : 'done';
     it.doneAt = it.status === 'done' ? Date.now() : null;
+    if (it.status === 'new') delete it.servedAt;   // test-1.95 ครัวเรียกจานกลับมาทำใหม่ → ทำเสร็จอีกรอบต้องขึ้นจอคนเสิร์ฟอีก
   },
 
   'POST /api/order/complete': b => {
@@ -3627,8 +3661,16 @@ const server = http.createServer(async (req, res) => {
         const result = await handler(body ? JSON.parse(body) : {}, url.searchParams, req);
         // เครื่องสำรองไม่บันทึกเอง (ข้อมูลมาจากเครื่องหลักเท่านั้น) · ขอกุญแจ/ใส่รหัสไม่ได้เปลี่ยนข้อมูล
         if (req.method === 'POST' && role.role === 'main' && !['/api/print', '/api/login', '/api/sync/key', '/api/ai/ask', '/api/ai/test', '/api/ai/trends'].includes(url.pathname)) { prune(); save(); broadcast(); }
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });   // ห้ามแคช ข้อมูลต้องสดเสมอ
-        res.end(JSON.stringify(result || { ok: true }));
+        const out = JSON.stringify(result || { ok: true });
+        const head = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };   // ห้ามแคช ข้อมูลต้องสดเสมอ
+        // test-1.95 ข้อมูลก้อนใหญ่ (หน้าสั่งอาหาร/เครื่องสำรอง ดึงทุกครั้งที่มีอะไรเปลี่ยน) บีบอัดก่อนส่ง เล็กลง ~10 เท่า Wi-Fi ไม่อืดช่วงคนเยอะ
+        if (out.length > 32768 && /\bgzip\b/.test(req.headers['accept-encoding'] || ''))
+          return zlib.gzip(out, (err, buf) => {
+            if (err) { res.writeHead(200, head); return res.end(out); }
+            res.writeHead(200, { ...head, 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' }); res.end(buf);
+          });
+        res.writeHead(200, head);
+        res.end(out);
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: e.message, ...(e.needApprove ? { needApprove: true } : {}), ...(e.router ? { router: e.router } : {}) }));

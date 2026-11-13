@@ -685,9 +685,11 @@ let scrKey='';
 function showScreens(j){const sel=$('#scrSel'),l=j.screens||[];if(!l.length)return;const k=JSON.stringify(l)+'|'+(j.screen&&j.screen.id);if(k===scrKey)return;scrKey=k;
   sel.hidden=l.length<2;sel.innerHTML=l.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')+'<option value="all">ทุกจอรวมกัน</option>';sel.value=(j.screen&&j.screen.id)||l[0].id;}
 $('#scrSel').addEventListener('change',e=>{try{localStorage.setItem('kds_screen',e.target.value);}catch(_){}const u=new URL(location.href);u.searchParams.set('screen',e.target.value);location.href=u.toString();});
+// test-1.95 คำขอค้าง (Wi-Fi หลุดกลางทาง) เดิมรอไม่มีกำหนด → จอค้างไม่อัปเดตจนกว่าจะเปิดใหม่ · ตัดที่ 10 วิ แล้วรอบถัดไปถามใหม่
+function wait10(){try{const c=new AbortController();setTimeout(()=>c.abort(),10000);return c.signal;}catch(e){return undefined;}}
 let polling=false;
 async function poll(){if(polling)return;polling=true;try{
-  const r=await fetch('/api/orders'+(SCREEN?'?screen='+encodeURIComponent(SCREEN):''),{cache:'no-store'});const j=await r.json();
+  const r=await fetch('/api/orders'+(SCREEN?'?screen='+encodeURIComponent(SCREEN):''),{cache:'no-store',signal:wait10()});const j=await r.json();
   showScreens(j);$('#dot').classList.toggle('off',!j.ok);setLink(j.ok,String(j.error||'ติดต่อเซิร์ฟเวอร์ไม่ได้'));
   if(Array.isArray(j.categories))CATS=j.categories;KNOWN=j.knownDishes||[];
   const next=norm(j.orders);

@@ -941,16 +941,36 @@ function addItem(menuId, editIdx, vp) {
 }
 
 let sending = false;
+// test-1.95 กดส่งแล้วสัญญาณหลุด (ไม่รู้ว่าถึงเครื่องหลักหรือยัง) → กดส่งอีกครั้งใช้เลขคำขอเดิม เครื่องหลักไม่บันทึกซ้ำ
+let sendRid = null, sendKey = '';
 async function send() {
   if (sending) return; // กันกดซ้ำ
   sending = true;
   const table = current;
+  const key = table + '|' + JSON.stringify(cart);
+  if (!sendRid || sendKey !== key) { sendRid = newRid(); sendKey = key; }
+  const rid = sendRid, o0 = openOrder(table);
   try {
-    const r = await api('/api/order', { table, items: cart, orderId: openOrder(table)?.id });
+    let r;
+    try { r = await api('/api/order', { table, items: cart, orderId: o0?.id, fresh: !o0, rid }); }
+    catch (e) {
+      if (!e.net) throw e;
+      // สัญญาณหลุด: ถามเครื่องหลักว่าออเดอร์นี้เข้าไปแล้วหรือยัง
+      let got = [];
+      try { Object.assign(S, await api('/api/state')); got = S.items.filter(i => i.rid === rid); } catch {}
+      if (!got.length) throw new Error(e.message + ' · ออเดอร์ยังไม่ถึงครัว กดส่งอีกครั้ง (ระบบไม่ส่งซ้ำ)');
+      const go = S.orders.find(x => x.id === got[0].orderId);
+      r = { orderId: got[0].orderId, added: got.map(i => i.id), items: got, table: go ? go.table : table, moved: !!go && String(go.table) !== String(table) };
+    }
+    sendRid = null; sendKey = '';
     cart = []; billOpen = false; document.body.classList.remove('sheet-open');
-    Object.assign(S, await api('/api/state'));
+    // ส่งสำเร็จแล้ว · โหลดข้อมูลใหม่ไม่ได้ก็ยังพิมพ์ใบสั่งได้ (ใช้รายการที่เครื่องหลักตอบกลับมา) ไม่ขึ้น error ให้กดส่งซ้ำ
+    try { Object.assign(S, await api('/api/state')); } catch {}
+    for (const it of r.items || []) if (!S.items.some(i => i.id === it.id)) S.items.push(it);
     if (r.moved && current === table) { current = r.table; curOid = r.orderId; curFor = current; }
-    render(); toast(r.moved ? `โต๊ะนี้ถูกย้ายไป ${tableName(r.table)} แล้ว · ส่งเข้าบิลนั้นให้แล้ว` : 'ส่งออเดอร์แล้ว');
+    render();
+    toast(r.renamed ? `เลขคิว ${tableName(r.renamed)} มีเครื่องอื่นใช้แล้ว → เปิดเป็น ${tableName(r.table)} แทน`
+      : r.moved ? `โต๊ะนี้ถูกย้ายไป ${tableName(r.table)} แล้ว · ส่งเข้าบิลนั้นให้แล้ว` : 'ส่งออเดอร์แล้ว');
     const items = S.items.filter(i => r.added.includes(i.id));
     await printTickets(r.table || table, items);
   } catch (e) { toast(e.message, true); }
@@ -1111,6 +1131,7 @@ function payModalNow() {
     const c = calc();
     if (!c) { bg.remove(); if (!custShow.isOpen() || !document.querySelector('#custShow .cs-note.paid')) custShow.close(); return; }
     if (st.mode === 'items' && (c.hasShare || !c.unpaid.length)) st.mode = 'full';
+    st.shown = c.amount;   // test-1.95 ยอดที่แสดงให้ลูกค้าเห็นตอนนี้ (กดรับเงินแล้วยอดต้องตรงกับนี้)
     const lastShare = c.sharesLeft === 1;
     box.innerHTML = `
       <h2>ชำระเงิน · ${esc(tableName(current))}</h2>
@@ -1209,25 +1230,38 @@ function payModalNow() {
     const c = calc();
     const received = st.method === 'cash' ? Number($('#recv')?.value) || 0 : 0;
     if (received && received < c.total) return toast('รับเงินไม่พอ', true);
-    const body = { orderId: oid, method: st.method, received, mode: st.mode };
+    // test-1.95 อีกเครื่องสั่งเพิ่ม/ยกเลิกระหว่างเปิดหน้านี้ → ยอดเปลี่ยน ให้ตรวจก่อน (โอน/บัตรเดิมปิดบิลด้วยยอดใหม่โดยไม่รู้ตัว)
+    if (st.shown != null && Math.abs(c.amount - st.shown) > 0.009) { draw(); return toast(`ยอดเปลี่ยนเป็น ${baht(c.amount)} ฿ แล้ว (มีการสั่งเพิ่ม/ยกเลิก) ตรวจแล้วกดอีกครั้ง`, true); }
+    const body = { orderId: oid, method: st.method, received, mode: st.mode, expect: c.amount };
     if (st.mode === 'items') body.lines = Object.entries(st.sel).filter(([, q]) => q > 0).map(([id, qty]) => ({ id, qty }));
     if (st.mode === 'share') { body.amount = c.amount; body.parts = st.parts; }
+    // test-1.95 เลขคำขอเดิมถ้ากดซ้ำด้วยยอด/วิธีเดิม (สัญญาณหลุดหลังเครื่องหลักบันทึกแล้ว → ไม่รับเงินซ้ำ)
+    const rk = JSON.stringify(body); if (st.ridKey !== rk) { st.rid = newRid(); st.ridKey = rk; } body.rid = st.rid;
     st.busy = true; draw();
     try {
       const r = await api('/api/order/pay', body);
-      Object.assign(S, await api('/api/state'));
+      st.rid = null; st.ridKey = '';
+      let fresh = true;
+      try { Object.assign(S, await api('/api/state')); } catch { fresh = false; }
       const o = S.orders.find(x => x.id === oid);
-      const p = r.paymentNo ? o.payments.find(x => x.no === r.paymentNo) : null;
-      if (st.print) await printReceipt(receiptLines(o, p ? { payment: p } : { paid: true })).catch(e => toast(e.message, true));
+      const p = r.paymentNo ? o?.payments?.find(x => x.no === r.paymentNo) : null;
+      // รับเงินสำเร็จแล้ว แต่โหลดข้อมูลใหม่ไม่ได้ → ไม่พิมพ์ใบเสร็จจากข้อมูลเก่า (ยอดจะผิด) · พิมพ์ซ้ำได้จากประวัติ
+      if (st.print && (!fresh || !o || (r.paymentNo && !p))) toast('รับเงินแล้ว แต่พิมพ์ใบเสร็จไม่ได้ (สัญญาณ) พิมพ์ซ้ำได้จากประวัติการสั่ง', true);
+      else if (st.print) await printReceipt(receiptLines(o, p ? { payment: p } : { paid: true })).catch(e => toast(e.message, true));
       if (r.closed) {
         // เคยเปิดป้ายให้ลูกค้าดูในรอบนี้ → ขึ้น "จ่ายแล้ว + เงินทอน" ให้ลูกค้าเห็น (พนักงานกด ✕ ปิดเอง)
         if (st.cust || custShow.isOpen()) custShow.open({ amount: c.total, paid: true,
           note: received > c.total ? `Paid ✓ · Change ${baht(r2(received - c.total))}` : 'Paid ✓' });
         bg.remove(); current = null; toggleBill(false); toast('ปิดบิลแล้ว'); return;
       }
-      toast(`รับเงินส่วนที่ ${r.paymentNo} แล้ว · ค้างอีก ${baht(r.left)} ฿`);
+      toast(`รับเงินส่วนที่ ${r.paymentNo} แล้ว${r.left != null ? ` · ค้างอีก ${baht(r.left)} ฿` : ''}`);
       st.sel = {}; st.busy = false; st.method = methods[0]; draw(); render();   // คนถัดไปเลือกวิธีจ่ายใหม่
-    } catch (e) { st.busy = false; draw(); toast(e.message, true); }
+    } catch (e) {
+      // ยอดเปลี่ยน/บิลถูกแก้จากเครื่องอื่น → โหลดใหม่ให้เห็นยอดล่าสุด
+      if (!e.net) try { Object.assign(S, await api('/api/state')); render(); } catch {}
+      st.busy = false; draw();
+      toast(e.net ? e.message + ' · ไม่แน่ใจว่ารับเงินถึงเครื่องหลักหรือยัง กดรับเงินอีกครั้งได้ (ระบบไม่บันทึกซ้ำ)' : e.message, true);
+    }
   }
   draw();
 }

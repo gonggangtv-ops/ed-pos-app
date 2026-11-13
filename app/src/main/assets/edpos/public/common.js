@@ -56,14 +56,28 @@ function menuPriceRange(m, thai = false) {
   return [Math.round(lo * 100) / 100, Math.round(hi * 100) / 100];
 }
 
+// test-1.95 คำขอที่ค้าง (Wi-Fi หลุดกลางทาง/เครื่องหลักเปลี่ยน IP) เดิมรอไม่มีกำหนด → หน้าจอไม่อัปเดตอีกเลย/ปุ่มส่งกดไม่ได้
+// ตั้งเวลารอ: อ่านข้อมูล 30 วิ · งานหน้าร้าน (สั่ง/รับเงิน/ยกเลิก/ย้าย) 25 วิ · ที่เหลือ (พิมพ์ AI นำเข้า) รอได้ไม่จำกัดเหมือนเดิม
+// หมดเวลา/สายหลุด → error.net = true (ไม่รู้ว่าถึงเครื่องหลักหรือยัง)
+const API_WAIT = { '/api/order': 25000, '/api/order/pay': 25000, '/api/item/cancel': 25000, '/api/order/void': 25000, '/api/order/move': 25000, '/api/order/lang': 25000 };
+const newRid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 async function api(path, body) {
   const h = {};
   const t = PIN.token();
   if (t) h['X-Pin-Token'] = t;
-  const r = await fetch(path, body === undefined ? { headers: h } : {
-    method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-  });
-  const j = await r.json();
+  const ms = body === undefined ? (/^\/api\/ai\//.test(path) ? 0 : 30000) : API_WAIT[path] || 0;
+  const ctl = ms && typeof AbortController === 'function' ? new AbortController() : null, tm = ctl && setTimeout(() => ctl.abort(), ms);
+  let r, j;
+  try {
+    r = await fetch(path, body === undefined ? { headers: h, ...(ctl ? { signal: ctl.signal } : {}) } : {
+      method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify(body), ...(ctl ? { signal: ctl.signal } : {}),
+    });
+    j = await r.json();
+  } catch (e) {
+    if (r && !(e && e.name === 'AbortError')) throw new Error('เครื่องหลักตอบไม่ถูกต้อง (' + r.status + ')');   // ได้คำตอบแต่ไม่ใช่ข้อมูล
+    const n = new Error(e && e.name === 'AbortError' ? 'เครือข่ายช้าเกินไป (รอนานเกิน ' + Math.round(ms / 1000) + ' วิ)' : 'ติดต่อเครื่องหลักไม่ได้ (สัญญาณ Wi-Fi)');
+    n.net = true; throw n;
+  } finally { if (tm) clearTimeout(tm); }
   if (r.status === 401 && j.auth) { PIN.rejected(t); throw new Error(j.error || 'ต้องใส่รหัสก่อน'); }
   if (!r.ok) throw new Error(j.error || 'ผิดพลาด');
   return j;
