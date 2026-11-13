@@ -152,6 +152,18 @@ function loadData(raw) {
 // แปลงข้อมูลจากเวอร์ชันเครื่องพิมพ์เดียว
 function migrateData() {
   const s = data.settings;
+  // test-1.93 ซ่อมบิลที่เกิดจากบัคย้ายโต๊ะ: เลขโต๊ะเป็นตัวเลข → ข้อความ · โต๊ะเดียวกันมีบิลเปิด 2 ใบ (ยังไม่มีการจ่าย) → รวมเป็นใบเดียว
+  for (const o of data.orders || []) if (typeof o.table === 'number') o.table = String(o.table);
+  const firstOpen = new Map();
+  for (const o of [...(data.orders || [])].filter(o => o.status === 'open').sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))) {
+    const t = firstOpen.get(o.table);
+    if (!t) { firstOpen.set(o.table, o); continue; }
+    if (t.payments?.length || o.payments?.length) continue;
+    for (const i of data.items || []) if (i.orderId === o.id) { i.orderId = t.id; i.movedFrom = o.id; }
+    t.kdsDone = false; t.kdsDoneOn = {}; t.kdsCleared = false;
+    data.orders = data.orders.filter(x => x !== o);
+    console.log(`[migrate] รวมบิลซ้อนโต๊ะ ${o.table}`);
+  }
   // เลิกระบบสต๊อก (1 พ.ย. 2569): ลบคงเหลือ/ประวัติ · ราคาต่อหน่วย (cost) เก็บไว้ใช้คิดต้นทุน · เปิดเมนูที่ระบบสต๊อกปิดไว้คืน
   if (data.stockLog) delete data.stockLog;
   if (s.stock) delete s.stock;
@@ -3136,6 +3148,7 @@ const routes = {
   // สั่งอาหาร: เพิ่มรายการเข้าบิลที่เปิดอยู่ของโต๊ะนั้น หรือเปิดบิลใหม่
   'POST /api/order': (b, q, req) => {
     const by = whoOf(req).name;
+    if (b.table != null) b.table = String(b.table).trim();   // test-1.93 กัน 1 กับ "1" เปิดเป็น 2 บิล
     if (!b.table || !Array.isArray(b.items) || !b.items.length) throw new Error('ข้อมูลไม่ครบ');
     // ตรวจทุกรายการก่อน ถ้ามีรายการไหนผิดจะไม่บันทึกเลยสักรายการ
     const lines = b.items.map(it => {
@@ -3160,7 +3173,7 @@ const routes = {
       const thai = !!it.thai && hasThaiPrice(m);
       return { it, m, thai, ch: resolveChoices(m, it.choices ?? it.option, thai) };
     });
-    let order = data.orders.find(o => o.table === b.table && o.status === 'open');
+    let order = data.orders.find(o => String(o.table) === b.table && o.status === 'open');
     if (!order) {
       order = { id: newId('o'), table: b.table, status: 'open', createdAt: Date.now(), openedBy: by };
       data.orders.push(order);
@@ -3271,20 +3284,32 @@ const routes = {
     o.lang = b.lang;
   },
 
+  // test-1.93 แก้บัคย้าย/รวมโต๊ะ:
+  //  · รวมเข้าโต๊ะที่ครัวกด "เสร็จทั้งโต๊ะ" ไปแล้ว → จานที่ยังไม่ทำหายจากจอครัว (kdsDone ของโต๊ะปลายทางค้าง) → ล้างให้กลับขึ้นจอ
+  //  · ย้ายไปโต๊ะเดิม → บิลถูกลบ รายการหายทั้งหมด → ไม่ทำอะไร
+  //  · ชื่อโต๊ะว่าง/ตัวเลข → ปฏิเสธ/แปลงเป็นข้อความ (กัน 1 กับ "1" กลายเป็น 2 บิล)
+  //  · จอครัวที่ยังถือเลขบิลเก่า (ก่อนรวม) กดเสร็จได้ตามปกติ (movedFrom)
   'POST /api/order/move': (b, q, req) => {
+    const to = String(b.table ?? '').trim().slice(0, 40);
+    if (!to) throw new Error('เลือกโต๊ะปลายทางก่อน');
     const order = data.orders.find(o => o.id === b.orderId && o.status === 'open');
-    if (!order) throw new Error('ไม่พบบิล');
-    if (data.orders.some(o => o.table === b.table && o.status === 'open')) {
+    if (!order) throw new Error('ไม่พบบิล (อาจถูกย้าย รวม หรือปิดไปแล้ว) ลองเปิดโต๊ะใหม่');
+    if (String(order.table) === to) return { orderId: order.id };
+    const target = data.orders.find(o => String(o.table) === to && o.status === 'open' && o.id !== order.id);
+    if (target) {
       // โต๊ะปลายทางมีบิลอยู่แล้ว → รวมบิล
-      const target = data.orders.find(o => o.table === b.table && o.status === 'open');
       if (order.payments?.length || target.payments?.length) throw new Error('โต๊ะที่เริ่มแยกจ่ายแล้วรวมกับโต๊ะอื่นไม่ได้ ย้ายไปโต๊ะว่างแทน');
-      data.items.filter(i => i.orderId === order.id).forEach(i => (i.orderId = target.id));
+      const moved = data.items.filter(i => i.orderId === order.id);
+      moved.forEach(i => { i.orderId = target.id; i.movedFrom = order.id; });
+      if (!target.lang && order.lang) target.lang = order.lang;
+      if (moved.some(i => i.status === 'new')) { target.kdsDone = false; target.kdsDoneOn = {}; target.kdsCleared = false; }
       data.orders = data.orders.filter(o => o.id !== order.id);
-      addEvent('move', `รวมโต๊ะ ${order.table} ไปโต๊ะ ${b.table} · ${whoOf(req).name}`);
-    } else {
-      addEvent('move', `ย้ายโต๊ะ ${order.table} ไปโต๊ะ ${b.table} · ${whoOf(req).name}`);
-      order.table = b.table;
+      addEvent('move', `รวมโต๊ะ ${order.table} ไปโต๊ะ ${to} · ${moved.length} รายการ · ${whoOf(req).name}`);
+      return { orderId: target.id, merged: true };
     }
+    addEvent('move', `ย้ายโต๊ะ ${order.table} ไปโต๊ะ ${to} · ${whoOf(req).name}`);
+    order.table = to;
+    return { orderId: order.id };
   },
 
   // ชำระเงิน
@@ -3415,7 +3440,9 @@ const routes = {
   },
 
   'POST /api/dish/complete': b => {
-    const it = data.items.find(x => x.id === b.dishes_id && x.orderId === b.order_id);
+    // test-1.93 หาด้วยเลขจานอย่างเดียว (จอครัวอาจยังถือเลขบิลเก่าหลังรวมโต๊ะ)
+    const it = data.items.find(x => x.id === b.dishes_id && (x.orderId === b.order_id || x.movedFrom === b.order_id))
+      || data.items.find(x => x.id === b.dishes_id);
     if (!it || it.status === 'cancelled') return;
     it.status = b.status === 'pending' ? 'new' : 'done';
     it.doneAt = it.status === 'done' ? Date.now() : null;
@@ -3423,7 +3450,13 @@ const routes = {
 
   'POST /api/order/complete': b => {
     const o = data.orders.find(x => x.id === b.order_id);
-    if (!o) return;
+    if (!o) {
+      // test-1.93 บิลนี้ถูกรวมเข้าโต๊ะอื่นแล้ว → ทำให้เฉพาะจานที่มาจากบิลนี้ (ไม่แตะจานเดิมของโต๊ะปลายทาง)
+      if (b.status === 'pending') return;
+      const screen = kdsScreenOf(b.screen), mine = i => (screen === 'all' ? onScreen(i) : itemScreens(i).includes(screen));
+      for (const i of data.items) if (i.movedFrom === b.order_id && mine(i) && i.status === 'new') { i.status = 'done'; i.doneAt = Date.now(); }
+      return;
+    }
     // กด "เสร็จทั้งโต๊ะ" มีผลเฉพาะจอที่กด (จอบาร์ไม่หาย ถ้าครัวกดเสร็จ)
     const screen = kdsScreenOf(b.screen);
     const mine = i => (screen === 'all' ? onScreen(i) : itemScreens(i).includes(screen));

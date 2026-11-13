@@ -289,7 +289,7 @@ Kiosk.bind(document.getElementById('fs'), {
     : { text: '⛶', title: 'ล็อกเต็มจอ' },
 });
 
-function openOrder(t) { return S.orders.find(o => o.table === t && o.status === 'open'); }
+function openOrder(t) { return S.orders.find(o => String(o.table) === String(t) && o.status === 'open'); }
 function orderItems(o) { return o ? S.items.filter(i => i.orderId === o.id) : []; }
 function orderTotal(o) { return orderItems(o).filter(i => i.status !== 'cancelled').reduce((s, i) => s + i.price * i.qty, 0); }
 
