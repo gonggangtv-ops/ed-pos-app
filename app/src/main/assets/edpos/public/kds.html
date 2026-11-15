@@ -42,6 +42,12 @@
   .card header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel-2)}
   .tbl{font-size:20px;font-weight:800;white-space:nowrap;cursor:pointer;border-radius:8px;padding:0 4px;margin:0 -4px;transition:background .2s}
   .tbl.said{background:var(--accent,#ff7a45);color:#fff}
+  /* test-1.96 กล่อง กินที่ร้าน / 🏠 กลับบ้าน ใต้หัวการ์ด (ตัวใหญ่ เห็นจากไกล) */
+  .tybx{display:flex;align-items:center;justify-content:center;gap:8px;margin:8px 10px 0;padding:5px 10px;border-radius:10px;font-size:17px;font-weight:800;line-height:1.2;letter-spacing:.2px;border:2px solid color-mix(in srgb,var(--info) 55%,transparent);color:var(--info);background:color-mix(in srgb,var(--info) 10%,transparent)}
+  .tybx .e{font-size:1.25em;line-height:1}
+  .tybx.takeaway{border-color:#f59f00;background:#ffd43b;color:#1a1200;font-size:20px}
+  .tybx.delivery{border-color:#e64980;background:#f783ac;color:#2b0715;font-size:20px}
+  .rmk .hm{font-style:normal}
   .otype{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;padding:3px 7px;border-radius:7px;background:color-mix(in srgb,var(--info) 20%,transparent);color:var(--info)}
   .age{margin-left:auto;flex:none;font-size:13px;font-weight:700;padding:2px 7px;border-radius:7px;font-variant-numeric:tabular-nums}
   .age[data-s=fresh]{color:var(--fresh);background:color-mix(in srgb,var(--fresh) 15%,transparent)}
@@ -434,6 +440,11 @@ const SCREEN=(()=>{const q=new URLSearchParams(location.search).get('screen');if
 const SKEY=k=>SCREEN&&SCREEN!=='main'?k+'_'+SCREEN:k;   // finished-tables history is kept per screen
 const OTYPE={dine_in:['กินที่ร้าน',''],takeaway:['กลับบ้าน','takeaway'],delivery:['เดลิเวอรี','delivery'],
   self_pick_up:['รับเอง','takeaway'],'1':['กินที่ร้าน',''],'2':['กลับบ้าน','takeaway'],'3':['เดลิเวอรี','delivery']};
+// test-1.96 กล่องประเภทออเดอร์ (กินที่ร้านก็ขึ้น · กลับบ้านมีรูปบ้าน) · หมายเหตุจาน "กลับบ้าน" ใส่รูปบ้าน
+function tyBox(o){const[tl,tc]=OTYPE[o.order_type]||['',''];if(!tl)return '';
+  const e=tl==='กลับบ้าน'||tl==='รับเอง'?'🏠':tc==='delivery'?'🛵':'🍽️';
+  return `<div class="tybx ${tc||'dine'}"><span class="e" aria-hidden="true">${e}</span>${esc(tl)}</div>`;}
+function rmkHtml(r){return esc(r).replace(/(^|· )กลับบ้าน(?= ·|$)/g,'$1<span class="hm">🏠</span> กลับบ้าน').replace(/(^|· )กลับต่างประเทศ(?= ·|$)/g,'$1<span class="hm">✈️</span> กลับต่างประเทศ');}
 let ORDERS=[], view='board', sound=true, seen=new Set();
 const HIDDEN=new Set(); let KNOWN=[], CATS=[];
 // ---- ซ่อนหมวดช่วงยุ่ง (เช่น ของทอด ให้คนทอดดูจากใบพิมพ์) · เก็บในเครื่องนี้ ----
@@ -570,7 +581,7 @@ function cardHtml(o){const a=ageInfo(o);const[tl,tc]=OTYPE[o.order_type]||['',''
     const dishLi=(d,st)=>{const done=st==='done',canc=st==='cancel',armed=ARMED.has(d.id),ids=d._ids||[d.id];
       const ol=VIEW.ol==='1'&&(d.extra_option||[]).length;   // ตัวเลือกแยกบรรทัด ตัวใหญ่
       const opt=(d.extra_option||[]).length&&!ol?'<span class="opt">+ '+d.extra_option.map(esc).join(', ')+'</span>':'';
-      const sub=[d.spec?esc(d.spec):'',opt,d.remark?'<span class="rmk">⚑ '+esc(d.remark)+'</span>':''].filter(Boolean).join(' · ');
+      const sub=[d.spec?esc(d.spec):'',opt,d.remark?'<span class="rmk">⚑ '+rmkHtml(d.remark)+'</span>':''].filter(Boolean).join(' · ');
       const multi=VIEW.multi&&st==='pending'&&d.quantity>1;
       // ติ๊กทีละจาน: วงกลมจำนวน + ช่องติ๊กเท่าจำนวนจาน
       const pp=VIEW.pp&&st==='pending'&&d.quantity>1&&o.id!=='_pv'?platesDone(o,ids):-1;
@@ -596,7 +607,7 @@ function cardHtml(o){const a=ageInfo(o);const[tl,tc]=OTYPE[o.order_type]||['',''
     const dishes=pendHtml+mergeSame(doneL,()=>0).map(d=>dishLi(d,'done')).join('')+cancL.map(d=>dishLi(d,'cancel')).join('');
     const headHtml=o.table_num?`<span class="tw">โต๊ะ </span>${esc(o.table_num)}`:esc(head);
     return `<article class="card${o.is_urge?' urge':''}${o.unpaid?' unpaid':''}" data-oid="${esc(o.id)}" data-s="${a.sev}"><header><span class="tbl">${headHtml}</span>
-      ${tl&&tc?`<span class="otype ${tc}">${tl}</span>`:''}<span class="age" data-s="${a.sev}">${a.label}</span></header>
+      <span class="age" data-s="${a.sev}">${a.label}</span></header>${tyBox(o)}
       ${flags.length?`<div class="flags">${flags.join('')}</div>`:''}
       <ul class="dishes">${dishes}</ul><footer>${o.pending.some(d=>repeating(o,d))?`<button class="btn ack-all" data-ackall="${esc(o.id)}">🔇 ทราบแล้ว</button>`:''}<button class="btn done-all${ALLARM.id===o.id&&ALLARM.until>Date.now()?' armed':''}" data-all="${esc(o.id)}">${ALLARM.id===o.id&&ALLARM.until>Date.now()?'ยังติ๊กไม่ครบ · แตะอีกครั้ง':'เสร็จทั้งโต๊ะ'}</button></footer></article>`;
 }
@@ -639,10 +650,10 @@ function renderDone(){
     const head=h.table_num?('โต๊ะ '+h.table_num):(h.pick_up_code?('#'+h.pick_up_code):(h.third_party_platform||'เดลิเวอรี'));
     const dishes=h.dishes.map(d=>{
       const opt=(d.extra_option||[]).length?'<span class="opt">+ '+d.extra_option.map(esc).join(', ')+'</span>':'';
-      const sub=[d.spec?esc(d.spec):'',opt,d.remark?'<span class="rmk">⚑ '+esc(d.remark)+'</span>':''].filter(Boolean).join(' · ');
+      const sub=[d.spec?esc(d.spec):'',opt,d.remark?'<span class="rmk">⚑ '+rmkHtml(d.remark)+'</span>':''].filter(Boolean).join(' · ');
       return `<li class="dish static${d.cancelled?' cancel':''}"><span class="qty">×${d.quantity}</span><span class="dmeta"><div class="dname">${esc(d.name)}${d.thai?'<span class="thb">คนไทย</span>':''}</div>${sub?`<div class="dsub">${sub}</div>`:''}${d.cancelled?'<div class="dsub tagc">❌ ยกเลิก</div>':''}</span><span class="check">${d.cancelled?'✕':'✓'}</span></li>`;}).join('');
-    return `<article class="card fin"><header><span class="tbl">${esc(head)}</span>${tl?`<span class="otype ${tc}">${tl}</span>`:''}
-      <span class="fintime"><b>${hhmm(h.done_at)}</b>${h.order_at?'ใช้ '+mmss(h.done_at-h.order_at):''}</span></header>
+    return `<article class="card fin"><header><span class="tbl">${esc(head)}</span>
+      <span class="fintime"><b>${hhmm(h.done_at)}</b>${h.order_at?'ใช้ '+mmss(h.done_at-h.order_at):''}</span></header>${tyBox(h)}
       ${h.is_cancel?'<div class="flags"><span class="flag" style="color:var(--late);border-color:var(--late)">ยกเลิก</span></div>':''}
       <ul class="dishes">${dishes}</ul>${h.is_cancel?'':`<footer><button class="btn" data-recall="${esc(h.id)}">↩ เรียกกลับ</button></footer>`}</article>`;
   }).join('');

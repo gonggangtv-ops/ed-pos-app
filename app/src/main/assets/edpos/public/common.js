@@ -330,8 +330,26 @@ function wrapText(ctx, text, w0, w1 = w0) {
   push();
   return out.length ? out : [''];
 }
+// test-1.96 รูปบนกระดาษ (วาดเป็นเส้นขาวดำเอง · อีโมจิสีพิมพ์ออกมาเป็นก้อนดำ/หายไป)
+// house = บ้าน (กลับบ้าน) · dine = จาน ช้อนส้อม (ทานที่ร้าน)
+function drawIcon(ctx, kind, x, y, s, inv) {
+  const fg = inv ? '#fff' : '#000', bg = inv ? '#000' : '#fff';
+  ctx.save(); ctx.fillStyle = fg; ctx.strokeStyle = fg; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  if (kind === 'house') {
+    ctx.beginPath(); ctx.moveTo(x + s * 0.02, y + s * 0.5); ctx.lineTo(x + s * 0.5, y + s * 0.06); ctx.lineTo(x + s * 0.98, y + s * 0.5); ctx.closePath(); ctx.fill();
+    ctx.fillRect(x + s * 0.16, y + s * 0.46, s * 0.68, s * 0.5);
+    ctx.fillStyle = bg; ctx.fillRect(x + s * 0.41, y + s * 0.66, s * 0.18, s * 0.3);        // ประตู
+    ctx.fillRect(x + s * 0.24, y + s * 0.56, s * 0.12, s * 0.12);                            // หน้าต่าง
+  } else {
+    ctx.lineWidth = Math.max(2, s * 0.09);
+    ctx.beginPath(); ctx.arc(x + s * 0.5, y + s * 0.52, s * 0.27, 0, Math.PI * 2); ctx.stroke();   // จาน
+    ctx.beginPath(); ctx.moveTo(x + s * 0.08, y + s * 0.1); ctx.lineTo(x + s * 0.08, y + s * 0.92); ctx.stroke();   // ส้อม
+    ctx.beginPath(); ctx.moveTo(x + s * 0.92, y + s * 0.1); ctx.lineTo(x + s * 0.92, y + s * 0.92); ctx.stroke();   // ช้อน/มีด
+  }
+  ctx.restore();
+}
 // lines: {text, right, size, bold, align, x (ย่อหน้า px), wrap (ตัดบรรทัด), hang (ข้อความหน้าที่บรรทัดต่อไปเยื้องตาม),
-//         invert (ตัวขาวบนแถบดำ)} · {hr, dash} เส้นคั่น · {space: px} เว้นว่าง
+//         invert (ตัวขาวบนแถบดำ), box (กรอบหนา), tall (บรรทัดสูงขึ้น), icon ('house' | 'dine')} · {hr, dash} เส้นคั่น · {space: px} เว้นว่าง
 function drawReceipt(lines, width) {
   const pad = 8, c = document.createElement('canvas');
   const ctx = c.getContext('2d');
@@ -346,7 +364,7 @@ function drawReceipt(lines, width) {
     wrapText(ctx, l.text, full - rw, full - hang).forEach((t, k) =>
       flat.push({ ...l, text: t, right: k ? '' : l.right, x: x + (k ? hang : 0), wrap: false, cont: k > 0 }));
   }
-  const lh = l => Math.round((l.size || 26) * (l.cont ? 1.25 : 1.45));
+  const lh = l => Math.round((l.size || 26) * (l.cont ? 1.25 : l.tall ? 1.8 : 1.45));
   // คำนวณความสูงก่อน
   let h = pad;
   for (const l of flat) h += l.image ? imgSize(l, width, pad).h + 10 : l.hr ? 18 : l.space != null ? l.space : lh(l);
@@ -373,13 +391,29 @@ function drawReceipt(lines, width) {
     }
     const size = l.size || 26, rowH = lh(l);
     ctx.font = font(l);
-    const top = y + Math.round(size * (l.cont ? 0.02 : 0.12));
-    const inner = l.invert ? 10 : 0, x0 = pad + (l.x || 0) + inner;
+    const top = y + Math.round(size * (l.cont ? 0.02 : l.tall ? 0.29 : 0.12));
+    const inner = l.invert || l.box ? 10 : 0;
+    const iw = l.icon ? Math.round(size * 1.05) : 0, ig = l.icon ? Math.round(size * 0.35) : 0;
+    let x0 = pad + (l.x || 0) + inner;
     if (l.invert) {
       // แถบดำเต็มความกว้าง (บรรทัดต่อกันของข้อความเดียวกันจะเป็นแถบเดียว)
       ctx.fillRect(pad, y, width - pad * 2, rowH); ctx.fillStyle = '#fff';
     }
-    if (l.align === 'center') {
+    if (l.box) { const bw = Math.max(3, Math.round(size / 10)); ctx.lineWidth = bw; ctx.strokeStyle = '#000';
+      ctx.strokeRect(pad + bw / 2, y + bw / 2, width - pad * 2 - bw, rowH - bw); }
+    const iy = y + Math.round((rowH - iw) / 2);
+    if (l.icon && l.align === 'center') {
+      // ไอคอน + ข้อความ อยู่กลางด้วยกัน
+      const maxW = width - pad * 2 - inner * 2 - iw - ig, tw = Math.min(ctx.measureText(l.text).width, maxW);
+      const sx = Math.round((width - (iw + ig + tw)) / 2);
+      drawIcon(ctx, l.icon, sx, iy, iw, !!l.invert);
+      ctx.textAlign = 'left'; ctx.fillText(l.text, sx + iw + ig, top, maxW);
+    } else if (l.icon) {
+      drawIcon(ctx, l.icon, x0, iy, iw, !!l.invert); x0 += iw + ig;
+      const rw = l.right ? ctx.measureText(l.right).width + 16 : 0;
+      ctx.textAlign = 'left'; ctx.fillText(l.text, x0, top, width - pad - inner - x0 - rw);
+      if (l.right) { ctx.textAlign = 'right'; ctx.fillText(l.right, width - pad - inner, top); }
+    } else if (l.align === 'center') {
       ctx.textAlign = 'center'; ctx.fillText(l.text, width / 2, top, width - pad * 2 - inner * 2);
     } else {
       const rw = l.right ? ctx.measureText(l.right).width + 16 : 0;
@@ -486,7 +520,7 @@ async function printWithRetry(lines, printer, copies = 1, extra) {
 // ---------- ใบสั่งอาหาร (ส่งเข้าครัว / หน้าร้าน) ----------
 // รูปแบบตั้งที่หลังร้าน > ใบสั่งครัว (settings.ticket) · ค่าเริ่มต้น = หน้าตาแบบเดิม
 const TICKET_DEF = { lang: 'th', sizeTable: 44, sizeItem: 36, sizeOpt: 30,
-  showTime: true, showType: false, showRound: false, showStation: false, showCount: false, divider: false,
+  showTime: true, showType: true, showRound: false, showStation: false, showCount: false, divider: false,
   qtyPos: 'front', optStyle: 'inline', noteStyle: 'normal', alertStyle: 'bold', mode: 'all', footer: '', feed: 4, beep: 0, showThai: true, price: 'all' };
 const ticketCfg = over => ({ ...TICKET_DEF, ...(S.settings?.ticket || {}), ...(over || {}) });
 // หน้าตาหน้าสั่งอาหาร ตั้งที่หลังร้าน > หน้าสั่งอาหาร (settings.orderUi)
@@ -512,7 +546,8 @@ function ticketLines(table, items, title = '', o = {}) {
   if (k.showStation && o.station) L.push({ text: o.station + (o.part ? ' · ' + o.part : ''), size: 22, align: 'center' });
   else if (o.part) L.push({ text: o.part, size: 22, align: 'center' });
   L.push({ text: en ? tableNameEn(table) : tableName(table), right: k.showTime ? t : '', size: k.sizeTable, bold: true, wrap: true });
-  if (k.showType) L.push({ text: ta ? (en ? 'TAKE AWAY' : 'กลับบ้าน') : (en ? 'DINE IN' : 'ทานที่ร้าน'), size: so, bold: true, invert: ta });
+  // test-1.96 กล่องใหญ่ + รูป: กลับบ้าน = แถบดำ รูปบ้าน · ทานที่ร้าน = กรอบหนา รูปจาน
+  if (k.showType) L.push(typeLine(ta, en, Math.max(so + 4, 34)));
   const round = o.round ?? ticketRound(items);
   if (k.showRound && round > 1 && !title) L.push({ text: en ? `ADD-ON · round ${round}` : `สั่งเพิ่ม · รอบที่ ${round}`, size: so, bold: true });
   if (title) L.push({ text: title, size: Math.max(30, so), bold: true, invert: true, align: 'center' });
@@ -535,7 +570,7 @@ function ticketLines(table, items, title = '', o = {}) {
     if (!inline) for (const op of opts) L.push({ text: '- ' + nm(op), size: so, bold: true, x: ind, wrap: true, hang: '- ' });
     for (const a of i.alerts || []) L.push(styled(k.alertStyle, { text: '!! ' + nm(a) + ' !!', size: so, bold: true, x: ind, wrap: true }));
     if (i.abroad) L.push({ text: en ? '>> PACK FOR ABROAD <<' : '>> กลับต่างประเทศ <<', size: so, bold: true, invert: true, x: ind });
-    else if (i.takeaway && !ta) L.push({ text: en ? '>> TAKE AWAY BOX <<' : '>> ใส่กล่องกลับบ้าน <<', size: so, bold: true, x: ind });
+    else if (i.takeaway && !ta) L.push({ text: en ? 'TAKE AWAY BOX' : 'ใส่กล่องกลับบ้าน', size: so, bold: true, x: ind, icon: 'house', box: true, tall: true });
     if (i.note) L.push(styled(k.noteStyle, { text: '* ' + i.note, size: so, x: ind, wrap: true, hang: '* ' }));
   });
   const priced = k.price === 'all' ? items.filter(i => i.price != null) : [];
@@ -548,6 +583,11 @@ function ticketLines(table, items, title = '', o = {}) {
   return L;
 }
 const isTA = t => String(t).startsWith('TA');
+// ป้ายบนกระดาษ: ทานที่ร้าน (กรอบ + รูปจาน) / กลับบ้าน (แถบดำ + รูปบ้าน)
+function typeLine(ta, en, size) {
+  return ta ? { text: en ? 'TAKE AWAY' : 'กลับบ้าน', size, bold: true, invert: true, tall: true, align: 'center', icon: 'house' }
+    : { text: en ? 'DINE IN' : 'ทานที่ร้าน', size, bold: true, box: true, tall: true, align: 'center', icon: 'dine' };
+}
 // วันขาย (ตัดรอบตาม หลังร้าน > ข้อมูลร้าน > ตัดรอบวันขาย) · back = ย้อนกี่วัน → 'YYYY-MM-DD'
 // ตัดรอบตี 5: ตอน 00:40 ของวันที่ 25 ยังเป็นวันขายของวันที่ 24
 const dayCut = () => Math.min(8, Math.max(0, Number(S.settings?.dayCutoff) || 0));
@@ -682,6 +722,8 @@ function receiptLines(order, opts = {}) {
     ...(showTable || showTime ? [{ text: showTable ? (en ? tableNameEn(order.table) : tableName(order.table)) : '',
       right: showTime ? when : '' }] : []),
     ...(src.receiptNo && rc.showNo !== false ? [{ text: (en ? 'Receipt No. ' : 'เลขที่ ') + src.receiptNo, size: 22 }] : []),
+    // test-1.96 ป้าย ทานที่ร้าน / กลับบ้าน บนใบเสร็จ (ปิดได้ที่หลังร้าน > ใบเสร็จ)
+    ...(rc.showType !== false ? [{ space: 4 }, typeLine(isTA(order.table), en, 30), { space: 2 }] : []),
     ...(p ? [{ text: partLabel(order, p, en), size: 26, bold: true }] : []),
     { hr: true },
   ];

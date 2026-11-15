@@ -253,6 +253,7 @@
           <div class="rowline"><div class="txt"><b>ชื่อโต๊ะ</b></div><label class="sw"><input type="checkbox" id="showTable"><i></i></label></div>
           <div class="rowline"><div class="txt"><b>วันที่และเวลา</b></div><label class="sw"><input type="checkbox" id="showTime"><i></i></label></div>
           <div class="rowline"><div class="txt"><b>เลขที่ใบเสร็จ</b></div><label class="sw"><input type="checkbox" id="showNo"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>ป้าย ทานที่ร้าน / กลับบ้าน</b><span>กล่องใหญ่ใต้ชื่อโต๊ะ · กลับบ้าน = แถบดำมีรูปบ้าน</span></div><label class="sw"><input type="checkbox" id="showType"><i></i></label></div>
 
           <h3 class="rc-h">ท้ายใบเสร็จ</h3>
           <div class="grid2">
@@ -302,7 +303,7 @@
 
           <h3 class="rc-h">หัวใบสั่ง</h3>
           <div class="rowline"><div class="txt"><b>เวลาที่สั่ง</b><span>ขวามือของชื่อโต๊ะ</span></div><label class="sw"><input type="checkbox" id="tkShowTime"><i></i></label></div>
-          <div class="rowline"><div class="txt"><b>ทานที่ร้าน / กลับบ้าน</b><span>กลับบ้านพิมพ์เป็นแถบดำ เห็นชัดจากไกล</span></div><label class="sw"><input type="checkbox" id="tkShowType"><i></i></label></div>
+          <div class="rowline"><div class="txt"><b>ทานที่ร้าน / กลับบ้าน</b><span>กล่องตัวใหญ่ใต้ชื่อโต๊ะ · ทานที่ร้าน = กรอบมีรูปจาน · กลับบ้าน = แถบดำมีรูปบ้าน</span></div><label class="sw"><input type="checkbox" id="tkShowType"><i></i></label></div>
           <div class="rowline"><div class="txt"><b>บอกว่าเป็นการสั่งเพิ่ม</b><span>โต๊ะที่สั่งรอบที่ 2 ขึ้นไป พิมพ์ "สั่งเพิ่ม · รอบที่ 2"</span></div><label class="sw"><input type="checkbox" id="tkShowRound"><i></i></label></div>
           <div class="rowline"><div class="txt"><b>ชื่อเครื่องพิมพ์</b><span>เช่น "ครัว" หรือ "บาร์น้ำ" บนสุดของใบ ช่วยแยกใบเวลามีหลายเครื่อง</span></div><label class="sw"><input type="checkbox" id="tkShowStation"><i></i></label></div>
 
@@ -1887,7 +1888,7 @@ $('#laySave').onclick = async () => {
 };
 
 // ================= ใบเสร็จ =================
-const RC_KEYS = ['logoMode', 'logoWidth', 'footerImgMode', 'footerImgWidth', 'nameSize', 'header', 'footerSize', 'showNo', 'showTime', 'showTable',
+const RC_KEYS = ['logoMode', 'logoWidth', 'footerImgMode', 'footerImgWidth', 'nameSize', 'header', 'footerSize', 'showNo', 'showTime', 'showTable', 'showType',
   'lang', 'headerEn', 'footerEn'];
 let rc = null, rcShop = '', rcFoot = '', rcImgs = {};   // rcImgs: รูปที่เพิ่งเลือก/เอาออกและยังไม่บันทึก
 function loadReceipt() {
@@ -1897,7 +1898,7 @@ function loadReceipt() {
   const set = (id, v) => { const el = $('#' + id); if (el.type === 'checkbox') el.checked = v !== false; else el.value = v ?? ''; };
   set('rcShopName', rcShop); set('nameSize', rc.nameSize); set('rcHeader', rc.header); set('rcFooter', rcFoot); set('footerSize', rc.footerSize);
   rc.lang = rc.lang || 'th'; set('rcHeaderEn', rc.headerEn); set('rcFooterEn', rc.footerEn);
-  for (const k of ['showTable', 'showTime', 'showNo']) set(k, rc[k]);
+  for (const k of ['showTable', 'showTime', 'showNo', 'showType']) set(k, rc[k]);
   set('logoWidth', rc.logoWidth); set('footerImgWidth', rc.footerImgWidth);
   $$('[data-seg]').forEach(sg => sg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === rc[sg.dataset.seg])));
   renderRcImgs(); renderRcPreview();
@@ -2436,7 +2437,7 @@ $('#rcForm').addEventListener('input', e => {
   else if (id === 'rcHeaderEn') rc.headerEn = e.target.value;
   else if (id === 'rcFooterEn') rc.footerEn = e.target.value;
   else if (['nameSize', 'footerSize', 'logoWidth', 'footerImgWidth'].includes(id)) rc[id] = Number(e.target.value);
-  else if (['showNo', 'showTime', 'showTable'].includes(id)) rc[id] = e.target.checked;
+  else if (['showNo', 'showTime', 'showTable', 'showType'].includes(id)) rc[id] = e.target.checked;
   renderRcImgs(); renderRcPreview();
 });
 $$('[data-seg] button').forEach(b => b.onclick = () => {

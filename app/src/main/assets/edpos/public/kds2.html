@@ -56,6 +56,12 @@
   .tl{font-size:calc(var(--fs-table)*var(--z));font-weight:700;line-height:1.15;color:var(--tbl);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
   .tm{flex:none;font-size:calc(var(--fs-time)*var(--z));font-weight:700;padding:2px 9px;border-radius:8px}
   .tm.fresh{color:#2fd07a;background:#2fd07a24}.tm.warn{color:#f5b83d;background:#f5b83d29}.tm.late{color:#ff5a52;background:#ff5a5229}
+  /* test-1.96 กล่อง กินที่ร้าน / 🏠 กลับบ้าน (ตัวใหญ่ เห็นจากไกล) */
+  .tybx{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 calc(10px*var(--z)) calc(7px*var(--z));padding:calc(4px*var(--z)) 10px;border-radius:10px;font-size:calc(17px*var(--z));font-weight:800;line-height:1.2;border:2px solid color-mix(in srgb,var(--text) 35%,transparent);color:var(--text);background:color-mix(in srgb,var(--text) 7%,transparent)}
+  .tybx .e{font-size:1.25em;line-height:1}
+  .tybx.takeaway,.tybx.self_pick_up{border-color:#f59f00;background:#ffd43b;color:#1a1200;font-size:calc(20px*var(--z))}
+  .tybx.delivery{border-color:#e64980;background:#f783ac;color:#2b0715;font-size:calc(20px*var(--z))}
+  .trow .tybx{margin:4px 0 0}
   .meta{padding:0 calc(12px*var(--z)) calc(7px*var(--z));display:flex;flex-wrap:wrap;gap:6px;font-size:calc(13px*var(--z));color:var(--muted)}
   .tag{font-size:calc(12px*var(--z));font-weight:700;border-radius:6px;padding:1px 6px;white-space:nowrap}
   .tag.unpaid{background:#d93a33;color:#fff}.tag.new{background:#6cc4ff;color:#0b1a2a}.tag.thai{background:#1f9d5c;color:#fff}
@@ -198,7 +204,7 @@
   <button class="bbtn on" id="muteBtn">🔔 เสียง</button>
   <button class="bbtn" id="fsBtn">⛶ เต็มจอ</button>
   <button class="bbtn" id="oldBtn" title="กลับไปใช้จอครัวแบบเดิม">จอเดิม</button>
-  <a class="bbtn" href="serve.html" style="text-decoration:none">🍽 จอคนเสิร์ฟ</a>
+  <a class="bbtn" href="serve.html" style="text-decoration:none;color:inherit">🍽 จอคนเสิร์ฟ</a>
   <button class="bbtn acc" id="setBtn">ปรับแต่ง</button>
 </div>
   <div id="strip">
@@ -345,6 +351,10 @@ const label=(o,short)=>o.table?(short?'':'โต๊ะ ')+o.table:o.code?(short?
 const where=o=>o.table?'โต๊ะ '+o.table:o.code?'กลับ #'+o.code:(o.plat||'ส่ง');
 const spokenHead=o=>o.table?'โต๊ะ '+o.table:o.code?'กลับบ้าน หมายเลข '+o.code:(o.plat||'เดลิเวอรี');
 const TYPE={dine_in:'กินที่ร้าน',takeaway:'กลับบ้าน',delivery:'เดลิเวอรี',self_pick_up:'รับเอง'};
+// test-1.96 กล่องประเภทออเดอร์ใต้ชื่อโต๊ะ (เดิมเป็นตัวหนังสือเล็กสีจาง) · หมายเหตุจาน "กลับบ้าน" ใส่รูปบ้าน
+const TYE={dine_in:'🍽️',takeaway:'🏠',delivery:'🛵',self_pick_up:'🏠'};
+function tyBox(o){const t=TYPE[o.type];if(!t)return '';return `<div class="tybx ${esc(o.type)}"><span class="e" aria-hidden="true">${TYE[o.type]||''}</span>${esc(t)}</div>`;}
+function rmkHtml(r){return esc(r).replace(/(^|· )กลับบ้าน(?= ·|$)/g,'$1🏠 กลับบ้าน').replace(/(^|· )กลับต่างประเทศ(?= ·|$)/g,'$1✈️ กลับต่างประเทศ');}
 const plates=d=>Math.min(PLATE.get(d.id)||0,d.q);
 const leftOfO=o=>o.pend.reduce((n,d)=>n+d.q-plates(d),0);
 const startOf=o=>o.pend.length?Math.min(...o.pend.map(d=>d.at||o.at)):o.at;
@@ -381,7 +391,7 @@ function dishHtml(o,d,st,c,bcount){
   if(c.show.thai&&d.thai)tags.push('<span class="tag thai">คนไทย</span>');
   if(!done&&!canc&&c.show.batch&&bcount&&bcount[d.name])tags.push(`<span class="tag bat">รวม ${bcount[d.name]}</span>`);
   const opt=c.show.opt&&d.opt.length?`<span class="op">${esc(optTxt(d))}</span>`:'';
-  const rmk=c.show.rmk&&d.rmk?`<span class="rk">${esc(d.rmk)}</span>`:'';
+  const rmk=c.show.rmk&&d.rmk?`<span class="rk">${rmkHtml(d.rmk)}</span>`:'';
   const note=canc?'<span class="op" style="color:#ff7a72;font-weight:700">ยกเลิกแล้ว · แตะรับทราบ</span>':'';
   const price=c.show.price&&d.price!=null&&!canc?`<span class="pr">฿${esc(d.price)}</span>`:'';
   let bx='';
@@ -395,7 +405,7 @@ function cancelsOf(o){const l=[...o.canc,...[...GHOSTC.values()].filter(e=>e.oid
 let ARMED={id:'',until:0};
 function cardHtml(o,c,bcount,opts){opts=opts||{};
   const a=sevOf(startOf(o),c),left=leftOfO(o);
-  const meta=[c.show.type?TYPE[o.type]||'':'',c.show.at?'สั่ง '+hhmm(o.at):'',c.show.staff&&(o.by||(o.pend[0]&&o.pend[0].by))?'โดย '+(o.by||o.pend[0].by):''].filter(Boolean);
+  const meta=[c.show.at?'สั่ง '+hhmm(o.at):'',c.show.staff&&(o.by||(o.pend[0]&&o.pend[0].by))?'โดย '+(o.by||o.pend[0].by):''].filter(Boolean);
   const flags=[];if(o.unpaid)flags.push('<span class="tag unpaid">ยังไม่จ่าย</span>');if(o.urge)flags.push('<span class="tag unpaid">เร่ง</span>');
   const pl=[...o.pend].sort((x,y)=>(x.at||0)-(y.at||0)),fl=(o.fin||[]).filter(d=>!ACK.has('h'+d.id));
   const pend=(c.show.merge?mergeL(pl,true):pl).map(d=>['p',d]),fin=(c.show.merge?mergeL(fl,false):fl).map(d=>['d',d]),canc=cancelsOf(o).map(d=>['c',d]);
@@ -410,12 +420,13 @@ function cardHtml(o,c,bcount,opts){opts=opts||{};
     :`<button class="fin${c.card.confirm?'':' go'}" data-act="finish" data-o="${esc(o.id)}">${c.card.confirm?`เหลือ ${left} จาน · ปิดทั้งโต๊ะ`:`ปิดทั้งโต๊ะ = เสร็จหมด ✓ <small>(${left} จาน)</small>`}</button>`;
   const head=`<div class="ch"><span class="tl" data-act="say" data-o="${esc(o.id)}">${esc(label(o,c.density==='tight'))}</span>${c.show.wait?`<span class="tm ${a.s}" data-age="${esc(o.id)}">${a.m} นาที</span>`:''}</div>`;
   const metaH=meta.length||flags.length?`<div class="meta">${meta.length?'<span>'+esc(meta.join(' · '))+'</span>':''}${flags.join('')}</div>`:'';
+  const tyH=c.show.type?tyBox(o):'';
   const mvH=mv?`<button class="alert" data-act="ackmove" data-o="${esc(o.id)}">${esc(mv)} · แตะรับทราบ</button>`:'';
   const moreH=more?`<button class="more" data-act="expand" data-o="${esc(o.id)}">อีก ${more} จาน ▾ แตะเพื่อดู</button>`:(EXP.has(o.id)&&c.card.hMode==='limit'?`<button class="more" data-act="collapse" data-o="${esc(o.id)}">ย่อ ▴</button>`:'');
   if(c.layout==='row'&&!opts.preview&&!opts.card)
-    return `<div class="trow" data-oid="${esc(o.id)}" data-s="${a.s}"><div class="th"><span class="stp s-${a.s}"></span>${head.replace('class="ch"','class="ch" style="padding:0"')}${metaH.replace('class="meta"','class="meta" style="padding:0"')}${mvH}</div>
+    return `<div class="trow" data-oid="${esc(o.id)}" data-s="${a.s}"><div class="th"><span class="stp s-${a.s}"></span>${head.replace('class="ch"','class="ch" style="padding:0"')}${tyH}${metaH.replace('class="meta"','class="meta" style="padding:0"')}${mvH}</div>
       <div class="tds">${body}${moreH}</div><div class="cf">${fin2}</div></div>`;
-  return `<article class="card" data-oid="${esc(o.id)}" data-s="${a.s}" data-sm="${c.card.status}">${c.card.status==='top'?`<div class="stp s-${a.s}"></div>`:''}${head}${metaH}${mvH}
+  return `<article class="card" data-oid="${esc(o.id)}" data-s="${a.s}" data-sm="${c.card.status}">${c.card.status==='top'?`<div class="stp s-${a.s}"></div>`:''}${head}${tyH}${metaH}${mvH}
     <div class="rows">${body}${moreH}</div><div class="cf">${fin2}</div></article>`;}
 function gridCols(c){const z=(+c.card.zoom||100)/100;
   if(c.layout==='row')return 'repeat(1,minmax(0,1fr))';

@@ -85,7 +85,7 @@ const defaultData = {
       footerImgMode: 'threshold', footerImgWidth: 50,
       nameSize: 36, header: '',                // header = บรรทัดใต้ชื่อร้าน (ที่อยู่ โทร เลขผู้เสียภาษี)
       footerSize: 22,
-      showNo: true, showTime: true, showTable: true,
+      showNo: true, showTime: true, showTable: true, showType: true,   // showType = ป้าย ทานที่ร้าน / 🏠 กลับบ้าน (test-1.96)
       lang: 'th', headerEn: '', footerEn: '',  // ภาษาใบแจ้งยอด/ใบเสร็จ th | en | both (แต่ละบิลเปลี่ยนเองได้ order.lang)
       images: {},
     },
@@ -153,6 +153,8 @@ function loadData(raw) {
 // แปลงข้อมูลจากเวอร์ชันเครื่องพิมพ์เดียว
 function migrateData() {
   const s = data.settings;
+  // test-1.96 ใบสั่งครัว: ป้าย ทานที่ร้าน / 🏠 กลับบ้าน แบบกล่องใหญ่ → เปิดให้ครั้งเดียว (ปิดเองได้ที่หลังร้าน > ใบสั่งครัว)
+  if (s && s.ticket && typeof s.ticket === 'object' && !s.ticket.typeV) { s.ticket.showType = true; s.ticket.typeV = 1; }
   // test-1.93 ซ่อมบิลที่เกิดจากบัคย้ายโต๊ะ: เลขโต๊ะเป็นตัวเลข → ข้อความ · โต๊ะเดียวกันมีบิลเปิด 2 ใบ (ยังไม่มีการจ่าย) → รวมเป็นใบเดียว
   for (const o of data.orders || []) if (typeof o.table === 'number') o.table = String(o.table);
   const firstOpen = new Map();
@@ -558,7 +560,8 @@ function cleanTicket(t) {
   return {
     lang: pick(t.lang, LANGS, 'th'),
     sizeTable: num(t.sizeTable, 28, 72, 44), sizeItem: num(t.sizeItem, 24, 60, 36), sizeOpt: num(t.sizeOpt, 20, 48, 30),
-    showTime: on(t.showTime, true), showType: on(t.showType, false), showRound: on(t.showRound, false),
+    showTime: on(t.showTime, true), showType: on(t.showType, true), showRound: on(t.showRound, false),
+    typeV: 1,   // test-1.96 ป้ายทานที่ร้าน/กลับบ้านแบบกล่องใหญ่ (ย้ายค่าเดิมแล้ว)
     showStation: on(t.showStation, false), showCount: on(t.showCount, false), divider: on(t.divider, false), showThai: on(t.showThai, true),
     qtyPos: pick(t.qtyPos, ['front', 'back'], 'front'), optStyle: pick(t.optStyle, ['inline', 'line'], 'inline'),
     noteStyle: pick(t.noteStyle, ['normal', 'bold', 'invert'], 'normal'), alertStyle: pick(t.alertStyle, ['bold', 'invert'], 'bold'),
@@ -3003,7 +3006,7 @@ const routes = {
       r.logoMode = r.logoMode === 'threshold' ? 'threshold' : 'dither';
       r.footerImgMode = r.footerImgMode === 'dither' ? 'dither' : 'threshold';
       r.header = String(r.header || '').slice(0, 500);
-      for (const k of ['showNo', 'showTime', 'showTable']) r[k] = r[k] !== false;
+      for (const k of ['showNo', 'showTime', 'showTable', 'showType']) r[k] = r[k] !== false;
       r.lang = LANGS.includes(r.lang) ? r.lang : 'th';
       r.headerEn = String(r.headerEn || '').slice(0, 500); r.footerEn = String(r.footerEn || '').slice(0, 500);
       s.receipt = r;
@@ -3519,12 +3522,14 @@ const routes = {
         remark: [...(i.alerts || []), i.abroad ? 'กลับต่างประเทศ' : i.takeaway && !ta ? 'กลับบ้าน' : '', i.note].filter(Boolean).join(' · '),
         at: i.createdAt, doneAt: i.doneAt || null, servedAt: i.servedAt || null };
     };
-    const ready = [], prep = [], served = [];
+    const ready = [], prep = [], served = [], cooking = [];
     for (const i of data.items) {
       if (i.status === 'cancelled' || (i.createdAt || 0) < since) continue;
       const o = oById.get(i.orderId); if (!live(o) && !(i.servedAt >= now - 30 * 60000)) continue;
       if (i.status === 'done' && onScreen(i) && !i.servedAt && live(o)) ready.push(row(i, o));
       else if (i.servedAt >= now - 30 * 60000) served.push(row(i, o));
+      // test-1.96 จานที่ครัวยังทำอยู่ → จอคนเสิร์ฟแบบ "จอครัว" เห็นทั้งโต๊ะ (จานที่เสร็จไฮไลต์ขยายใหญ่)
+      if (i.status === 'new' && onScreen(i) && live(o)) cooking.push(row(i, o));
       const m = menuOf(i);
       // test-1.83 ขึ้น "เตรียมให้ครัว" เมื่อ: ทั้งเมนูเปิดไว้ หรือ ตัวเลือกที่ลูกค้าเลือกเปิดไว้ (เช่น ราดข้าว)
       if (m && !i.prepAt && i.status === 'new' && live(o)) {
@@ -3550,7 +3555,8 @@ const routes = {
     const og = new Map();
     for (const m of data.menu) for (const g of groupsOf(m)) { const k = g.name || 'ตัวเลือก'; if (!og.has(k)) og.set(k, new Set()); for (const c of g.choices || []) if (c.name) og.get(k).add(c.name); }
     const optGroups = [...og].map(([name, set]) => ({ name, choices: [...set] }));
-    return { ok: true, ready, prep, served: served.slice(0, 40), categories, menus, optGroups, shopName: data.settings.shopName, now };
+    cooking.sort((a, b) => a.at - b.at);
+    return { ok: true, ready, prep, cooking, served: served.slice(0, 40), categories, menus, optGroups, shopName: data.settings.shopName, now };
   },
   'POST /api/serve/done': b => {
     const ids = new Set([].concat(b.ids || []));
