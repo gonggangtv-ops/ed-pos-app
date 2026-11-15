@@ -3567,6 +3567,27 @@ const routes = {
     for (const i of data.items) if (ids.has(i.id)) { if (b.undo) delete i.prepAt; else i.prepAt = Date.now(); }
   },
 
+  // test-1.97 ฝากค่าตั้งจอครัว/จอคนเสิร์ฟของแต่ละแท็บเล็ตไว้ที่เครื่องหลัก (ซิงก์ไปเครื่องสำรองด้วย)
+  // หน้าเว็บเก็บค่าตามที่อยู่ (IP:พอร์ต) · ที่อยู่เปลี่ยน (เราเตอร์แจก IP ใหม่ / สลับเครื่อง) = ค่าหายหมด → ดึงคืนจากที่นี่ตามรหัสแท็บเล็ต
+  'GET /api/devcfg': (b, q) => {
+    const id = String(q.get('id') || '');
+    return { ok: true, cfg: (data.devCfg || {})[id] || null };
+  },
+  'POST /api/devcfg': b => {
+    const id = String(b.id || '');
+    if (!/^[\w.:-]{4,80}$/.test(id)) throw new Error('รหัสเครื่องไม่ถูกต้อง');
+    const keys = {}; let size = 0;
+    for (const [k, v] of Object.entries(b.keys && typeof b.keys === 'object' ? b.keys : {})) {
+      if (!DEVCFG_KEY.test(k) || typeof v !== 'string') continue;
+      size += v.length; if (size > 200000) throw new Error('ค่าตั้งใหญ่เกินไป');
+      keys[k] = v;
+    }
+    const all = data.devCfg = data.devCfg && typeof data.devCfg === 'object' ? data.devCfg : {};
+    all[id] = { at: Date.now(), name: String(b.name || '').slice(0, 80), origin: String(b.origin || '').slice(0, 80), page: String(b.page || '').slice(0, 40), keys };
+    const ids = Object.keys(all);
+    if (ids.length > 60) ids.sort((x, y) => all[x].at - all[y].at).slice(0, ids.length - 60).forEach(k => delete all[k]);
+  },
+
   'POST /api/kds/clear': b => {
     for (const o of data.orders) if (!b.orderIds || b.orderIds.includes(o.id)) {
       const its = data.items.filter(i => i.orderId === o.id && onScreen(i));
@@ -3589,7 +3610,9 @@ const routes = {
 };
 
 // ใช้ได้โดยไม่ต้องใส่รหัส: จอครัว (KDS) การสลับเครื่องสำรอง และหน้าใส่รหัสเอง
-const PUBLIC_ROUTES = new Set(['GET /api/auth', 'POST /api/auth/setup', 'POST /api/login', 'GET /api/auth/me',
+// ค่าตั้งในหน้าเว็บที่ฝากไว้ได้ (จอครัวเดิม · จอครัว 2.0 · จอคนเสิร์ฟ) · ไม่รวมสถานะชั่วคราว (จานที่ติ๊ก ประวัติเสร็จ)
+const DEVCFG_KEY = /^(kds_(view|snd|tts|hide|nobatch|wait|screen|v2|tools|pop|popgeo|size|call)|kds2_(cfg|railhide)|serve_cfg)$/;
+const PUBLIC_ROUTES = new Set(['GET /api/devcfg', 'POST /api/devcfg', 'GET /api/auth', 'POST /api/auth/setup', 'POST /api/login', 'GET /api/auth/me',
   'GET /api/role', 'GET /api/sync', 'POST /api/promote', 'POST /api/merge', 'POST /api/sync/key', 'POST /api/standby/pair', 'POST /api/standby/peer',
   'GET /api/orders', 'POST /api/dish/complete', 'POST /api/order/complete', 'POST /api/kds/clear', 'POST /api/events/clear',
   'GET /api/serve', 'POST /api/serve/done', 'POST /api/serve/prep']);   // test-1.81 จอคนเสิร์ฟ (แท็บเล็ตตั้งที่จุดรับอาหาร ไม่ต้องใส่รหัส เหมือนจอครัว)
@@ -3666,7 +3689,7 @@ const server = http.createServer(async (req, res) => {
         const body = Buffer.concat(parts).toString('utf8');
         const result = await handler(body ? JSON.parse(body) : {}, url.searchParams, req);
         // เครื่องสำรองไม่บันทึกเอง (ข้อมูลมาจากเครื่องหลักเท่านั้น) · ขอกุญแจ/ใส่รหัสไม่ได้เปลี่ยนข้อมูล
-        if (req.method === 'POST' && role.role === 'main' && !['/api/print', '/api/login', '/api/sync/key', '/api/ai/ask', '/api/ai/test', '/api/ai/trends'].includes(url.pathname)) { prune(); save(); broadcast(); }
+        if (req.method === 'POST' && role.role === 'main' && !['/api/print', '/api/login', '/api/sync/key', '/api/ai/ask', '/api/ai/test', '/api/ai/trends'].includes(url.pathname)) { prune(); save(); if (url.pathname !== '/api/devcfg') broadcast(); }
         const out = JSON.stringify(result || { ok: true });
         const head = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };   // ห้ามแคช ข้อมูลต้องสดเสมอ
         // test-1.95 ข้อมูลก้อนใหญ่ (หน้าสั่งอาหาร/เครื่องสำรอง ดึงทุกครั้งที่มีอะไรเปลี่ยน) บีบอัดก่อนส่ง เล็กลง ~10 เท่า Wi-Fi ไม่อืดช่วงคนเยอะ

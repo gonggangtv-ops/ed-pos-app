@@ -557,6 +557,24 @@ public class MainActivity extends Activity {
 
     // ---------- ช่องทางให้หน้าเว็บเรียกแอป: window.EdPosApp ----------
     private class Bridge {
+        /** test-1.97 รหัสประจำแท็บเล็ต (ไม่เปลี่ยนแม้อัปเดตแอป/ที่อยู่เครื่องหลักเปลี่ยน) → ฝากค่าตั้งจอครัว/จอคนเสิร์ฟไว้ที่เครื่องหลัก
+         *  ค่าตั้งในหน้าเว็บผูกกับที่อยู่ (http://IP:พอร์ต) ที่อยู่เปลี่ยน = หน้าเว็บเห็นเป็นเครื่องใหม่ ค่าหายหมด */
+        @JavascriptInterface
+        public String deviceId() {
+            try {
+                String a = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+                if (a != null && !a.isEmpty() && !"9774d56d682e549c".equals(a)) return "a-" + a;
+            } catch (Exception ignored) { }
+            String id = prefs.getString("devId", "");
+            if (id.isEmpty()) { id = "u-" + java.util.UUID.randomUUID(); prefs.edit().putString("devId", id).apply(); }
+            return id;
+        }
+
+        @JavascriptInterface
+        public String deviceName() {
+            return Build.MANUFACTURER + " " + Build.MODEL + " · Android " + Build.VERSION.RELEASE;
+        }
+
         @JavascriptInterface
         public String getConfig() {
             followRole();   // เปิดหน้าตั้งค่า → แสดงหน้าที่จริงของเครื่องนี้ (อาจเพิ่งสลับเครื่อง)

@@ -568,5 +568,5 @@ $('#setPan').addEventListener('change',e=>{const t=e.target;if(t.dataset.cin||t.
 function clockTick(){$('#clock').textContent=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});}
 render();poll();setInterval(poll,2000);clockTick();setInterval(()=>{clockTick();if(view==='ready')render();},20000);
 </script>
-<script src="router.js"></script><script src="failover.js"></script>
+<script src="router.js"></script><script src="failover.js"></script><script src="devcfg.js"></script>
 </body></html>
