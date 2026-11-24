@@ -1004,12 +1004,19 @@ function alertEv(id,title,detail,say){beep('cancel');addNote(id,title+(detail?' 
   if(say){speak(say);}}
 boardEl.addEventListener('click',e=>{const f=e.target.closest('[data-note]');if(!f)return;
   const [id,i]=f.dataset.note.split('#');if(NOTES[id]){NOTES[id].splice(+i,1);if(!NOTES[id].length)delete NOTES[id];}render();});
+const MERGED=new Set();   // บิลที่ถูกรวมเข้าโต๊ะอื่น (ไม่ใช่ทำเสร็จ)
+function mergedInto(o,next){const ids=new Set(o.pending.map(d=>d.id));if(!ids.size)return null;
+  return next.find(x=>x.id!==o.id&&[...(x.pending||[]),...(x.finished||[])].some(d=>ids.has(d.id)))||null;}
 function detectChanges(prev,next,cx){
   const nm=new Map(next.map(o=>[o.id,o]));
   const cxO=new Set(cx?.orders||[]),cxD=new Set(cx?.dishes||[]);
   for(const o of prev){const n=nm.get(o.id);
     // the whole table left the board: cancelled from the POS (ยกเลิกทั้งโต๊ะ / ยกเลิกจานสุดท้าย) rather than finished
     if(!n){const w=o.table_num?'โต๊ะ '+o.table_num:(o.pick_up_code?'#'+o.pick_up_code:'');
+      // test-1.98 รวมโต๊ะ: จานของบิลนี้ไปอยู่ในบิลของโต๊ะปลายทาง → แจ้ง "รวมโต๊ะ" และไม่บันทึกเป็นโต๊ะที่ทำเสร็จ
+      const mt=mergedInto(o,next);
+      if(mt&&!cxO.has(o.id)){MERGED.add(o.id);const w2=mt.table_num?'โต๊ะ '+mt.table_num:(mt.pick_up_code?'#'+mt.pick_up_code:'');
+        alertEv(mt.id,'🔀 รวมโต๊ะ',w+' → '+w2,'รวมโต๊ะ '+w+' ไป '+w2);continue;}
       const cd=o.pending.filter(d=>d.status==='pending'&&cxD.has(d.id)&&!GONE.has(d.id));
       const list=cd.map(d=>d.name+' ×'+d.quantity).join(', ');
       if(cxO.has(o.id)){o.is_cancel=true;alertEv(o.id,'❌ ยกเลิกทั้งโต๊ะ',w+(list?' · '+list:''),'ยกเลิกทั้งโต๊ะ '+w);}
@@ -1264,7 +1271,7 @@ async function poll(){try{
   }
   if(j.ok){const raw=new Set((j.orders||[]).map(x=>x.id));   // ids the server still lists (before the hide-menu filter)
     ORDERS.forEach(o=>{if(!raw.has(o.id)&&!GHOST.has(o.id))GHOST.set(o.id,{o,n:0});});
-    for(const [id,g] of [...GHOST]){if(raw.has(id)){GHOST.delete(id);continue;}if(++g.n>=2){GHOST.delete(id);recordDone(g.o);for(const [k,e] of [...DONEDISH])if(e.oid===id)DONEDISH.delete(k);}}
+    for(const [id,g] of [...GHOST]){if(raw.has(id)){GHOST.delete(id);continue;}if(++g.n>=2){GHOST.delete(id);if(MERGED.has(id)||mergedInto(g.o,next))MERGED.delete(id);else recordDone(g.o);for(const [k,e] of [...DONEDISH])if(e.oid===id)DONEDISH.delete(k);}}
     next.forEach(o=>recalled.delete(o.id));}
   if(j.ok)primed=true;   // the first successful poll only records what is already on the board
   if(j.ok){const live=new Set(next.map(o=>o.id));

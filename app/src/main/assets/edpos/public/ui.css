@@ -85,7 +85,7 @@
   .rowline .txt { flex: 1; min-width: 0; }
   .rowline .txt b { display: block; font-weight: 600; }
   .rowline .txt span { color: var(--muted); font-size: 14px; }
-  .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; align-items: center; }
+  .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; align-items: center; flex-wrap: wrap; }   /* test-1.98 จอมือถือ: ปุ่มขึ้นบรรทัดใหม่ ไม่ดันหน้าให้กว้างเกินจอ */
   .actions .note { margin-right: auto; color: var(--muted); font-size: 14px; }
 
   /* ---------- รายการเมนู ---------- */
@@ -149,6 +149,7 @@
 
   /* ---------- ตัวแก้ใบเสร็จ ---------- */
   .rcgrid { display: grid; grid-template-columns: 1fr 360px; gap: 20px; align-items: start; }
+  .rcgrid > * { min-width: 0; }
   @media (max-width: 980px) { .rcgrid { grid-template-columns: 1fr; } .rcprev { order: -1; } }
   .rcprev { position: sticky; top: 12px; }
   .rcpaper { background: #fff; border: 1px solid var(--line); box-shadow: 0 4px 18px #18221E1F; padding: 6px; border-radius: 4px; }

@@ -1637,7 +1637,9 @@ function renderPrinters() {
           `<option value="${v}" ${(p.slip || '') === v ? 'selected' : ''}>${v ? t : `ตามใบสั่งครัว (${SLIP_NAME[tk?.mode || ticketCfg().mode]})`}</option>`).join('')}</select></label>
         <div class="tools"><button class="btn" data-ptest="${k}">พิมพ์ทดสอบ</button><button class="btn danger" data-pdel="${k}" aria-label="ลบเครื่องพิมพ์ ${esc(p.name)}">ลบ</button></div>
       </div>
+      <p class="muted" data-pcap="${esc(p.id)}" style="margin:8px 0 0"></p>
     </div>`).join('') || '<div class="panel"><p>ยังไม่มีเครื่องพิมพ์ กด “เพิ่มเครื่องพิมพ์”</p></div>';
+  loadPrnCaps();
   const keep = $('#rcPrinter').value || rp;
   $('#rcPrinter').innerHTML = prn.map(p => `<option value="${esc(p.id)}">${esc(p.name || p.id)}</option>`).join('');
   $('#rcPrinter').value = prn.some(p => p.id === keep) ? keep : prn[0]?.id || '';
@@ -1682,10 +1684,18 @@ $('#prnList').addEventListener('click', async e => {
         { text: 'รวม', right: '290 ฿', size: 32, bold: true },
       ], p.id);
       toast('ส่งไปเครื่อง ' + p.name + ' แล้ว');
+      setTimeout(loadPrnCaps, 4000); setTimeout(loadPrnCaps, 12000);
     } catch (err) { toast(err.message, true); }
     finally { const b = $(`[data-ptest="${test.dataset.ptest}"]`); if (b) { b.disabled = false; b.textContent = 'พิมพ์ทดสอบ'; } }
   }
 });
+// test-1.98 เครื่องพิมพ์ตอบกลับแบบไหน (ระบบเรียนรู้จากงานที่ส่งไป)
+async function loadPrnCaps() {
+  try {
+    const { caps } = await api('/api/printers/caps');
+    for (const el of $$('#prnList [data-pcap]')) el.textContent = '🖨 ' + prnCapText(caps[el.dataset.pcap]);
+  } catch {}
+}
 const mapOut = map => Object.fromEntries(Object.entries(map).map(([k, v]) => [k, [...v]]));
 async function savePrinters(quiet) {
   if (prn.some(p => !String(p.name).trim())) throw new Error('ตั้งชื่อเครื่องพิมพ์ให้ครบ');

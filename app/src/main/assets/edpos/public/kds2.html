@@ -683,8 +683,12 @@ let linkBad=false;
 function setLink(ok,msg){const b=$('#linkBar');if(ok){if(linkBad){linkBad=false;b.hidden=true;toast('เชื่อมต่อกลับมาแล้ว','');}return;}
   b.textContent='⚠️ '+msg;b.hidden=false;if(!linkBad){linkBad=true;beep();}}
 function changes(prev,next,cx){const nm=new Map(next.map(o=>[o.id,o])),cxO=new Set((cx&&cx.orders)||[]);
+  // test-1.98 รวมโต๊ะ: บิลเดิมหายไป จานไปอยู่ในบิลของโต๊ะปลายทาง → แจ้ง "รวมโต๊ะ" (เดิมโต๊ะต้นทางไปโผล่ในแท็บ "เสร็จแล้ว" ทั้งที่ยังไม่ได้ทำ)
+  const dishAt=new Map();for(const x of next)for(const d of[...x.pend,...(x.fin||[])])dishAt.set(d.id,x);
   for(const o of prev){const n=nm.get(o.id);
-    if(!n){if(cxO.has(o.id)){alertSound('cancel');toast('❌ ยกเลิกทั้งโต๊ะ',label(o),9000);sayNow('ยกเลิกทั้งโต๊ะ '+spokenHead(o));}
+    if(!n){const to=o.pend.map(d=>dishAt.get(d.id)).find(Boolean);
+      if(to&&!cxO.has(o.id)){MOVED.set(to.id,'รวมจาก'+(o.table?'โต๊ะ '+o.table:label(o)));alertSound('cancel');toast('🔀 รวมโต๊ะ',label(o)+' → '+label(to),9000);sayNow('รวมโต๊ะ '+spokenHead(o)+' ไป '+spokenHead(to));stopRep(o.id);continue;}
+      if(cxO.has(o.id)){alertSound('cancel');toast('❌ ยกเลิกทั้งโต๊ะ',label(o),9000);sayNow('ยกเลิกทั้งโต๊ะ '+spokenHead(o));}
       else if(!DONE.some(x=>x.id===o.id))recordDone(o);stopRep(o.id);continue;}
     if(o.table&&n.table&&o.table!==n.table){MOVED.set(n.id,'ย้ายจากโต๊ะ '+o.table);alertSound('cancel');toast('🔀 ย้ายโต๊ะ','จากโต๊ะ '+o.table+' → โต๊ะ '+n.table,9000);sayNow('ย้ายโต๊ะ จาก '+o.table+' ไป '+n.table);}
     else if(MOVED.has(o.id))MOVED.set(n.id,MOVED.get(o.id));

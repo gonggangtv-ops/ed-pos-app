@@ -944,15 +944,19 @@ let sending = false;
 // test-1.95 กดส่งแล้วสัญญาณหลุด (ไม่รู้ว่าถึงเครื่องหลักหรือยัง) → กดส่งอีกครั้งใช้เลขคำขอเดิม เครื่องหลักไม่บันทึกซ้ำ
 let sendRid = null, sendKey = '';
 async function send() {
-  if (sending) return; // กันกดซ้ำ
-  sending = true;
+  // test-1.98 กดส่งระหว่างออเดอร์ก่อนหน้ายังส่งไม่เสร็จ → บอกให้รู้ (เดิมเงียบ ดูเหมือนส่งแล้วแต่ไม่เข้าครัว)
+  // (แตะปุ่มซ้ำของออเดอร์เดียวกัน = ไม่ต้องบอก)
+  if (sending) { if (sending !== current + '|' + JSON.stringify(cart)) toast('กำลังส่งออเดอร์ก่อนหน้า รอสักครู่แล้วกดส่งอีกครั้ง', true); return; }
+  if (!cart.length) return;
+  let printJob = null;
   const table = current;
   const key = table + '|' + JSON.stringify(cart);
+  sending = key;
   if (!sendRid || sendKey !== key) { sendRid = newRid(); sendKey = key; }
-  const rid = sendRid, o0 = openOrder(table);
+  const rid = sendRid, o0 = openOrder(table), sent = cart.slice();
   try {
     let r;
-    try { r = await api('/api/order', { table, items: cart, orderId: o0?.id, fresh: !o0, rid }); }
+    try { r = await api('/api/order', { table, items: sent, orderId: o0?.id, fresh: !o0, rid }); }
     catch (e) {
       if (!e.net) throw e;
       // สัญญาณหลุด: ถามเครื่องหลักว่าออเดอร์นี้เข้าไปแล้วหรือยัง
@@ -963,7 +967,10 @@ async function send() {
       r = { orderId: got[0].orderId, added: got.map(i => i.id), items: got, table: go ? go.table : table, moved: !!go && String(go.table) !== String(table) };
     }
     sendRid = null; sendKey = '';
-    cart = []; billOpen = false; document.body.classList.remove('sheet-open');
+    // test-1.98 เอาออกจากตะกร้าเฉพาะรายการที่ส่งไป: ระหว่างรอเครื่องหลักตอบ (Wi-Fi ช้า) พนักงานอาจไปเปิดโต๊ะอื่นแล้วเริ่มใส่รายการ
+    // (เดิมล้างตะกร้าทั้งหมด → รายการของโต๊ะถัดไปที่เพิ่งใส่หายไปด้วย)
+    cart = cart.filter(l => !sent.includes(l));
+    if (current === table) { billOpen = false; document.body.classList.remove('sheet-open'); }
     // ส่งสำเร็จแล้ว · โหลดข้อมูลใหม่ไม่ได้ก็ยังพิมพ์ใบสั่งได้ (ใช้รายการที่เครื่องหลักตอบกลับมา) ไม่ขึ้น error ให้กดส่งซ้ำ
     try { Object.assign(S, await api('/api/state')); } catch {}
     for (const it of r.items || []) if (!S.items.some(i => i.id === it.id)) S.items.push(it);
@@ -972,9 +979,12 @@ async function send() {
     toast(r.renamed ? `เลขคิว ${tableName(r.renamed)} มีเครื่องอื่นใช้แล้ว → เปิดเป็น ${tableName(r.table)} แทน`
       : r.moved ? `โต๊ะนี้ถูกย้ายไป ${tableName(r.table)} แล้ว · ส่งเข้าบิลนั้นให้แล้ว` : 'ส่งออเดอร์แล้ว');
     const items = S.items.filter(i => r.added.includes(i.id));
-    await printTickets(r.table || table, items);
+    printJob = () => printTickets(r.table || table, items);
   } catch (e) { toast(e.message, true); }
   finally { sending = false; }
+  // test-1.98 พิมพ์ใบสั่งหลังปลดล็อกปุ่มส่ง: เครื่องพิมพ์ช้า/ดับ (รอได้ถึง ~15 วิ) ต้องไม่ทำให้ออเดอร์โต๊ะถัดไปกดส่งไม่ไป
+  // (เครื่องหลักเข้าคิวงานพิมพ์ทีละงานต่อเครื่องพิมพ์อยู่แล้ว ใบสั่งไม่ปนกัน)
+  if (printJob) try { await printJob(); } catch (e) { toast(e.message, true); }
 }
 
 async function cancelItem(id) {
@@ -1247,7 +1257,8 @@ function payModalNow() {
       const p = r.paymentNo ? o?.payments?.find(x => x.no === r.paymentNo) : null;
       // รับเงินสำเร็จแล้ว แต่โหลดข้อมูลใหม่ไม่ได้ → ไม่พิมพ์ใบเสร็จจากข้อมูลเก่า (ยอดจะผิด) · พิมพ์ซ้ำได้จากประวัติ
       if (st.print && (!fresh || !o || (r.paymentNo && !p))) toast('รับเงินแล้ว แต่พิมพ์ใบเสร็จไม่ได้ (สัญญาณ) พิมพ์ซ้ำได้จากประวัติการสั่ง', true);
-      else if (st.print) await printReceipt(receiptLines(o, p ? { payment: p } : { paid: true })).catch(e => toast(e.message, true));
+      // test-1.98 ไม่รอเครื่องพิมพ์: เครื่องพิมพ์ช้า/ดับ (รอได้ ~15 วิ) เดิมหน้าต่างค้างที่ "กำลังบันทึก…" ทั้งที่รับเงินเสร็จแล้ว และป้าย Paid ของลูกค้าขึ้นช้า
+      else if (st.print) printReceipt(receiptLines(o, p ? { payment: p } : { paid: true })).catch(e => toast('พิมพ์ใบเสร็จไม่ออก: ' + e.message + ' · พิมพ์ซ้ำได้จากประวัติการสั่ง', true));
       if (r.closed) {
         // เคยเปิดป้ายให้ลูกค้าดูในรอบนี้ → ขึ้น "จ่ายแล้ว + เงินทอน" ให้ลูกค้าเห็น (พนักงานกด ✕ ปิดเอง)
         if (st.cust || custShow.isOpen()) custShow.open({ amount: c.total, paid: true,

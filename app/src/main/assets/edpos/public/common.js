@@ -632,24 +632,35 @@ function ticketSlips(its, mode) {
   }
   return [its];
 }
+// test-1.98 ส่งทุกเครื่องพิมพ์พร้อมกัน (ใบของเครื่องเดียวกันยังออกตามลำดับ)
+// เดิมส่งทีละเครื่อง: ใบครัวต้องรอเครื่องหน้าร้านพิมพ์ครบทุกใบก่อน (ตอนนี้เซิร์ฟเวอร์รอเครื่องพิมพ์ยืนยันว่ารับครบ ใบละ 1–3 วิ)
 async function printTickets(table, items, title) {
   if (S.settings.printTickets === false) return;
   const k = ticketCfg(), extra = { feed: k.feed, beep: k.beep }, round = ticketRound(items);
-  for (const p of printerList()) {
+  await Promise.all(printerList().map(async p => {
     const its = [...items.filter(i => itemPrinters(i).includes(p.id)), ...splitItems(items, p.id)];
-    if (!its.length) continue;
+    if (!its.length) return;
     const slips = ticketSlips(its, p.slip || k.mode);   // ตั้งแยกแต่ละเครื่องได้ที่หลังร้าน > เครื่องพิมพ์
     for (let n = 0; n < slips.length; n++)
       await printWithRetry(ticketLines(table, slips[n], title, { cfg: k, station: p.name, round,
         part: slips.length > 1 ? `ใบ ${n + 1}/${slips.length}` : '' }), p.id, title ? 1 : p.copies || 1, extra);
-  }
+  }));
 }
 // ใบแจ้งสั้นๆ (เช่น ย้ายโต๊ะ) ไปเฉพาะเครื่องที่มีจานของโต๊ะนี้ค้างอยู่
 async function printNotice(lines, items) {
   if (S.settings.printTickets === false) return;
   const k = ticketCfg(), extra = { feed: k.feed, beep: k.beep };
-  for (const p of printerList())
-    if (items.some(i => needsSlip(i) && printsAt(i, p.id))) await printWithRetry(lines, p.id, 1, extra);
+  await Promise.all(printerList().filter(p => items.some(i => needsSlip(i) && printsAt(i, p.id)))
+    .map(p => printWithRetry(lines, p.id, 1, extra)));
+}
+// test-1.98 เครื่องพิมพ์ตอบสถานะแบบไหน (เรียนรู้จากงานที่ส่งไป · ใช้ดูว่าเครื่องในร้านทำงานแบบไหน)
+function prnCapText(c) {
+  if (!c) return 'ยังไม่มีข้อมูลการตอบกลับ (พิมพ์สักใบก่อน)';
+  const sec = ms => ms == null ? '–' : (ms / 1000).toFixed(1) + ' วิ', L = c.last || {};
+  const mode = { done: '✓ ตอบเมื่อรับครบและเมื่อพิมพ์จบ', recv: '✓ ตอบเมื่อรับงานครบ', quiet: 'ไม่ตอบสถานะ · รอตามขนาดงานแล้วตัดสาย' }[c.mode] || '';
+  const last = L.how === 'error' ? `ใบล่าสุดมีปัญหา: ${L.err}`
+    : `ใบล่าสุด ${Math.round((L.bytes || 0) / 1024)} KB${L.recvMs != null ? ' · รับครบ ' + sec(L.recvMs) : ''}${L.doneMs != null ? ' · พิมพ์จบ ' + sec(L.doneMs) : ''} · ใช้สาย ${sec(L.totalMs)}`;
+  return `${mode} · ${last}`;
 }
 
 // สร้างบรรทัดใบเสร็จจากบิล (paid=false → ใบแจ้งยอด)

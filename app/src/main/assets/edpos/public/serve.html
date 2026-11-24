@@ -295,6 +295,7 @@ function timeHtml(a){return C.timeStyle==='pill'?`<span class="tm ${a.cls}">${a.
 function barHtml(a){if(C.timeStyle!=='bar')return '';const pc=Math.min(100,Math.round(a.m/Math.max(1,C.late)*100));return `<div class="tbar"><i style="width:${Math.max(4,pc)}%"></i></div>`;}
 function tintStyle(a){if(!C.tint)return '';const c=a.cls==='late'?'#e03131':a.cls==='warn'?'#ffb347':'#63e6be';return ` style="background:${rgba(c,.2)}"`;}
 let D={ready:[],prep:[],cooking:[],served:[],categories:[]},view='ready',primed=false,seenR=new Set(),seenP=new Set(),gone=new Set();
+const goneAt=new Map();
 
 function where(x){return x.takeaway?'กลับบ้าน '+(x.pickup||''):'โต๊ะ '+x.table;}
 function mins(t){return Math.max(0,Math.floor((Date.now()-t)/60000));}
@@ -321,8 +322,11 @@ async function poll(){if(busy)return;busy=true;try{
   $('#dot').classList.remove('off');$('#info').textContent='';
   const fresh=j.ready.filter(d=>!seenR.has(d.id)&&!C.hide.includes(d.cat)),freshP=j.prep.filter(p=>!seenP.has(p.id));
   j.ready.forEach(d=>seenR.add(d.id));j.prep.forEach(p=>seenP.add(p.id));
-  const live=new Set([...j.ready.map(d=>d.id),...j.served.map(d=>d.id)]);for(const id of gone)if(!live.has(id))gone.delete(id);
-  for(const d of j.ready)if(gone.has(d.id)&&!d.servedAt)gone.delete(d.id);
+  const live=new Set([...j.ready.map(d=>d.id),...j.served.map(d=>d.id)]);for(const id of gone)if(!live.has(id)){gone.delete(id);goneAt.delete(id);}
+  // test-1.98 จานที่เพิ่งแตะ "เสิร์ฟ" (ยังบันทึกไม่เสร็จ) ไม่เด้งกลับมาแวบหนึ่งเพราะข้อมูลรอบที่ถามไว้ก่อนแตะ · เกิน 6 วิยังไม่บันทึก = กลับมาให้แตะใหม่
+  for(const d of j.ready)if(gone.has(d.id)&&!d.servedAt&&Date.now()-(goneAt.get(d.id)||0)>6000){gone.delete(d.id);goneAt.delete(d.id);}
+  // test-1.98 ครัวเรียกจานกลับมาทำใหม่ (หายจากรอเสิร์ฟ ไม่ได้อยู่ในเสิร์ฟแล้ว) → เสร็จรอบใหม่ต้องมีเสียง/อ่านอีกครั้ง (เดิมขึ้นเงียบ ๆ)
+  for(const id of seenR)if(!live.has(id))seenR.delete(id);
   D=j;SIZES=new Set((j.optGroups||[]).filter(g=>/ขนาด|size|ไซซ์|ไซส์/i.test(g.name)).flatMap(g=>g.choices));
   if(primed&&fresh.length){beep('ready');say(fresh.slice(0,3).map(sentence).join(' , '));}
   if(primed&&freshP.length){const fp=freshP.filter(showPrep);if(fp.length){beep('prep');say(fp.slice(0,2).map(x=>(x.label||'เตรียม '+x.name)+(x.thai?' คนไทย':'')+(x.size?' '+x.size:'')+' '+(+x.qty||1)+' จาน').join(' , '));}}
@@ -333,8 +337,8 @@ async function post(path,body){try{const r=await fetch(path,{method:'POST',heade
   if(!r.ok)throw new Error(j.error||'บันทึกไม่ได้');return true;}catch(e){toast('⚠ '+e.message);return false;}}
 
 // ===== เสิร์ฟ / เตรียม =====
-async function serve(ids,label){ids=ids.filter(Boolean);if(!ids.length)return;ids.forEach(id=>gone.add(id));render();
-  const ok=await post('/api/serve/done',{ids});if(!ok){ids.forEach(id=>gone.delete(id));render();return;}
+async function serve(ids,label){ids=ids.filter(Boolean);if(!ids.length)return;ids.forEach(id=>{gone.add(id);goneAt.set(id,Date.now());});render();
+  const ok=await post('/api/serve/done',{ids});if(!ok){ids.forEach(id=>{gone.delete(id);goneAt.delete(id);});$('#board')._kh='';render();return;}
   toast('เสิร์ฟแล้ว · '+label,'↩ ยกเลิก',async()=>{ids.forEach(id=>gone.delete(id));await post('/api/serve/done',{ids,undo:true});poll();});poll();}
 async function prepDone(ids,label){ids=[].concat(ids).filter(Boolean);D.prep=D.prep.filter(p=>!ids.includes(p.id));render();
   if(await post('/api/serve/prep',{ids}))toast('เตรียมแล้ว · '+label,'↩ ยกเลิก',async()=>{await post('/api/serve/prep',{ids,undo:true});poll();});poll();}

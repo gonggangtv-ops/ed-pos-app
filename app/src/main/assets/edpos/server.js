@@ -868,16 +868,55 @@ function mergeFrom(b) {
     const closedAt = oa.status === 'paid' ? oa.paidAt : oa.status === 'void' ? oa.voidedAt : 0;
     const closedThere = oa.status !== 'open' && closedAt >= cut;
     const mine = myOrders.get(key(oa));
-    if (!fresh.length && !closedThere) continue;   // ไม่ได้ทำอะไรที่เครื่องเดิมหลังแยก
+    // test-1.98 แยกจ่ายบางส่วนที่เครื่องเดิมหลังแยก (บิลยังเปิด ไม่ได้สั่งเพิ่ม) → เดิมข้ามไปเลย เงินที่รับแล้วหายจากบิล ไม่ขึ้นให้ตรวจด้วย
+    const paidThere = oa.status === 'open' ? (oa.payments || []).filter(p => p && p.at >= cut && !(mine?.payments || []).some(x => x.receiptNo === p.receiptNo && x.at === p.at)) : [];
+    // test-1.98 จานของบิลเดียวกันที่ถูกยกเลิก / ครัวกดเสร็จ ที่เครื่องเดิมหลังแยก (บิลยังเปิดทั้งสองเครื่อง) → ทำตามที่นี่ด้วย
+    // (เดิมข้าม: จานที่ยกเลิกไปแล้วยังค้างบนจอครัวและยังคิดเงิน · จานที่ทำเสร็จแล้วกลับมาขึ้นว่ารอทำ)
+    const changed = oa.status === 'open' && mine && mine.status === 'open' ? its.map(i => [i, myItems.get(key(i))]).filter(([i, m]) => m && m.orderId === mine.id
+      && ((i.status === 'cancelled' && m.status !== 'cancelled' && (i.cancelledAt || 0) >= cut) || (i.status === 'done' && m.status === 'new' && (i.doneAt || 0) >= cut))) : [];
+    if (!fresh.length && !closedThere && !paidThere.length && !changed.length) continue;   // ไม่ได้ทำอะไรที่เครื่องเดิมหลังแยก
     const idMap = {};
     if (oa.status === 'open') {
       let t = mine && mine.status === 'open' ? mine : data.orders.find(o => o.table === oa.table && o.status === 'open');
+      const isNew = !t;
       if (!t) { t = { ...oa, id: newId('o'), payments: undefined, merged: true }; data.orders.push(t); }
       copyItems(fresh, t, idMap);
-      t.kdsCleared = false; t.kdsDone = false; t.kdsDoneOn = {};
+      if (fresh.length || isNew) { t.kdsCleared = false; t.kdsDone = false; t.kdsDoneOn = {}; }
       tables.add(oa.table);
-      const paidThere = (oa.payments || []).filter(p => p.at >= cut);
-      if (paidThere.length) out.review.push(`โต๊ะ ${oa.table}: รับเงินบางส่วนที่เครื่องเดิม ${money(paidThere.reduce((s, p) => s + (p.total || p.amount || 0), 0))} · ตรวจยอดที่ค้างอีกครั้ง`);
+      if (changed.length) {
+        const pq0 = paidQtyOf(t), shared = (t.payments || []).some(p => p.kind === 'share');
+        for (const [i, m] of changed) {
+          if (i.status === 'done') { m.status = 'done'; m.doneAt = i.doneAt; continue; }
+          // จานที่จ่ายเงินไปแล้วที่นี่ / บิลเริ่มหารเท่าแล้ว → ยกเลิกเองไม่ได้ ให้คนตรวจ
+          if (pq0[m.id] || shared) { out.review.push(`โต๊ะ ${oa.table}: ${m.name} ถูกยกเลิกที่เครื่องเดิม แต่ที่นี่รับเงินไปแล้ว · ตรวจด้วย`); continue; }
+          m.kdsCancel = onScreen(m) && m.status === 'new';
+          Object.assign(m, { status: 'cancelled', cancelledAt: i.cancelledAt, cancelledBy: i.cancelledBy });
+          out.cancels = (out.cancels || 0) + 1;
+        }
+      }
+      if (paidThere.length) {
+        // บิลเดียวกัน และที่นี่ไม่ได้รับเงินโต๊ะนี้หลังแยก → บันทึกการจ่ายนั้นลงบิล (ยอดค้างถูกต้อง พิมพ์ใบเสร็จซ้ำได้)
+        // จานที่จ่ายถูกยกเลิก/ไม่ครบที่นี่ หรือยอดเกิน → ไม่เดา ขึ้น "ต้องตรวจ"
+        let adopt = (isNew || t === mine) && !(t.payments || []).some(p => p.at >= cut);
+        if (adopt) {
+          const pq = paidQtyOf(t), liveIts = data.items.filter(i => i.orderId === t.id && i.status !== 'cancelled');
+          for (const p of paidThere) for (const l of p.lines || []) {
+            const id = idMap[l.id] || l.id, it = liveIts.find(i => i.id === id);
+            pq[id] = (pq[id] || 0) + l.qty;
+            if (!it || pq[id] > it.qty) adopt = false;
+          }
+          const sub = r2(liveIts.reduce((s2, i) => s2 + i.price * i.qty, 0));
+          const paid = r2([...(t.payments || []), ...paidThere].reduce((s2, p) => s2 + (p.amount || 0), 0));
+          if (paid > sub + 0.001) adopt = false;
+        }
+        const amt = money(paidThere.reduce((s2, p) => s2 + (p.total || p.amount || 0), 0));
+        if (adopt) {
+          t.payments = [...(t.payments || []), ...mapPays(paidThere, idMap)].map((p, k) => ({ ...p, no: k + 1 }));
+          if (oa.splitN) t.splitN = oa.splitN;
+          out.pays = (out.pays || 0) + paidThere.length;
+          out.notes = [...(out.notes || []), `โต๊ะ ${oa.table}: รับเงินบางส่วนที่เครื่องเดิม ${amt} · บันทึกลงบิลแล้ว`];
+        } else out.review.push(`โต๊ะ ${oa.table}: รับเงินบางส่วนที่เครื่องเดิม ${amt} · ตรวจยอดที่ค้างอีกครั้ง`);
+      }
       continue;
     }
     // บิลปิดที่เครื่องเดิม
@@ -912,8 +951,8 @@ function mergeFrom(b) {
   }
   out.tables = [...tables];
   log.push(out); if (log.length > 10) log.splice(0, log.length - 10);
-  if (out.items || out.bills || out.review.length) {
-    const txt = `รวมออเดอร์จากเครื่องหลักเดิม: ${out.items} จาน · ${out.bills} บิล${out.tables.length ? ` (โต๊ะ ${out.tables.join(', ')})` : ''}`;
+  if (out.items || out.bills || out.pays || out.cancels || out.review.length) {
+    const txt = `รวมออเดอร์จากเครื่องหลักเดิม: ${out.items} จาน · ${out.bills} บิล${out.pays ? ` · รับเงินบางส่วน ${out.pays} ครั้ง` : ''}${out.cancels ? ` · ยกเลิก ${out.cancels} จาน` : ''}${out.tables.length ? ` (โต๊ะ ${out.tables.join(', ')})` : ''}`;
     addEvent('merge', txt);
     healthEvent('merge', { items: out.items, bills: out.bills, review: out.review });
     lineAlert('takeover', `🔀 ${txt}${out.review.length ? '\n⚠ ต้องตรวจ:\n· ' + out.review.join('\n· ') : ''}`);
@@ -982,7 +1021,7 @@ function healthReport(from, to) {
       uptime: Date.now() - BOOT, role: role.role, bat: health.bat || null,
       standby: role.role === 'main' ? (repl.standbySeen ? { seen: repl.standbySeen, ip: repl.standbyIp } : null) : { lastSync: repl.lastSync, err: repl.syncErr || '' },
       printers: (data.settings.printers || []).map(p => ({ id: p.id, name: p.name, ip: p.ip || '', down: !!prnState[p.id]?.down,
-        lastErr: prnState[p.id]?.lastErr || '', lastAt: prnState[p.id]?.lastAt || 0 })),
+        lastErr: prnState[p.id]?.lastErr || '', lastAt: prnState[p.id]?.lastAt || 0, cap: prnCapInfo(p) })),
       line: data.settings.line?.lastErr || data.settings.line?.alertErr || '',
     },
     starts: starts.length, downMin: starts.reduce((s, e) => s + (e.down || 0), 0),
@@ -1003,7 +1042,7 @@ function roleInfo() {
     // hasData = มีข้อมูลร้านแล้ว (เคยคัดลอก/ตั้งรหัส)
     finding: !!repl.finding,   // เครื่องสำรองกำลังค้นหาเครื่องหลักในวง Wi-Fi
     // รวมออเดอร์จากเครื่องหลักเดิมล่าสุด (2 ชม.) → หน้าจอขึ้นการ์ดแจ้งครั้งเดียว
-    merge: (() => { const m = (data.mergeLog || []).at(-1); return m && Date.now() - m.at < 7200000 && (m.items || m.bills || m.review.length) ? m : null; })(),
+    merge: (() => { const m = (data.mergeLog || []).at(-1); return m && Date.now() - m.at < 7200000 && (m.items || m.bills || m.pays || m.cancels || m.review.length) ? m : null; })(),
     conflict: repl.conflict, now: Date.now(), hasData: !!data.auth.admin, tz: new Date().getTimezoneOffset(), needPair: repl.needPair, app: !!process.env.EDPOS_APP, startupWarn,
     pairAsk: Date.now() - repl.pairAsk < 15000 ? repl.pairAskIp : '',
     openTables: data.orders.filter(o => o.status === 'open').length };
@@ -2370,21 +2409,25 @@ setInterval(async () => {
   if (!L?.token || role.role !== 'main' || lineBusy || Date.now() < lineRetryAt) return;
   const jobs = [];
   // รอบส่งเพิ่ม (ตามเวลาของแต่ละรอบ)
-  for (const r of L.rounds || []) if (r.on && r.lastSent !== k && lineTimePassed(new Date(), r.time)) jobs.push({ kind: 'day', parts: r.parts, mark: () => (r.lastSent = k) });
+  // test-1.98 จดว่า "ส่งแล้ว" ลงค่าตั้งตัวปัจจุบันเสมอ: ระหว่างรอ LINE/AI ตอบ ถ้ามีคนกดบันทึกที่หลังร้าน ค่าตั้งจะเป็นชุดใหม่
+  // (เดิมจดลงชุดเก่า → 30 วิถัดมาส่งสรุปเดิมซ้ำอีกรอบ)
+  const cur = () => data.settings.line || {};
+  for (const r of L.rounds || []) if (r.on && r.lastSent !== k && lineTimePassed(new Date(), r.time))
+    jobs.push({ kind: 'day', parts: r.parts, mark: () => { r.lastSent = k; const c = (cur().rounds || []).find(x => x.id === r.id); if (c) c.lastSent = k; } });
   if (lineTimePassed()) {
-  if (L.on && L.lastSent !== k) jobs.push({ kind: 'day', mark: () => (L.lastSent = k) });
+  if (L.on && L.lastSent !== k) jobs.push({ kind: 'day', mark: () => { L.lastSent = k; cur().lastSent = k; } });
   for (const [kind, key] of [['week', 'lastWeek'], ['month', 'lastMonth']]) {
     if (!L[kind === 'week' ? 'weekly' : 'monthly']) continue;
     const p = lastPeriod(kind, k, true);
-    if (L[key] !== p.to) jobs.push({ kind, period: p, mark: () => (L[key] = p.to) });
+    if (L[key] !== p.to) jobs.push({ kind, period: p, mark: () => { L[key] = p.to; cur()[key] = p.to; } });
   }
   }
   if (!jobs.length) return;
   lineBusy = true;
   try {
     for (const j of jobs) { await sendLine(k, j.kind, j.period, j.parts); j.mark(); console.log(`ส่งสรุปยอด (${j.kind}) เข้า LINE แล้ว`); }
-    L.lastErr = '';
-  } catch (e) { L.lastErr = e.message; lineRetryAt = Date.now() + 10 * 60000; healthEvent('line', { err: e.message }); console.log('ส่ง LINE ไม่สำเร็จ: ' + e.message); }
+    L.lastErr = ''; cur().lastErr = '';
+  } catch (e) { L.lastErr = e.message; cur().lastErr = e.message; lineRetryAt = Date.now() + 10 * 60000; healthEvent('line', { err: e.message }); console.log('ส่ง LINE ไม่สำเร็จ: ' + e.message); }
   finally { lineBusy = false; save(); broadcast(); }
 }, 30000);
 
@@ -2473,62 +2516,132 @@ function printRaster({ printer, widthBytes, height, bitsBase64, copies = 1, feed
   const payload = Buffer.concat([...(bp ? [Buffer.from([0x1b, 0x42, bp, 3])] : []),
     ...Array(Math.min(5, Math.max(1, copies | 0))).fill(one)]);
 
-  return sendWithRetry(pr, payload, label, onSent);
+  return sendWithRetry(pr, payload, label, onSent, { beepMs: bp * 400 });   // บี๊บละ ~0.4 วิ (เครื่องหยุดรับข้อมูลระหว่างบี๊บ)
 }
 
-// ส่งข้อมูลไปเครื่องพิมพ์ แล้วตัดการเชื่อมต่อเอง
-// เครื่องพิมพ์ใบเสร็จหลายรุ่นไม่ยอมปิดการเชื่อมต่อฝั่งตัวเอง และรับได้แค่ 1–2 การเชื่อมต่อพร้อมกัน
-// ถ้ารอให้มันปิดเอง การเชื่อมต่อจะค้างสะสมจนเครื่องพิมพ์ไม่รับงานใหม่ (ต้องปิดเปิดเครื่อง)
-// จึง: เขียนข้อมูลครบ → end() → รอ 1 วินาทีให้ข้อมูลถึง → destroy() ปิดให้ขาดเสมอ
-//  ขั้นตอน: ต่อ → ส่งงาน + คำสั่งถามสถานะ (DLE EOT) → เครื่องพิมพ์ตอบ = งานถึงเครื่องครบแล้ว
-//          → ตัดสายแบบบังคับ (RST) ให้เครื่องพิมพ์คืนช่องเชื่อมต่อทันที
-//  เครื่องรุ่นที่ไม่ตอบสถานะ: รอเผื่อเวลาตามขนาดงาน (อย่างน้อย 1.5 วินาที) แล้วค่อยตัด
-//  ไม่ใช้ end()/FIN เพราะหลังส่ง FIN ระบบจะตัดแบบบังคับไม่ได้ และเครื่องพิมพ์ดื้อจะค้างสาย
-//  onSent() = แจ้งหน้าจอว่าพิมพ์แล้ว
-const DLE_EOT = Buffer.from([0x10, 0x04, 0x01]);
-function sendOnce(pr, payload, label, onSent) {
+// ---------- ส่งงานถึงเครื่องพิมพ์ (test-1.98 เขียนใหม่) ----------
+// ปัญหาเดิม (ถึง test-1.97): ตัดสายแบบบังคับ (RST) เมื่อเครื่องพิมพ์ตอบสถานะ หรือเมื่อครบเวลาที่เดาจากขนาดงาน (อย่างน้อย 1.5 วิ)
+//   เครื่องพิมพ์ที่บัฟเฟอร์ในเครื่องเล็ก รับข้อมูลได้เร็วเท่าที่พิมพ์ออก · บี๊บ (หยุดรับระหว่างบี๊บ) · พื้นดำ (พิมพ์ช้า) · ใบก่อนหน้ายังพิมพ์ไม่จบ
+//   → ครบเวลาก่อนเครื่องพิมพ์รับข้อมูลหมด → RST ทิ้งข้อมูลที่ยังส่งไม่ถึง: ท้ายใบหาย (รายการท้าย ๆ + คำสั่งตัดกระดาษ)
+//   → ใบถัดไปพิมพ์ต่อกันไม่ตัด และหัวใบถัดไป (เลขโต๊ะ) ถูกกินเป็นข้อมูลภาพของใบที่ขาด กลายเป็นขยะ/หายไป
+//   ระบบเห็นว่าพิมพ์สำเร็จ จึงไม่มีอะไรเตือน
+// ตอนนี้ ต่อท้ายงานด้วย GS r 1 (เครื่องตอบเมื่อ "พิมพ์ถึง") และ DLE EOT 1 (เครื่องตอบเมื่อ "รับถึง")
+//   · ได้คำตอบ "พิมพ์ถึง" = พิมพ์ครบแล้ว → ตัดสาย (RST) ให้เครื่องพิมพ์ว่างรับงานต่อทันที
+//   · ได้แค่ "รับถึง" = ข้อมูลอยู่ในเครื่องพิมพ์ครบแล้ว → รอให้พิมพ์ (เครื่องที่ตอบ GS r ได้ รอคำตอบนั้น) แล้วตัดสาย
+//   · ไม่ตอบอะไรเลย (บางรุ่น): รอตามขนาดงานแบบเผื่อมาก (เครื่องช้า 12 KB/วิ + บี๊บ · เดิมเผื่อแค่ 25 KB/วิ) แล้วค่อยตัดสาย
+//     ไม่ปิดแบบปกติ (FIN) เพราะเครื่องดื้อจะไม่ปิดฝั่งตัวเอง และหลัง FIN แล้ว Node/libuv ตัดแบบบังคับไม่ได้ → สายค้าง เครื่องพิมพ์ไม่รับงานใหม่
+//   ไม่ตัดสายก่อนเครื่องพิมพ์ยืนยันว่ารับครบอีกแล้ว · เครื่องที่เคยตอบ รอได้ถึง ~2 นาที (เช่น กระดาษหมด/ฝาเปิดกลางงาน) แล้วจึงแจ้งพิมพ์ไม่ออก
+//   จำพฤติกรรมของแต่ละเครื่อง (ตอบสถานะไหม · ใช้เวลาเท่าไร) → หลังร้าน › เครื่องพิมพ์ แสดงให้ดู
+//   onSent() = แจ้งหน้าจอ (เครื่องพิมพ์ตอบรับ หรือส่งไปแล้ว 1.5 วิ สายยังดีอยู่) · งานถัดไปของเครื่องเดียวกันรอจนงานนี้จบจริง
+const PRN_TAIL = Buffer.from([0x1d, 0x72, 0x01, 0x10, 0x04, 0x01]);   // GS r 1 · DLE EOT 1
+const prnCaps = (health.prnCaps && typeof health.prnCaps === 'object') ? health.prnCaps : (health.prnCaps = {});   // 'ip:port' → สิ่งที่เรียนรู้จากงานก่อน ๆ (เก็บใน health.json)
+const prnKey = pr => `${pr.ip}:${Number(pr.port) || 9100}`;
+const prnCap = pr => (prnCaps[prnKey(pr)] ||= { jobs: 0, eot: 0, gsr: 0, quiet: 0, closed: 0, noGsr: 0, last: null });
+function sendOnce(pr, payload, label, onSent, meta = {}) {
   return new Promise((resolve, reject) => {
-    let done = false, confirmed = false, connected = false, closed = false, timer;
+    const cap = prnCap(pr), len = payload.length, beepMs = meta.beepMs || 0;
+    const knows = cap.eot + cap.gsr > 0;                 // เครื่องนี้เคยตอบสถานะ
+    const waitGsr = cap.gsr > 0 ? 'known' : cap.noGsr < 2 ? 'learn' : '';
+    const t0 = Date.now();
+    let done = false, timers = [], phase = 'connect', tC = 0, tW = 0, tEot = 0, tGsr = 0, eot = 0, gsr = 0, skip = 0;
+    let sent = false, eotWait = null, ending = null;
     const sock = net.connect({ host: pr.ip, port: Number(pr.port) || 9100 });
-    const finish = err => {
-      if (done) return;
-      done = true; clearTimeout(timer);
-      if (!closed && !sock.destroyed) { if (sock.resetAndDestroy) sock.resetAndDestroy(); else sock.destroy(); }
-      if (err) { err.retry = !confirmed; reject(err); } else resolve();
-    };
-    const delivered = () => {           // งานถึงเครื่องพิมพ์แล้ว → แจ้งหน้าจอ แล้วตัดสาย
-      if (confirmed || done) return;
-      confirmed = true; onSent?.();
-      clearTimeout(timer); timer = setTimeout(() => finish(), 150);
+    const at = (ms, fn) => { const t = setTimeout(fn, Math.max(0, ms)); timers.push(t); return t; };
+    const markSent = () => { if (!sent) { sent = true; try { onSent?.(); } catch {} } };
+    const fail = (msg, o = {}) => Object.assign(new Error(`${label} (${pr.ip}) ${msg}`), o);
+    const finish = (err, how) => {
+      if (done) return; done = true;
+      for (const t of timers) clearTimeout(t);
+      // RST ได้เฉพาะตอนต่อติดแล้วและยังไม่เริ่มปิดแบบปกติ (หลัง end/FIN libuv ไม่ยอม reset → สายค้างไม่ถูกปิด)
+      if (!sock.destroyed) {
+        if (phase !== 'connect' && sock.resetAndDestroy && !sock.writableEnded) { try { sock.resetAndDestroy(); } catch { sock.destroy(); } }
+        else sock.destroy();
+      }
+      if (phase !== 'connect') {
+        cap.jobs++; if (eot) cap.eot++; if (gsr) { cap.gsr++; cap.noGsr = 0; }
+        if (!eot && !gsr) cap.quiet++; if (how === 'closed') cap.closed++;
+        if (how === 'eot-wait' && waitGsr === 'learn') cap.noGsr++;
+        if (knows && !eot && !gsr && err) { cap.eot = 0; cap.gsr = 0; }   // เคยตอบแต่ตอนนี้ไม่ตอบ (อาจเปลี่ยนเครื่อง) → เรียนใหม่
+        cap.last = { at: Date.now(), how: err ? 'error' : how, bytes: len, recvMs: tEot ? tEot - (tW || tC) : null, doneMs: tGsr ? tGsr - (tW || tC) : null,
+          totalMs: Date.now() - t0, err: err ? err.message : '' };
+        healthDirty = true;
+      }
+      if (err) reject(err); else { markSent(); resolve(how); }
     };
     sock.setNoDelay(true);
-    // เชื่อมต่อไม่ติดใน 4 วินาที = เครื่องพิมพ์ไม่ตอบ (ปิดอยู่ / IP ผิด / ไม่ว่าง)
-    timer = setTimeout(() => finish(new Error(`${label} (${pr.ip}) ไม่ตอบ ตรวจไฟ/สาย/IP`)), 4000);
+    // เชื่อมต่อไม่ติดใน 4 วินาที = เครื่องพิมพ์ไม่ตอบ (ปิดอยู่ / IP ผิด) · ลองใหม่ได้ (ยังไม่ได้รับงาน)
+    at(4000, () => finish(fail('ไม่ตอบ ตรวจไฟ/สาย/IP', { retry: true })));
+    // รอนานสุด: กระดาษหมด/ฝาเปิด/เครื่องค้างกลางงาน → แจ้งพิมพ์ไม่ออก (ไม่ลองซ้ำ อาจพิมพ์ไปบางส่วนแล้ว)
+    const maxMs = Math.min(120000, 20000 + beepMs + len / 4);
     sock.on('connect', () => {
-      connected = true;
-      clearTimeout(timer);
-      // ส่งไม่หมดใน 20 วินาที (กระดาษหมด/ฝาเปิด/บัฟเฟอร์เต็ม) = ล้มเหลว ไม่ลองซ้ำ (อาจพิมพ์ไปบางส่วนแล้ว)
-      timer = setTimeout(() => { confirmed = true; finish(new Error(`${label} (${pr.ip}) รับงานไม่หมด ตรวจกระดาษ/ฝาเครื่อง`)); }, 20000);
-      sock.write(Buffer.concat([payload, DLE_EOT]), err => {
+      if (done) return;                   // ต่อติดหลังหมดเวลา (เลิกงานนี้ไปแล้ว) → ไม่ส่งอะไร
+      phase = 'send'; tC = Date.now();
+      for (const t of timers) clearTimeout(t); timers = [];
+      at(maxMs, () => finish(fail('รับงานไม่หมด ตรวจกระดาษ/ฝาเครื่อง', { retry: false })));
+      sock.write(Buffer.concat([payload, PRN_TAIL]), err => {
         if (err || done) return;
-        // เครื่องที่ไม่ตอบสถานะ: ไม่ถูกตัดสายภายในเวลานี้ = ถือว่ารับงานแล้ว
-        clearTimeout(timer);
-        timer = setTimeout(delivered, Math.min(8000, Math.max(1500, payload.length / 25)));
+        phase = 'wait'; tW = Date.now();
+        at(1500, markSent);
+        // ยังไม่เคยเห็นเครื่องนี้ตอบสถานะ: ไม่ได้คำตอบภายในเวลาที่เผื่อไว้ = เครื่องรุ่นที่ไม่ตอบ → ถือว่ารับครบแล้ว ตัดสาย
+        if (!knows) at(Math.min(60000, 2500 + beepMs + len / 12), () => { if (!eot && !gsr) finish(null, 'quiet'); });
       });
     });
-    sock.on('data', delivered);          // เครื่องพิมพ์ตอบสถานะกลับมา
-    // เครื่องพิมพ์ปิดหรือตัดสายเอง: หลังรับงานแล้ว = ปกติ · ก่อนรับงาน = ไม่ว่าง/ไม่ได้พิมพ์ → ลองใหม่
-    sock.on('close', () => { closed = true; if (confirmed) finish(); else finish(new Error(`${label} (${pr.ip}) ตัดการเชื่อมต่อก่อนรับงาน`)); });
-    sock.on('error', e => { if (confirmed) return finish(); finish(new Error(`${label} (${pr.ip}) เชื่อมต่อไม่ได้: ${e.code || e.message}`)); });
+    sock.on('data', d => {
+      for (const b of d) {
+        if (skip) { skip--; continue; }
+        if ((b & 0x93) === 0x10) { skip = 3; continue; }            // Auto Status Back 4 ไบต์ (ไม่ใช่คำตอบของเรา)
+        if ((b & 0x93) === 0x12) { if (!eot) tEot = Date.now(); eot++; }   // ตอบ DLE EOT = รับถึงท้ายงานแล้ว
+        else if ((b & 0x90) === 0) { if (!gsr) tGsr = Date.now(); gsr++; } // ตอบ GS r = พิมพ์ถึงท้ายงานแล้ว
+      }
+      if (phase === 'connect' || done) return;
+      if (gsr) { markSent(); if (!ending || eot) { ending = true; at(eot ? 60 : 400, () => finish(null, 'done')); } return; }
+      if (eot && !eotWait) {
+        markSent();
+        const ms = waitGsr === 'known' ? Math.min(60000, 3000 + beepMs + len / 6)      // รอคำตอบ "พิมพ์ถึง"
+          : waitGsr === 'learn' ? Math.min(12000, 2000 + beepMs + len / 40)           // ยังไม่รู้ว่าเครื่องนี้ตอบ GS r ไหม (2 งานแรก)
+          : Math.min(4000, 300 + len / 60);                                          // เครื่องไม่ตอบ GS r: เผื่อเวลาพิมพ์ส่วนที่ค้างในเครื่อง
+        eotWait = at(ms, () => finish(null, 'eot-wait'));
+      }
+    });
+    const quickDrop = () => !eot && !gsr && Date.now() - (tC || t0) < 2000;
+    // เครื่องพิมพ์ปิดเอง: ทันทีที่ต่อ (ยังไม่ตอบอะไร) = ไม่ว่าง → ลองใหม่ · หลังส่งครบ = อ่านครบแล้ว (ปกติ)
+    sock.on('end', () => {
+      if (quickDrop()) finish(fail('ปิดการเชื่อมต่อทันที (เครื่องพิมพ์ไม่ว่าง?)', { retry: true, busy: true }));
+      else if (phase === 'wait' || eot || gsr) finish(null, 'closed');
+    });
+    sock.on('close', () => {
+      if (done) return;
+      if (eot || gsr || (phase === 'wait' && !quickDrop())) finish(null, 'closed');
+      else finish(fail('ตัดการเชื่อมต่อก่อนรับงาน (เครื่องพิมพ์ไม่ว่าง?)', { retry: true, busy: true }));
+    });
+    sock.on('error', e => {
+      if (done) return;
+      if (eot || gsr) return finish(null, 'done');
+      if (phase === 'connect') return finish(fail(`เชื่อมต่อไม่ได้: ${e.code || e.message}`, { retry: true, busy: e.code === 'ECONNREFUSED' || e.code === 'ECONNRESET' }));
+      // ต่อติดแล้วถูกตัดทันที = เครื่องพิมพ์ไม่ว่าง (มีเครื่องอื่นต่ออยู่) → ลองใหม่ · ถูกตัดกลางงาน = อาจพิมพ์ไปบางส่วน → ไม่ลองซ้ำ
+      finish(fail(`ถูกตัดการเชื่อมต่อ: ${e.code || e.message}`, { retry: quickDrop(), busy: true }));
+    });
   });
 }
-// เครื่องพิมพ์ยังไม่ว่าง/เพิ่งตื่น → ลองใหม่เองอีก 2 ครั้ง (เฉพาะกรณีที่เครื่องพิมพ์ยังไม่ได้รับงาน จะได้ไม่พิมพ์ซ้ำ)
-async function sendWithRetry(pr, payload, label, onSent) {
+// สรุปให้หน้าจอ: เครื่องนี้ตอบสถานะแบบไหน (หลังร้าน › เครื่องพิมพ์ · ยอดขาย › ระบบ)
+function prnCapInfo(pr) {
+  const c = pr?.ip && prnCaps[prnKey(pr)]; if (!c || !c.jobs) return null;
+  const mode = c.gsr ? 'done' : c.eot ? 'recv' : 'quiet';
+  return { mode, jobs: c.jobs, last: c.last };
+}
+// ลองใหม่เอง (เฉพาะกรณีที่เครื่องพิมพ์ยังไม่ได้รับงาน จะได้ไม่พิมพ์ซ้ำ)
+// เครื่องไม่ตอบเลย (ปิด/IP ผิด): ลองอีก 2 ครั้ง · เครื่องไม่ว่าง (ปฏิเสธ/ตัดทันที): ลองต่อได้ราว 15 วิ (รอใบก่อนหน้าพิมพ์จบ)
+async function sendWithRetry(pr, payload, label, onSent, meta) {
+  const OFF = [800, 2000], BUSY = [500, 1000, 1500, 2000, 3000, 3500, 4000];
   let last;
-  for (const wait of [0, 800, 2000]) {
-    if (wait) await new Promise(r => setTimeout(r, wait));
-    try { return await sendOnce(pr, payload, label, onSent); }
-    catch (e) { last = e; if (!e.retry) break; }
+  for (let i = 0; ; i++) {
+    try { return await sendOnce(pr, payload, label, onSent, meta); }
+    catch (e) {
+      last = e;
+      const waits = e.busy ? BUSY : OFF;
+      if (!e.retry || i >= waits.length) break;
+      await new Promise(r => setTimeout(r, waits[i]));
+    }
   }
   throw last;
 }
@@ -2655,6 +2768,8 @@ const routes = {
   },
 
   'GET /api/role': (b, q, req) => { noteBattery(q, req); return roleInfo(); },
+  // test-1.98 พฤติกรรมของเครื่องพิมพ์แต่ละเครื่อง (หลังร้าน › เครื่องพิมพ์)
+  'GET /api/printers/caps': () => ({ caps: Object.fromEntries((data.settings.printers || []).map(p => [p.id, prnCapInfo(p)])) }),
   // สุขภาพระบบ: /api/health?from=&to= (เจ้าของร้าน)
   'GET /api/health': (b, q) => {
     const ok = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
@@ -3488,7 +3603,13 @@ const routes = {
     if (!it || it.status === 'cancelled') return;
     it.status = b.status === 'pending' ? 'new' : 'done';
     it.doneAt = it.status === 'done' ? Date.now() : null;
-    if (it.status === 'new') delete it.servedAt;   // test-1.95 ครัวเรียกจานกลับมาทำใหม่ → ทำเสร็จอีกรอบต้องขึ้นจอคนเสิร์ฟอีก
+    if (it.status === 'new') {
+      delete it.servedAt;   // test-1.95 ครัวเรียกจานกลับมาทำใหม่ → ทำเสร็จอีกรอบต้องขึ้นจอคนเสิร์ฟอีก
+      // test-1.98 จานกลับมา "ต้องทำ" แต่โต๊ะนี้เคยกด "เสร็จทั้งโต๊ะ" ไว้ → เอาโต๊ะกลับขึ้นจอครัวด้วย
+      // (เดิมต้องมีคำสั่งเรียกโต๊ะกลับตามมาอีกคำสั่ง · ถ้าคำสั่งนั้นหลุดกลางทาง จานจะค้างทำแต่ไม่อยู่บนจอครัวเลย)
+      const o = data.orders.find(x => x.id === it.orderId);
+      if (o && (o.kdsDone || o.kdsDoneOn)) { o.kdsDone = false; for (const sc of itemScreens(it)) if (o.kdsDoneOn) delete o.kdsDoneOn[sc]; o.kdsCleared = false; }
+    }
   },
 
   'POST /api/order/complete': b => {
@@ -3583,9 +3704,12 @@ const routes = {
       keys[k] = v;
     }
     const all = data.devCfg = data.devCfg && typeof data.devCfg === 'object' ? data.devCfg : {};
-    all[id] = { at: Date.now(), name: String(b.name || '').slice(0, 80), origin: String(b.origin || '').slice(0, 80), page: String(b.page || '').slice(0, 40), keys };
+    // test-1.98 at = เลขรุ่นของค่าชุดนี้ (เพิ่มขึ้นเสมอ) · หน้าจอจำไว้ว่าที่อยู่นั้นตรงกับรุ่นไหน
+    const at = Math.max(Date.now(), (all[id]?.at || 0) + 1);
+    all[id] = { at, name: String(b.name || '').slice(0, 80), origin: String(b.origin || '').slice(0, 80), page: String(b.page || '').slice(0, 40), keys };
     const ids = Object.keys(all);
     if (ids.length > 60) ids.sort((x, y) => all[x].at - all[y].at).slice(0, ids.length - 60).forEach(k => delete all[k]);
+    return { ok: true, at };
   },
 
   'POST /api/kds/clear': b => {
@@ -3599,10 +3723,12 @@ const routes = {
   // เข้าคิวทีละงานต่อเครื่อง (เครื่องพิมพ์ส่วนใหญ่รับได้ทีละการเชื่อมต่อ)
   'POST /api/print': async b => {
     const key = String(b.printer || data.settings.receiptPrinter);
-    // คิวต่อเครื่อง: งานถัดไปเริ่มหลังงานก่อนปิดสายเรียบร้อย · ตอบหน้าจอทันทีที่เครื่องพิมพ์รับงาน
+    // คิวต่อเครื่องพิมพ์ "ตัวจริง" (IP:พอร์ต) · test-1.98 เดิมแยกคิวตามรายการเครื่องพิมพ์ ถ้าตั้งสองรายการเป็น IP เดียวกัน งานจะชนกัน
+    // งานถัดไปเริ่มหลังงานก่อนจบจริง (เครื่องพิมพ์รับครบ/พิมพ์จบ) · ตอบหน้าจอทันทีที่เครื่องพิมพ์รับงาน
+    const pr = data.settings.printers.find(p => p.id === key), qk = pr?.ip ? prnKey(pr) : key;
     let markSent; const sentP = new Promise(r => (markSent = r));
-    const job = (printQueue[key] || Promise.resolve()).catch(() => {}).then(() => printRaster({ ...b, printer: key }, markSent));
-    printQueue[key] = job;
+    const job = (printQueue[qk] || Promise.resolve()).catch(() => {}).then(() => printRaster({ ...b, printer: key }, markSent));
+    printQueue[qk] = job;
     job.then(() => printerResult(key), e => printerResult(key, e));   // แจ้งเข้า LINE ถ้าพิมพ์ไม่ออก
     await Promise.race([sentP, job]);
     return { ok: true };
@@ -3686,6 +3812,18 @@ const server = http.createServer(async (req, res) => {
     req.on('data', c => parts.push(c));
     req.on('end', async () => {
       try {
+        // test-1.98 เครื่องนี้กำลังส่งงานให้เครื่องหลักตัวใหม่ (เครื่องหลักเดิมเพิ่งกลับมาเจอว่าอีกเครื่องรับงานแทนไปแล้ว)
+        // ออเดอร์/การรับเงินที่เข้ามาช่วงนี้ไม่ได้อยู่ในชุดที่ส่งไปรวม และข้อมูลเครื่องนี้กำลังจะถูกแทนด้วยของเครื่องใหม่
+        // → เดิมตอบว่าสำเร็จ (ใบสั่ง/ใบเสร็จออก) แล้วรายการหายไปเงียบ ๆ · ตอนนี้ไม่รับ ให้กดอีกครั้ง (ไปเข้าเครื่องหลักตัวใหม่)
+        if (yielding && req.method === 'POST' && !['/api/print', '/api/login', '/api/promote', '/api/sync/key', '/api/standby/pair', '/api/standby/peer'].includes(url.pathname)) {
+          res.writeHead(409, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'เครื่องนี้กำลังย้ายงานไปเครื่องหลักตัวใหม่ รอสักครู่แล้วกดอีกครั้ง', yielding: true }));
+        }
+        // คำขอที่เริ่มส่งตอนยังเป็นเครื่องหลัก แต่มาถึงครบหลังเปลี่ยนเป็นเครื่องสำรองพอดี → ไม่รับ (เดิมตอบสำเร็จแต่ไม่ได้บันทึก)
+        if (role.role === 'standby' && req.method === 'POST' && !['/api/promote', '/api/standby/pair', '/api/standby/peer'].includes(url.pathname)) {
+          res.writeHead(409, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'เครื่องนี้เป็นเครื่องสำรอง ใช้งานที่เครื่องหลัก', standby: true }));
+        }
         const body = Buffer.concat(parts).toString('utf8');
         const result = await handler(body ? JSON.parse(body) : {}, url.searchParams, req);
         // เครื่องสำรองไม่บันทึกเอง (ข้อมูลมาจากเครื่องหลักเท่านั้น) · ขอกุญแจ/ใส่รหัสไม่ได้เปลี่ยนข้อมูล

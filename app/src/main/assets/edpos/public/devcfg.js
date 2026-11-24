@@ -41,28 +41,35 @@
     }
   } catch {}
 
-  let ready = !!ls.get(MARK), last = '', busy = false;
+  // test-1.98 ที่อยู่นี้ "ตรงกับเครื่องหลักรุ่นไหน" (MARK = 's:<เวลาที่เครื่องหลักบันทึกค่าชุดนั้น>')
+  //   เดิม: ที่อยู่ไหนเคยตรวจแล้วถือว่าค่าในเครื่องถูกเสมอ → ที่อยู่สลับกลับไปค่าที่เคยใช้ (เช่น เราเตอร์แจก IP เดิมคืน / สลับเครื่องหลัก-สำรองไปมา)
+  //   จอกลับไปใช้ค่าเก่าที่ค้างอยู่ และส่งค่าเก่านั้นไปทับค่าล่าสุดที่เครื่องหลักด้วย
+  //   ใหม่: ค่าที่เครื่องหลักเป็นคนละรุ่นกับที่ที่อยู่นี้เคยตรงกัน (= แท็บเล็ตนี้ไปปรับค่าที่ที่อยู่อื่นมา) → ใช้ค่าจากเครื่องหลัก
+  //   ค่าที่ปรับที่ที่อยู่นี้แต่ยังส่งไม่ถึง (เครื่องหลักดับชั่วคราว) ไม่ถูกทับ เพราะรุ่นที่เครื่องหลักยังเป็นรุ่นเดิม
+  const markOf = () => { const m = ls.get(MARK) || ''; return { has: !!m, at: /^s:\d+$/.test(m) ? +m.slice(2) : -1 }; };
+  let checked = false, last = '', busy = false;
   async function check() {
-    if (ready) return true;
+    if (checked) return true;
     try {
       const j = await (await fetch('/api/devcfg?id=' + encodeURIComponent(id), { cache: 'no-store' })).json();
-      const c = j && j.cfg, keys = c && c.keys ? Object.entries(c.keys).filter(([k, v]) => KEYS.test(k) && typeof v === 'string') : [];
-      if (keys.length) {
-        let again = false;
-        try { const r = JSON.parse(sessionStorage.getItem('edpos-devcfg-r') || 'null'); again = r && Date.now() - r.at < 15000; } catch {}
+      if (!j || j.ok !== true) return false;
+      const c = j.cfg, keys = c && c.keys ? Object.entries(c.keys).filter(([k, v]) => KEYS.test(k) && typeof v === 'string') : [];
+      const m = markOf(), at = c ? +c.at || 0 : 0;
+      // ค่าในเครื่องนี้ใช้ได้เมื่อ: ตรงกับรุ่นที่เครื่องหลักมีอยู่ · หรือ (รุ่น test-1.97) เคยตรวจแล้วและค่าที่เครื่องหลักฝากมาจากที่อยู่นี้เอง
+      const mine = m.has && (m.at >= 0 ? m.at === at : !!c && c.origin === location.origin);
+      const local = snap(), differs = keys.some(([k, v]) => local[k] !== v) || (keys.length > 0 && Object.keys(local).some(k => !(k in c.keys)));
+      if (keys.length && !mine && differs) {
+        for (const k of Object.keys(local)) if (!(k in c.keys)) { try { localStorage.removeItem(k); } catch {} }
         for (const [k, v] of keys) ls.set(k, v);
-        ls.set(MARK, String(Date.now()));
-        ready = true;
-        if (!again) {
-          try { sessionStorage.setItem('edpos-devcfg-r', JSON.stringify({ at: Date.now(), from: c.origin || '' })); } catch {}
-          last = JSON.stringify(snap());
-          location.reload();
-          return false;
-        }
-        return true;
+        ls.set(MARK, 's:' + at);
+        checked = true;
+        try { sessionStorage.setItem('edpos-devcfg-r', JSON.stringify({ at: Date.now(), from: c.origin || '' })); } catch {}
+        last = JSON.stringify(snap());
+        location.reload();
+        return false;
       }
-      ls.set(MARK, String(Date.now()));   // เครื่องหลักยังไม่มีของแท็บเล็ตนี้ → ใช้ค่าในเครื่องแล้วฝากไว้
-      ready = true;
+      if (!m.has || m.at < 0 || (keys.length && !differs)) ls.set(MARK, 's:' + at);   // เครื่องหลักยังไม่มีของแท็บเล็ตนี้ / ตรงกันอยู่แล้ว
+      checked = true;
       return true;
     } catch { return false; }            // ติดต่อไม่ได้ → ลองใหม่รอบหน้า (ยังไม่ทับค่าที่ฝากไว้)
   }
@@ -74,7 +81,10 @@
       if (s === last || !Object.keys(keys).length) return;
       const r = await fetch('/api/devcfg', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, name, origin: location.origin, page: location.pathname, keys }) });
-      if (r.ok) last = s;                // เครื่องสำรองไม่รับ (ไม่ใช่เครื่องหลัก) → ลองใหม่เมื่อกลับมาเครื่องหลัก
+      if (r.ok) {                        // เครื่องสำรองไม่รับ (ไม่ใช่เครื่องหลัก) → ลองใหม่เมื่อกลับมาเครื่องหลัก
+        last = s;
+        try { const j = await r.json(); if (j && j.at) ls.set(MARK, 's:' + j.at); } catch {}
+      }
     } catch {} finally { busy = false; }
   }
   window.edposDevCfg = { id, sync };

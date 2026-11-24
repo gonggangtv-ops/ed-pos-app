@@ -1974,7 +1974,8 @@ function renderHealth() {
     : Date.now() - n.standby.seen > 120000 ? row('📱', 'เครื่องสำรอง', `${n.standby.ip || ''} · คัดลอกข้อมูลล่าสุด ${ago(n.standby.seen)}`, '⚠ หลุด', 'bad')
     : row('📱', 'เครื่องสำรอง', `${n.standby.ip || ''} · คัดลอกข้อมูลล่าสุด ${ago(n.standby.seen)}`, '✓ เชื่อมอยู่', 'ok');
   else html += row('📱', 'เครื่องหลัก', n.standby.err ? n.standby.err : `คัดลอกข้อมูลล่าสุด ${n.standby.lastSync ? ago(n.standby.lastSync) : '–'}`, n.standby.err ? '⚠ ติดต่อไม่ได้' : '✓ เชื่อมอยู่', n.standby.err ? 'bad' : 'ok');
-  for (const p of n.printers) html += row('🖨', `เครื่องพิมพ์ ${esc(p.name)}`, p.down ? esc(p.lastErr) : p.lastAt ? `${esc(p.ip)} · พิมพ์ล่าสุด ${ago(p.lastAt)}` : `${esc(p.ip)} · ยังไม่ได้พิมพ์ตั้งแต่เปิดเซิร์ฟเวอร์`,
+  for (const p of n.printers) html += row('🖨', `เครื่องพิมพ์ ${esc(p.name)}`, (p.down ? esc(p.lastErr) : p.lastAt ? `${esc(p.ip)} · พิมพ์ล่าสุด ${ago(p.lastAt)}` : `${esc(p.ip)} · ยังไม่ได้พิมพ์ตั้งแต่เปิดเซิร์ฟเวอร์`)
+      + (p.cap ? `<br><small>${esc(prnCapText(p.cap))}</small>` : ''),
     p.down ? '⚠ พิมพ์ไม่ออก' : p.lastAt ? '✓ ปกติ' : '–', p.down ? 'bad' : p.lastAt ? 'ok' : 'na');
   if (S.settings.line?.hasToken) html += row('💬', 'LINE', n.line ? esc(n.line) : 'ส่งข้อความได้ปกติ', n.line ? '⚠ ส่งไม่สำเร็จ' : '✓ ปกติ', n.line ? 'bad' : 'ok');
   $('#hNow').innerHTML = html;

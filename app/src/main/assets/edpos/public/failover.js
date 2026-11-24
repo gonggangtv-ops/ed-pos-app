@@ -195,7 +195,7 @@
     if (seen === m.id) return false;
     if (mergeShown === m.id && bar) return true;
     mergeShown = m.id;
-    const parts = [m.items ? `${m.items} จาน` : '', m.bills ? `${m.bills} บิล` : '', m.tables?.length ? `โต๊ะ ${m.tables.join(', ')}` : ''].filter(Boolean).join(' · ');
+    const parts = [m.items ? `${m.items} จาน` : '', m.bills ? `${m.bills} บิล` : '', m.pays ? `รับเงินบางส่วน ${m.pays} ครั้ง` : '', m.cancels ? `ยกเลิก ${m.cancels} จาน` : '', m.tables?.length ? `โต๊ะ ${m.tables.join(', ')}` : ''].filter(Boolean).join(' · ');
     const rv = m.review?.length ? `<br>⚠ ต้องตรวจ: ${m.review.slice(0, 3).map(x => x.replace(/[<&]/g, '')).join('<br>⚠ ')}` : '';
     showBar('รวมออเดอร์จากเครื่องหลักเดิมแล้ว', (parts || 'ไม่มีรายการใหม่') + rv, 'รับทราบ', 'ok');
     bar.querySelector('#foPromote').onclick = () => { try { localStorage.setItem('edpos-merge-seen', m.id); } catch {} hideBar(); };
